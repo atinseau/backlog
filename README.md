@@ -104,6 +104,8 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 
 `cockpit schedule explain` shows the chosen action for each selected task plus the ranked candidate agents and why they were accepted or rejected.
 
+`cockpit schedule run` now supports `--json` and reports both started runs and skipped tasks, including cases where a forced or assigned agent is unavailable or not executable.
+
 ## Source Sync
 
 - `sources push --all` pushes every source-linked work item that supports outbound sync.

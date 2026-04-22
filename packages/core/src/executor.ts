@@ -3,6 +3,16 @@ import { executeClaudeAgentRun } from "./claude-executor.js";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { executeCustomAgentRun } from "./custom-executor.js";
 
+export function supportsAgentExecution(agent: Agent): boolean {
+  if (agent.provider === "custom") {
+    return Boolean(agent.command);
+  }
+  if (agent.provider === "codex" || agent.provider === "claude") {
+    return true;
+  }
+  return false;
+}
+
 export async function executeAgentRun(params: {
   cockpitDir: string;
   run: Run;

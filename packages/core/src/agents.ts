@@ -277,6 +277,14 @@ export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | 
     });
 }
 
+export function selectionForAgentTask(
+  cockpitDir: string,
+  task: Pick<Task, "repo" | "risk" | "execution">,
+  agentId: string,
+): AgentSelection | null {
+  return rankAgentsForTask(cockpitDir, task).find((candidate) => candidate.agent.id === agentId) ?? null;
+}
+
 export function pickAgentForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent {
   const agent = rankAgentsForTask(cockpitDir, task).find((candidate) => candidate.available)?.agent;
   if (!agent) {

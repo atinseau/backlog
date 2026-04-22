@@ -15,11 +15,21 @@ import {
   nextRunId,
   pickAgentForTask,
   rankAgentsForTask,
+  selectionForAgentTask,
+  supportsAgentExecution,
   updateRunStatus,
   updateTaskStatus,
   writeWorktreeContext,
 } from "@cockpit-ai/core";
 import { detectGitDir } from "@cockpit-ai/git";
+
+function parseMaxStart(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "1", 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    throw new Error(`Invalid --max-start value: ${value ?? "undefined"}. Expected a positive integer.`);
+  }
+  return parsed;
+}
 
 export function registerScheduleCommand(program: Command): void {
   const schedule = program.command("schedule").description("Plan and execute task scheduling");
@@ -134,7 +144,8 @@ export function registerScheduleCommand(program: Command): void {
     .option("--max-start <count>", "Limit the number of runs to start", "1")
     .option("--agent <agent-id>", "Force one agent id")
     .option("--approve", "Required in assist mode")
-    .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean }) => {
+    .option("--json", "Emit machine-readable JSON")
+    .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
@@ -151,43 +162,61 @@ export function registerScheduleCommand(program: Command): void {
         ...(options.workItem ? { workItemId: options.workItem } : {}),
         ...(options.task ? { taskId: options.task } : {}),
       });
-      const maxStart = Number.parseInt(options.maxStart ?? "1", 10);
-      const started: string[] = [];
+      const maxStart = parseMaxStart(options.maxStart);
+      const started: Array<{ runId: string; taskId: string; agentId: string; branch: string }> = [];
+      const skipped: Array<{ taskId: string; reasons: string[] }> = [];
 
       for (const decision of plan.runnable.slice(0, maxStart)) {
         const task = getTask(workspace.cockpitDir, decision.taskId);
         if (!task) {
+          skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
           continue;
         }
         const workItem = getWorkItem(workspace.cockpitDir, task.work_item_id);
         if (!workItem) {
+          skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
           continue;
         }
         const repo = config.repos.find((candidate) => candidate.id === task.repo);
         if (!repo) {
-          throw new Error(`Task ${task.id} targets unknown repo ${task.repo}`);
+          skipped.push({ taskId: task.id, reasons: [`unknown_repo:${task.repo}`] });
+          continue;
         }
 
         const activeAgentRuns = listActiveRuns(workspace.cockpitDir).filter((run) => run.status === "running" || run.status === "preparing");
         const agent = options.agent
           ? (() => {
-              const forced = getAgent(workspace.cockpitDir, options.agent);
-              if (!forced) {
+              const forcedSelection = selectionForAgentTask(workspace.cockpitDir, task, options.agent);
+              if (!forcedSelection) {
                 throw new Error(`Unknown agent: ${options.agent}`);
               }
-              return forced;
+              if (!forcedSelection.available) {
+                skipped.push({ taskId: task.id, reasons: forcedSelection.reasons });
+                return null;
+              }
+              return forcedSelection.agent;
             })()
             : decision.assignedAgentId
             ? (() => {
                 const assigned = getAgent(workspace.cockpitDir, decision.assignedAgentId!);
                 if (!assigned) {
-                  throw new Error(`Unknown assigned agent: ${decision.assignedAgentId}`);
+                  skipped.push({ taskId: task.id, reasons: [`unknown_assigned_agent:${decision.assignedAgentId}`] });
+                  return null;
                 }
                 return assigned;
               })()
             : pickAgentForTask(workspace.cockpitDir, task);
 
+        if (!agent) {
+          continue;
+        }
+
         if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
+          skipped.push({ taskId: task.id, reasons: ["no_agent_capacity"] });
+          continue;
+        }
+        if (!supportsAgentExecution(agent)) {
+          skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
           continue;
         }
 
@@ -230,7 +259,12 @@ export function registerScheduleCommand(program: Command): void {
         addRunArtifact(workspace.cockpitDir, run.id, { kind: "branch", value: branch });
         updateRunStatus(workspace.cockpitDir, run.id, "running", "Execution workspace prepared");
         updateTaskStatus(workspace.cockpitDir, task.id, "running");
-        started.push(`${run.id} -> ${task.id} (${agent.id})`);
+        started.push({
+          runId: run.id,
+          taskId: task.id,
+          agentId: agent.id,
+          branch,
+        });
 
         if (await executeAgentRun({
           cockpitDir: workspace.cockpitDir,
@@ -241,15 +275,55 @@ export function registerScheduleCommand(program: Command): void {
         })) {
           continue;
         }
+
+        skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
+        updateRunStatus(workspace.cockpitDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
+        updateTaskStatus(workspace.cockpitDir, task.id, "blocked");
+      }
+
+      const payload = {
+        started,
+        skipped,
+        waiting: plan.waiting.map((decision) => ({ taskId: decision.taskId, reasons: decision.reasons })),
+        blocked: plan.blocked.map((decision) => ({ taskId: decision.taskId, reasons: decision.reasons })),
+      };
+
+      if (options.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
       }
 
       if (started.length === 0) {
         console.log("No runs started.");
+        if (skipped.length > 0) {
+          console.log("Skipped:");
+          for (const item of skipped) {
+            console.log(`- ${item.taskId} ${item.reasons.join(", ")}`);
+          }
+        }
+        if (plan.waiting.length > 0) {
+          console.log("Waiting:");
+          for (const item of plan.waiting) {
+            console.log(`- ${item.taskId} ${item.reasons.join(", ")}`);
+          }
+        }
+        if (plan.blocked.length > 0) {
+          console.log("Blocked:");
+          for (const item of plan.blocked) {
+            console.log(`- ${item.taskId} ${item.reasons.join(", ")}`);
+          }
+        }
         return;
       }
       console.log("Started runs");
-      for (const line of started) {
-        console.log(`- ${line}`);
+      for (const item of started) {
+        console.log(`- ${item.runId} -> ${item.taskId} (${item.agentId})`);
+      }
+      if (skipped.length > 0) {
+        console.log("Skipped:");
+        for (const item of skipped) {
+          console.log(`- ${item.taskId} ${item.reasons.join(", ")}`);
+        }
       }
     });
 }

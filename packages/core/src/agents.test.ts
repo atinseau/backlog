@@ -4,7 +4,9 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@cockpit-ai/config";
 import { git } from "@cockpit-ai/git";
-import { getAgent, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
+import { getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
+import { createTask } from "./task-service.js";
+import { createWorkItem } from "./work-service.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-agents-"));
@@ -82,5 +84,20 @@ describe("agents", () => {
 
     const validation = validateAgents(cockpitDir).find((result) => result.id === "manual-default");
     expect(validation?.ok).toBe(true);
+  });
+
+  it("explains why a forced agent is unavailable for one task", () => {
+    const workItem = createWorkItem(cockpitDir, { title: "Agent targeting", repoTargets: ["cockpit"] });
+    const task = createTask(cockpitDir, {
+      workItemId: workItem.id,
+      title: "Run with codex",
+      repo: "cockpit",
+      risk: "low",
+      requiredCapabilities: ["edit_code"],
+    });
+
+    const selection = selectionForAgentTask(cockpitDir, task, "codex-default");
+    expect(selection?.available).toBe(false);
+    expect(selection?.reasons).toContain("disabled");
   });
 });
