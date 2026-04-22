@@ -1,3 +1,5 @@
+import { archiveClaim, listActiveClaims, removeContextFile } from "@cockpit-ai/claims";
+import { detectGitDir } from "@cockpit-ai/git";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { updateWorkItemStatus } from "./work-service.js";
 import { archiveRun, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
@@ -21,15 +23,47 @@ function syncParentWorkAfterRun(cockpitDir: string, taskId: string, status: "rev
   updateWorkItemStatus(cockpitDir, task.work_item_id, "blocked");
 }
 
-export function completeRun(cockpitDir: string, runId: string, summary?: string): void {
+async function releaseRunClaims(cockpitDir: string, runId: string): Promise<void> {
+  const run = loadRun(cockpitDir, runId);
+  if (!run) {
+    throw new Error(`Unknown run: ${runId}`);
+  }
+
+  const activeClaims = new Map(listActiveClaims(cockpitDir).map((claim) => [claim.id, claim]));
+  for (const claimId of run.claim_ids) {
+    const claim = activeClaims.get(claimId);
+    if (!claim) {
+      continue;
+    }
+    archiveClaim(cockpitDir, claimId);
+
+    try {
+      const repoGitDir = await detectGitDir(claim.repo_path);
+      removeContextFile(repoGitDir, claimId);
+    } catch {
+      // Ignore repo cleanup failures; the archived claim is already authoritative.
+    }
+
+    try {
+      const worktreeGitDir = await detectGitDir(run.worktree_path);
+      removeContextFile(worktreeGitDir, claimId);
+    } catch {
+      // Ignore worktree cleanup failures; the archived claim is already authoritative.
+    }
+  }
+}
+
+export async function completeRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(cockpitDir, runId, "succeeded", summary ?? "Completed by operator");
   syncParentWorkAfterRun(cockpitDir, run.task_id, "completed");
+  await releaseRunClaims(cockpitDir, runId);
   archiveRun(cockpitDir, runId);
 }
 
-export function failRun(cockpitDir: string, runId: string, summary?: string): void {
+export async function failRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(cockpitDir, runId, "failed", summary ?? "Failed by operator");
   syncParentWorkAfterRun(cockpitDir, run.task_id, "blocked");
+  await releaseRunClaims(cockpitDir, runId);
   archiveRun(cockpitDir, runId);
 }
 

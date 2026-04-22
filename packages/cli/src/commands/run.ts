@@ -123,12 +123,12 @@ export function registerRunCommand(program: Command): void {
     .description("Mark a run as complete and archive it")
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Completion summary")
-    .action((runId: string, options: { summary?: string }) => {
+    .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      completeRun(workspace.cockpitDir, runId, options.summary);
+      await completeRun(workspace.cockpitDir, runId, options.summary);
       console.log(`Completed ${runId}`);
     });
 
@@ -137,12 +137,12 @@ export function registerRunCommand(program: Command): void {
     .description("Mark a run as failed and archive it")
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Failure summary")
-    .action((runId: string, options: { summary?: string }) => {
+    .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      failRun(workspace.cockpitDir, runId, options.summary);
+      await failRun(workspace.cockpitDir, runId, options.summary);
       console.log(`Failed ${runId}`);
     });
 

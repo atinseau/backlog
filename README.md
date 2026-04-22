@@ -67,6 +67,8 @@ You can add a `custom` provider in `.cockpit/agents.yaml` with a shell `command`
 
 When `schedule run --agent <id>` targets a custom agent, Cockpit will execute that command inside the run worktree and mark the run succeeded or failed from the exit code.
 
+Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
+
 ## Split Planning
 
 `cockpit work split` turns one backlog item into repo-scoped executable tasks.
