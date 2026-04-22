@@ -1,0 +1,224 @@
+import { listActiveClaims, scopesOverlap } from "@cockpit-ai/claims";
+import type { Task, WorkItem, WorkspaceConfig } from "@cockpit-ai/schemas";
+import { listTasks, listWorkItems } from "./state-files.js";
+
+export type DecisionAction = "run" | "wait" | "block" | "skip";
+
+export interface TaskDecision {
+  taskId: string;
+  workItemId: string;
+  action: DecisionAction;
+  score: number;
+  reasons: string[];
+}
+
+export interface ExecutionPlan {
+  generatedAt: string;
+  maxAgents: number;
+  runnable: TaskDecision[];
+  waiting: TaskDecision[];
+  blocked: TaskDecision[];
+  skipped: TaskDecision[];
+}
+
+function isTerminal(status: Task["status"]): boolean {
+  return status === "completed" || status === "canceled";
+}
+
+function taskPriorityWeight(workItem: WorkItem): number {
+  switch (workItem.priority) {
+    case "P0":
+      return 100;
+    case "P1":
+      return 80;
+    case "P2":
+      return 50;
+    case "P3":
+      return 20;
+  }
+}
+
+function riskWeight(task: Task): number {
+  switch (task.risk) {
+    case "low":
+      return 15;
+    case "medium":
+      return 0;
+    case "high":
+      return -25;
+  }
+}
+
+function blastRadiusWeight(task: Task): number {
+  if (task.scopes.length <= 2) {
+    return 20;
+  }
+  if (task.scopes.length <= 5) {
+    return 5;
+  }
+  return -20;
+}
+
+function overlapWithClaim(task: Task, repoPath: string, claims: ReturnType<typeof listActiveClaims>) {
+  return claims.find((claim) => {
+    if (claim.repo !== task.repo && claim.repo_path !== repoPath) {
+      return false;
+    }
+    if (claim.mode === "shared" && task.claim_mode === "shared") {
+      return false;
+    }
+    return claim.paths.some((claimScope) => task.scopes.some((taskScope) => scopesOverlap(claimScope, taskScope)));
+  });
+}
+
+function dependencyReasons(task: Task, tasksById: Map<string, Task>): string[] {
+  return task.depends_on
+    .filter((dependencyId) => tasksById.get(dependencyId)?.status !== "completed")
+    .map((dependencyId) => `blocked_by_dependency:${dependencyId}`);
+}
+
+function policyReasons(task: Task, config: WorkspaceConfig): string[] {
+  const reasons: string[] = [];
+  if (config.autonomy_mode === "observe") {
+    reasons.push("autonomy_mode_observe");
+  }
+  if (config.autonomy_mode === "assist" && task.execution.manual_approval_required) {
+    reasons.push("manual_approval_required");
+  }
+  if ((config.autonomy_mode === "assist" || config.autonomy_mode === "delegate") && task.risk === "high") {
+    reasons.push("high_risk_requires_higher_autonomy");
+  }
+  return reasons;
+}
+
+function scoreTask(task: Task, workItem: WorkItem): number {
+  return (
+    taskPriorityWeight(workItem) +
+    riskWeight(task) +
+    blastRadiusWeight(task) +
+    (task.status === "review" ? 15 : 0) +
+    (task.status === "waiting" ? 10 : 0) +
+    (task.depends_on.length === 0 ? 20 : 0)
+  );
+}
+
+export function buildExecutionPlan(
+  cockpitDir: string,
+  config: WorkspaceConfig,
+  options?: { workItemId?: string; taskId?: string },
+): ExecutionPlan {
+  const tasks = listTasks(cockpitDir).filter((task) => !isTerminal(task.status));
+  const workItems = listWorkItems(cockpitDir);
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const workItemsById = new Map(workItems.map((item) => [item.id, item]));
+  const claims = listActiveClaims(cockpitDir);
+
+  const candidates = tasks.filter((task) => {
+    if (options?.taskId) {
+      return task.id === options.taskId;
+    }
+    if (options?.workItemId) {
+      return task.work_item_id === options.workItemId;
+    }
+    return true;
+  });
+
+  const evaluated: TaskDecision[] = candidates.map((task) => {
+    const workItem = workItemsById.get(task.work_item_id);
+    if (!workItem) {
+      return {
+        taskId: task.id,
+        workItemId: task.work_item_id,
+        action: "block",
+        score: -1000,
+        reasons: ["missing_work_item"],
+      };
+    }
+
+    const reasons: string[] = [];
+    const dependencyBlocks = dependencyReasons(task, tasksById);
+    reasons.push(...dependencyBlocks);
+
+    const policyBlocks = policyReasons(task, config);
+    reasons.push(...policyBlocks);
+
+    const repo = config.repos.find((repo) => repo.id === task.repo);
+    if (!repo) {
+      reasons.push("unknown_repo");
+    } else {
+      const claimOverlap = overlapWithClaim(task, repo.path, claims);
+      if (claimOverlap) {
+        reasons.push(`scope_conflict_with:${claimOverlap.id}`);
+      }
+    }
+
+    if (task.blockers.length > 0) {
+      reasons.push(...task.blockers.map((blocker) => `task_blocker:${blocker}`));
+    }
+
+    const score = scoreTask(task, workItem);
+    if (reasons.length === 0) {
+      return {
+        taskId: task.id,
+        workItemId: task.work_item_id,
+        action: "run",
+        score,
+        reasons: ["dependencies_clear", "scope_clear", "policy_clear"],
+      };
+    }
+
+    const action: DecisionAction = reasons.some((reason) => reason.startsWith("scope_conflict_with:") || reason.startsWith("blocked_by_dependency:"))
+      ? "wait"
+      : "block";
+
+    return {
+      taskId: task.id,
+      workItemId: task.work_item_id,
+      action,
+      score,
+      reasons,
+    };
+  });
+
+  const runnable = evaluated
+    .filter((decision) => decision.action === "run")
+    .sort((left, right) => right.score - left.score)
+    .slice(0, config.max_agents);
+  const runnableIds = new Set(runnable.map((decision) => decision.taskId));
+  const waiting = evaluated.filter((decision) => decision.action === "wait" || (decision.action === "run" && !runnableIds.has(decision.taskId)));
+  const blocked = evaluated.filter((decision) => decision.action === "block");
+  const skipped = evaluated.filter((decision) => decision.action === "skip");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    maxAgents: config.max_agents,
+    runnable,
+    waiting,
+    blocked,
+    skipped,
+  };
+}
+
+export interface WorkExecutionOutline {
+  workItem: WorkItem;
+  tasks: Task[];
+  maxSafeParallelism: number;
+  recommendedNextTaskId: string | null;
+}
+
+export function buildWorkExecutionOutline(cockpitDir: string, config: WorkspaceConfig, workItemId: string): WorkExecutionOutline {
+  const workItem = listWorkItems(cockpitDir).find((item) => item.id === workItemId);
+  if (!workItem) {
+    throw new Error(`Unknown work item: ${workItemId}`);
+  }
+  const tasks = listTasks(cockpitDir)
+    .filter((task) => task.work_item_id === workItemId)
+    .sort((left, right) => left.depends_on.length - right.depends_on.length || left.created_at.localeCompare(right.created_at));
+  const plan = buildExecutionPlan(cockpitDir, config, { workItemId });
+  return {
+    workItem,
+    tasks,
+    maxSafeParallelism: Math.min(config.max_agents, tasks.filter((task) => task.depends_on.length === 0).length || 1),
+    recommendedNextTaskId: plan.runnable[0]?.taskId ?? null,
+  };
+}

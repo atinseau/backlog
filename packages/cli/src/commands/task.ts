@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { createTask, getTask, listTasks, updateTaskStatus } from "@cockpit-ai/core";
+import { buildExecutionPlan, createTask, getTask, listTasks, updateTaskStatus } from "@cockpit-ai/core";
+import { loadConfig } from "@cockpit-ai/config";
 
 export function registerTaskCommand(program: Command): void {
   const task = program.command("task").description("Manage executable tasks");
@@ -103,5 +104,31 @@ export function registerTaskCommand(program: Command): void {
       }
       const task = updateTaskStatus(workspace.cockpitDir, taskId, status);
       console.log(`Moved ${task.id} to ${task.status}`);
+    });
+
+  task
+    .command("plan")
+    .description("Explain one task's scheduling state")
+    .argument("<task-id>", "Task id")
+    .option("--json", "Emit machine-readable JSON")
+    .action((taskId: string, options: { json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const config = loadConfig(workspace.cockpitDir);
+      const plan = buildExecutionPlan(workspace.cockpitDir, config, { taskId });
+      const decision = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped][0];
+      if (!decision) {
+        throw new Error(`No schedulable decision found for task: ${taskId}`);
+      }
+      if (options.json) {
+        console.log(JSON.stringify(decision, null, 2));
+        return;
+      }
+      console.log(`Task: ${decision.taskId}`);
+      console.log(`Action: ${decision.action}`);
+      console.log(`Score: ${decision.score}`);
+      console.log(`Reasons: ${decision.reasons.join(", ")}`);
     });
 }

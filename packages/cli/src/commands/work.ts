@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { createWorkItem, getWorkItem, listWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { buildWorkExecutionOutline, createWorkItem, getWorkItem, listWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { loadConfig } from "@cockpit-ai/config";
 
 export function registerWorkCommand(program: Command): void {
   const work = program.command("work").description("Manage normalized work items");
@@ -102,5 +103,40 @@ export function registerWorkCommand(program: Command): void {
       }
       const item = updateWorkItemStatus(workspace.cockpitDir, workItemId, status);
       console.log(`Moved ${item.id} to ${item.status}`);
+    });
+
+  work
+    .command("plan")
+    .description("Explain how a work item would execute")
+    .argument("<work-item-id>", "Work item id")
+    .option("--json", "Emit machine-readable JSON")
+    .action((workItemId: string, options: { json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const config = loadConfig(workspace.cockpitDir);
+      const outline = buildWorkExecutionOutline(workspace.cockpitDir, config, workItemId);
+
+      if (options.json) {
+        console.log(JSON.stringify(outline, null, 2));
+        return;
+      }
+
+      console.log(`Work item: ${outline.workItem.id}`);
+      console.log(`Title: ${outline.workItem.title}`);
+      console.log("");
+      console.log("Execution order");
+      outline.tasks.forEach((task, index) => {
+        console.log(`${index + 1}. ${task.id} ${task.repo} ${task.title}`);
+        if (task.depends_on.length > 0) {
+          console.log(`   depends on: ${task.depends_on.join(", ")}`);
+        }
+      });
+      console.log("");
+      console.log(`Max safe parallelism: ${outline.maxSafeParallelism}`);
+      if (outline.recommendedNextTaskId) {
+        console.log(`Recommended next task: ${outline.recommendedNextTaskId}`);
+      }
     });
 }

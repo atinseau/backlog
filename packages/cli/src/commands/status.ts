@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { buildWorkspaceStatus } from "@cockpit-ai/core";
+import { buildExecutionPlan, buildWorkspaceStatus } from "@cockpit-ai/core";
 
 export function registerStatusCommand(program: Command): void {
   program
@@ -15,9 +15,10 @@ export function registerStatusCommand(program: Command): void {
 
       const config = loadConfig(workspace.cockpitDir);
       const status = buildWorkspaceStatus(workspace.root, workspace.cockpitDir, config);
+      const plan = buildExecutionPlan(workspace.cockpitDir, config);
 
       if (options.json) {
-        console.log(JSON.stringify(status, null, 2));
+        console.log(JSON.stringify({ ...status, plan }, null, 2));
         return;
       }
 
@@ -38,6 +39,17 @@ export function registerStatusCommand(program: Command): void {
       console.log("Tasks:");
       for (const [taskStatus, count] of Object.entries(status.taskCounts).sort()) {
         console.log(`- ${taskStatus}: ${count}`);
+      }
+      console.log("");
+      console.log(`Runnable now: ${plan.runnable.length}`);
+      console.log(`Waiting now: ${plan.waiting.length}`);
+      console.log(`Blocked now: ${plan.blocked.length}`);
+      if (plan.runnable.length > 0) {
+        console.log("");
+        console.log("Top next actions:");
+        for (const decision of plan.runnable.slice(0, 3)) {
+          console.log(`- Start ${decision.taskId} (${decision.reasons.join(", ")})`);
+        }
       }
     });
 }
