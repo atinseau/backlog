@@ -51,6 +51,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.writeFileSync(path.join(cockpitDir, "work-items.yaml"), "version: 1\nitems: []\n", "utf8");
   fs.writeFileSync(path.join(cockpitDir, "tasks.yaml"), "version: 1\ntasks: []\n", "utf8");
   fs.writeFileSync(path.join(cockpitDir, "sources.yaml"), "version: 1\nsources: []\n", "utf8");
+  fs.writeFileSync(path.join(cockpitDir, "sync-conflicts.json"), JSON.stringify({ version: 1, conflicts: [] }, null, 2) + "\n", "utf8");
   fs.writeFileSync(
     path.join(cockpitDir, "agents.yaml"),
     [

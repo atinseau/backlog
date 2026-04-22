@@ -3,6 +3,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { sourcesFileSchema, type SourceConfig, type SourcesFile, type WorkItem } from "@cockpit-ai/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
+import { recordStatusConflict } from "./sync-conflicts.js";
 
 function sourcesPath(cockpitDir: string): string {
   return path.join(cockpitDir, "sources.yaml");
@@ -81,7 +82,17 @@ export function upsertImportedWorkItems(cockpitDir: string, importedItems: WorkI
     existing.title = imported.title;
     existing.description = imported.description;
     existing.priority = imported.priority;
-    existing.status = imported.status;
+    if (existing.status !== imported.status && source.source_ref) {
+      recordStatusConflict({
+        cockpitDir,
+        workItemId: existing.id,
+        sourceRef: source.source_ref,
+        localValue: existing.status,
+        externalValue: imported.status,
+      });
+    } else {
+      existing.status = imported.status;
+    }
     existing.labels = imported.labels;
     existing.updated_at = new Date().toISOString();
     touched.push(existing);

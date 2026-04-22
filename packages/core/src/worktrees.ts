@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { detectGitDir, git } from "@cockpit-ai/git";
+import type { WorkspaceConfig } from "@cockpit-ai/schemas";
+import { listAllRuns } from "./run-store.js";
 
 function worktreesRoot(cockpitDir: string): string {
   return path.join(cockpitDir, "worktrees");
@@ -40,4 +42,37 @@ export async function writeWorktreeContext(worktreePath: string, runId: string, 
     ) + "\n",
     "utf8",
   );
+}
+
+export interface WorktreeGcResult {
+  removed: string[];
+  skipped: string[];
+}
+
+export async function garbageCollectWorktrees(cockpitDir: string, config: WorkspaceConfig): Promise<WorktreeGcResult> {
+  const result: WorktreeGcResult = {
+    removed: [],
+    skipped: [],
+  };
+  const repoPaths = new Map(config.repos.map((repo) => [repo.id, repo.path]));
+  const runs = listAllRuns(cockpitDir);
+
+  for (const run of runs) {
+    if (run.status === "running" || run.status === "preparing" || run.status === "awaiting_review") {
+      result.skipped.push(run.worktree_path);
+      continue;
+    }
+    if (!fs.existsSync(run.worktree_path)) {
+      continue;
+    }
+    const repoPath = repoPaths.get(run.repo);
+    if (!repoPath) {
+      result.skipped.push(run.worktree_path);
+      continue;
+    }
+    await git(["worktree", "remove", "--force", run.worktree_path], repoPath);
+    result.removed.push(run.worktree_path);
+  }
+
+  return result;
 }

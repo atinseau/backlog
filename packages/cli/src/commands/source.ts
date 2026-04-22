@@ -1,7 +1,16 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
 import { createConnector } from "@cockpit-ai/connectors";
-import { addSource, getSource, getWorkItem, listSources, primarySourceLink, upsertImportedWorkItems } from "@cockpit-ai/core";
+import {
+  addSource,
+  getSource,
+  getWorkItem,
+  listPendingSyncConflicts,
+  listSources,
+  primarySourceLink,
+  resolveSyncConflict,
+  upsertImportedWorkItems,
+} from "@cockpit-ai/core";
 import type { SourceConfig, SourceKind } from "@cockpit-ai/schemas";
 
 export function registerSourceCommand(program: Command): void {
@@ -196,5 +205,45 @@ export function registerSourceCommand(program: Command): void {
         ...(options.comment ? { comment: options.comment } : {}),
       });
       console.log(`Pushed ${workItem.id} to ${source.id}`);
+    });
+
+  sources
+    .command("conflicts")
+    .description("List pending sync conflicts")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const conflicts = listPendingSyncConflicts(workspace.cockpitDir);
+      if (options.json) {
+        console.log(JSON.stringify(conflicts, null, 2));
+        return;
+      }
+      if (conflicts.length === 0) {
+        console.log("No pending sync conflicts.");
+        return;
+      }
+      for (const conflict of conflicts) {
+        console.log(`${conflict.id} | ${conflict.work_item_id} | ${conflict.field} | local=${conflict.local_value} | external=${conflict.external_value}`);
+      }
+    });
+
+  sources
+    .command("resolve")
+    .description("Resolve one sync conflict")
+    .argument("<conflict-id>", "Sync conflict id")
+    .requiredOption("--use <resolution>", "external or local")
+    .action((conflictId: string, options: { use: "external" | "local" }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      if (options.use !== "external" && options.use !== "local") {
+        throw new Error("--use must be external or local");
+      }
+      const conflict = resolveSyncConflict(workspace.cockpitDir, conflictId, options.use);
+      console.log(`Resolved ${conflict.id} using ${options.use}`);
     });
 }

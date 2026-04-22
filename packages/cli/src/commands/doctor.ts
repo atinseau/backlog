@@ -18,6 +18,7 @@ export function registerDoctorCommand(program: Command): void {
         path.join(workspace.cockpitDir, "work-items.yaml"),
         path.join(workspace.cockpitDir, "tasks.yaml"),
         path.join(workspace.cockpitDir, "sources.yaml"),
+        path.join(workspace.cockpitDir, "sync-conflicts.json"),
         path.join(workspace.cockpitDir, "agents.yaml"),
         path.join(workspace.cockpitDir, "bin", "cockpit"),
       ];

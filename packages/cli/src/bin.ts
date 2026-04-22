@@ -12,6 +12,7 @@ import { registerSourceCommand } from "./commands/source.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerWorkCommand } from "./commands/work.js";
+import { registerWorktreeCommand } from "./commands/worktree.js";
 
 const program = new Command();
 
@@ -32,6 +33,7 @@ registerTaskCommand(program);
 registerRunCommand(program);
 registerSourceCommand(program);
 registerWorkCommand(program);
+registerWorktreeCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

@@ -18,7 +18,9 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit agents list|validate|health`
 - `cockpit sources add|list|validate|sync`
 - `cockpit sources push`
+- `cockpit sources conflicts|resolve`
 - `cockpit release snapshot`
+- `cockpit worktree gc`
 
 ## Quickstart
 

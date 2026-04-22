@@ -4,8 +4,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initLayout } from "@cockpit-ai/config";
 import type { WorkItem } from "@cockpit-ai/schemas";
-import { readWorkItemsFile } from "./state-files.js";
+import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
 import { upsertImportedWorkItems } from "./source-state.js";
+import { listPendingSyncConflicts, resolveSyncConflict } from "./sync-conflicts.js";
 
 function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-source-"));
@@ -45,5 +46,24 @@ describe("upsertImportedWorkItems", () => {
     const file = readWorkItemsFile(cockpitDir);
     expect(file.items).toHaveLength(1);
     expect(file.items[0]?.title).toBe("updated-title");
+  });
+
+  it("records a sync conflict when external status differs from local status", () => {
+    const cockpitDir = createWorkspace();
+    const base = importedItem("row-2");
+    upsertImportedWorkItems(cockpitDir, [base]);
+    const file = readWorkItemsFile(cockpitDir);
+    file.items[0]!.status = "in_progress";
+    writeWorkItemsFile(cockpitDir, file);
+
+    upsertImportedWorkItems(cockpitDir, [{ ...base, status: "backlog" }]);
+    const conflicts = listPendingSyncConflicts(cockpitDir);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]?.local_value).toBe("in_progress");
+    expect(conflicts[0]?.external_value).toBe("backlog");
+
+    resolveSyncConflict(cockpitDir, conflicts[0]!.id, "external");
+    const updated = readWorkItemsFile(cockpitDir);
+    expect(updated.items[0]?.status).toBe("backlog");
   });
 });
