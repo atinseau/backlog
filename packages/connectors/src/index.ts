@@ -6,6 +6,13 @@ import type { SourceConfig, WorkItem } from "@cockpit-ai/schemas";
 export interface SourceConnector {
   validate(): Promise<{ ok: boolean; details: string[] }>;
   pull(): Promise<WorkItem[]>;
+  push?(update: ExternalUpdate): Promise<void>;
+}
+
+export interface ExternalUpdate {
+  externalId: string;
+  status?: WorkItem["status"];
+  comment?: string;
 }
 
 function nowIso(): string {
@@ -233,6 +240,99 @@ class JiraConnector implements SourceConnector {
       item.source_links[0]!.url = issue.self;
       return item;
     });
+  }
+
+  async push(update: ExternalUpdate): Promise<void> {
+    const baseUrl = String(this.source.config.base_url ?? "");
+    const email = process.env[String(this.source.auth.refs.email ?? "")];
+    const apiToken = process.env[String(this.source.auth.refs.api_token ?? "")];
+    if (!baseUrl || !email || !apiToken) {
+      throw new Error(`Source ${this.source.id} is missing Jira auth or base_url.`);
+    }
+
+    const auth = Buffer.from(`${email}:${apiToken}`).toString("base64");
+    const headers = {
+      Authorization: `Basic ${auth}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+
+    if (update.status) {
+      const targetStatusName = mapCockpitStatusToJiraStatus(update.status);
+      if (targetStatusName) {
+        const transitionsUrl = new URL(`/rest/api/3/issue/${update.externalId}/transitions`, baseUrl);
+        const transitionsResponse = await fetch(transitionsUrl, { headers });
+        if (!transitionsResponse.ok) {
+          throw new Error(`Failed to load Jira transitions for ${update.externalId}: ${transitionsResponse.status} ${transitionsResponse.statusText}`);
+        }
+        const transitionsPayload = await transitionsResponse.json() as {
+          transitions?: Array<{ id: string; name?: string; to?: { name?: string } }>;
+        };
+        const transition = (transitionsPayload.transitions ?? []).find((candidate) =>
+          candidate.to?.name === targetStatusName || candidate.name === targetStatusName,
+        );
+        if (transition) {
+          const response = await fetch(transitionsUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              transition: { id: transition.id },
+            }),
+          });
+          if (!response.ok && response.status !== 204) {
+            throw new Error(`Failed to transition Jira issue ${update.externalId}: ${response.status} ${response.statusText}`);
+          }
+        }
+      }
+    }
+
+    if (update.comment) {
+      const commentUrl = new URL(`/rest/api/3/issue/${update.externalId}/comment`, baseUrl);
+      const response = await fetch(commentUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          body: {
+            type: "doc",
+            version: 1,
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: update.comment,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to comment on Jira issue ${update.externalId}: ${response.status} ${response.statusText}`);
+      }
+    }
+  }
+}
+
+function mapCockpitStatusToJiraStatus(status: WorkItem["status"]): string | null {
+  switch (status) {
+    case "backlog":
+      return "To Do";
+    case "ready":
+      return "Selected for Development";
+    case "in_progress":
+      return "In Progress";
+    case "review":
+      return "In Review";
+    case "test":
+      return "In Test";
+    case "released":
+    case "done":
+      return "Done";
+    case "blocked":
+      return null;
   }
 }
 

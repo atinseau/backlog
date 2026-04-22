@@ -35,6 +35,10 @@ export function getSource(cockpitDir: string, id: string): SourceConfig | null {
   return listSources(cockpitDir).find((source) => source.id === id) ?? null;
 }
 
+export function primarySourceLink(item: WorkItem) {
+  return item.source_links[0] ?? null;
+}
+
 function sourceKey(item: WorkItem): string | null {
   const source = item.source_links[0];
   if (!source) {

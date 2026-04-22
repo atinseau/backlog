@@ -13,7 +13,10 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit claim start|check|finish|list`
 - `cockpit schedule simulate|run`
 - `cockpit runs list|show`
+- `cockpit runs interrupt|resume`
+- `cockpit agents list|validate|health`
 - `cockpit sources add|list|validate|sync`
+- `cockpit sources push`
 - `cockpit release snapshot`
 
 ## Quickstart
@@ -31,6 +34,7 @@ Create a local work item and a task:
 node packages/cli/dist/bin.js work add --title "Build the scheduler"
 node packages/cli/dist/bin.js task add --work-item WI-xxxx --title "Implement core logic" --repo <repo-id>
 node packages/cli/dist/bin.js schedule simulate
+node packages/cli/dist/bin.js schedule run --approve
 ```
 
 Add a source and sync:
@@ -38,6 +42,7 @@ Add a source and sync:
 ```bash
 node packages/cli/dist/bin.js sources add markdown --id notes --path backlog.md
 node packages/cli/dist/bin.js sources sync
+node packages/cli/dist/bin.js work import
 ```
 
 ## Workspace State

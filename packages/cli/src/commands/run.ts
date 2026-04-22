@@ -1,22 +1,20 @@
-import fs from "node:fs";
-import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { getRunEvents, listActiveRuns, loadRun } from "@cockpit-ai/core";
+import { getRunEvents, getTask, listActiveRuns, listAllRuns, loadRun, updateRunStatus, updateTaskStatus } from "@cockpit-ai/core";
 
 export function registerRunCommand(program: Command): void {
   const runs = program.command("runs").description("Inspect execution runs");
 
   runs
     .command("list")
-    .description("List active runs")
+    .description("List known runs")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const runs = listActiveRuns(workspace.cockpitDir);
+      const runs = listAllRuns(workspace.cockpitDir);
       if (options.json) {
         console.log(JSON.stringify(runs, null, 2));
         return;
@@ -62,5 +60,50 @@ export function registerRunCommand(program: Command): void {
           console.log(`- ${event}`);
         }
       }
+    });
+
+  runs
+    .command("interrupt")
+    .description("Interrupt an active run and return its task to planned")
+    .argument("<run-id>", "Run id")
+    .action((runId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const run = loadRun(workspace.cockpitDir, runId);
+      if (!run) {
+        throw new Error(`Unknown run: ${runId}`);
+      }
+      if (run.status !== "running" && run.status !== "preparing") {
+        throw new Error(`Run ${runId} is not interruptible from status ${run.status}`);
+      }
+      updateRunStatus(workspace.cockpitDir, runId, "interrupted", "Interrupted by operator");
+      updateTaskStatus(workspace.cockpitDir, run.task_id, "planned");
+      console.log(`Interrupted ${runId}`);
+    });
+
+  runs
+    .command("resume")
+    .description("Resume an interrupted run")
+    .argument("<run-id>", "Run id")
+    .action((runId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const run = loadRun(workspace.cockpitDir, runId);
+      if (!run) {
+        throw new Error(`Unknown run: ${runId}`);
+      }
+      if (run.status !== "interrupted") {
+        throw new Error(`Run ${runId} is not resumable from status ${run.status}`);
+      }
+      updateRunStatus(workspace.cockpitDir, runId, "running", "Resumed by operator");
+      const task = getTask(workspace.cockpitDir, run.task_id);
+      if (task) {
+        updateTaskStatus(workspace.cockpitDir, task.id, "running");
+      }
+      console.log(`Resumed ${runId}`);
     });
 }

@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
 import { createConnector } from "@cockpit-ai/connectors";
-import { addSource, getSource, listSources, upsertImportedWorkItems } from "@cockpit-ai/core";
+import { addSource, getSource, getWorkItem, listSources, primarySourceLink, upsertImportedWorkItems } from "@cockpit-ai/core";
 import type { SourceConfig, SourceKind } from "@cockpit-ai/schemas";
 
 export function registerSourceCommand(program: Command): void {
@@ -162,5 +162,39 @@ export function registerSourceCommand(program: Command): void {
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "synced"}`);
       }
+    });
+
+  sources
+    .command("push")
+    .description("Push a work item status or comment back to its source when supported")
+    .argument("<work-item-id>", "Work item id")
+    .option("--comment <text>", "Optional comment to push")
+    .action(async (workItemId: string, options: { comment?: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const workItem = getWorkItem(workspace.cockpitDir, workItemId);
+      if (!workItem) {
+        throw new Error(`Unknown work item: ${workItemId}`);
+      }
+      const sourceLink = primarySourceLink(workItem);
+      if (!sourceLink?.source_ref) {
+        throw new Error(`Work item ${workItemId} has no primary source link.`);
+      }
+      const source = getSource(workspace.cockpitDir, sourceLink.source_ref);
+      if (!source) {
+        throw new Error(`Unknown source: ${sourceLink.source_ref}`);
+      }
+      const connector = createConnector(source, workspace.root);
+      if (!connector.push) {
+        throw new Error(`Source ${source.id} does not support push.`);
+      }
+      await connector.push({
+        externalId: sourceLink.external_id,
+        status: workItem.status,
+        ...(options.comment ? { comment: options.comment } : {}),
+      });
+      console.log(`Pushed ${workItem.id} to ${source.id}`);
     });
 }

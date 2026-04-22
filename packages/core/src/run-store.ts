@@ -80,7 +80,8 @@ export function listActiveRuns(cockpitDir: string): Run[] {
     .map((entry) => {
       const raw = JSON.parse(fs.readFileSync(path.join(directory, entry, "run.json"), "utf8")) as unknown;
       return runSchema.parse(raw);
-    });
+    })
+    .filter((run) => !isTerminalRunStatus(run.status));
 }
 
 export function getRunEvents(cockpitDir: string, runId: string): string[] {
@@ -123,6 +124,37 @@ export function updateRunStatus(cockpitDir: string, runId: string, status: Run["
     message: `Run moved to ${status}`,
   });
   return next;
+}
+
+export function isTerminalRunStatus(status: Run["status"]): boolean {
+  return status === "succeeded" || status === "failed" || status === "blocked" || status === "canceled";
+}
+
+export function listAllRuns(cockpitDir: string): Run[] {
+  const directories = [
+    activeRunsDir(cockpitDir),
+    archiveRunsDir(cockpitDir),
+  ];
+  const seen = new Set<string>();
+  const runs: Run[] = [];
+  for (const directory of directories) {
+    if (!fs.existsSync(directory)) {
+      continue;
+    }
+    for (const entry of fs.readdirSync(directory)) {
+      if (seen.has(entry)) {
+        continue;
+      }
+      const filePath = path.join(directory, entry, "run.json");
+      if (!fs.existsSync(filePath)) {
+        continue;
+      }
+      const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+      runs.push(runSchema.parse(raw));
+      seen.add(entry);
+    }
+  }
+  return runs;
 }
 
 export function addRunArtifact(cockpitDir: string, runId: string, artifact: Artifact): Run {

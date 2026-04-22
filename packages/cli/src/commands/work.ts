@@ -1,7 +1,8 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { buildWorkExecutionOutline, createWorkItem, getWorkItem, listWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
+import { createConnector } from "@cockpit-ai/connectors";
 
 export function registerWorkCommand(program: Command): void {
   const work = program.command("work").description("Manage normalized work items");
@@ -142,9 +143,28 @@ export function registerWorkCommand(program: Command): void {
 
   work
     .command("import")
-    .description("Alias for source sync when pulling work into Cockpit")
+    .description("Import work from one source or all enabled sources")
     .argument("[source-id]", "Optional source id")
-    .action((_sourceId?: string) => {
-      throw new Error("Use `cockpit sources sync [source-id]` to import work.");
+    .option("--dry-run", "Fetch without writing work-items.yaml")
+    .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const sourcesToSync = sourceId
+        ? [getSource(workspace.cockpitDir, sourceId)].filter(Boolean)
+        : listSources(workspace.cockpitDir).filter((source) => source.enabled);
+      if (sourcesToSync.length === 0) {
+        throw new Error(sourceId ? `Unknown source: ${sourceId}` : "No enabled sources configured.");
+      }
+
+      for (const source of sourcesToSync) {
+        const connector = createConnector(source!, workspace.root);
+        const items = await connector.pull();
+        if (!options?.dryRun) {
+          upsertImportedWorkItems(workspace.cockpitDir, items);
+        }
+        console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "imported"}`);
+      }
     });
 }
