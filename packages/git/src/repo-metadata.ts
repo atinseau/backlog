@@ -15,3 +15,8 @@ export async function repoCurrentTag(repoRoot: string): Promise<string | null> {
     return null;
   }
 }
+
+export async function repoIsDirty(repoRoot: string): Promise<boolean> {
+  const output = await git(["status", "--short"], repoRoot);
+  return output.length > 0;
+}

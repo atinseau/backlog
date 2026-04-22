@@ -23,13 +23,15 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit sources push`
 - `cockpit sources conflicts|resolve`
 - `cockpit release snapshot`
-- `cockpit worktree gc`
+- `cockpit worktree list|gc`
 
 Most `list` commands now support practical filters, for example:
 - `cockpit work list --status ready --repo cockpit`
 - `cockpit task list --repo cockpit --status blocked`
 - `cockpit runs list --review --agent codex-default`
 - `cockpit sources list --enabled true`
+
+`cockpit release snapshot` now reports dirty repos and per-repo run counts. `cockpit worktree list` shows the worktrees Cockpit knows about through run records, and `cockpit worktree gc --dry-run` previews cleanup before deleting anything.
 
 ## Quickstart
 
