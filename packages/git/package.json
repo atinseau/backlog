@@ -1,0 +1,14 @@
+{
+  "name": "@cockpit-ai/git",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "execa": "^9.6.0"
+  }
+}

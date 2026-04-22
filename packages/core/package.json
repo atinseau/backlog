@@ -1,0 +1,17 @@
+{
+  "name": "@cockpit-ai/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@cockpit-ai/config": "workspace:*",
+    "@cockpit-ai/claims": "workspace:*",
+    "@cockpit-ai/schemas": "workspace:*",
+    "yaml": "^2.8.0"
+  }
+}

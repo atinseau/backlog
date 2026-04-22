@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/schemas" },
+    { "path": "./packages/config" },
+    { "path": "./packages/git" },
+    { "path": "./packages/claims" },
+    { "path": "./packages/hooks" },
+    { "path": "./packages/core" },
+    { "path": "./packages/connectors" },
+    { "path": "./packages/cli" }
+  ]
+}

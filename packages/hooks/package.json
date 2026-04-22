@@ -1,0 +1,11 @@
+{
+  "name": "@cockpit-ai/hooks",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "templates"],
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

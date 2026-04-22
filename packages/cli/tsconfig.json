@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../claims" },
+    { "path": "../config" },
+    { "path": "../core" },
+    { "path": "../git" },
+    { "path": "../hooks" },
+    { "path": "../schemas" }
+  ]
+}

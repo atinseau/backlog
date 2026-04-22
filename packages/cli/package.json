@@ -1,0 +1,24 @@
+{
+  "name": "@cockpit-ai/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "cockpit": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "@cockpit-ai/claims": "workspace:*",
+    "@cockpit-ai/config": "workspace:*",
+    "@cockpit-ai/core": "workspace:*",
+    "@cockpit-ai/git": "workspace:*",
+    "@cockpit-ai/hooks": "workspace:*",
+    "@cockpit-ai/schemas": "workspace:*",
+    "commander": "^13.1.0"
+  }
+}
