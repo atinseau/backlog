@@ -11,6 +11,21 @@ export interface CreateWorkItemInput {
   acceptanceCriteria?: string[];
 }
 
+export interface UpdateWorkItemInput {
+  title?: string;
+  description?: string;
+  clearDescription?: boolean;
+  priority?: "P0" | "P1" | "P2" | "P3";
+  repoTargets?: string[];
+  labels?: string[];
+  acceptanceCriteria?: string[];
+  dependencies?: string[];
+  planningRisk?: "low" | "medium" | "high";
+  preferredLane?: string;
+  clearPreferredLane?: boolean;
+  splitStatus?: "pending" | "done";
+}
+
 export function createWorkItem(cockpitDir: string, input: CreateWorkItemInput): WorkItem {
   const file = readWorkItemsFile(cockpitDir);
   const now = new Date().toISOString();
@@ -44,6 +59,55 @@ export function createWorkItem(cockpitDir: string, input: CreateWorkItemInput): 
 
 export function getWorkItem(cockpitDir: string, id: string): WorkItem | null {
   return readWorkItemsFile(cockpitDir).items.find((item) => item.id === id) ?? null;
+}
+
+export function updateWorkItem(cockpitDir: string, id: string, input: UpdateWorkItemInput): WorkItem {
+  const file = readWorkItemsFile(cockpitDir);
+  const item = file.items.find((candidate) => candidate.id === id);
+  if (!item) {
+    throw new Error(`Unknown work item: ${id}`);
+  }
+
+  if (input.title !== undefined) {
+    item.title = input.title;
+  }
+  if (input.description !== undefined) {
+    item.description = input.description;
+  }
+  if (input.clearDescription) {
+    delete item.description;
+  }
+  if (input.priority !== undefined) {
+    item.priority = input.priority;
+  }
+  if (input.repoTargets !== undefined) {
+    item.repo_targets = input.repoTargets;
+  }
+  if (input.labels !== undefined) {
+    item.labels = input.labels;
+  }
+  if (input.acceptanceCriteria !== undefined) {
+    item.acceptance_criteria = input.acceptanceCriteria;
+  }
+  if (input.dependencies !== undefined) {
+    item.dependencies = input.dependencies;
+  }
+  if (input.planningRisk !== undefined) {
+    item.planning.risk = input.planningRisk;
+  }
+  if (input.preferredLane !== undefined) {
+    item.planning.preferred_lane = input.preferredLane;
+  }
+  if (input.clearPreferredLane) {
+    delete item.planning.preferred_lane;
+  }
+  if (input.splitStatus !== undefined) {
+    item.planning.split_status = input.splitStatus;
+  }
+
+  item.updated_at = new Date().toISOString();
+  writeWorkItemsFile(cockpitDir, file);
+  return item;
 }
 
 export function updateWorkItemStatus(cockpitDir: string, id: string, status: WorkStatus): WorkItem {

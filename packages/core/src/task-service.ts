@@ -25,6 +25,23 @@ export interface CreateTaskInput {
   manualApprovalRequired?: boolean;
 }
 
+export interface UpdateTaskInput {
+  title?: string;
+  repo?: string;
+  scopes?: string[];
+  dependsOn?: string[];
+  blockers?: string[];
+  risk?: "low" | "medium" | "high";
+  priorityScore?: number;
+  claimMode?: "exclusive" | "shared";
+  completionCriteria?: string[];
+  lane?: string;
+  preferredAgents?: string[];
+  requiredCapabilities?: string[];
+  manualApprovalRequired?: boolean;
+  plannerLocked?: boolean;
+}
+
 export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
   const workItem = getWorkItem(cockpitDir, input.workItemId);
   if (!workItem) {
@@ -72,6 +89,61 @@ export function getTask(cockpitDir: string, id: string): Task | null {
   return readTasksFile(cockpitDir).tasks.find((task) => task.id === id) ?? null;
 }
 
+export function updateTask(cockpitDir: string, id: string, input: UpdateTaskInput): Task {
+  const file = readTasksFile(cockpitDir);
+  const task = file.tasks.find((candidate) => candidate.id === id);
+  if (!task) {
+    throw new Error(`Unknown task: ${id}`);
+  }
+
+  if (input.title !== undefined) {
+    task.title = input.title;
+  }
+  if (input.repo !== undefined) {
+    task.repo = input.repo;
+  }
+  if (input.scopes !== undefined) {
+    task.scopes = input.scopes;
+  }
+  if (input.dependsOn !== undefined) {
+    task.depends_on = input.dependsOn;
+  }
+  if (input.blockers !== undefined) {
+    task.blockers = input.blockers;
+  }
+  if (input.risk !== undefined) {
+    task.risk = input.risk;
+  }
+  if (input.priorityScore !== undefined) {
+    task.priority_score = input.priorityScore;
+  }
+  if (input.claimMode !== undefined) {
+    task.claim_mode = input.claimMode;
+  }
+  if (input.completionCriteria !== undefined) {
+    task.completion.done_when = input.completionCriteria;
+  }
+  if (input.lane !== undefined) {
+    task.execution.lane = input.lane;
+  }
+  if (input.preferredAgents !== undefined) {
+    task.execution.preferred_agents = input.preferredAgents;
+  }
+  if (input.requiredCapabilities !== undefined) {
+    task.execution.required_capabilities = input.requiredCapabilities;
+  }
+  if (input.manualApprovalRequired !== undefined) {
+    task.execution.manual_approval_required = input.manualApprovalRequired;
+  }
+  if (input.plannerLocked !== undefined) {
+    task.planner.locked = input.plannerLocked;
+  }
+
+  task.updated_at = new Date().toISOString();
+  writeTasksFile(cockpitDir, file);
+  return task;
+}
+
 export function updateTaskStatus(cockpitDir: string, id: string, status: TaskStatus): Task {
   const parsedStatus = taskStatusSchema.parse(status);
   const file = readTasksFile(cockpitDir);
@@ -89,4 +161,29 @@ export function updateTaskStatus(cockpitDir: string, id: string, status: TaskSta
   }
 
   return task;
+}
+
+export function blockTask(cockpitDir: string, id: string, reasons: string[]): Task {
+  const task = getTask(cockpitDir, id);
+  if (!task) {
+    throw new Error(`Unknown task: ${id}`);
+  }
+
+  const blockers = Array.from(new Set([...task.blockers, ...reasons]));
+  updateTask(cockpitDir, id, { blockers });
+  return updateTaskStatus(cockpitDir, id, "blocked");
+}
+
+export function unblockTask(cockpitDir: string, id: string, reasons?: string[]): Task {
+  const task = getTask(cockpitDir, id);
+  if (!task) {
+    throw new Error(`Unknown task: ${id}`);
+  }
+
+  const blockers = reasons && reasons.length > 0
+    ? task.blockers.filter((blocker) => !reasons.includes(blocker))
+    : [];
+
+  updateTask(cockpitDir, id, { blockers });
+  return updateTaskStatus(cockpitDir, id, blockers.length > 0 ? "blocked" : "planned");
 }

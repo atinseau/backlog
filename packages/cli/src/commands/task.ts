@@ -1,7 +1,22 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { buildExecutionPlan, createTask, getTask, listTasks, updateTaskStatus } from "@cockpit-ai/core";
+import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, unblockTask, updateTask, updateTaskStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
+
+function collectValues(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+function parseBooleanFlag(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "yes" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "0") {
+    return false;
+  }
+  throw new Error(`Expected a boolean value, received: ${value}`);
+}
 
 export function registerTaskCommand(program: Command): void {
   const task = program.command("task").description("Manage executable tasks");
@@ -48,6 +63,64 @@ export function registerTaskCommand(program: Command): void {
         ...(options.manualApproval ? { manualApprovalRequired: true } : {}),
       });
       console.log(`Created task ${created.id}`);
+    });
+
+  task
+    .command("update")
+    .description("Update task metadata without editing YAML by hand")
+    .argument("<task-id>", "Task id")
+    .option("--title <title>", "Task title")
+    .option("--repo <repo>", "Target repo id")
+    .option("--scope <scope>", "Replace task scopes", collectValues, [])
+    .option("--depends-on <task>", "Replace task dependencies", collectValues, [])
+    .option("--blocker <reason>", "Replace task blockers", collectValues, [])
+    .option("--risk <risk>", "Risk level")
+    .option("--priority-score <score>", "Priority score")
+    .option("--claim-mode <mode>", "exclusive or shared")
+    .option("--done-when <criterion>", "Replace completion criteria", collectValues, [])
+    .option("--lane <lane>", "Execution lane")
+    .option("--preferred-agent <id>", "Replace preferred agents", collectValues, [])
+    .option("--require-capability <capability>", "Replace required agent capabilities", collectValues, [])
+    .option("--manual-approval <enabled>", "Whether the task requires manual approval")
+    .option("--planner-locked <enabled>", "Whether replanning can overwrite the task")
+    .action((taskId: string, options: {
+      title?: string;
+      repo?: string;
+      scope: string[];
+      dependsOn: string[];
+      blocker: string[];
+      risk?: "low" | "medium" | "high";
+      priorityScore?: string;
+      claimMode?: "exclusive" | "shared";
+      doneWhen: string[];
+      lane?: string;
+      preferredAgent: string[];
+      requireCapability: string[];
+      manualApproval?: string;
+      plannerLocked?: string;
+    }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+
+      const updated = updateTask(workspace.cockpitDir, taskId, {
+        ...(options.title !== undefined ? { title: options.title } : {}),
+        ...(options.repo !== undefined ? { repo: options.repo } : {}),
+        ...(options.scope.length > 0 ? { scopes: options.scope } : {}),
+        ...(options.dependsOn.length > 0 ? { dependsOn: options.dependsOn } : {}),
+        ...(options.blocker.length > 0 ? { blockers: options.blocker } : {}),
+        ...(options.risk !== undefined ? { risk: options.risk } : {}),
+        ...(options.priorityScore !== undefined ? { priorityScore: Number(options.priorityScore) } : {}),
+        ...(options.claimMode !== undefined ? { claimMode: options.claimMode } : {}),
+        ...(options.doneWhen.length > 0 ? { completionCriteria: options.doneWhen } : {}),
+        ...(options.lane !== undefined ? { lane: options.lane } : {}),
+        ...(options.preferredAgent.length > 0 ? { preferredAgents: options.preferredAgent } : {}),
+        ...(options.requireCapability.length > 0 ? { requiredCapabilities: options.requireCapability } : {}),
+        ...(options.manualApproval !== undefined ? { manualApprovalRequired: parseBooleanFlag(options.manualApproval) } : {}),
+        ...(options.plannerLocked !== undefined ? { plannerLocked: parseBooleanFlag(options.plannerLocked) } : {}),
+      });
+      console.log(`Updated ${updated.id}`);
     });
 
   task
@@ -113,6 +186,35 @@ export function registerTaskCommand(program: Command): void {
       }
       const task = updateTaskStatus(workspace.cockpitDir, taskId, status);
       console.log(`Moved ${task.id} to ${task.status}`);
+    });
+
+  task
+    .command("block")
+    .description("Block a task with one or more reasons")
+    .argument("<task-id>", "Task id")
+    .requiredOption("--reason <text>", "Blocking reason", collectValues, [])
+    .action((taskId: string, options: { reason: string[] }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const task = blockTask(workspace.cockpitDir, taskId, options.reason);
+      console.log(`Blocked ${task.id}`);
+    });
+
+  task
+    .command("unblock")
+    .description("Remove one or all blockers and return the task to planned when clear")
+    .argument("<task-id>", "Task id")
+    .option("--reason <text>", "Specific blocker to remove", collectValues, [])
+    .option("--all", "Remove every blocker")
+    .action((taskId: string, options: { reason: string[]; all?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const task = unblockTask(workspace.cockpitDir, taskId, options.all ? undefined : options.reason);
+      console.log(`Unblocked ${task.id}`);
     });
 
   task

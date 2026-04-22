@@ -9,7 +9,8 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit init`
 - `cockpit doctor`
 - `cockpit work add|list|show|move|plan|split|import`
-- `cockpit task add|list|show|move|plan`
+- `cockpit work update`
+- `cockpit task add|list|show|move|update|block|unblock|plan`
 - `cockpit claim start|check|finish|list`
 - `cockpit claim start|check|finish|list|gc`
 - `cockpit schedule simulate|explain|run`

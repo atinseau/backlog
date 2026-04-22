@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, resolveSplitRepos, splitWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
 import { createConnector } from "@cockpit-ai/connectors";
 
@@ -55,6 +55,57 @@ export function registerWorkCommand(program: Command): void {
         ...(options.acceptance ? { acceptanceCriteria: options.acceptance } : {}),
       });
       console.log(`Created work item ${item.id}`);
+    });
+
+  work
+    .command("update")
+    .description("Update work item metadata without editing YAML by hand")
+    .argument("<work-item-id>", "Work item id")
+    .option("--title <title>", "Work item title")
+    .option("--description <description>", "Work item description")
+    .option("--clear-description", "Remove the current description")
+    .option("--priority <priority>", "Priority (P0-P3)")
+    .option("--repo <repo>", "Replace target repos", collectValues, [])
+    .option("--label <label>", "Replace labels", collectValues, [])
+    .option("--acceptance <criterion>", "Replace acceptance criteria", collectValues, [])
+    .option("--dependency <work-item-id>", "Replace work item dependencies", collectValues, [])
+    .option("--risk <risk>", "Planning risk")
+    .option("--lane <lane>", "Preferred planning lane")
+    .option("--clear-lane", "Clear the preferred planning lane")
+    .option("--split-status <status>", "pending or done")
+    .action((workItemId: string, options: {
+      title?: string;
+      description?: string;
+      clearDescription?: boolean;
+      priority?: "P0" | "P1" | "P2" | "P3";
+      repo: string[];
+      label: string[];
+      acceptance: string[];
+      dependency: string[];
+      risk?: "low" | "medium" | "high";
+      lane?: string;
+      clearLane?: boolean;
+      splitStatus?: "pending" | "done";
+    }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const item = updateWorkItem(workspace.cockpitDir, workItemId, {
+        ...(options.title !== undefined ? { title: options.title } : {}),
+        ...(options.description !== undefined ? { description: options.description } : {}),
+        ...(options.clearDescription ? { clearDescription: true } : {}),
+        ...(options.priority !== undefined ? { priority: options.priority } : {}),
+        ...(options.repo.length > 0 ? { repoTargets: options.repo } : {}),
+        ...(options.label.length > 0 ? { labels: options.label } : {}),
+        ...(options.acceptance.length > 0 ? { acceptanceCriteria: options.acceptance } : {}),
+        ...(options.dependency.length > 0 ? { dependencies: options.dependency } : {}),
+        ...(options.risk !== undefined ? { planningRisk: options.risk } : {}),
+        ...(options.lane !== undefined ? { preferredLane: options.lane } : {}),
+        ...(options.clearLane ? { clearPreferredLane: true } : {}),
+        ...(options.splitStatus !== undefined ? { splitStatus: options.splitStatus } : {}),
+      });
+      console.log(`Updated ${item.id}`);
     });
 
   work
