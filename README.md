@@ -8,6 +8,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 
 - `cockpit init`
 - `cockpit doctor`
+- `cockpit repos list|show|add|update|remove`
 - `cockpit work add|list|show|move|update|remove|plan|split|import`
 - `cockpit work update`
 - `cockpit task add|list|show|move|update|remove|block|unblock|plan`
@@ -26,12 +27,15 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit worktree list|gc`
 
 Most `list` commands now support practical filters, for example:
+- `cockpit repos list --enabled true`
 - `cockpit work list --status ready --repo cockpit`
 - `cockpit task list --repo cockpit --status blocked`
 - `cockpit runs list --review --agent codex-default`
 - `cockpit sources list --enabled true`
 
 `cockpit release snapshot` now reports dirty repos and per-repo run counts. `cockpit worktree list` shows the worktrees Cockpit knows about through run records, and `cockpit worktree gc --dry-run` previews cleanup before deleting anything.
+
+Use `cockpit repos add` and `cockpit repos update` when you want to manage a multi-repo workspace without editing `config.toml` by hand. Forced repo removal can also scrub linked tasks, work items, and agent scopes when you intentionally retire one repo from the workspace.
 
 ## Quickstart
 

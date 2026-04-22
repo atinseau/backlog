@@ -53,6 +53,7 @@ export function registerInitCommand(program: Command): void {
       }
       console.log("Next:");
       console.log("  cockpit doctor");
+      console.log("  cockpit repos list");
       console.log("  cockpit status");
     });
 }

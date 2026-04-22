@@ -22,6 +22,8 @@ type TasksFile = {
 export interface WorkspaceStatus {
   workspaceName: string;
   repoCount: number;
+  enabledRepoCount: number;
+  disabledRepoCount: number;
   activeClaims: number;
   activeRuns: number;
   workItemCount: number;
@@ -85,7 +87,9 @@ export function buildWorkspaceStatus(root: string, cockpitDir: string, config: W
 
   return {
     workspaceName: config.workspace_name,
-    repoCount: config.repos.filter((repo) => repo.enabled).length,
+    repoCount: config.repos.length,
+    enabledRepoCount: config.repos.filter((repo) => repo.enabled).length,
+    disabledRepoCount: config.repos.filter((repo) => !repo.enabled).length,
     activeClaims: listActiveClaims(cockpitDir).length,
     activeRuns: listActiveRuns(cockpitDir).length,
     workItemCount: workItems.items?.length ?? 0,

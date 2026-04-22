@@ -5,6 +5,7 @@ export * from "./codex-executor.js";
 export * from "./custom-executor.js";
 export * from "./executor.js";
 export * from "./provider-utils.js";
+export * from "./repo-service.js";
 export * from "./release-snapshot.js";
 export * from "./run-service.js";
 export * from "./state-files.js";

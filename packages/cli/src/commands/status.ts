@@ -23,7 +23,7 @@ export function registerStatusCommand(program: Command): void {
       }
 
       console.log(`Workspace: ${status.workspaceName}`);
-      console.log(`Repos: ${status.repoCount}`);
+      console.log(`Repos: ${status.enabledRepoCount} enabled / ${status.repoCount} configured`);
       console.log(`Active claims: ${status.activeClaims}`);
       console.log(`Active runs: ${status.activeRuns}`);
       console.log(`Work items: ${status.workItemCount}`);
