@@ -2,7 +2,7 @@ import { archiveClaim, listActiveClaims, removeContextFile } from "@cockpit-ai/c
 import { detectGitDir } from "@cockpit-ai/git";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { updateWorkItemStatus } from "./work-service.js";
-import { archiveRun, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 
 function syncParentWorkAfterRun(cockpitDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
   const task = getTask(cockpitDir, taskId);
@@ -60,6 +60,10 @@ export async function completeRun(cockpitDir: string, runId: string, summary?: s
   archiveRun(cockpitDir, runId);
 }
 
+export async function approveRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
+  await completeRun(cockpitDir, runId, summary ?? "Approved in review");
+}
+
 export async function failRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(cockpitDir, runId, "failed", summary ?? "Failed by operator");
   syncParentWorkAfterRun(cockpitDir, run.task_id, "blocked");
@@ -84,6 +88,14 @@ export async function finalizeSuccessfulRun(
     return;
   }
   await sendRunToReview(cockpitDir, runId, summary);
+}
+
+export async function requestRunChanges(cockpitDir: string, runId: string, reason: string): Promise<string> {
+  const run = updateRunStatus(cockpitDir, runId, "blocked", reason);
+  updateTaskStatus(cockpitDir, run.task_id, "planned");
+  createRunHandoff(cockpitDir, runId, reason);
+  archiveRun(cockpitDir, runId);
+  return getRunHandoffPath(cockpitDir, runId) ?? writeRunHandoff(cockpitDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
 }
 
 export function createRunHandoff(cockpitDir: string, runId: string, reason: string): string {

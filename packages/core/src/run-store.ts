@@ -222,6 +222,20 @@ export function writeRunHandoff(cockpitDir: string, runId: string, contents: str
   return target;
 }
 
+export function getRunHandoffPath(cockpitDir: string, runId: string): string | null {
+  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "handoff.md");
+  if (fs.existsSync(activePath)) {
+    return activePath;
+  }
+
+  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "handoff.md");
+  if (fs.existsSync(archivePath)) {
+    return archivePath;
+  }
+
+  return null;
+}
+
 export function addRunArtifact(cockpitDir: string, runId: string, artifact: Artifact): Run {
   const current = loadRun(cockpitDir, runId);
   if (!current) {

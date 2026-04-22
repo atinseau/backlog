@@ -6,10 +6,10 @@ import { writeContextFile } from "@cockpit-ai/claims";
 import { initLayout, loadConfig } from "@cockpit-ai/config";
 import { createClaim, listActiveClaims } from "@cockpit-ai/claims";
 import { detectGitDir, git } from "@cockpit-ai/git";
-import { createRun, loadRun } from "./run-store.js";
-import { completeRun, sendRunToReview } from "./run-service.js";
-import { createTask } from "./task-service.js";
-import { createWorkItem } from "./work-service.js";
+import { createRun, getRunHandoffPath, loadRun } from "./run-store.js";
+import { completeRun, requestRunChanges, sendRunToReview } from "./run-service.js";
+import { createTask, getTask } from "./task-service.js";
+import { createWorkItem, getWorkItem } from "./work-service.js";
 import { getAgent } from "./agents.js";
 
 async function createWorkspace(): Promise<string> {
@@ -126,5 +126,47 @@ describe("completeRun", () => {
 
     expect(listActiveClaims(cockpitDir)).toHaveLength(0);
     expect(loadRun(cockpitDir, "RUN-review")?.status).toBe("awaiting_review");
+  });
+
+  it("creates a handoff and re-plans the task when review requests changes", async () => {
+    const root = await createWorkspace();
+    const cockpitDir = path.join(root, ".cockpit");
+    const config = loadConfig(cockpitDir);
+    const repoId = config.repos[0]!.id;
+
+    const workItem = createWorkItem(cockpitDir, { title: "Need another pass", repoTargets: [repoId] });
+    const task = createTask(cockpitDir, {
+      workItemId: workItem.id,
+      title: "Retry task",
+      repo: repoId,
+      scopes: ["README.md"],
+      risk: "low",
+    });
+
+    const agent = getAgent(cockpitDir, "manual-default");
+    if (!agent) {
+      throw new Error("Expected manual-default agent");
+    }
+
+    createRun({
+      cockpitDir,
+      runId: "RUN-changes",
+      task,
+      workItem,
+      agent,
+      branch: "cockpit/test-request-changes",
+      worktreePath: root,
+      claimIds: [],
+    });
+    await sendRunToReview(cockpitDir, "RUN-changes", "needs review");
+
+    const handoffPath = await requestRunChanges(cockpitDir, "RUN-changes", "Please tighten the scope and rerun tests");
+
+    expect(loadRun(cockpitDir, "RUN-changes")?.status).toBe("blocked");
+    expect(getTask(cockpitDir, task.id)?.status).toBe("planned");
+    expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("in_progress");
+    expect(getRunHandoffPath(cockpitDir, "RUN-changes")).toBe(handoffPath);
+    expect(fs.existsSync(handoffPath)).toBe(true);
+    expect(fs.readFileSync(handoffPath, "utf8")).toContain("Please tighten the scope and rerun tests");
   });
 });

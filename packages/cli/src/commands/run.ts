@@ -1,14 +1,17 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
 import {
+  approveRun,
   completeRun,
   createRunHandoff,
   failRun,
   garbageCollectArchivedRuns,
   getRunEvents,
+  getRunHandoffPath,
   getTask,
   listAllRuns,
   loadRun,
+  requestRunChanges,
   sendRunToReview,
   updateRunStatus,
   updateTaskStatus,
@@ -44,19 +47,20 @@ export function registerRunCommand(program: Command): void {
   runs
     .command("list")
     .description("List known runs")
+    .option("--review", "Only show runs awaiting review")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean }) => {
+    .action((options: { json?: boolean; review?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const runs = listAllRuns(workspace.cockpitDir);
+      const runs = listAllRuns(workspace.cockpitDir).filter((run) => !options.review || run.status === "awaiting_review");
       if (options.json) {
         console.log(JSON.stringify(runs, null, 2));
         return;
       }
       if (runs.length === 0) {
-        console.log("No active runs.");
+        console.log(options.review ? "No runs awaiting review." : "No active runs.");
         return;
       }
       for (const run of runs) {
@@ -91,6 +95,10 @@ export function registerRunCommand(program: Command): void {
       console.log(`Worktree: ${run.worktree_path}`);
       if (run.result) {
         console.log(`Result: ${run.result}`);
+      }
+      const handoffPath = getRunHandoffPath(workspace.cockpitDir, run.id);
+      if (handoffPath) {
+        console.log(`Handoff: ${handoffPath}`);
       }
       if (run.artifacts.length > 0) {
         console.log("Artifacts:");
@@ -153,6 +161,20 @@ export function registerRunCommand(program: Command): void {
     });
 
   runs
+    .command("approve")
+    .description("Approve a reviewed run and complete its task")
+    .argument("<run-id>", "Run id")
+    .option("--summary <text>", "Approval summary")
+    .action(async (runId: string, options: { summary?: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      await approveRun(workspace.cockpitDir, runId, options.summary);
+      console.log(`Approved ${runId}`);
+    });
+
+  runs
     .command("complete")
     .description("Mark a run as complete and archive it")
     .argument("<run-id>", "Run id")
@@ -185,13 +207,28 @@ export function registerRunCommand(program: Command): void {
     .description("Mark a run as awaiting review")
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Review summary")
-    .action((runId: string, options: { summary?: string }) => {
+    .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      sendRunToReview(workspace.cockpitDir, runId, options.summary);
+      await sendRunToReview(workspace.cockpitDir, runId, options.summary);
       console.log(`Sent ${runId} to review`);
+    });
+
+  runs
+    .command("request-changes")
+    .description("Reject a reviewed run, archive it, and re-plan the task")
+    .argument("<run-id>", "Run id")
+    .requiredOption("--reason <text>", "What should change before retrying")
+    .action(async (runId: string, options: { reason: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const handoffPath = await requestRunChanges(workspace.cockpitDir, runId, options.reason);
+      console.log(`Requested changes for ${runId}`);
+      console.log(`Handoff: ${handoffPath}`);
     });
 
   runs

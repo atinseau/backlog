@@ -15,7 +15,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit schedule simulate|explain|run`
 - `cockpit runs list|show|gc`
 - `cockpit runs interrupt|resume`
-- `cockpit runs review|complete|fail|handoff`
+- `cockpit runs review|approve|request-changes|complete|fail|handoff`
 - `cockpit agents list|validate|health`
 - `cockpit sources add|list|validate|sync`
 - `cockpit sources push`
@@ -84,6 +84,8 @@ Both `codex` and `claude` now attach richer run artifacts:
 - changed files detected in the worktree
 
 By default, `codex` and `claude` successful runs now land in `awaiting_review` instead of auto-completing the task. Their claims are released, but the run and worktree stay available for review.
+
+Use `cockpit runs list --review` to see the review queue, `cockpit runs approve <run-id>` to accept a reviewed run, and `cockpit runs request-changes <run-id> --reason "..."` to archive the run with a handoff while returning the task to `planned`.
 
 Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
 
