@@ -106,3 +106,11 @@ export function resolveSyncConflictsForWorkItem(
   const pending = listPendingSyncConflictsForWorkItem(cockpitDir, workItemId);
   return pending.map((conflict) => resolveSyncConflict(cockpitDir, conflict.id, resolution));
 }
+
+export function removeSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): number {
+  const file = readSyncConflictsFile(cockpitDir);
+  const before = file.conflicts.length;
+  file.conflicts = file.conflicts.filter((conflict) => conflict.work_item_id !== workItemId);
+  writeSyncConflictsFile(cockpitDir, file);
+  return before - file.conflicts.length;
+}

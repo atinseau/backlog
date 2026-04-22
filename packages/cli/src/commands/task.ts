@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, unblockTask, updateTask, updateTaskStatus } from "@cockpit-ai/core";
+import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, removeTask, unblockTask, updateTask, updateTaskStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
 
 function collectValues(value: string, previous: string[]): string[] {
@@ -144,6 +144,19 @@ export function registerTaskCommand(program: Command): void {
       for (const item of tasks) {
         console.log(`${item.id} | ${item.repo} | ${item.status} | ${item.title}`);
       }
+    });
+
+  task
+    .command("remove")
+    .description("Remove a task and drop dependency references to it")
+    .argument("<task-id>", "Task id")
+    .action((taskId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const task = removeTask(workspace.cockpitDir, taskId);
+      console.log(`Removed ${task.id}`);
     });
 
   task

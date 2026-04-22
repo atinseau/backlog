@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { initLayout } from "@cockpit-ai/config";
 import type { WorkItem } from "@cockpit-ai/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
-import { addSource, getSource, setSourceEnabled, updateSource, upsertImportedWorkItems } from "./source-state.js";
+import { addSource, getSource, removeSource, setSourceEnabled, updateSource, upsertImportedWorkItems } from "./source-state.js";
 import {
   hasPendingSyncConflictsForWorkItem,
   listPendingSyncConflicts,
@@ -100,6 +100,32 @@ describe("upsertImportedWorkItems", () => {
       push_comments: true,
       source_of_truth: "cockpit",
     });
+  });
+
+  it("removes a source and unlinks work items when forced", () => {
+    const cockpitDir = createWorkspace();
+    addSource(cockpitDir, {
+      id: "sheet",
+      kind: "csv",
+      enabled: true,
+      config: { path: "sheet.csv" },
+      auth: { strategy: "none", refs: {} },
+      mapping: {},
+      sync: {
+        pull: true,
+        push_status: false,
+        push_comments: false,
+        source_of_truth: "external",
+      },
+    });
+    upsertImportedWorkItems(cockpitDir, [importedItem("row-remove")]);
+
+    expect(() => removeSource(cockpitDir, "sheet")).toThrow(/still linked/);
+    const removed = removeSource(cockpitDir, "sheet", { force: true });
+
+    expect(removed.id).toBe("sheet");
+    expect(getSource(cockpitDir, "sheet")).toBeNull();
+    expect(readWorkItemsFile(cockpitDir).items[0]?.source_links).toEqual([]);
   });
 
   it("creates and updates imported work items by source identity", () => {

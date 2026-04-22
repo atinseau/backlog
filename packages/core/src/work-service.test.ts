@@ -4,7 +4,9 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@cockpit-ai/config";
 import { git } from "@cockpit-ai/git";
-import { createWorkItem, updateWorkItem } from "./work-service.js";
+import { createWorkItem, removeWorkItem, updateWorkItem } from "./work-service.js";
+import { createTask, getTask } from "./task-service.js";
+import { listPendingSyncConflicts, recordStatusConflict } from "./sync-conflicts.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-work-"));
@@ -55,5 +57,31 @@ describe("work-service", () => {
     expect(updated.planning.risk).toBe("high");
     expect(updated.planning.preferred_lane).toBe("cockpit");
     expect(updated.planning.split_status).toBe("done");
+  });
+
+  it("removes a work item and cascades linked tasks when requested", () => {
+    const item = createWorkItem(cockpitDir, {
+      title: "Removable work item",
+      repoTargets: ["cockpit"],
+    });
+    const task = createTask(cockpitDir, {
+      workItemId: item.id,
+      title: "Linked task",
+      repo: "cockpit",
+    });
+    recordStatusConflict({
+      cockpitDir,
+      workItemId: item.id,
+      sourceRef: "jira-main",
+      localValue: "in_progress",
+      externalValue: "backlog",
+    });
+
+    const removed = removeWorkItem(cockpitDir, item.id, { cascadeTasks: true });
+
+    expect(removed.id).toBe(item.id);
+    expect(removeWorkItem.bind(null, cockpitDir, item.id)).toThrowError;
+    expect(getTask(cockpitDir, task.id)).toBeNull();
+    expect(listPendingSyncConflicts(cockpitDir)).toHaveLength(0);
   });
 });

@@ -10,6 +10,7 @@ import {
   listSources,
   listWorkItems,
   primarySourceLink,
+  removeSource,
   resolveSyncConflict,
   resolveSyncConflictsForWorkItem,
   setSourceEnabled,
@@ -219,6 +220,22 @@ export function registerSourceCommand(program: Command): void {
       for (const source of sources) {
         console.log(`${source.id} | ${source.kind} | enabled=${source.enabled}`);
       }
+    });
+
+  sources
+    .command("remove")
+    .description("Remove one source, optionally unlinking work items that still reference it")
+    .argument("<source-id>", "Source id")
+    .option("--force", "Also unlink this source from existing work items")
+    .action((sourceId: string, options: { force?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const source = removeSource(workspace.cockpitDir, sourceId, {
+        ...(options.force ? { force: true } : {}),
+      });
+      console.log(`Removed ${source.id}`);
     });
 
   sources

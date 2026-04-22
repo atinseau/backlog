@@ -187,3 +187,32 @@ export function unblockTask(cockpitDir: string, id: string, reasons?: string[]):
   updateTask(cockpitDir, id, { blockers });
   return updateTaskStatus(cockpitDir, id, blockers.length > 0 ? "blocked" : "planned");
 }
+
+export function removeTask(cockpitDir: string, id: string): Task {
+  const file = readTasksFile(cockpitDir);
+  const index = file.tasks.findIndex((candidate) => candidate.id === id);
+  if (index < 0) {
+    throw new Error(`Unknown task: ${id}`);
+  }
+
+  const [removed] = file.tasks.splice(index, 1);
+  if (!removed) {
+    throw new Error(`Unknown task: ${id}`);
+  }
+  for (const task of file.tasks) {
+    if (task.depends_on.includes(id)) {
+      task.depends_on = task.depends_on.filter((dependencyId) => dependencyId !== id);
+      task.updated_at = new Date().toISOString();
+    }
+  }
+  writeTasksFile(cockpitDir, file);
+
+  const derivedWorkStatus = deriveWorkStatusFromTasks(cockpitDir, removed.work_item_id);
+  if (derivedWorkStatus) {
+    updateWorkItemStatus(cockpitDir, removed.work_item_id, derivedWorkStatus);
+  } else {
+    updateWorkItemStatus(cockpitDir, removed.work_item_id, "backlog");
+  }
+
+  return removed;
+}

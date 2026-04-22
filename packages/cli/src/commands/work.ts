@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, removeWorkItem, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
 import { createConnector } from "@cockpit-ai/connectors";
 
@@ -159,6 +159,22 @@ export function registerWorkCommand(program: Command): void {
       if (item.repo_targets.length > 0) {
         console.log(`Repos: ${item.repo_targets.join(", ")}`);
       }
+    });
+
+  work
+    .command("remove")
+    .description("Remove a work item, optionally cascading its tasks")
+    .argument("<work-item-id>", "Work item id")
+    .option("--cascade", "Also remove tasks linked to this work item")
+    .action((workItemId: string, options: { cascade?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const item = removeWorkItem(workspace.cockpitDir, workItemId, {
+        ...(options.cascade ? { cascadeTasks: true } : {}),
+      });
+      console.log(`Removed ${item.id}`);
     });
 
   work

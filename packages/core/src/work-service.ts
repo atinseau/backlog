@@ -1,6 +1,7 @@
 import { workStatusSchema, type WorkItem, type WorkStatus } from "@cockpit-ai/schemas";
 import { makeId } from "./id.js";
-import { readTasksFile, readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
+import { readTasksFile, readWorkItemsFile, writeTasksFile, writeWorkItemsFile } from "./state-files.js";
+import { removeSyncConflictsForWorkItem } from "./sync-conflicts.js";
 
 export interface CreateWorkItemInput {
   title: string;
@@ -184,4 +185,44 @@ export function deriveWorkStatusFromTasks(cockpitDir: string, workItemId: string
     return "ready";
   }
   return null;
+}
+
+export function removeWorkItem(cockpitDir: string, id: string, options?: { cascadeTasks?: boolean }): WorkItem {
+  const workFile = readWorkItemsFile(cockpitDir);
+  const itemIndex = workFile.items.findIndex((candidate) => candidate.id === id);
+  if (itemIndex < 0) {
+    throw new Error(`Unknown work item: ${id}`);
+  }
+
+  const taskFile = readTasksFile(cockpitDir);
+  const linkedTasks = taskFile.tasks.filter((task) => task.work_item_id === id);
+  if (linkedTasks.length > 0 && !options?.cascadeTasks) {
+    throw new Error(`Work item ${id} still has ${linkedTasks.length} task(s). Re-run with --cascade.`);
+  }
+
+  if (linkedTasks.length > 0) {
+    const removedTaskIds = new Set(linkedTasks.map((task) => task.id));
+    taskFile.tasks = taskFile.tasks
+      .filter((task) => task.work_item_id !== id)
+      .map((task) => {
+        const nextDependsOn = task.depends_on.filter((dependencyId) => !removedTaskIds.has(dependencyId));
+        if (nextDependsOn.length === task.depends_on.length) {
+          return task;
+        }
+        return {
+          ...task,
+          depends_on: nextDependsOn,
+          updated_at: new Date().toISOString(),
+        };
+      });
+    writeTasksFile(cockpitDir, taskFile);
+  }
+
+  const [removed] = workFile.items.splice(itemIndex, 1);
+  if (!removed) {
+    throw new Error(`Unknown work item: ${id}`);
+  }
+  writeWorkItemsFile(cockpitDir, workFile);
+  removeSyncConflictsForWorkItem(cockpitDir, id);
+  return removed;
 }

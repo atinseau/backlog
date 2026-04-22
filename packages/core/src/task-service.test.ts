@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout, loadConfig } from "@cockpit-ai/config";
 import { git } from "@cockpit-ai/git";
-import { blockTask, createTask, getTask, unblockTask, updateTask } from "./task-service.js";
+import { blockTask, createTask, getTask, removeTask, unblockTask, updateTask } from "./task-service.js";
 import { createWorkItem, getWorkItem } from "./work-service.js";
 
 async function createWorkspace(): Promise<string> {
@@ -94,5 +94,27 @@ describe("task-service", () => {
     expect(reopened.blockers).toEqual([]);
     expect(getTask(cockpitDir, task.id)?.status).toBe("planned");
     expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("in_progress");
+  });
+
+  it("removes one task and cleans up dependencies that point to it", () => {
+    const workItem = createWorkItem(cockpitDir, { title: "Task removal", repoTargets: [repoId] });
+    const first = createTask(cockpitDir, {
+      workItemId: workItem.id,
+      title: "First",
+      repo: repoId,
+    });
+    const second = createTask(cockpitDir, {
+      workItemId: workItem.id,
+      title: "Second",
+      repo: repoId,
+      dependsOn: [first.id],
+    });
+
+    const removed = removeTask(cockpitDir, first.id);
+
+    expect(removed.id).toBe(first.id);
+    expect(getTask(cockpitDir, first.id)).toBeNull();
+    expect(getTask(cockpitDir, second.id)?.depends_on).toEqual([]);
+    expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("ready");
   });
 });

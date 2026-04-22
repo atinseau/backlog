@@ -91,6 +91,35 @@ export function setSourceEnabled(cockpitDir: string, id: string, enabled: boolea
   return updateSource(cockpitDir, id, { enabled });
 }
 
+export function removeSource(cockpitDir: string, id: string, options?: { force?: boolean }): SourceConfig {
+  const file = readSourcesFile(cockpitDir);
+  const index = file.sources.findIndex((candidate) => candidate.id === id);
+  if (index < 0) {
+    throw new Error(`Unknown source: ${id}`);
+  }
+
+  const workItems = readWorkItemsFile(cockpitDir);
+  const linkedWorkItems = workItems.items.filter((item) => item.source_links.some((link) => link.source_ref === id));
+  if (linkedWorkItems.length > 0 && !options?.force) {
+    throw new Error(`Source ${id} is still linked from ${linkedWorkItems.length} work item(s). Re-run with --force.`);
+  }
+
+  if (linkedWorkItems.length > 0) {
+    for (const item of workItems.items) {
+      item.source_links = item.source_links.filter((link) => link.source_ref !== id);
+      item.updated_at = new Date().toISOString();
+    }
+    writeWorkItemsFile(cockpitDir, workItems);
+  }
+
+  const [removed] = file.sources.splice(index, 1);
+  if (!removed) {
+    throw new Error(`Unknown source: ${id}`);
+  }
+  writeSourcesFile(cockpitDir, file);
+  return removed;
+}
+
 export function primarySourceLink(item: WorkItem) {
   return item.source_links[0] ?? null;
 }
