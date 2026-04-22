@@ -17,7 +17,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit runs list|show|gc`
 - `cockpit runs interrupt|resume`
 - `cockpit runs review|approve|request-changes|complete|fail|handoff`
-- `cockpit agents list|validate|health`
+- `cockpit agents list|show|enable|disable|update|validate|health`
 - `cockpit sources add|list|validate|sync`
 - `cockpit sources push`
 - `cockpit sources conflicts|resolve`
@@ -78,6 +78,8 @@ Cockpit also supports `provider: codex`. A Codex agent runs `codex exec` inside 
 `init` now seeds a disabled `codex-default` agent in `.cockpit/agents.yaml` that you can enable and tune with `model`, `profile`, `sandbox_mode`, and an optional `command` override for the Codex executable path.
 
 Cockpit also supports `provider: claude` through `claude -p`, using the same isolated worktree flow. `init` seeds a disabled `claude-default` agent as well.
+
+Use `cockpit agents enable|disable|update` when you want to flip a seeded agent on, change its model, override its executable, or narrow its allowed repos/risk/capabilities without editing YAML by hand.
 
 Both `codex` and `claude` now attach richer run artifacts:
 - summary

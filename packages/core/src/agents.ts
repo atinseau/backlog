@@ -14,12 +14,99 @@ export function readAgentsFile(cockpitDir: string): AgentsFile {
   return agentsFileSchema.parse(parsed);
 }
 
+export function writeAgentsFile(cockpitDir: string, file: AgentsFile): void {
+  fs.writeFileSync(agentsPath(cockpitDir), YAML.stringify(agentsFileSchema.parse(file)), "utf8");
+}
+
 export function listAgents(cockpitDir: string): Agent[] {
   return readAgentsFile(cockpitDir).agents;
 }
 
 export function getAgent(cockpitDir: string, id: string): Agent | null {
   return listAgents(cockpitDir).find((candidate) => candidate.id === id) ?? null;
+}
+
+export interface UpdateAgentInput {
+  model?: string;
+  clearModel?: boolean;
+  profile?: string;
+  clearProfile?: boolean;
+  command?: string;
+  clearCommand?: boolean;
+  sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+  clearSandboxMode?: boolean;
+  successMode?: "review" | "complete";
+  clearSuccessMode?: boolean;
+  environment?: Record<string, string>;
+  enabled?: boolean;
+  maxConcurrentRuns?: number;
+  allowedRepos?: string[];
+  allowedRisk?: Array<"low" | "medium" | "high">;
+  capabilities?: string[];
+}
+
+export function updateAgent(cockpitDir: string, id: string, input: UpdateAgentInput): Agent {
+  const file = readAgentsFile(cockpitDir);
+  const agent = file.agents.find((candidate) => candidate.id === id);
+  if (!agent) {
+    throw new Error(`Unknown agent: ${id}`);
+  }
+
+  if (input.model !== undefined) {
+    agent.model = input.model;
+  }
+  if (input.clearModel) {
+    delete agent.model;
+  }
+  if (input.profile !== undefined) {
+    agent.profile = input.profile;
+  }
+  if (input.clearProfile) {
+    delete agent.profile;
+  }
+  if (input.command !== undefined) {
+    agent.command = input.command;
+  }
+  if (input.clearCommand) {
+    delete agent.command;
+  }
+  if (input.sandboxMode !== undefined) {
+    agent.sandbox_mode = input.sandboxMode;
+  }
+  if (input.clearSandboxMode) {
+    delete agent.sandbox_mode;
+  }
+  if (input.successMode !== undefined) {
+    agent.success_mode = input.successMode;
+  }
+  if (input.clearSuccessMode) {
+    delete agent.success_mode;
+  }
+  if (input.environment !== undefined) {
+    agent.environment = input.environment;
+  }
+  if (input.enabled !== undefined) {
+    agent.enabled = input.enabled;
+  }
+  if (input.maxConcurrentRuns !== undefined) {
+    agent.max_concurrent_runs = input.maxConcurrentRuns;
+  }
+  if (input.allowedRepos !== undefined) {
+    agent.allowed_repos = input.allowedRepos;
+  }
+  if (input.allowedRisk !== undefined) {
+    agent.allowed_risk = input.allowedRisk;
+  }
+  if (input.capabilities !== undefined) {
+    agent.capabilities = input.capabilities;
+  }
+
+  writeAgentsFile(cockpitDir, file);
+  return agent;
+}
+
+export function setAgentEnabled(cockpitDir: string, id: string, enabled: boolean): Agent {
+  return updateAgent(cockpitDir, id, { enabled });
 }
 
 export interface AgentHealth {

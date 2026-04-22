@@ -1,6 +1,22 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { healthForAgents, listAgents, validateAgents } from "@cockpit-ai/core";
+import { getAgent, healthForAgents, listAgents, setAgentEnabled, updateAgent, validateAgents } from "@cockpit-ai/core";
+
+function collectValues(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+function parseKeyValuePairs(pairs: string[]): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const pair of pairs) {
+    const separator = pair.indexOf("=");
+    if (separator <= 0 || separator === pair.length - 1) {
+      throw new Error(`Invalid environment entry: ${pair}. Expected KEY=value.`);
+    }
+    environment[pair.slice(0, separator)] = pair.slice(separator + 1);
+  }
+  return environment;
+}
 
 export function registerAgentCommand(program: Command): void {
   const agents = program.command("agents").description("Inspect configured agents");
@@ -34,7 +50,7 @@ export function registerAgentCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const agent = listAgents(workspace.cockpitDir).find((candidate) => candidate.id === agentId);
+      const agent = getAgent(workspace.cockpitDir, agentId);
       if (!agent) {
         throw new Error(`Unknown agent: ${agentId}`);
       }
@@ -52,6 +68,92 @@ export function registerAgentCommand(program: Command): void {
       if (agent.command) {
         console.log(`Command: ${agent.command}`);
       }
+    });
+
+  agents
+    .command("enable")
+    .description("Enable one configured agent")
+    .argument("<agent-id>", "Agent id")
+    .action((agentId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const agent = setAgentEnabled(workspace.cockpitDir, agentId, true);
+      console.log(`Enabled ${agent.id}`);
+    });
+
+  agents
+    .command("disable")
+    .description("Disable one configured agent")
+    .argument("<agent-id>", "Agent id")
+    .action((agentId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const agent = setAgentEnabled(workspace.cockpitDir, agentId, false);
+      console.log(`Disabled ${agent.id}`);
+    });
+
+  agents
+    .command("update")
+    .description("Update one configured agent without editing YAML by hand")
+    .argument("<agent-id>", "Agent id")
+    .option("--model <model>", "Agent model")
+    .option("--clear-model", "Remove the model override")
+    .option("--profile <profile>", "Agent profile")
+    .option("--clear-profile", "Remove the profile override")
+    .option("--command <command>", "Executable override")
+    .option("--clear-command", "Remove the executable override")
+    .option("--sandbox-mode <mode>", "read-only, workspace-write, or danger-full-access")
+    .option("--clear-sandbox-mode", "Remove the sandbox mode override")
+    .option("--success-mode <mode>", "review or complete")
+    .option("--clear-success-mode", "Remove the success mode override")
+    .option("--max-concurrent-runs <count>", "Concurrency limit")
+    .option("--allow-repo <repo>", "Replace allowed repos", collectValues, [])
+    .option("--allow-risk <risk>", "Replace allowed risk levels", collectValues, [])
+    .option("--capability <capability>", "Replace capabilities", collectValues, [])
+    .option("--env <key=value>", "Replace environment entries", collectValues, [])
+    .action((agentId: string, options: {
+      model?: string;
+      clearModel?: boolean;
+      profile?: string;
+      clearProfile?: boolean;
+      command?: string;
+      clearCommand?: boolean;
+      sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+      clearSandboxMode?: boolean;
+      successMode?: "review" | "complete";
+      clearSuccessMode?: boolean;
+      maxConcurrentRuns?: string;
+      allowRepo: string[];
+      allowRisk: Array<"low" | "medium" | "high">;
+      capability: string[];
+      env: string[];
+    }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const agent = updateAgent(workspace.cockpitDir, agentId, {
+        ...(options.model !== undefined ? { model: options.model } : {}),
+        ...(options.clearModel ? { clearModel: true } : {}),
+        ...(options.profile !== undefined ? { profile: options.profile } : {}),
+        ...(options.clearProfile ? { clearProfile: true } : {}),
+        ...(options.command !== undefined ? { command: options.command } : {}),
+        ...(options.clearCommand ? { clearCommand: true } : {}),
+        ...(options.sandboxMode !== undefined ? { sandboxMode: options.sandboxMode } : {}),
+        ...(options.clearSandboxMode ? { clearSandboxMode: true } : {}),
+        ...(options.successMode !== undefined ? { successMode: options.successMode } : {}),
+        ...(options.clearSuccessMode ? { clearSuccessMode: true } : {}),
+        ...(options.maxConcurrentRuns !== undefined ? { maxConcurrentRuns: Number(options.maxConcurrentRuns) } : {}),
+        ...(options.allowRepo.length > 0 ? { allowedRepos: options.allowRepo } : {}),
+        ...(options.allowRisk.length > 0 ? { allowedRisk: options.allowRisk } : {}),
+        ...(options.capability.length > 0 ? { capabilities: options.capability } : {}),
+        ...(options.env.length > 0 ? { environment: parseKeyValuePairs(options.env) } : {}),
+      });
+      console.log(`Updated ${agent.id}`);
     });
 
   agents
