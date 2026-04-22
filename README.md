@@ -11,8 +11,9 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit work add|list|show|move|plan|split|import`
 - `cockpit task add|list|show|move|plan`
 - `cockpit claim start|check|finish|list`
+- `cockpit claim start|check|finish|list|gc`
 - `cockpit schedule simulate|explain|run`
-- `cockpit runs list|show`
+- `cockpit runs list|show|gc`
 - `cockpit runs interrupt|resume`
 - `cockpit runs review|complete|fail|handoff`
 - `cockpit agents list|validate|health`
@@ -90,6 +91,11 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 - `sources push --all` pushes every source-linked work item that supports outbound sync.
 - `sources push` now refuses to push an item while it still has pending sync conflicts, unless you pass `--allow-conflicts`.
 - `sources resolve --work-item <id> --use local|external` resolves every pending conflict for that work item in one step.
+
+## Maintenance
+
+- `claim gc` archives expired active claims that would otherwise stay on disk.
+- `runs gc --all` purges archived run directories when you want to clean local runtime history.
 
 ## Development
 

@@ -4,6 +4,7 @@ import {
   archiveClaim,
   createClaim,
   findOverlappingClaims,
+  garbageCollectExpiredClaims,
   isExpired,
   listActiveClaims,
   loadActiveClaim,
@@ -107,6 +108,27 @@ export function registerClaimCommand(program: Command): void {
       console.log(`Repo:   ${claimRecord.repo}`);
       console.log(`Scope:  ${claimRecord.paths.join(", ")}`);
       console.log(`Until:  ${claimRecord.expires_at}`);
+    });
+
+  claim
+    .command("gc")
+    .description("Archive expired active claims")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+
+      const result = garbageCollectExpiredClaims(workspace.cockpitDir);
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Archived expired claims: ${result.archived.length}`);
+      for (const claimId of result.archived) {
+        console.log(`- ${claimId}`);
+      }
     });
 
   claim

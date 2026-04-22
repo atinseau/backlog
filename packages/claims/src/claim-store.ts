@@ -112,3 +112,29 @@ export function archiveClaim(cockpitDir: string, claimId: string): ClaimRecord {
   fs.unlinkSync(activePath);
   return archived;
 }
+
+export interface ClaimGcResult {
+  archived: string[];
+}
+
+export function garbageCollectExpiredClaims(cockpitDir: string): ClaimGcResult {
+  const directory = activeClaimsDir(cockpitDir);
+  const result: ClaimGcResult = {
+    archived: [],
+  };
+  if (!fs.existsSync(directory)) {
+    return result;
+  }
+
+  for (const entry of fs.readdirSync(directory).filter((candidate) => candidate.endsWith(".json"))) {
+    const filePath = path.join(directory, entry);
+    const claim = readClaimFile(filePath);
+    if (!isExpired(claim)) {
+      continue;
+    }
+    archiveClaim(cockpitDir, claim.id);
+    result.archived.push(claim.id);
+  }
+
+  return result;
+}

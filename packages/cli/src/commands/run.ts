@@ -4,6 +4,7 @@ import {
   completeRun,
   createRunHandoff,
   failRun,
+  garbageCollectArchivedRuns,
   getRunEvents,
   getTask,
   listAllRuns,
@@ -15,6 +16,30 @@ import {
 
 export function registerRunCommand(program: Command): void {
   const runs = program.command("runs").description("Inspect execution runs");
+
+  runs
+    .command("gc")
+    .description("Purge archived run directories")
+    .requiredOption("--all", "Confirm that every archived run should be removed")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { all?: boolean; json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      if (!options.all) {
+        throw new Error("runs gc requires --all.");
+      }
+      const result = garbageCollectArchivedRuns(workspace.cockpitDir);
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      console.log(`Removed archived runs: ${result.removed.length}`);
+      for (const runId of result.removed) {
+        console.log(`- ${runId}`);
+      }
+    });
 
   runs
     .command("list")

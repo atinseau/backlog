@@ -159,6 +159,19 @@ export function listAllRuns(cockpitDir: string): Run[] {
   return runs;
 }
 
+export function listArchivedRuns(cockpitDir: string): Run[] {
+  const directory = archiveRunsDir(cockpitDir);
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+  return fs.readdirSync(directory)
+    .filter((entry) => fs.existsSync(path.join(directory, entry, "run.json")))
+    .map((entry) => {
+      const raw = JSON.parse(fs.readFileSync(path.join(directory, entry, "run.json"), "utf8")) as unknown;
+      return runSchema.parse(raw);
+    });
+}
+
 export function archiveRun(cockpitDir: string, runId: string): Run {
   const run = loadRun(cockpitDir, runId);
   if (!run) {
@@ -173,6 +186,32 @@ export function archiveRun(cockpitDir: string, runId: string): Run {
   fs.rmSync(archiveDir, { recursive: true, force: true });
   fs.renameSync(activeDir, archiveDir);
   return run;
+}
+
+export interface RunGcResult {
+  removed: string[];
+}
+
+export function garbageCollectArchivedRuns(cockpitDir: string): RunGcResult {
+  const directory = archiveRunsDir(cockpitDir);
+  const result: RunGcResult = {
+    removed: [],
+  };
+  if (!fs.existsSync(directory)) {
+    return result;
+  }
+
+  for (const entry of fs.readdirSync(directory)) {
+    const runDir = path.join(directory, entry);
+    const runFile = path.join(runDir, "run.json");
+    if (!fs.existsSync(runFile)) {
+      continue;
+    }
+    fs.rmSync(runDir, { recursive: true, force: true });
+    result.removed.push(entry);
+  }
+
+  return result;
 }
 
 export function writeRunHandoff(cockpitDir: string, runId: string, contents: string): string {
