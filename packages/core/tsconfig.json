@@ -2,12 +2,17 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@cockpit-ai/git": ["../git/src/index.ts"]
+    }
   },
   "include": ["src"],
   "references": [
     { "path": "../config" },
     { "path": "../claims" },
+    { "path": "../git" },
     { "path": "../schemas" }
   ]
 }

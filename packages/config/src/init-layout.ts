@@ -30,6 +30,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.mkdirSync(path.join(cockpitDir, "claims", "archive"), { recursive: true });
   fs.mkdirSync(path.join(cockpitDir, "runs", "active"), { recursive: true });
   fs.mkdirSync(path.join(cockpitDir, "runs", "archive"), { recursive: true });
+  fs.mkdirSync(path.join(cockpitDir, "worktrees"), { recursive: true });
   fs.mkdirSync(path.join(cockpitDir, "cache"), { recursive: true });
 
   const config: WorkspaceConfig = {
@@ -50,6 +51,22 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.writeFileSync(path.join(cockpitDir, "work-items.yaml"), "version: 1\nitems: []\n", "utf8");
   fs.writeFileSync(path.join(cockpitDir, "tasks.yaml"), "version: 1\ntasks: []\n", "utf8");
   fs.writeFileSync(path.join(cockpitDir, "sources.yaml"), "version: 1\nsources: []\n", "utf8");
+  fs.writeFileSync(
+    path.join(cockpitDir, "agents.yaml"),
+    [
+      "version: 1",
+      "agents:",
+      "  - id: manual-default",
+      "    provider: manual",
+      "    enabled: true",
+      "    max_concurrent_runs: 1",
+      "    allowed_repos: []",
+      "    allowed_risk: [low, medium, high]",
+      "    capabilities: [plan, edit_code, review]",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   const shimPath = writeLocalShim(cockpitDir, options.root);
   return { cockpitDir, configPath, shimPath };

@@ -73,6 +73,9 @@ importers:
       '@cockpit-ai/config':
         specifier: workspace:*
         version: link:../config
+      '@cockpit-ai/git':
+        specifier: workspace:*
+        version: link:../git
       '@cockpit-ai/schemas':
         specifier: workspace:*
         version: link:../schemas

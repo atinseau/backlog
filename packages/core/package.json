@@ -11,6 +11,7 @@
   "dependencies": {
     "@cockpit-ai/config": "workspace:*",
     "@cockpit-ai/claims": "workspace:*",
+    "@cockpit-ai/git": "workspace:*",
     "@cockpit-ai/schemas": "workspace:*",
     "yaml": "^2.8.0"
   }

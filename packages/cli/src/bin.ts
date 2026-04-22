@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { registerAgentCommand } from "./commands/agent.js";
 import { registerClaimCommand } from "./commands/claim.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerHooksCommand } from "./commands/hooks.js";
 import { registerInitCommand } from "./commands/init.js";
+import { registerRunCommand } from "./commands/run.js";
 import { registerScheduleCommand } from "./commands/schedule.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
@@ -18,11 +20,13 @@ program
 
 registerInitCommand(program);
 registerDoctorCommand(program);
+registerAgentCommand(program);
 registerClaimCommand(program);
 registerHooksCommand(program);
 registerScheduleCommand(program);
 registerStatusCommand(program);
 registerTaskCommand(program);
+registerRunCommand(program);
 registerWorkCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {

@@ -1,6 +1,23 @@
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { buildExecutionPlan } from "@cockpit-ai/core";
+import { createClaim, writeContextFile } from "@cockpit-ai/claims";
+import {
+  addRunArtifact,
+  buildExecutionPlan,
+  buildRunBranchName,
+  createRun,
+  ensureWorktree,
+  getAgent,
+  getTask,
+  getWorkItem,
+  listActiveRuns,
+  nextRunId,
+  pickAgentForTask,
+  updateRunStatus,
+  updateTaskStatus,
+  writeWorktreeContext,
+} from "@cockpit-ai/core";
+import { detectGitDir } from "@cockpit-ai/git";
 
 export function registerScheduleCommand(program: Command): void {
   const schedule = program.command("schedule").description("Plan and execute task scheduling");
@@ -42,6 +59,115 @@ export function registerScheduleCommand(program: Command): void {
       console.log(`Blocked: ${plan.blocked.length}`);
       for (const decision of plan.blocked) {
         console.log(`- ${decision.taskId} ${decision.reasons.join(", ")}`);
+      }
+    });
+
+  schedule
+    .command("run")
+    .description("Create runnable execution runs in isolated worktrees")
+    .option("--work-item <id>", "Restrict to one work item")
+    .option("--task <id>", "Restrict to one task")
+    .option("--max-start <count>", "Limit the number of runs to start", "1")
+    .option("--agent <agent-id>", "Force one agent id")
+    .option("--approve", "Required in assist mode")
+    .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const config = loadConfig(workspace.cockpitDir);
+      if (config.autonomy_mode === "observe") {
+        throw new Error("schedule run is disabled in observe mode. Use schedule simulate instead.");
+      }
+      if (config.autonomy_mode === "assist" && !options.approve) {
+        throw new Error("schedule run requires --approve in assist mode.");
+      }
+
+      const plan = buildExecutionPlan(workspace.cockpitDir, config, {
+        ...(options.workItem ? { workItemId: options.workItem } : {}),
+        ...(options.task ? { taskId: options.task } : {}),
+      });
+      const maxStart = Number.parseInt(options.maxStart ?? "1", 10);
+      const started: string[] = [];
+
+      for (const decision of plan.runnable.slice(0, maxStart)) {
+        const task = getTask(workspace.cockpitDir, decision.taskId);
+        if (!task) {
+          continue;
+        }
+        const workItem = getWorkItem(workspace.cockpitDir, task.work_item_id);
+        if (!workItem) {
+          continue;
+        }
+        const repo = config.repos.find((candidate) => candidate.id === task.repo);
+        if (!repo) {
+          throw new Error(`Task ${task.id} targets unknown repo ${task.repo}`);
+        }
+
+        const activeAgentRuns = listActiveRuns(workspace.cockpitDir).filter((run) => run.status === "running" || run.status === "preparing");
+        const agent = options.agent
+          ? (() => {
+              const forced = getAgent(workspace.cockpitDir, options.agent);
+              if (!forced) {
+                throw new Error(`Unknown agent: ${options.agent}`);
+              }
+              return forced;
+            })()
+          : pickAgentForTask(workspace.cockpitDir, task.repo, task.risk);
+
+        if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
+          continue;
+        }
+
+        const claim = createClaim({
+          cockpitDir: workspace.cockpitDir,
+          repo: repo.id,
+          repoPath: repo.path,
+          topic: `run ${task.id}`,
+          paths: task.scopes.length > 0 ? task.scopes : ["**"],
+          mode: task.claim_mode,
+          ttlMinutes: config.claims.ttl_minutes,
+        });
+        const gitDir = await detectGitDir(repo.path);
+        writeContextFile(gitDir, {
+          version: 1,
+          claim_id: claim.id,
+          updated_at: new Date().toISOString(),
+        });
+
+        const branch = buildRunBranchName(task.id, task.title);
+        const runId = nextRunId();
+        const worktreePath = await ensureWorktree({
+          cockpitDir: workspace.cockpitDir,
+          repoId: repo.id,
+          repoPath: repo.path,
+          branch,
+          runId,
+        });
+        const run = createRun({
+          cockpitDir: workspace.cockpitDir,
+          runId,
+          task,
+          workItem,
+          agent,
+          branch,
+          worktreePath,
+          claimIds: [claim.id],
+        });
+        await writeWorktreeContext(worktreePath, run.id, claim.id);
+        addRunArtifact(workspace.cockpitDir, run.id, { kind: "branch", value: branch });
+        updateRunStatus(workspace.cockpitDir, run.id, "running", "Execution workspace prepared");
+        updateTaskStatus(workspace.cockpitDir, task.id, "running");
+        started.push(`${run.id} -> ${task.id} (${agent.id})`);
+      }
+
+      if (started.length === 0) {
+        console.log("No runs started.");
+        return;
+      }
+      console.log("Started runs");
+      for (const line of started) {
+        console.log(`- ${line}`);
       }
     });
 }
