@@ -42,4 +42,32 @@ describe("buildExecutionPlan", () => {
     expect(plan.runnable.some((decision) => decision.taskId === first.id)).toBe(true);
     expect(plan.waiting.find((decision) => decision.taskId === second.id)?.reasons).toContain(`blocked_by_dependency:${first.id}`);
   });
+
+  it("does not schedule overlapping runnable tasks in the same plan", () => {
+    const root = createWorkspace();
+    const cockpitDir = path.join(root, ".cockpit");
+    const config = loadConfig(cockpitDir);
+
+    const work = createWorkItem(cockpitDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
+    const first = createTask(cockpitDir, {
+      workItemId: work.id,
+      title: "Core planner",
+      repo: path.basename(root),
+      scopes: ["packages/core/src/**"],
+      risk: "low",
+    });
+    const second = createTask(cockpitDir, {
+      workItemId: work.id,
+      title: "Conflicting follow-up",
+      repo: path.basename(root),
+      scopes: ["packages/core/src/scheduler.ts"],
+      risk: "low",
+      priorityScore: 90,
+    });
+
+    const plan = buildExecutionPlan(cockpitDir, config);
+    expect(plan.runnable).toHaveLength(1);
+    expect(plan.runnable.some((decision) => decision.taskId === first.id || decision.taskId === second.id)).toBe(true);
+    expect(plan.waiting.some((decision) => decision.reasons.some((reason) => reason.startsWith("scope_conflict_with_selected:")))).toBe(true);
+  });
 });

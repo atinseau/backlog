@@ -1,5 +1,7 @@
 import { listActiveClaims, scopesOverlap } from "@cockpit-ai/claims";
 import type { Task, WorkItem, WorkspaceConfig } from "@cockpit-ai/schemas";
+import { compatibleAgentsForTask } from "./agents.js";
+import { listActiveRuns } from "./run-store.js";
 import { listTasks, listWorkItems } from "./state-files.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
@@ -10,6 +12,7 @@ export interface TaskDecision {
   action: DecisionAction;
   score: number;
   reasons: string[];
+  assignedAgentId?: string;
 }
 
 export interface ExecutionPlan {
@@ -19,6 +22,11 @@ export interface ExecutionPlan {
   waiting: TaskDecision[];
   blocked: TaskDecision[];
   skipped: TaskDecision[];
+}
+
+interface EvaluatedDecision extends TaskDecision {
+  task?: Task;
+  compatibleAgentIds?: string[];
 }
 
 function isTerminal(status: Task["status"]): boolean {
@@ -123,13 +131,22 @@ export function buildExecutionPlan(
     return true;
   });
 
-  const evaluated: TaskDecision[] = candidates.map((task) => {
+  const activeRuns = listActiveRuns(cockpitDir);
+  const activeRunCounts = new Map<string, number>();
+  for (const run of activeRuns) {
+    activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
+  }
+
+  const preselected: TaskDecision[] = [];
+  const deferred: TaskDecision[] = [];
+
+  const evaluated: EvaluatedDecision[] = candidates.map((task) => {
     const workItem = workItemsById.get(task.work_item_id);
     if (!workItem) {
       return {
         taskId: task.id,
         workItemId: task.work_item_id,
-        action: "block",
+        action: "block" as const,
         score: -1000,
         reasons: ["missing_work_item"],
       };
@@ -157,13 +174,20 @@ export function buildExecutionPlan(
     }
 
     const score = scoreTask(task, workItem);
+    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task.repo, task.risk);
+    if (compatibleAgents.length === 0) {
+      reasons.push("no_compatible_agent");
+    }
+
     if (reasons.length === 0) {
       return {
         taskId: task.id,
         workItemId: task.work_item_id,
-        action: "run",
+        action: "run" as const,
         score,
         reasons: ["dependencies_clear", "scope_clear", "policy_clear"],
+        compatibleAgentIds: compatibleAgents.map((agent) => agent.id),
+        task,
       };
     }
 
@@ -177,17 +201,130 @@ export function buildExecutionPlan(
       action,
       score,
       reasons,
+      compatibleAgentIds: compatibleAgents.map((agent) => agent.id),
+      task,
     };
   });
 
-  const runnable = evaluated
+  const initialRunnable = evaluated
     .filter((decision) => decision.action === "run")
-    .sort((left, right) => right.score - left.score)
-    .slice(0, config.max_agents);
-  const runnableIds = new Set(runnable.map((decision) => decision.taskId));
-  const waiting = evaluated.filter((decision) => decision.action === "wait" || (decision.action === "run" && !runnableIds.has(decision.taskId)));
-  const blocked = evaluated.filter((decision) => decision.action === "block");
-  const skipped = evaluated.filter((decision) => decision.action === "skip");
+    .sort((left, right) => right.score - left.score);
+
+  const reserved: Array<{ taskId: string; repo: string; scopes: string[] }> = [];
+  const plannedRunCounts = new Map(activeRunCounts);
+
+  for (const decision of initialRunnable) {
+    if (!decision.task || !decision.compatibleAgentIds) {
+      deferred.push({
+        taskId: decision.taskId,
+        workItemId: decision.workItemId,
+        action: "wait",
+        score: decision.score,
+        reasons: ["scheduler_missing_task_context"],
+      });
+      continue;
+    }
+    const task = decision.task;
+    const compatibleAgentIds = decision.compatibleAgentIds;
+
+    if (preselected.length >= config.max_agents) {
+      deferred.push({
+        taskId: decision.taskId,
+        workItemId: decision.workItemId,
+        action: "wait",
+        score: decision.score,
+        reasons: ["no_scheduler_capacity"],
+      });
+      continue;
+    }
+
+    const scopeConflict = reserved.find((entry) => {
+      if (entry.repo !== task.repo) {
+        return false;
+      }
+      if (task.claim_mode === "shared") {
+        return false;
+      }
+      return entry.scopes.some((reservedScope) => task.scopes.some((taskScope) => scopesOverlap(reservedScope, taskScope)));
+    });
+    if (scopeConflict) {
+      deferred.push({
+        taskId: decision.taskId,
+        workItemId: decision.workItemId,
+        action: "wait",
+        score: decision.score,
+        reasons: [`scope_conflict_with_selected:${scopeConflict.taskId}`],
+      });
+      continue;
+    }
+
+    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task.repo, task.risk);
+    const agent = compatibleAgentIds
+      .map((agentId) => ({
+        id: agentId,
+        activeRuns: plannedRunCounts.get(agentId) ?? 0,
+      }))
+      .sort((left, right) => left.activeRuns - right.activeRuns)
+      .find((candidate) => {
+        const maxConcurrentRuns = compatibleAgents
+          .find((agentEntry) => agentEntry.id === candidate.id)?.max_concurrent_runs;
+        return maxConcurrentRuns !== undefined && candidate.activeRuns < maxConcurrentRuns;
+      });
+
+    if (!agent) {
+      deferred.push({
+        taskId: decision.taskId,
+        workItemId: decision.workItemId,
+        action: "wait",
+        score: decision.score,
+        reasons: ["no_agent_capacity"],
+      });
+      continue;
+    }
+
+    plannedRunCounts.set(agent.id, (plannedRunCounts.get(agent.id) ?? 0) + 1);
+    reserved.push({
+      taskId: decision.taskId,
+      repo: task.repo,
+      scopes: task.scopes,
+    });
+    preselected.push({
+      taskId: decision.taskId,
+      workItemId: decision.workItemId,
+      action: "run",
+      score: decision.score,
+      reasons: decision.reasons,
+      assignedAgentId: agent.id,
+    });
+  }
+
+  const runnable = preselected;
+  const waiting: TaskDecision[] = [
+    ...evaluated.filter((decision) => decision.action === "wait").map((decision) => ({
+      taskId: decision.taskId,
+      workItemId: decision.workItemId,
+      action: "wait" as const,
+      score: decision.score,
+      reasons: decision.reasons,
+    })),
+    ...deferred,
+  ];
+  const blocked: TaskDecision[] = evaluated.filter((decision) => decision.action === "block").map((decision) => ({
+    taskId: decision.taskId,
+    workItemId: decision.workItemId,
+    action: "block" as const,
+    score: decision.score,
+    reasons: decision.reasons,
+  }));
+  const skipped: TaskDecision[] = evaluated
+    .filter((decision) => decision.action === "skip")
+    .map((decision) => ({
+      taskId: decision.taskId,
+      workItemId: decision.workItemId,
+      action: "skip" as const,
+      score: decision.score,
+      reasons: decision.reasons,
+    }));
 
   return {
     generatedAt: new Date().toISOString(),

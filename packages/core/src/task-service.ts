@@ -15,6 +15,11 @@ export interface CreateTaskInput {
   dependsOn?: string[];
   blockers?: string[];
   risk?: "low" | "medium" | "high";
+  priorityScore?: number;
+  claimMode?: "exclusive" | "shared";
+  completionCriteria?: string[];
+  plannerOrigin?: "manual" | "split" | "imported";
+  lane?: string;
 }
 
 export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
@@ -31,23 +36,25 @@ export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
     title: input.title,
     repo: input.repo,
     status: "queued",
-    priority_score: 50,
+    priority_score: input.priorityScore ?? 50,
     risk: input.risk ?? "medium",
     scopes: input.scopes ?? [],
-    claim_mode: "exclusive",
+    claim_mode: input.claimMode ?? "exclusive",
     depends_on: input.dependsOn ?? [],
     blockers: input.blockers ?? [],
     execution: {
+      ...(input.lane ? { lane: input.lane } : {}),
       preferred_agents: [],
       required_capabilities: [],
       manual_approval_required: false,
     },
     completion: {
-      done_when: [],
+      done_when: input.completionCriteria ?? [],
     },
     planner: {
-      origin: "manual",
+      origin: input.plannerOrigin ?? "manual",
       locked: false,
+      last_planned_at: input.plannerOrigin ? now : undefined,
     },
     created_at: now,
     updated_at: now,

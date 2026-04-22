@@ -114,7 +114,15 @@ export function registerScheduleCommand(program: Command): void {
               }
               return forced;
             })()
-          : pickAgentForTask(workspace.cockpitDir, task.repo, task.risk);
+          : decision.assignedAgentId
+            ? (() => {
+                const assigned = getAgent(workspace.cockpitDir, decision.assignedAgentId!);
+                if (!assigned) {
+                  throw new Error(`Unknown assigned agent: ${decision.assignedAgentId}`);
+                }
+                return assigned;
+              })()
+            : pickAgentForTask(workspace.cockpitDir, task.repo, task.risk);
 
         if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
           continue;

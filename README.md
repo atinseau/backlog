@@ -8,7 +8,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 
 - `cockpit init`
 - `cockpit doctor`
-- `cockpit work add|list|show|move|plan`
+- `cockpit work add|list|show|move|plan|split|import`
 - `cockpit task add|list|show|move|plan`
 - `cockpit claim start|check|finish|list`
 - `cockpit schedule simulate|run`
@@ -35,7 +35,7 @@ Create a local work item and a task:
 
 ```bash
 node packages/cli/dist/bin.js work add --title "Build the scheduler"
-node packages/cli/dist/bin.js task add --work-item WI-xxxx --title "Implement core logic" --repo <repo-id>
+node packages/cli/dist/bin.js work split WI-xxxx --repo cockpit --scope cockpit=packages/core/src/**
 node packages/cli/dist/bin.js schedule simulate
 node packages/cli/dist/bin.js schedule run --approve
 ```
@@ -66,6 +66,14 @@ Cockpit stores local state in `.cockpit/`:
 You can add a `custom` provider in `.cockpit/agents.yaml` with a shell `command`.
 
 When `schedule run --agent <id>` targets a custom agent, Cockpit will execute that command inside the run worktree and mark the run succeeded or failed from the exit code.
+
+## Split Planning
+
+`cockpit work split` turns one backlog item into repo-scoped executable tasks.
+
+- Use `--repo` to override target repos.
+- Use `--mode serial` to chain generated tasks in order.
+- Use `--scope repo=glob` to seed initial safe claim scopes for each generated task.
 
 ## Development
 

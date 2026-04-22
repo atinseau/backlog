@@ -1,8 +1,26 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
+import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, resolveSplitRepos, splitWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
 import { loadConfig } from "@cockpit-ai/config";
 import { createConnector } from "@cockpit-ai/connectors";
+
+function collectValues(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+function parseScopeAssignments(assignments: string[] | undefined): Record<string, string[]> {
+  const mapping: Record<string, string[]> = {};
+  for (const assignment of assignments ?? []) {
+    const separator = assignment.indexOf("=");
+    if (separator <= 0 || separator === assignment.length - 1) {
+      throw new Error(`Invalid scope mapping: ${assignment}. Expected repo=glob.`);
+    }
+    const repo = assignment.slice(0, separator);
+    const scope = assignment.slice(separator + 1);
+    mapping[repo] = [...(mapping[repo] ?? []), scope];
+  }
+  return mapping;
+}
 
 export function registerWorkCommand(program: Command): void {
   const work = program.command("work").description("Manage normalized work items");
@@ -138,6 +156,57 @@ export function registerWorkCommand(program: Command): void {
       console.log(`Max safe parallelism: ${outline.maxSafeParallelism}`);
       if (outline.recommendedNextTaskId) {
         console.log(`Recommended next task: ${outline.recommendedNextTaskId}`);
+      }
+    });
+
+  work
+    .command("split")
+    .description("Split one work item into executable repo-scoped tasks")
+    .argument("<work-item-id>", "Work item id")
+    .option("--repo <repo>", "Override one target repo", collectValues, [])
+    .option("--scope <repo=glob>", "Map a scope to one target repo", collectValues, [])
+    .option("--mode <mode>", "parallel or serial", "parallel")
+    .option("--risk <risk>", "Risk level for created tasks")
+    .option("--force", "Append split tasks even if the work item already has tasks")
+    .option("--json", "Emit machine-readable JSON")
+    .action((workItemId: string, options: {
+      repo: string[];
+      scope: string[];
+      mode?: "parallel" | "serial";
+      risk?: "low" | "medium" | "high";
+      force?: boolean;
+      json?: boolean;
+    }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const config = loadConfig(workspace.cockpitDir);
+      const item = getWorkItem(workspace.cockpitDir, workItemId);
+      if (!item) {
+        throw new Error(`Unknown work item: ${workItemId}`);
+      }
+
+      const repos = resolveSplitRepos(config, item, options.repo);
+      const result = splitWorkItem(workspace.cockpitDir, {
+        workItemId,
+        repos,
+        mode: options.mode === "serial" ? "serial" : "parallel",
+        scopeByRepo: parseScopeAssignments(options.scope),
+        ...(options.risk ? { risk: options.risk } : {}),
+        ...(options.force ? { force: true } : {}),
+      });
+
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      console.log(`Split ${result.workItem.id} into ${result.createdTasks.length} task(s)`);
+      console.log(`Mode: ${result.mode}`);
+      for (const task of result.createdTasks) {
+        const dependencyText = task.depends_on.length > 0 ? ` depends_on=${task.depends_on.join(",")}` : "";
+        console.log(`- ${task.id} ${task.repo} ${task.title}${dependencyText}`);
       }
     });
 

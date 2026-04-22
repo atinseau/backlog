@@ -129,6 +129,9 @@ export function registerTaskCommand(program: Command): void {
       console.log(`Task: ${decision.taskId}`);
       console.log(`Action: ${decision.action}`);
       console.log(`Score: ${decision.score}`);
+      if (decision.assignedAgentId) {
+        console.log(`Assigned agent: ${decision.assignedAgentId}`);
+      }
       console.log(`Reasons: ${decision.reasons.join(", ")}`);
     });
 }

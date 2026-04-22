@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { agentsFileSchema, type Agent, type AgentsFile } from "@cockpit-ai/schemas";
+import { agentsFileSchema, type Agent, type AgentsFile, type Task } from "@cockpit-ai/schemas";
 import { listActiveRuns } from "./run-store.js";
 
 function agentsPath(cockpitDir: string): string {
@@ -81,17 +81,23 @@ export function healthForAgents(cockpitDir: string): AgentHealth[] {
 }
 
 export function pickAgentForTask(cockpitDir: string, repo: string, risk: "low" | "medium" | "high"): Agent {
-  const agent = listAgents(cockpitDir).find((candidate) => {
-    if (!candidate.enabled) {
-      return false;
-    }
-    if (candidate.allowed_repos.length > 0 && !candidate.allowed_repos.includes(repo)) {
-      return false;
-    }
-    return candidate.allowed_risk.includes(risk);
-  });
+  const agent = listAgents(cockpitDir).find((candidate) => canAgentRunTask(candidate, repo, risk));
   if (!agent) {
     throw new Error(`No enabled agent can run repo ${repo} at risk ${risk}.`);
   }
   return agent;
+}
+
+export function canAgentRunTask(agent: Agent, repo: string, risk: Task["risk"]): boolean {
+  if (!agent.enabled) {
+    return false;
+  }
+  if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(repo)) {
+    return false;
+  }
+  return agent.allowed_risk.includes(risk);
+}
+
+export function compatibleAgentsForTask(cockpitDir: string, repo: string, risk: Task["risk"]): Agent[] {
+  return listAgents(cockpitDir).filter((agent) => canAgentRunTask(agent, repo, risk));
 }

@@ -1,0 +1,53 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { initLayout, loadConfig } from "@cockpit-ai/config";
+import { readTasksFile } from "./state-files.js";
+import { resolveSplitRepos, splitWorkItem } from "./split-service.js";
+import { createWorkItem, getWorkItem } from "./work-service.js";
+
+function createWorkspace(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-split-"));
+  initLayout({
+    root,
+    workspaceName: "test",
+    repos: [
+      { id: "backend", path: root, default_branch: "main", enabled: true },
+      { id: "app", path: root, default_branch: "main", enabled: true },
+    ],
+  });
+  return root;
+}
+
+describe("splitWorkItem", () => {
+  it("creates one serial task per repo and marks the work item as split", () => {
+    const root = createWorkspace();
+    const cockpitDir = path.join(root, ".cockpit");
+    const config = loadConfig(cockpitDir);
+    const workItem = createWorkItem(cockpitDir, {
+      title: "Ship orchestrator",
+      repoTargets: ["backend", "app"],
+      acceptanceCriteria: ["Tests pass", "Status is explainable"],
+    });
+
+    const repos = resolveSplitRepos(config, getWorkItem(cockpitDir, workItem.id)!, []);
+    const result = splitWorkItem(cockpitDir, {
+      workItemId: workItem.id,
+      repos,
+      mode: "serial",
+      scopeByRepo: {
+        backend: ["packages/core/src/**"],
+        app: ["packages/cli/src/**"],
+      },
+    });
+
+    expect(result.createdTasks).toHaveLength(2);
+    expect(result.createdTasks[1]?.depends_on).toEqual([result.createdTasks[0]!.id]);
+    expect(result.createdTasks[0]?.completion.done_when).toEqual(["Tests pass", "Status is explainable"]);
+
+    const tasksFile = readTasksFile(cockpitDir);
+    expect(tasksFile.tasks).toHaveLength(2);
+    expect(getWorkItem(cockpitDir, workItem.id)?.planning.split_status).toBe("done");
+  });
+});

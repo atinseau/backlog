@@ -59,6 +59,25 @@ export function updateWorkItemStatus(cockpitDir: string, id: string, status: Wor
   return item;
 }
 
+export function updateWorkItemPlanning(
+  cockpitDir: string,
+  id: string,
+  planning: Partial<WorkItem["planning"]>,
+): WorkItem {
+  const file = readWorkItemsFile(cockpitDir);
+  const item = file.items.find((candidate) => candidate.id === id);
+  if (!item) {
+    throw new Error(`Unknown work item: ${id}`);
+  }
+  item.planning = {
+    ...item.planning,
+    ...planning,
+  };
+  item.updated_at = new Date().toISOString();
+  writeWorkItemsFile(cockpitDir, file);
+  return item;
+}
+
 export function workItemsSummary(cockpitDir: string): Record<WorkStatus, number> {
   const summary = {
     backlog: 0,
