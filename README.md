@@ -13,6 +13,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit task add|list|show|move|update|block|unblock|plan`
 - `cockpit claim start|check|finish|list`
 - `cockpit claim start|check|finish|list|gc`
+- `cockpit hooks status|install|uninstall`
 - `cockpit schedule simulate|explain|run`
 - `cockpit runs list|show|gc`
 - `cockpit runs interrupt|resume`
@@ -107,6 +108,8 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 `cockpit schedule run` now supports `--json` and reports both started runs and skipped tasks, including cases where a forced or assigned agent is unavailable or not executable.
 
 `cockpit init` now auto-registers the current git repo when it can, using the workspace name as a stable repo id and the current branch as the default branch. `cockpit doctor --json` also reports repo-level warnings and detected branches.
+
+`cockpit hooks status` inspects the current repo’s pre-commit hook and tells you whether it is Cockpit-managed and whether it points at the local shim created in `.cockpit/bin/cockpit`.
 
 ## Source Sync
 

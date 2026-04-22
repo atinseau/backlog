@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { repoCurrentBranch } from "@cockpit-ai/git";
+import { detectGitDir, repoCurrentBranch } from "@cockpit-ai/git";
+import { inspectPreCommitHook } from "@cockpit-ai/hooks";
 
 export function registerDoctorCommand(program: Command): void {
   program
@@ -33,7 +34,18 @@ export function registerDoctorCommand(program: Command): void {
 
       const config = loadConfig(workspace.cockpitDir);
       const warnings: string[] = [];
-      const repos: Array<{ id: string; path: string; exists: boolean; branch?: string }> = [];
+      const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
+      const repos: Array<{
+        id: string;
+        path: string;
+        exists: boolean;
+        branch?: string;
+        hook?: {
+          exists: boolean;
+          managed: boolean;
+          pointsToCockpitBin: boolean;
+        };
+      }> = [];
       for (const repo of config.repos) {
         const exists = fs.existsSync(repo.path);
         if (!exists) {
@@ -46,11 +58,27 @@ export function registerDoctorCommand(program: Command): void {
           branch = undefined;
           warnings.push(`cannot_read_branch:${repo.id}`);
         }
+        let hook: { exists: boolean; managed: boolean; pointsToCockpitBin: boolean } | undefined;
+        try {
+          const gitDir = await detectGitDir(repo.path);
+          const hookStatus = inspectPreCommitHook(gitDir, cockpitBin);
+          hook = {
+            exists: hookStatus.exists,
+            managed: hookStatus.managed,
+            pointsToCockpitBin: hookStatus.pointsToCockpitBin,
+          };
+          if (hookStatus.exists && (!hookStatus.managed || !hookStatus.pointsToCockpitBin)) {
+            warnings.push(`hook_needs_attention:${repo.id}`);
+          }
+        } catch {
+          warnings.push(`cannot_read_hook:${repo.id}`);
+        }
         repos.push({
           id: repo.id,
           path: repo.path,
           exists,
           ...(branch ? { branch } : {}),
+          ...(hook ? { hook } : {}),
         });
       }
       if (config.repos.length === 0) {
@@ -77,7 +105,10 @@ export function registerDoctorCommand(program: Command): void {
       console.log(`- repos: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.cockpitDir, "bin", "cockpit")}`);
       for (const repo of repos) {
-        console.log(`- repo ${repo.id}: ${repo.path}${repo.branch ? ` (${repo.branch})` : ""}`);
+        const hookText = repo.hook
+          ? ` hook=${repo.hook.exists ? (repo.hook.managed && repo.hook.pointsToCockpitBin ? "managed" : "needs_attention") : "missing"}`
+          : "";
+        console.log(`- repo ${repo.id}: ${repo.path}${repo.branch ? ` (${repo.branch})` : ""}${hookText}`);
       }
       if (warnings.length > 0) {
         console.log(`- warnings: ${warnings.join(", ")}`);

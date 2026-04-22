@@ -3,8 +3,41 @@ import path from "node:path";
 
 export const MANAGED_HOOK_MARKER = "Managed by Cockpit";
 
+export interface PreCommitHookStatus {
+  hookPath: string;
+  exists: boolean;
+  managed: boolean;
+  cockpitBin?: string;
+  pointsToCockpitBin: boolean;
+}
+
 function readTemplate(): string {
   return fs.readFileSync(new URL("../templates/pre-commit.sh", import.meta.url), "utf8");
+}
+
+export function inspectPreCommitHook(gitDir: string, cockpitBin?: string): PreCommitHookStatus {
+  const hookPath = path.join(gitDir, "hooks", "pre-commit");
+  if (!fs.existsSync(hookPath)) {
+    return {
+      hookPath,
+      exists: false,
+      managed: false,
+      pointsToCockpitBin: false,
+    };
+  }
+
+  const contents = fs.readFileSync(hookPath, "utf8");
+  const managed = contents.includes(MANAGED_HOOK_MARKER);
+  const cockpitBinMatch = contents.match(/COCKPIT_BIN="([^"]+)"/);
+  const configuredBin = cockpitBinMatch?.[1];
+
+  return {
+    hookPath,
+    exists: true,
+    managed,
+    ...(configuredBin ? { cockpitBin: configuredBin } : {}),
+    pointsToCockpitBin: cockpitBin ? configuredBin === cockpitBin : Boolean(configuredBin),
+  };
 }
 
 export function installPreCommitHook(params: {
