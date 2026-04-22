@@ -13,7 +13,7 @@ export const runStatusSchema = z.enum([
 ]);
 
 export const artifactSchema = z.object({
-  kind: z.enum(["branch", "commit", "patch", "pr", "test_report", "summary"]),
+  kind: z.enum(["branch", "commit", "patch", "pr", "test_report", "summary", "file", "log"]),
   value: z.string().min(1),
 });
 

@@ -6,45 +6,38 @@ import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from
 import { completeRun, failRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts } from "./provider-utils.js";
 
-export async function executeCodexAgentRun(params: {
+export async function executeClaudeAgentRun(params: {
   cockpitDir: string;
   run: Run;
   task: Task;
   workItem: WorkItem;
   agent: Agent;
 }): Promise<void> {
-  const executable = params.agent.command || "codex";
+  const executable = params.agent.command || "claude";
   const prompt = buildProviderPrompt(params.task, params.workItem);
-  const promptPath = path.join(params.run.worktree_path, ".cockpit-codex-prompt.md");
-  const outputPath = path.join(params.run.worktree_path, ".cockpit-codex-last-message.md");
-  const logPath = path.join(params.run.worktree_path, ".cockpit-codex.log");
+  const promptPath = path.join(params.run.worktree_path, ".cockpit-claude-prompt.md");
+  const logPath = path.join(params.run.worktree_path, ".cockpit-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
-  const args = ["exec", "--skip-git-repo-check", "--json", "--output-last-message", outputPath];
+  const args = ["-p", "--output-format", "text", "--permission-mode", "bypassPermissions"];
   if (params.agent.model) {
     args.push("--model", params.agent.model);
   }
   if (params.agent.profile) {
-    args.push("--profile", params.agent.profile);
+    args.push("--settings", JSON.stringify({ env: { CLAUDE_CODE_PROFILE: params.agent.profile } }));
   }
-  if (params.agent.sandbox_mode) {
-    args.push("--sandbox", params.agent.sandbox_mode);
-  } else {
-    args.push("--sandbox", "workspace-write");
-  }
-  args.push("--cd", params.run.worktree_path, "-");
+  args.push(prompt);
 
   appendRunEvent(params.cockpitDir, params.run.id, {
     ts: new Date().toISOString(),
     type: "executor.start",
-    message: `Executing Codex run for ${params.agent.id}`,
+    message: `Executing Claude run for ${params.agent.id}`,
   });
 
   try {
     const result = await execa(executable, args, {
       cwd: params.run.worktree_path,
       env: buildProviderEnv(params.agent, params.run, params.task, params.workItem),
-      input: prompt,
       reject: false,
     });
 
@@ -54,11 +47,11 @@ export async function executeCodexAgentRun(params: {
       "utf8",
     );
 
-    const lastMessage = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, "utf8").trim() : "";
-    if (lastMessage) {
-      addRunArtifact(params.cockpitDir, params.run.id, { kind: "summary", value: lastMessage });
+    const summary = result.stdout.trim();
+    if (summary) {
+      addRunArtifact(params.cockpitDir, params.run.id, { kind: "summary", value: summary });
     }
-    addRunArtifact(params.cockpitDir, params.run.id, { kind: "log", value: ".cockpit-codex.log" });
+    addRunArtifact(params.cockpitDir, params.run.id, { kind: "log", value: ".cockpit-claude.log" });
     for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
       addRunArtifact(params.cockpitDir, params.run.id, artifact);
     }
@@ -67,12 +60,12 @@ export async function executeCodexAgentRun(params: {
       await completeRun(
         params.cockpitDir,
         params.run.id,
-        lastMessage || `Codex agent ${params.agent.id} completed successfully`,
+        summary || `Claude agent ${params.agent.id} completed successfully`,
       );
       appendRunEvent(params.cockpitDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: "Codex execution completed successfully",
+        message: "Claude execution completed successfully",
       });
       return;
     }
@@ -84,22 +77,22 @@ export async function executeCodexAgentRun(params: {
         "# Run Handoff",
         "",
         `Run: ${params.run.id}`,
-        "Reason: codex exec failed",
+        "Reason: claude print execution failed",
         "",
         `Exit code: ${String(result.exitCode)}`,
         "",
-        "Inspect `.cockpit-codex.log` and `.cockpit-codex-last-message.md` in the worktree.",
+        "Inspect `.cockpit-claude.log` in the worktree.",
       ].join("\n"),
     );
     await failRun(
       params.cockpitDir,
       params.run.id,
-      lastMessage || `Codex agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`,
+      summary || `Claude agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`,
     );
     appendRunEvent(params.cockpitDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",
-      message: `Codex execution failed. Handoff: ${handoffPath}`,
+      message: `Claude execution failed. Handoff: ${handoffPath}`,
     });
   } catch (error) {
     updateRunStatus(params.cockpitDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));

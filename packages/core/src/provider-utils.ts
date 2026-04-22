@@ -1,0 +1,70 @@
+import type { Agent, Artifact, Run, Task, WorkItem } from "@cockpit-ai/schemas";
+import { execa } from "execa";
+
+export function buildProviderEnv(agent: Agent, run: Run, task: Task, workItem: WorkItem): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...agent.environment,
+    COCKPIT_RUN_ID: run.id,
+    COCKPIT_TASK_ID: task.id,
+    COCKPIT_WORK_ITEM_ID: workItem.id,
+    COCKPIT_REPO: run.repo,
+    COCKPIT_BRANCH: run.branch,
+    COCKPIT_WORKTREE: run.worktree_path,
+  };
+}
+
+export function buildProviderPrompt(task: Task, workItem: WorkItem): string {
+  const lines = [
+    "You are executing one Cockpit coding task in an isolated git worktree.",
+    "Stay within the declared scope whenever possible.",
+    "",
+    `Work item: ${workItem.id}`,
+    `Work item title: ${workItem.title}`,
+    `Task: ${task.id}`,
+    `Task title: ${task.title}`,
+    `Repo: ${task.repo}`,
+    `Risk: ${task.risk}`,
+    "",
+    "Allowed scopes:",
+    ...(task.scopes.length > 0 ? task.scopes.map((scope) => `- ${scope}`) : ["- **"]),
+    "",
+    "Dependencies:",
+    ...(task.depends_on.length > 0 ? task.depends_on.map((dependency) => `- ${dependency}`) : ["- none"]),
+    "",
+    "Completion criteria:",
+    ...(task.completion.done_when.length > 0 ? task.completion.done_when.map((item) => `- ${item}`) : ["- complete the task safely and summarize what changed"]),
+    "",
+    "Instructions:",
+    "- inspect the repo state before editing",
+    "- make the smallest coherent set of changes needed",
+    "- run relevant validation if practical",
+    "- end with a concise summary of what changed and any follow-up risk",
+  ];
+
+  if (workItem.description) {
+    lines.splice(5, 0, `Work item description: ${workItem.description}`);
+  }
+  if (workItem.acceptance_criteria.length > 0) {
+    lines.push("", "Work item acceptance criteria:", ...workItem.acceptance_criteria.map((item) => `- ${item}`));
+  }
+
+  return lines.join("\n");
+}
+
+export async function collectWorktreeArtifacts(worktreePath: string): Promise<Artifact[]> {
+  const artifacts: Artifact[] = [];
+
+  const status = await execa("git", ["status", "--short", "--porcelain"], {
+    cwd: worktreePath,
+    reject: false,
+  });
+  for (const line of status.stdout.split("\n").map((entry) => entry.trim()).filter(Boolean)) {
+    const file = line.slice(3).trim();
+    if (file.length > 0) {
+      artifacts.push({ kind: "file", value: file });
+    }
+  }
+
+  return artifacts;
+}

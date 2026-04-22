@@ -76,6 +76,13 @@ Cockpit also supports `provider: codex`. A Codex agent runs `codex exec` inside 
 
 `init` now seeds a disabled `codex-default` agent in `.cockpit/agents.yaml` that you can enable and tune with `model`, `profile`, `sandbox_mode`, and an optional `command` override for the Codex executable path.
 
+Cockpit also supports `provider: claude` through `claude -p`, using the same isolated worktree flow. `init` seeds a disabled `claude-default` agent as well.
+
+Both `codex` and `claude` now attach richer run artifacts:
+- summary
+- executor log
+- changed files detected in the worktree
+
 Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
 
 ## Split Planning

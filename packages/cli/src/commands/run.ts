@@ -89,6 +89,12 @@ export function registerRunCommand(program: Command): void {
       console.log(`Status: ${run.status}`);
       console.log(`Branch: ${run.branch}`);
       console.log(`Worktree: ${run.worktree_path}`);
+      if (run.artifacts.length > 0) {
+        console.log("Artifacts:");
+        for (const artifact of run.artifacts) {
+          console.log(`- ${artifact.kind}: ${artifact.value}`);
+        }
+      }
       const events = getRunEvents(workspace.cockpitDir, run.id);
       if (events.length > 0) {
         console.log("Recent events:");

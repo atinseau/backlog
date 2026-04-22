@@ -65,6 +65,9 @@ export function validateAgents(cockpitDir: string): Array<{ id: string; ok: bool
     if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
       reasons.push("codex_executable_missing");
     }
+    if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
+      reasons.push("claude_executable_missing");
+    }
     return {
       id: agent.id,
       ok: reasons.length === 0,
@@ -89,6 +92,9 @@ export function healthForAgents(cockpitDir: string): AgentHealth[] {
     }
     if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
       reasons.push("missing_codex_executable");
+    }
+    if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
+      reasons.push("missing_claude_executable");
     }
     return {
       id: agent.id,
@@ -157,6 +163,9 @@ export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | 
       }
       if (agent.provider === "codex") {
         score += 10;
+      }
+      if (agent.provider === "claude") {
+        score += 8;
       }
       if (reasons.length === 0) {
         reasons.push("compatible");
