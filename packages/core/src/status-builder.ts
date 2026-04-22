@@ -3,6 +3,7 @@ import path from "node:path";
 import YAML from "yaml";
 import type { WorkspaceConfig } from "@cockpit-ai/schemas";
 import { listActiveClaims } from "@cockpit-ai/claims";
+import { workItemsSummary } from "./work-service.js";
 
 type WorkItemsFile = {
   version: number;
@@ -19,6 +20,7 @@ export interface WorkspaceStatus {
   repoCount: number;
   activeClaims: number;
   workItemCount: number;
+  workItemCounts: Record<string, number>;
   taskCounts: Record<string, number>;
 }
 
@@ -42,6 +44,7 @@ export function buildWorkspaceStatus(root: string, cockpitDir: string, config: W
     repoCount: config.repos.filter((repo) => repo.enabled).length,
     activeClaims: listActiveClaims(cockpitDir).length,
     workItemCount: workItems.items?.length ?? 0,
+    workItemCounts: workItemsSummary(cockpitDir),
     taskCounts,
   };
 }

@@ -1,2 +1,5 @@
 export * from "./claim.js";
 export * from "./config.js";
+export * from "./run.js";
+export * from "./task.js";
+export * from "./work-item.js";

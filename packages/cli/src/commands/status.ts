@@ -25,6 +25,12 @@ export function registerStatusCommand(program: Command): void {
       console.log(`Repos: ${status.repoCount}`);
       console.log(`Active claims: ${status.activeClaims}`);
       console.log(`Work items: ${status.workItemCount}`);
+      console.log("Work item states:");
+      for (const [workStatus, count] of Object.entries(status.workItemCounts)) {
+        if (count > 0) {
+          console.log(`- ${workStatus}: ${count}`);
+        }
+      }
       if (Object.keys(status.taskCounts).length === 0) {
         console.log("Tasks: none yet");
         return;
