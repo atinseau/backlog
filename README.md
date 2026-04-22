@@ -11,7 +11,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit work add|list|show|move|plan|split|import`
 - `cockpit task add|list|show|move|plan`
 - `cockpit claim start|check|finish|list`
-- `cockpit schedule simulate|run`
+- `cockpit schedule simulate|explain|run`
 - `cockpit runs list|show`
 - `cockpit runs interrupt|resume`
 - `cockpit runs review|complete|fail|handoff`
@@ -36,7 +36,9 @@ Create a local work item and a task:
 ```bash
 node packages/cli/dist/bin.js work add --title "Build the scheduler"
 node packages/cli/dist/bin.js work split WI-xxxx --repo cockpit --scope cockpit=packages/core/src/**
+node packages/cli/dist/bin.js task add --work-item WI-xxxx --title "Implement scheduler" --repo cockpit --preferred-agent manual-default --require-capability edit_code
 node packages/cli/dist/bin.js schedule simulate
+node packages/cli/dist/bin.js schedule explain --work-item WI-xxxx
 node packages/cli/dist/bin.js schedule run --approve
 ```
 
@@ -76,6 +78,10 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 - Use `--repo` to override target repos.
 - Use `--mode serial` to chain generated tasks in order.
 - Use `--scope repo=glob` to seed initial safe claim scopes for each generated task.
+
+## Scheduling Explainability
+
+`cockpit schedule explain` shows the chosen action for each selected task plus the ranked candidate agents and why they were accepted or rejected.
 
 ## Development
 

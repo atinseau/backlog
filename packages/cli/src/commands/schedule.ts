@@ -14,6 +14,7 @@ import {
   listActiveRuns,
   nextRunId,
   pickAgentForTask,
+  rankAgentsForTask,
   updateRunStatus,
   updateTaskStatus,
   writeWorktreeContext,
@@ -60,6 +61,68 @@ export function registerScheduleCommand(program: Command): void {
       console.log(`Blocked: ${plan.blocked.length}`);
       for (const decision of plan.blocked) {
         console.log(`- ${decision.taskId} ${decision.reasons.join(", ")}`);
+      }
+    });
+
+  schedule
+    .command("explain")
+    .description("Explain scheduling decisions and ranked agent candidates")
+    .option("--work-item <id>", "Restrict to one work item")
+    .option("--task <id>", "Restrict to one task")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { workItem?: string; task?: string; json?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      if (!options.workItem && !options.task) {
+        throw new Error("schedule explain requires --task or --work-item.");
+      }
+
+      const config = loadConfig(workspace.cockpitDir);
+      const plan = buildExecutionPlan(workspace.cockpitDir, config, {
+        ...(options.workItem ? { workItemId: options.workItem } : {}),
+        ...(options.task ? { taskId: options.task } : {}),
+      });
+      const decisions = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped];
+      const payload = decisions.map((decision) => {
+        const task = getTask(workspace.cockpitDir, decision.taskId);
+        const rankedAgents = task ? rankAgentsForTask(workspace.cockpitDir, task) : [];
+        return {
+          ...decision,
+          task,
+          rankedAgents: rankedAgents.map((candidate) => ({
+            id: candidate.agent.id,
+            provider: candidate.agent.provider,
+            available: candidate.available,
+            score: candidate.score,
+            reasons: candidate.reasons,
+            activeRuns: candidate.activeRuns,
+            maxConcurrentRuns: candidate.agent.max_concurrent_runs,
+          })),
+        };
+      });
+
+      if (options.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
+      }
+
+      for (const decision of payload) {
+        console.log(`Task: ${decision.taskId}`);
+        console.log(`Action: ${decision.action}`);
+        console.log(`Score: ${decision.score}`);
+        if (decision.assignedAgentId) {
+          console.log(`Assigned agent: ${decision.assignedAgentId}`);
+        }
+        console.log(`Reasons: ${decision.reasons.join(", ")}`);
+        if (decision.rankedAgents.length > 0) {
+          console.log("Agent ranking:");
+          for (const candidate of decision.rankedAgents) {
+            console.log(`- ${candidate.id} | available=${candidate.available} | score=${candidate.score} | ${candidate.reasons.join(", ")}`);
+          }
+        }
+        console.log("");
       }
     });
 
@@ -114,7 +177,7 @@ export function registerScheduleCommand(program: Command): void {
               }
               return forced;
             })()
-          : decision.assignedAgentId
+            : decision.assignedAgentId
             ? (() => {
                 const assigned = getAgent(workspace.cockpitDir, decision.assignedAgentId!);
                 if (!assigned) {
@@ -122,7 +185,7 @@ export function registerScheduleCommand(program: Command): void {
                 }
                 return assigned;
               })()
-            : pickAgentForTask(workspace.cockpitDir, task.repo, task.risk);
+            : pickAgentForTask(workspace.cockpitDir, task);
 
         if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
           continue;

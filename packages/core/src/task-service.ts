@@ -20,6 +20,9 @@ export interface CreateTaskInput {
   completionCriteria?: string[];
   plannerOrigin?: "manual" | "split" | "imported";
   lane?: string;
+  preferredAgents?: string[];
+  requiredCapabilities?: string[];
+  manualApprovalRequired?: boolean;
 }
 
 export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
@@ -44,9 +47,9 @@ export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
     blockers: input.blockers ?? [],
     execution: {
       ...(input.lane ? { lane: input.lane } : {}),
-      preferred_agents: [],
-      required_capabilities: [],
-      manual_approval_required: false,
+      preferred_agents: input.preferredAgents ?? [],
+      required_capabilities: input.requiredCapabilities ?? [],
+      manual_approval_required: input.manualApprovalRequired ?? false,
     },
     completion: {
       done_when: input.completionCriteria ?? [],

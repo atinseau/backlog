@@ -31,6 +31,14 @@ export interface AgentHealth {
   reasons: string[];
 }
 
+export interface AgentSelection {
+  agent: Agent;
+  score: number;
+  reasons: string[];
+  activeRuns: number;
+  available: boolean;
+}
+
 export function validateAgents(cockpitDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
   return listAgents(cockpitDir).map((agent) => {
     const reasons: string[] = [];
@@ -80,24 +88,92 @@ export function healthForAgents(cockpitDir: string): AgentHealth[] {
   });
 }
 
-export function pickAgentForTask(cockpitDir: string, repo: string, risk: "low" | "medium" | "high"): Agent {
-  const agent = listAgents(cockpitDir).find((candidate) => canAgentRunTask(candidate, repo, risk));
+export function canAgentRunTask(agent: Agent, task: Pick<Task, "repo" | "risk" | "execution">): boolean {
+  if (!agent.enabled) {
+    return false;
+  }
+  if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
+    return false;
+  }
+  if (!agent.allowed_risk.includes(task.risk)) {
+    return false;
+  }
+  return task.execution.required_capabilities.every((capability) => agent.capabilities.includes(capability));
+}
+
+export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): AgentSelection[] {
+  const activeRuns = listActiveRuns(cockpitDir);
+  const activeRunCounts = new Map<string, number>();
+  for (const run of activeRuns) {
+    activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
+  }
+
+  return listAgents(cockpitDir)
+    .map((agent) => {
+      const reasons: string[] = [];
+      if (!agent.enabled) {
+        reasons.push("disabled");
+      }
+      if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
+        reasons.push("repo_not_allowed");
+      }
+      if (!agent.allowed_risk.includes(task.risk)) {
+        reasons.push("risk_not_allowed");
+      }
+
+      const missingCapabilities = task.execution.required_capabilities.filter((capability) => !agent.capabilities.includes(capability));
+      if (missingCapabilities.length > 0) {
+        reasons.push(`missing_capabilities:${missingCapabilities.join(",")}`);
+      }
+
+      const activeRunsForAgent = activeRunCounts.get(agent.id) ?? 0;
+      if (activeRunsForAgent >= agent.max_concurrent_runs) {
+        reasons.push("at_capacity");
+      }
+
+      let score = 0;
+      if (task.execution.preferred_agents.includes(agent.id)) {
+        score += 50;
+        reasons.push("preferred_agent");
+      }
+      score += agent.capabilities.filter((capability) => task.execution.required_capabilities.includes(capability)).length * 10;
+      score += Math.max(0, agent.max_concurrent_runs - activeRunsForAgent) * 5;
+      if (agent.provider === "custom") {
+        score += 5;
+      }
+      if (reasons.length === 0) {
+        reasons.push("compatible");
+      }
+
+      return {
+        agent,
+        score,
+        reasons,
+        activeRuns: activeRunsForAgent,
+        available: canAgentRunTask(agent, task) && activeRunsForAgent < agent.max_concurrent_runs,
+      };
+    })
+    .sort((left, right) => {
+      if (left.available !== right.available) {
+        return left.available ? -1 : 1;
+      }
+      if (left.score !== right.score) {
+        return right.score - left.score;
+      }
+      return left.agent.id.localeCompare(right.agent.id);
+    });
+}
+
+export function pickAgentForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent {
+  const agent = rankAgentsForTask(cockpitDir, task).find((candidate) => candidate.available)?.agent;
   if (!agent) {
-    throw new Error(`No enabled agent can run repo ${repo} at risk ${risk}.`);
+    throw new Error(`No enabled agent can run repo ${task.repo} at risk ${task.risk}.`);
   }
   return agent;
 }
 
-export function canAgentRunTask(agent: Agent, repo: string, risk: Task["risk"]): boolean {
-  if (!agent.enabled) {
-    return false;
-  }
-  if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(repo)) {
-    return false;
-  }
-  return agent.allowed_risk.includes(risk);
-}
-
-export function compatibleAgentsForTask(cockpitDir: string, repo: string, risk: Task["risk"]): Agent[] {
-  return listAgents(cockpitDir).filter((agent) => canAgentRunTask(agent, repo, risk));
+export function compatibleAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent[] {
+  return rankAgentsForTask(cockpitDir, task)
+    .filter((candidate) => candidate.available)
+    .map((candidate) => candidate.agent);
 }

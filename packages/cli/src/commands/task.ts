@@ -16,6 +16,9 @@ export function registerTaskCommand(program: Command): void {
     .option("--depends-on <task...>", "Task dependencies")
     .option("--blocker <reason...>", "Initial blockers")
     .option("--risk <risk>", "Risk level", "medium")
+    .option("--preferred-agent <id...>", "Preferred agent ids")
+    .option("--require-capability <capability...>", "Required agent capabilities")
+    .option("--manual-approval", "Require approval before scheduling")
     .action((options: {
       workItem: string;
       title: string;
@@ -24,6 +27,9 @@ export function registerTaskCommand(program: Command): void {
       dependsOn?: string[];
       blocker?: string[];
       risk?: "low" | "medium" | "high";
+      preferredAgent?: string[];
+      requireCapability?: string[];
+      manualApproval?: boolean;
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
@@ -37,6 +43,9 @@ export function registerTaskCommand(program: Command): void {
         ...(options.dependsOn ? { dependsOn: options.dependsOn } : {}),
         ...(options.blocker ? { blockers: options.blocker } : {}),
         ...(options.risk ? { risk: options.risk } : {}),
+        ...(options.preferredAgent ? { preferredAgents: options.preferredAgent } : {}),
+        ...(options.requireCapability ? { requiredCapabilities: options.requireCapability } : {}),
+        ...(options.manualApproval ? { manualApprovalRequired: true } : {}),
       });
       console.log(`Created task ${created.id}`);
     });

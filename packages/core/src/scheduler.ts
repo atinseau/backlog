@@ -1,6 +1,6 @@
 import { listActiveClaims, scopesOverlap } from "@cockpit-ai/claims";
 import type { Task, WorkItem, WorkspaceConfig } from "@cockpit-ai/schemas";
-import { compatibleAgentsForTask } from "./agents.js";
+import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { listActiveRuns } from "./run-store.js";
 import { listTasks, listWorkItems } from "./state-files.js";
 
@@ -13,6 +13,7 @@ export interface TaskDecision {
   score: number;
   reasons: string[];
   assignedAgentId?: string;
+  candidateAgentIds?: string[];
 }
 
 export interface ExecutionPlan {
@@ -174,7 +175,8 @@ export function buildExecutionPlan(
     }
 
     const score = scoreTask(task, workItem);
-    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task.repo, task.risk);
+    const rankedAgents = rankAgentsForTask(cockpitDir, task);
+    const compatibleAgents = rankedAgents.filter((candidate) => candidate.available).map((candidate) => candidate.agent);
     if (compatibleAgents.length === 0) {
       reasons.push("no_compatible_agent");
     }
@@ -187,6 +189,7 @@ export function buildExecutionPlan(
         score,
         reasons: ["dependencies_clear", "scope_clear", "policy_clear"],
         compatibleAgentIds: compatibleAgents.map((agent) => agent.id),
+        candidateAgentIds: rankedAgents.map((candidate) => candidate.agent.id),
         task,
       };
     }
@@ -202,6 +205,7 @@ export function buildExecutionPlan(
       score,
       reasons,
       compatibleAgentIds: compatibleAgents.map((agent) => agent.id),
+      candidateAgentIds: rankedAgents.map((candidate) => candidate.agent.id),
       task,
     };
   });
@@ -221,6 +225,7 @@ export function buildExecutionPlan(
         action: "wait",
         score: decision.score,
         reasons: ["scheduler_missing_task_context"],
+        ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
       });
       continue;
     }
@@ -234,6 +239,7 @@ export function buildExecutionPlan(
         action: "wait",
         score: decision.score,
         reasons: ["no_scheduler_capacity"],
+        ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
       });
       continue;
     }
@@ -254,11 +260,12 @@ export function buildExecutionPlan(
         action: "wait",
         score: decision.score,
         reasons: [`scope_conflict_with_selected:${scopeConflict.taskId}`],
+        ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
       });
       continue;
     }
 
-    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task.repo, task.risk);
+    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task);
     const agent = compatibleAgentIds
       .map((agentId) => ({
         id: agentId,
@@ -278,6 +285,7 @@ export function buildExecutionPlan(
         action: "wait",
         score: decision.score,
         reasons: ["no_agent_capacity"],
+        ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
       });
       continue;
     }
@@ -295,6 +303,7 @@ export function buildExecutionPlan(
       score: decision.score,
       reasons: decision.reasons,
       assignedAgentId: agent.id,
+      ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
     });
   }
 
@@ -306,6 +315,7 @@ export function buildExecutionPlan(
       action: "wait" as const,
       score: decision.score,
       reasons: decision.reasons,
+      ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
     })),
     ...deferred,
   ];
@@ -315,6 +325,7 @@ export function buildExecutionPlan(
     action: "block" as const,
     score: decision.score,
     reasons: decision.reasons,
+    ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
   }));
   const skipped: TaskDecision[] = evaluated
     .filter((decision) => decision.action === "skip")
@@ -324,6 +335,7 @@ export function buildExecutionPlan(
       action: "skip" as const,
       score: decision.score,
       reasons: decision.reasons,
+      ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
     }));
 
   return {
