@@ -9,6 +9,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
+    "@cockpit-ai/schemas": "workspace:*",
     "execa": "^9.6.0"
   }
 }

@@ -2,12 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
+import { repoCurrentBranch } from "@cockpit-ai/git";
 
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
     .description("Validate Cockpit workspace health")
-    .action(() => {
+    .option("--json", "Emit machine-readable JSON")
+    .action(async (options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
@@ -30,10 +32,43 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       const config = loadConfig(workspace.cockpitDir);
+      const warnings: string[] = [];
+      const repos: Array<{ id: string; path: string; exists: boolean; branch?: string }> = [];
       for (const repo of config.repos) {
-        if (!fs.existsSync(repo.path)) {
+        const exists = fs.existsSync(repo.path);
+        if (!exists) {
           throw new Error(`Configured repo path does not exist: ${repo.path}`);
         }
+        let branch: string | undefined;
+        try {
+          branch = await repoCurrentBranch(repo.path);
+        } catch {
+          branch = undefined;
+          warnings.push(`cannot_read_branch:${repo.id}`);
+        }
+        repos.push({
+          id: repo.id,
+          path: repo.path,
+          exists,
+          ...(branch ? { branch } : {}),
+        });
+      }
+      if (config.repos.length === 0) {
+        warnings.push("no_repos_configured");
+      }
+
+      const payload = {
+        workspace: config.workspace_name,
+        mode: config.workspace_mode,
+        repoCount: config.repos.length,
+        shim: path.join(workspace.cockpitDir, "bin", "cockpit"),
+        warnings,
+        repos,
+      };
+
+      if (options.json) {
+        console.log(JSON.stringify(payload, null, 2));
+        return;
       }
 
       console.log("Cockpit doctor");
@@ -41,6 +76,12 @@ export function registerDoctorCommand(program: Command): void {
       console.log(`- mode: ${config.workspace_mode}`);
       console.log(`- repos: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.cockpitDir, "bin", "cockpit")}`);
-      console.log("Healthy");
+      for (const repo of repos) {
+        console.log(`- repo ${repo.id}: ${repo.path}${repo.branch ? ` (${repo.branch})` : ""}`);
+      }
+      if (warnings.length > 0) {
+        console.log(`- warnings: ${warnings.join(", ")}`);
+      }
+      console.log(warnings.length === 0 ? "Healthy" : "Healthy with warnings");
     });
 }

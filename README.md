@@ -106,6 +106,8 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 
 `cockpit schedule run` now supports `--json` and reports both started runs and skipped tasks, including cases where a forced or assigned agent is unavailable or not executable.
 
+`cockpit init` now auto-registers the current git repo when it can, using the workspace name as a stable repo id and the current branch as the default branch. `cockpit doctor --json` also reports repo-level warnings and detected branches.
+
 ## Source Sync
 
 - `sources push --all` pushes every source-linked work item that supports outbound sync.
