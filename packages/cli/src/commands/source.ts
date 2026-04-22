@@ -12,9 +12,38 @@ import {
   primarySourceLink,
   resolveSyncConflict,
   resolveSyncConflictsForWorkItem,
+  setSourceEnabled,
+  updateSource,
   upsertImportedWorkItems,
 } from "@cockpit-ai/core";
 import type { SourceConfig, SourceKind } from "@cockpit-ai/schemas";
+
+function collectValues(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
+function parseKeyValuePairs(pairs: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const pair of pairs) {
+    const separator = pair.indexOf("=");
+    if (separator <= 0 || separator === pair.length - 1) {
+      throw new Error(`Invalid key/value pair: ${pair}. Expected KEY=value.`);
+    }
+    result[pair.slice(0, separator)] = pair.slice(separator + 1);
+  }
+  return result;
+}
+
+function parseBooleanFlag(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "yes", "1"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "no", "0"].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`Expected a boolean value, received: ${value}`);
+}
 
 export function registerSourceCommand(program: Command): void {
   const sources = program.command("sources").description("Manage planning source connectors");
@@ -102,6 +131,71 @@ export function registerSourceCommand(program: Command): void {
 
       addSource(workspace.cockpitDir, source);
       console.log(`Added source ${source.id}`);
+    });
+
+  sources
+    .command("enable")
+    .description("Enable one configured source")
+    .argument("<source-id>", "Source id")
+    .action((sourceId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const source = setSourceEnabled(workspace.cockpitDir, sourceId, true);
+      console.log(`Enabled ${source.id}`);
+    });
+
+  sources
+    .command("disable")
+    .description("Disable one configured source")
+    .argument("<source-id>", "Source id")
+    .action((sourceId: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const source = setSourceEnabled(workspace.cockpitDir, sourceId, false);
+      console.log(`Disabled ${source.id}`);
+    });
+
+  sources
+    .command("update")
+    .description("Update one source without editing sources.yaml by hand")
+    .argument("<source-id>", "Source id")
+    .option("--config <key=value>", "Replace source config entries", collectValues, [])
+    .option("--auth-ref <key=value>", "Replace source auth refs", collectValues, [])
+    .option("--auth-strategy <strategy>", "Override auth strategy")
+    .option("--mapping <key=value>", "Replace source mapping entries", collectValues, [])
+    .option("--pull <enabled>", "Whether this source can pull")
+    .option("--push-status <enabled>", "Whether this source can push statuses")
+    .option("--push-comments <enabled>", "Whether this source can push comments")
+    .option("--source-of-truth <mode>", "external or cockpit")
+    .action((sourceId: string, options: {
+      config: string[];
+      authRef: string[];
+      authStrategy?: string;
+      mapping: string[];
+      pull?: string;
+      pushStatus?: string;
+      pushComments?: string;
+      sourceOfTruth?: "external" | "cockpit";
+    }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const source = updateSource(workspace.cockpitDir, sourceId, {
+        ...(options.config.length > 0 ? { config: parseKeyValuePairs(options.config) } : {}),
+        ...(options.authRef.length > 0 ? { authRefs: parseKeyValuePairs(options.authRef) } : {}),
+        ...(options.authStrategy !== undefined ? { authStrategy: options.authStrategy } : {}),
+        ...(options.mapping.length > 0 ? { mapping: parseKeyValuePairs(options.mapping) } : {}),
+        ...(options.pull !== undefined ? { pull: parseBooleanFlag(options.pull) } : {}),
+        ...(options.pushStatus !== undefined ? { pushStatus: parseBooleanFlag(options.pushStatus) } : {}),
+        ...(options.pushComments !== undefined ? { pushComments: parseBooleanFlag(options.pushComments) } : {}),
+        ...(options.sourceOfTruth !== undefined ? { sourceOfTruth: options.sourceOfTruth } : {}),
+      });
+      console.log(`Updated ${source.id}`);
     });
 
   sources

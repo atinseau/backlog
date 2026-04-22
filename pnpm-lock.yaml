@@ -95,6 +95,9 @@ importers:
 
   packages/git:
     dependencies:
+      '@cockpit-ai/schemas':
+        specifier: workspace:*
+        version: link:../schemas
       execa:
         specifier: ^9.6.0
         version: 9.6.1

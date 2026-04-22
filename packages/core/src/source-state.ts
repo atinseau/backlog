@@ -36,6 +36,61 @@ export function getSource(cockpitDir: string, id: string): SourceConfig | null {
   return listSources(cockpitDir).find((source) => source.id === id) ?? null;
 }
 
+export interface UpdateSourceInput {
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  authStrategy?: string;
+  authRefs?: Record<string, string>;
+  mapping?: Record<string, unknown>;
+  pull?: boolean;
+  pushStatus?: boolean;
+  pushComments?: boolean;
+  sourceOfTruth?: "external" | "cockpit";
+}
+
+export function updateSource(cockpitDir: string, id: string, input: UpdateSourceInput): SourceConfig {
+  const file = readSourcesFile(cockpitDir);
+  const source = file.sources.find((candidate) => candidate.id === id);
+  if (!source) {
+    throw new Error(`Unknown source: ${id}`);
+  }
+
+  if (input.enabled !== undefined) {
+    source.enabled = input.enabled;
+  }
+  if (input.config !== undefined) {
+    source.config = input.config;
+  }
+  if (input.authStrategy !== undefined) {
+    source.auth.strategy = input.authStrategy;
+  }
+  if (input.authRefs !== undefined) {
+    source.auth.refs = input.authRefs;
+  }
+  if (input.mapping !== undefined) {
+    source.mapping = input.mapping;
+  }
+  if (input.pull !== undefined) {
+    source.sync.pull = input.pull;
+  }
+  if (input.pushStatus !== undefined) {
+    source.sync.push_status = input.pushStatus;
+  }
+  if (input.pushComments !== undefined) {
+    source.sync.push_comments = input.pushComments;
+  }
+  if (input.sourceOfTruth !== undefined) {
+    source.sync.source_of_truth = input.sourceOfTruth;
+  }
+
+  writeSourcesFile(cockpitDir, file);
+  return source;
+}
+
+export function setSourceEnabled(cockpitDir: string, id: string, enabled: boolean): SourceConfig {
+  return updateSource(cockpitDir, id, { enabled });
+}
+
 export function primarySourceLink(item: WorkItem) {
   return item.source_links[0] ?? null;
 }

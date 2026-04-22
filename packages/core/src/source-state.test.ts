@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { initLayout } from "@cockpit-ai/config";
 import type { WorkItem } from "@cockpit-ai/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
-import { upsertImportedWorkItems } from "./source-state.js";
+import { addSource, getSource, setSourceEnabled, updateSource, upsertImportedWorkItems } from "./source-state.js";
 import {
   hasPendingSyncConflictsForWorkItem,
   listPendingSyncConflicts,
@@ -44,6 +44,64 @@ function importedItem(title: string): WorkItem {
 }
 
 describe("upsertImportedWorkItems", () => {
+  it("can enable, disable, and update configured sources", () => {
+    const cockpitDir = createWorkspace();
+
+    addSource(cockpitDir, {
+      id: "notes",
+      kind: "markdown",
+      enabled: true,
+      config: {
+        path: "backlog.md",
+      },
+      auth: {
+        strategy: "none",
+        refs: {},
+      },
+      mapping: {},
+      sync: {
+        pull: true,
+        push_status: false,
+        push_comments: false,
+        source_of_truth: "external",
+      },
+    });
+
+    expect(getSource(cockpitDir, "notes")?.enabled).toBe(true);
+    setSourceEnabled(cockpitDir, "notes", false);
+    expect(getSource(cockpitDir, "notes")?.enabled).toBe(false);
+
+    const updated = updateSource(cockpitDir, "notes", {
+      enabled: true,
+      config: {
+        path: "docs/backlog.md",
+      },
+      authStrategy: "env",
+      authRefs: {
+        token: "NOTES_TOKEN",
+      },
+      mapping: {
+        title: "title",
+      },
+      pull: true,
+      pushStatus: true,
+      pushComments: true,
+      sourceOfTruth: "cockpit",
+    });
+
+    expect(updated.enabled).toBe(true);
+    expect(updated.config).toEqual({ path: "docs/backlog.md" });
+    expect(updated.auth.strategy).toBe("env");
+    expect(updated.auth.refs).toEqual({ token: "NOTES_TOKEN" });
+    expect(updated.mapping).toEqual({ title: "title" });
+    expect(updated.sync).toEqual({
+      pull: true,
+      push_status: true,
+      push_comments: true,
+      source_of_truth: "cockpit",
+    });
+  });
+
   it("creates and updates imported work items by source identity", () => {
     const cockpitDir = createWorkspace();
     upsertImportedWorkItems(cockpitDir, [importedItem("row-1")]);

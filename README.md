@@ -19,7 +19,7 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit runs interrupt|resume`
 - `cockpit runs review|approve|request-changes|complete|fail|handoff`
 - `cockpit agents list|show|enable|disable|update|validate|health`
-- `cockpit sources add|list|validate|sync`
+- `cockpit sources add|list|enable|disable|update|validate|sync`
 - `cockpit sources push`
 - `cockpit sources conflicts|resolve`
 - `cockpit release snapshot`
