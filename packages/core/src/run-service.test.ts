@@ -6,8 +6,8 @@ import { writeContextFile } from "@cockpit-ai/claims";
 import { initLayout, loadConfig } from "@cockpit-ai/config";
 import { createClaim, listActiveClaims } from "@cockpit-ai/claims";
 import { detectGitDir, git } from "@cockpit-ai/git";
-import { createRun } from "./run-store.js";
-import { completeRun } from "./run-service.js";
+import { createRun, loadRun } from "./run-store.js";
+import { completeRun, sendRunToReview } from "./run-service.js";
 import { createTask } from "./task-service.js";
 import { createWorkItem } from "./work-service.js";
 import { getAgent } from "./agents.js";
@@ -76,5 +76,55 @@ describe("completeRun", () => {
 
     expect(listActiveClaims(cockpitDir)).toHaveLength(0);
     expect(fs.existsSync(path.join(cockpitDir, "claims", "archive", `${claim.id}.json`))).toBe(true);
+  });
+
+  it("releases active claims when a run is sent to review", async () => {
+    const root = await createWorkspace();
+    const cockpitDir = path.join(root, ".cockpit");
+    const config = loadConfig(cockpitDir);
+    const repoId = config.repos[0]!.id;
+
+    const workItem = createWorkItem(cockpitDir, { title: "Review a run", repoTargets: [repoId] });
+    const task = createTask(cockpitDir, {
+      workItemId: workItem.id,
+      title: "Review task",
+      repo: repoId,
+      scopes: ["README.md"],
+      risk: "low",
+    });
+    const claim = createClaim({
+      cockpitDir,
+      repo: repoId,
+      repoPath: root,
+      topic: "review test",
+      paths: ["README.md"],
+    });
+    const gitDir = await detectGitDir(root);
+    writeContextFile(gitDir, {
+      version: 1,
+      claim_id: claim.id,
+      updated_at: new Date().toISOString(),
+    });
+
+    const agent = getAgent(cockpitDir, "manual-default");
+    if (!agent) {
+      throw new Error("Expected manual-default agent");
+    }
+
+    createRun({
+      cockpitDir,
+      runId: "RUN-review",
+      task,
+      workItem,
+      agent,
+      branch: "cockpit/test-review",
+      worktreePath: root,
+      claimIds: [claim.id],
+    });
+
+    await sendRunToReview(cockpitDir, "RUN-review", "needs review");
+
+    expect(listActiveClaims(cockpitDir)).toHaveLength(0);
+    expect(loadRun(cockpitDir, "RUN-review")?.status).toBe("awaiting_review");
   });
 });

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Agent, Artifact, Run, Task, WorkItem } from "@cockpit-ai/schemas";
 import { execa } from "execa";
 
@@ -66,5 +68,33 @@ export async function collectWorktreeArtifacts(worktreePath: string): Promise<Ar
     }
   }
 
+  const head = await execa("git", ["rev-parse", "HEAD"], {
+    cwd: worktreePath,
+    reject: false,
+  });
+  if (head.exitCode === 0 && head.stdout.trim().length > 0) {
+    artifacts.push({ kind: "commit", value: head.stdout.trim() });
+  }
+
+  const diff = await execa("git", ["diff", "--binary"], {
+    cwd: worktreePath,
+    reject: false,
+  });
+  if (diff.stdout.trim().length > 0) {
+    const patchPath = path.join(worktreePath, ".cockpit-run.patch");
+    fs.writeFileSync(patchPath, diff.stdout, "utf8");
+    artifacts.push({ kind: "patch", value: ".cockpit-run.patch" });
+  }
+
   return artifacts;
+}
+
+export function successModeForAgent(agent: Agent): "review" | "complete" {
+  if (agent.success_mode) {
+    return agent.success_mode;
+  }
+  if (agent.provider === "codex" || agent.provider === "claude") {
+    return "review";
+  }
+  return "complete";
 }

@@ -3,8 +3,8 @@ import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, Task, WorkItem } from "@cockpit-ai/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
-import { completeRun, failRun } from "./run-service.js";
-import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts } from "./provider-utils.js";
+import { failRun, finalizeSuccessfulRun } from "./run-service.js";
+import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
 
 export async function executeClaudeAgentRun(params: {
   cockpitDir: string;
@@ -57,15 +57,16 @@ export async function executeClaudeAgentRun(params: {
     }
 
     if (result.exitCode === 0) {
-      await completeRun(
+      await finalizeSuccessfulRun(
         params.cockpitDir,
         params.run.id,
         summary || `Claude agent ${params.agent.id} completed successfully`,
+        successModeForAgent(params.agent),
       );
       appendRunEvent(params.cockpitDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: "Claude execution completed successfully",
+        message: `Claude execution completed with success mode ${successModeForAgent(params.agent)}`,
       });
       return;
     }

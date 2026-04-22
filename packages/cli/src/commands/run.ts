@@ -89,6 +89,9 @@ export function registerRunCommand(program: Command): void {
       console.log(`Status: ${run.status}`);
       console.log(`Branch: ${run.branch}`);
       console.log(`Worktree: ${run.worktree_path}`);
+      if (run.result) {
+        console.log(`Result: ${run.result}`);
+      }
       if (run.artifacts.length > 0) {
         console.log("Artifacts:");
         for (const artifact of run.artifacts) {

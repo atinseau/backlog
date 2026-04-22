@@ -3,8 +3,8 @@ import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, Task, WorkItem } from "@cockpit-ai/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
-import { completeRun, failRun } from "./run-service.js";
-import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts } from "./provider-utils.js";
+import { failRun, finalizeSuccessfulRun } from "./run-service.js";
+import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
 
 export async function executeCodexAgentRun(params: {
   cockpitDir: string;
@@ -64,15 +64,16 @@ export async function executeCodexAgentRun(params: {
     }
 
     if (result.exitCode === 0) {
-      await completeRun(
+      await finalizeSuccessfulRun(
         params.cockpitDir,
         params.run.id,
         lastMessage || `Codex agent ${params.agent.id} completed successfully`,
+        successModeForAgent(params.agent),
       );
       appendRunEvent(params.cockpitDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: "Codex execution completed successfully",
+        message: `Codex execution completed with success mode ${successModeForAgent(params.agent)}`,
       });
       return;
     }

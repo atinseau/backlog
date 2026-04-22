@@ -35,7 +35,7 @@ function writeFakeClaudeBinary(root: string): string {
 }
 
 describe("executeClaudeAgentRun", () => {
-  it("runs claude print mode and archives the run on success", async () => {
+  it("runs claude print mode and sends the run to review by default", async () => {
     const root = createWorkspace();
     const cockpitDir = path.join(root, ".cockpit");
     const repoId = path.basename(root);
@@ -81,8 +81,9 @@ describe("executeClaudeAgentRun", () => {
     });
 
     const archivedRun = loadRun(cockpitDir, "RUN-claude");
-    expect(archivedRun?.status).toBe("succeeded");
+    expect(archivedRun?.status).toBe("awaiting_review");
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "summary")).toBe(true);
+    expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "log")).toBe(true);
     expect(fs.existsSync(path.join(root, ".cockpit-claude.log"))).toBe(true);
   });
 });

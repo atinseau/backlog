@@ -67,9 +67,23 @@ export async function failRun(cockpitDir: string, runId: string, summary?: strin
   archiveRun(cockpitDir, runId);
 }
 
-export function sendRunToReview(cockpitDir: string, runId: string, summary?: string): void {
+export async function sendRunToReview(cockpitDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(cockpitDir, runId, "awaiting_review", summary ?? "Awaiting review");
   syncParentWorkAfterRun(cockpitDir, run.task_id, "review");
+  await releaseRunClaims(cockpitDir, runId);
+}
+
+export async function finalizeSuccessfulRun(
+  cockpitDir: string,
+  runId: string,
+  summary: string | undefined,
+  successMode: "review" | "complete",
+): Promise<void> {
+  if (successMode === "complete") {
+    await completeRun(cockpitDir, runId, summary);
+    return;
+  }
+  await sendRunToReview(cockpitDir, runId, summary);
 }
 
 export function createRunHandoff(cockpitDir: string, runId: string, reason: string): string {

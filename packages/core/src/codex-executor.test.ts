@@ -45,7 +45,7 @@ function writeFakeCodexBinary(root: string): string {
 }
 
 describe("executeCodexAgentRun", () => {
-  it("runs codex exec and archives the run on success", async () => {
+  it("runs codex exec and sends the run to review by default", async () => {
     const root = createWorkspace();
     const cockpitDir = path.join(root, ".cockpit");
     const repoId = path.basename(root);
@@ -91,8 +91,9 @@ describe("executeCodexAgentRun", () => {
     });
 
     const archivedRun = loadRun(cockpitDir, "RUN-codex");
-    expect(archivedRun?.status).toBe("succeeded");
+    expect(archivedRun?.status).toBe("awaiting_review");
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "summary")).toBe(true);
+    expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "log")).toBe(true);
     expect(fs.existsSync(path.join(root, ".cockpit-codex.log"))).toBe(true);
   });
 });

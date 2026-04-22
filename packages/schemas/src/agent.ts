@@ -7,6 +7,7 @@ export const agentSchema = z.object({
   profile: z.string().optional(),
   command: z.string().optional(),
   sandbox_mode: z.enum(["read-only", "workspace-write", "danger-full-access"]).optional(),
+  success_mode: z.enum(["review", "complete"]).optional(),
   environment: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
   max_concurrent_runs: z.number().int().positive().default(1),

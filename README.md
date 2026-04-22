@@ -83,6 +83,8 @@ Both `codex` and `claude` now attach richer run artifacts:
 - executor log
 - changed files detected in the worktree
 
+By default, `codex` and `claude` successful runs now land in `awaiting_review` instead of auto-completing the task. Their claims are released, but the run and worktree stay available for review.
+
 Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
 
 ## Split Planning
