@@ -27,6 +27,7 @@ export function registerStatusCommand(program: Command): void {
       console.log(`Active claims: ${status.activeClaims}`);
       console.log(`Active runs: ${status.activeRuns}`);
       console.log(`Work items: ${status.workItemCount}`);
+      console.log(`Pending sync conflicts: ${status.pendingSyncConflicts}`);
       console.log("Work item states:");
       for (const [workStatus, count] of Object.entries(status.workItemCounts)) {
         if (count > 0) {
@@ -45,11 +46,19 @@ export function registerStatusCommand(program: Command): void {
       console.log(`Runnable now: ${plan.runnable.length}`);
       console.log(`Waiting now: ${plan.waiting.length}`);
       console.log(`Blocked now: ${plan.blocked.length}`);
-      if (plan.runnable.length > 0) {
+      if (status.nextActions.length > 0) {
         console.log("");
         console.log("Top next actions:");
-        for (const decision of plan.runnable.slice(0, 3)) {
-          console.log(`- Start ${decision.taskId} (${decision.reasons.join(", ")})`);
+        for (const action of status.nextActions) {
+          const agentText = action.assignedAgentId ? ` with ${action.assignedAgentId}` : "";
+          console.log(`- Start ${action.taskId}${agentText} (${action.reasons.join(", ")})`);
+        }
+      }
+      if (status.hotConflicts.length > 0) {
+        console.log("");
+        console.log("Hot conflicts:");
+        for (const conflict of status.hotConflicts) {
+          console.log(`- ${conflict}`);
         }
       }
     });
