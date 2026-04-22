@@ -126,13 +126,27 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("list")
     .description("List tasks")
+    .option("--repo <repo>", "Only show tasks for one repo")
+    .option("--status <status>", "Only show tasks in one status")
+    .option("--work-item <id>", "Only show tasks for one work item")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean }) => {
+    .action((options: { json?: boolean; repo?: string; status?: string; workItem?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const tasks = listTasks(workspace.cockpitDir);
+      const tasks = listTasks(workspace.cockpitDir).filter((item) => {
+        if (options.repo && item.repo !== options.repo) {
+          return false;
+        }
+        if (options.status && item.status !== options.status) {
+          return false;
+        }
+        if (options.workItem && item.work_item_id !== options.workItem) {
+          return false;
+        }
+        return true;
+      });
       if (options.json) {
         console.log(JSON.stringify(tasks, null, 2));
         return;

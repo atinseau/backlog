@@ -48,13 +48,46 @@ export function registerRunCommand(program: Command): void {
     .command("list")
     .description("List known runs")
     .option("--review", "Only show runs awaiting review")
+    .option("--status <status>", "Only show runs in one status")
+    .option("--repo <repo>", "Only show runs for one repo")
+    .option("--task <id>", "Only show runs for one task")
+    .option("--work-item <id>", "Only show runs for one work item")
+    .option("--agent <id>", "Only show runs for one agent")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean; review?: boolean }) => {
+    .action((options: {
+      json?: boolean;
+      review?: boolean;
+      status?: string;
+      repo?: string;
+      task?: string;
+      workItem?: string;
+      agent?: string;
+    }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const runs = listAllRuns(workspace.cockpitDir).filter((run) => !options.review || run.status === "awaiting_review");
+      const runs = listAllRuns(workspace.cockpitDir).filter((run) => {
+        if (options.review && run.status !== "awaiting_review") {
+          return false;
+        }
+        if (options.status && run.status !== options.status) {
+          return false;
+        }
+        if (options.repo && run.repo !== options.repo) {
+          return false;
+        }
+        if (options.task && run.task_id !== options.task) {
+          return false;
+        }
+        if (options.workItem && run.work_item_id !== options.workItem) {
+          return false;
+        }
+        if (options.agent && run.agent_id !== options.agent) {
+          return false;
+        }
+        return true;
+      });
       if (options.json) {
         console.log(JSON.stringify(runs, null, 2));
         return;

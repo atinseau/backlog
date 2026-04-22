@@ -202,13 +202,23 @@ export function registerSourceCommand(program: Command): void {
   sources
     .command("list")
     .description("List configured sources")
+    .option("--kind <kind>", "Only show sources of one kind")
+    .option("--enabled <enabled>", "Only show enabled or disabled sources")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean }) => {
+    .action((options: { json?: boolean; kind?: string; enabled?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const sources = listSources(workspace.cockpitDir);
+      const sources = listSources(workspace.cockpitDir).filter((source) => {
+        if (options.kind && source.kind !== options.kind) {
+          return false;
+        }
+        if (options.enabled !== undefined && source.enabled !== parseBooleanFlag(options.enabled)) {
+          return false;
+        }
+        return true;
+      });
       if (options.json) {
         console.log(JSON.stringify(sources, null, 2));
         return;

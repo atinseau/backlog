@@ -111,13 +111,31 @@ export function registerWorkCommand(program: Command): void {
   work
     .command("list")
     .description("List known work items")
+    .option("--status <status>", "Only show work items in one status")
+    .option("--priority <priority>", "Only show work items at one priority")
+    .option("--repo <repo>", "Only show work items targeting one repo")
+    .option("--label <label>", "Only show work items carrying one label")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean }) => {
+    .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const items = listWorkItems(workspace.cockpitDir);
+      const items = listWorkItems(workspace.cockpitDir).filter((item) => {
+        if (options.status && item.status !== options.status) {
+          return false;
+        }
+        if (options.priority && item.priority !== options.priority) {
+          return false;
+        }
+        if (options.repo && !item.repo_targets.includes(options.repo)) {
+          return false;
+        }
+        if (options.label && !item.labels.includes(options.label)) {
+          return false;
+        }
+        return true;
+      });
       if (options.json) {
         console.log(JSON.stringify(items, null, 2));
         return;

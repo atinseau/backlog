@@ -25,6 +25,12 @@ Cockpit ingests work from sources like Markdown, CSV, and Jira, turns backlog in
 - `cockpit release snapshot`
 - `cockpit worktree gc`
 
+Most `list` commands now support practical filters, for example:
+- `cockpit work list --status ready --repo cockpit`
+- `cockpit task list --repo cockpit --status blocked`
+- `cockpit runs list --review --agent codex-default`
+- `cockpit sources list --enabled true`
+
 ## Quickstart
 
 ```bash
