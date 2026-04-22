@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import YAML from "yaml";
 import { agentsFileSchema, type Agent, type AgentsFile, type Task } from "@cockpit-ai/schemas";
@@ -39,6 +40,13 @@ export interface AgentSelection {
   available: boolean;
 }
 
+function executableExists(command: string): boolean {
+  if (command.includes("/") || command.startsWith(".")) {
+    return fs.existsSync(command);
+  }
+  return spawnSync("which", [command], { stdio: "ignore" }).status === 0;
+}
+
 export function validateAgents(cockpitDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
   return listAgents(cockpitDir).map((agent) => {
     const reasons: string[] = [];
@@ -53,6 +61,9 @@ export function validateAgents(cockpitDir: string): Array<{ id: string; ok: bool
     }
     if (agent.provider === "custom" && !agent.command) {
       reasons.push("custom_provider_missing_command");
+    }
+    if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
+      reasons.push("codex_executable_missing");
     }
     return {
       id: agent.id,
@@ -75,6 +86,9 @@ export function healthForAgents(cockpitDir: string): AgentHealth[] {
     }
     if (agent.provider === "custom" && !agent.command) {
       reasons.push("missing_command");
+    }
+    if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
+      reasons.push("missing_codex_executable");
     }
     return {
       id: agent.id,
@@ -140,6 +154,9 @@ export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | 
       score += Math.max(0, agent.max_concurrent_runs - activeRunsForAgent) * 5;
       if (agent.provider === "custom") {
         score += 5;
+      }
+      if (agent.provider === "codex") {
+        score += 10;
       }
       if (reasons.length === 0) {
         reasons.push("compatible");

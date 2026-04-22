@@ -51,7 +51,7 @@ export async function executeCustomAgentRun(params: {
     );
 
     if (result.exitCode === 0) {
-      completeRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} completed successfully`);
+      await completeRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} completed successfully`);
       appendRunEvent(params.cockpitDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
@@ -74,7 +74,7 @@ export async function executeCustomAgentRun(params: {
         "Inspect `.cockpit-executor.log` in the worktree for stdout/stderr.",
       ].join("\n"),
     );
-    failRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`);
+    await failRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`);
     appendRunEvent(params.cockpitDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",

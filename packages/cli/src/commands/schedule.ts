@@ -5,7 +5,7 @@ import {
   addRunArtifact,
   buildExecutionPlan,
   buildRunBranchName,
-  executeCustomAgentRun,
+  executeAgentRun,
   createRun,
   ensureWorktree,
   getAgent,
@@ -232,14 +232,14 @@ export function registerScheduleCommand(program: Command): void {
         updateTaskStatus(workspace.cockpitDir, task.id, "running");
         started.push(`${run.id} -> ${task.id} (${agent.id})`);
 
-        if (agent.provider === "custom" && agent.command) {
-          await executeCustomAgentRun({
-            cockpitDir: workspace.cockpitDir,
-            run,
-            task,
-            workItem,
-            agent,
-          });
+        if (await executeAgentRun({
+          cockpitDir: workspace.cockpitDir,
+          run,
+          task,
+          workItem,
+          agent,
+        })) {
+          continue;
         }
       }
 

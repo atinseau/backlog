@@ -66,11 +66,15 @@ Cockpit stores local state in `.cockpit/`:
 - `runs/`
 - `worktrees/`
 
-## Custom Agents
+## Agents
 
 You can add a `custom` provider in `.cockpit/agents.yaml` with a shell `command`.
 
 When `schedule run --agent <id>` targets a custom agent, Cockpit will execute that command inside the run worktree and mark the run succeeded or failed from the exit code.
+
+Cockpit also supports `provider: codex`. A Codex agent runs `codex exec` inside the isolated worktree, captures the last agent message, and stores it on the run as a summary artifact.
+
+`init` now seeds a disabled `codex-default` agent in `.cockpit/agents.yaml` that you can enable and tune with `model`, `profile`, `sandbox_mode`, and an optional `command` override for the Codex executable path.
 
 Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
 
