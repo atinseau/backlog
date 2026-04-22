@@ -29,6 +29,14 @@ export function listPendingSyncConflicts(cockpitDir: string): SyncConflict[] {
   return listSyncConflicts(cockpitDir).filter((conflict) => conflict.resolution === "pending");
 }
 
+export function listPendingSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): SyncConflict[] {
+  return listPendingSyncConflicts(cockpitDir).filter((conflict) => conflict.work_item_id === workItemId);
+}
+
+export function hasPendingSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): boolean {
+  return listPendingSyncConflictsForWorkItem(cockpitDir, workItemId).length > 0;
+}
+
 export function recordStatusConflict(params: {
   cockpitDir: string;
   workItemId: string;
@@ -88,4 +96,13 @@ export function resolveSyncConflict(cockpitDir: string, conflictId: string, reso
 
   writeSyncConflictsFile(cockpitDir, conflicts);
   return conflict;
+}
+
+export function resolveSyncConflictsForWorkItem(
+  cockpitDir: string,
+  workItemId: string,
+  resolution: "external" | "local",
+): SyncConflict[] {
+  const pending = listPendingSyncConflictsForWorkItem(cockpitDir, workItemId);
+  return pending.map((conflict) => resolveSyncConflict(cockpitDir, conflict.id, resolution));
 }

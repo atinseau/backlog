@@ -48,6 +48,8 @@ Add a source and sync:
 node packages/cli/dist/bin.js sources add markdown --id notes --path backlog.md
 node packages/cli/dist/bin.js sources sync
 node packages/cli/dist/bin.js work import
+node packages/cli/dist/bin.js sources conflicts
+node packages/cli/dist/bin.js sources resolve --work-item WI-xxxx --use local
 ```
 
 ## Workspace State
@@ -82,6 +84,12 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 ## Scheduling Explainability
 
 `cockpit schedule explain` shows the chosen action for each selected task plus the ranked candidate agents and why they were accepted or rejected.
+
+## Source Sync
+
+- `sources push --all` pushes every source-linked work item that supports outbound sync.
+- `sources push` now refuses to push an item while it still has pending sync conflicts, unless you pass `--allow-conflicts`.
+- `sources resolve --work-item <id> --use local|external` resolves every pending conflict for that work item in one step.
 
 ## Development
 

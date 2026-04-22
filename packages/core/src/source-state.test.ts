@@ -6,7 +6,13 @@ import { initLayout } from "@cockpit-ai/config";
 import type { WorkItem } from "@cockpit-ai/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
 import { upsertImportedWorkItems } from "./source-state.js";
-import { listPendingSyncConflicts, resolveSyncConflict } from "./sync-conflicts.js";
+import {
+  hasPendingSyncConflictsForWorkItem,
+  listPendingSyncConflicts,
+  listPendingSyncConflictsForWorkItem,
+  resolveSyncConflict,
+  resolveSyncConflictsForWorkItem,
+} from "./sync-conflicts.js";
 
 function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-source-"));
@@ -65,5 +71,24 @@ describe("upsertImportedWorkItems", () => {
     resolveSyncConflict(cockpitDir, conflicts[0]!.id, "external");
     const updated = readWorkItemsFile(cockpitDir);
     expect(updated.items[0]?.status).toBe("backlog");
+  });
+
+  it("can list and resolve all pending conflicts for one work item", () => {
+    const cockpitDir = createWorkspace();
+    const base = importedItem("row-3");
+    upsertImportedWorkItems(cockpitDir, [base]);
+
+    const file = readWorkItemsFile(cockpitDir);
+    file.items[0]!.status = "review";
+    writeWorkItemsFile(cockpitDir, file);
+
+    upsertImportedWorkItems(cockpitDir, [{ ...base, status: "backlog" }]);
+
+    expect(hasPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toBe(true);
+    expect(listPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toHaveLength(1);
+
+    const resolved = resolveSyncConflictsForWorkItem(cockpitDir, base.id, "local");
+    expect(resolved).toHaveLength(1);
+    expect(hasPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toBe(false);
   });
 });

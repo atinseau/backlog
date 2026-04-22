@@ -5,10 +5,13 @@ import {
   addSource,
   getSource,
   getWorkItem,
+  hasPendingSyncConflictsForWorkItem,
   listPendingSyncConflicts,
   listSources,
+  listWorkItems,
   primarySourceLink,
   resolveSyncConflict,
+  resolveSyncConflictsForWorkItem,
   upsertImportedWorkItems,
 } from "@cockpit-ai/core";
 import type { SourceConfig, SourceKind } from "@cockpit-ai/schemas";
@@ -176,35 +179,63 @@ export function registerSourceCommand(program: Command): void {
   sources
     .command("push")
     .description("Push a work item status or comment back to its source when supported")
-    .argument("<work-item-id>", "Work item id")
+    .argument("[work-item-id]", "Work item id")
     .option("--comment <text>", "Optional comment to push")
-    .action(async (workItemId: string, options: { comment?: string }) => {
+    .option("--all", "Push every source-linked work item that supports push")
+    .option("--allow-conflicts", "Allow push even when the work item still has pending sync conflicts")
+    .action(async (workItemId: string | undefined, options: { comment?: string; all?: boolean; allowConflicts?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
-      const workItem = getWorkItem(workspace.cockpitDir, workItemId);
-      if (!workItem) {
-        throw new Error(`Unknown work item: ${workItemId}`);
+      if (!workItemId && !options.all) {
+        throw new Error("sources push requires a <work-item-id> or --all.");
       }
-      const sourceLink = primarySourceLink(workItem);
-      if (!sourceLink?.source_ref) {
-        throw new Error(`Work item ${workItemId} has no primary source link.`);
+      if (options.all && options.comment) {
+        throw new Error("--comment can only be used when pushing a single work item.");
       }
-      const source = getSource(workspace.cockpitDir, sourceLink.source_ref);
-      if (!source) {
-        throw new Error(`Unknown source: ${sourceLink.source_ref}`);
+
+      const items = options.all
+        ? listWorkItems(workspace.cockpitDir).filter((item) => primarySourceLink(item)?.source_ref)
+        : [getWorkItem(workspace.cockpitDir, workItemId!)].filter(Boolean);
+
+      if (items.length === 0) {
+        throw new Error(options.all ? "No source-linked work items to push." : `Unknown work item: ${workItemId}`);
       }
-      const connector = createConnector(source, workspace.root);
-      if (!connector.push) {
-        throw new Error(`Source ${source.id} does not support push.`);
+
+      for (const workItem of items) {
+        if (!workItem) {
+          continue;
+        }
+        if (!options.allowConflicts && hasPendingSyncConflictsForWorkItem(workspace.cockpitDir, workItem.id)) {
+          throw new Error(`Work item ${workItem.id} still has pending sync conflicts. Resolve them first or pass --allow-conflicts.`);
+        }
+
+        const sourceLink = primarySourceLink(workItem);
+        if (!sourceLink?.source_ref) {
+          if (!options.all) {
+            throw new Error(`Work item ${workItem.id} has no primary source link.`);
+          }
+          continue;
+        }
+        const source = getSource(workspace.cockpitDir, sourceLink.source_ref);
+        if (!source) {
+          throw new Error(`Unknown source: ${sourceLink.source_ref}`);
+        }
+        const connector = createConnector(source, workspace.root);
+        if (!connector.push) {
+          if (!options.all) {
+            throw new Error(`Source ${source.id} does not support push.`);
+          }
+          continue;
+        }
+        await connector.push({
+          externalId: sourceLink.external_id,
+          status: workItem.status,
+          ...(options.comment ? { comment: options.comment } : {}),
+        });
+        console.log(`Pushed ${workItem.id} to ${source.id}`);
       }
-      await connector.push({
-        externalId: sourceLink.external_id,
-        status: workItem.status,
-        ...(options.comment ? { comment: options.comment } : {}),
-      });
-      console.log(`Pushed ${workItem.id} to ${source.id}`);
     });
 
   sources
@@ -233,9 +264,10 @@ export function registerSourceCommand(program: Command): void {
   sources
     .command("resolve")
     .description("Resolve one sync conflict")
-    .argument("<conflict-id>", "Sync conflict id")
+    .argument("[conflict-id]", "Sync conflict id")
+    .option("--work-item <id>", "Resolve every pending conflict for one work item")
     .requiredOption("--use <resolution>", "external or local")
-    .action((conflictId: string, options: { use: "external" | "local" }) => {
+    .action((conflictId: string | undefined, options: { use: "external" | "local"; workItem?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
@@ -243,7 +275,21 @@ export function registerSourceCommand(program: Command): void {
       if (options.use !== "external" && options.use !== "local") {
         throw new Error("--use must be external or local");
       }
-      const conflict = resolveSyncConflict(workspace.cockpitDir, conflictId, options.use);
+      if (!conflictId && !options.workItem) {
+        throw new Error("sources resolve requires a <conflict-id> or --work-item.");
+      }
+
+      if (options.workItem) {
+        const conflicts = resolveSyncConflictsForWorkItem(workspace.cockpitDir, options.workItem, options.use);
+        if (conflicts.length === 0) {
+          console.log(`No pending conflicts for ${options.workItem}`);
+          return;
+        }
+        console.log(`Resolved ${conflicts.length} conflict(s) for ${options.workItem} using ${options.use}`);
+        return;
+      }
+
+      const conflict = resolveSyncConflict(workspace.cockpitDir, conflictId!, options.use);
       console.log(`Resolved ${conflict.id} using ${options.use}`);
     });
 }
