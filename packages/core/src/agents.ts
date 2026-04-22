@@ -43,6 +43,9 @@ export function validateAgents(cockpitDir: string): Array<{ id: string; ok: bool
     if (agent.capabilities.length === 0) {
       reasons.push("capabilities_empty");
     }
+    if (agent.provider === "custom" && !agent.command) {
+      reasons.push("custom_provider_missing_command");
+    }
     return {
       id: agent.id,
       ok: reasons.length === 0,
@@ -61,6 +64,9 @@ export function healthForAgents(cockpitDir: string): AgentHealth[] {
     }
     if (count > agent.max_concurrent_runs) {
       reasons.push("over_capacity");
+    }
+    if (agent.provider === "custom" && !agent.command) {
+      reasons.push("missing_command");
     }
     return {
       id: agent.id,

@@ -13,6 +13,7 @@
     "@cockpit-ai/claims": "workspace:*",
     "@cockpit-ai/git": "workspace:*",
     "@cockpit-ai/schemas": "workspace:*",
+    "execa": "^9.6.0",
     "yaml": "^2.8.0"
   }
 }

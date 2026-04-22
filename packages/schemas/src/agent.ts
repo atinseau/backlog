@@ -4,6 +4,8 @@ export const agentSchema = z.object({
   id: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().optional(),
+  command: z.string().optional(),
+  environment: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
   max_concurrent_runs: z.number().int().positive().default(1),
   allowed_repos: z.array(z.string()).default([]),

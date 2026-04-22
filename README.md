@@ -61,6 +61,12 @@ Cockpit stores local state in `.cockpit/`:
 - `runs/`
 - `worktrees/`
 
+## Custom Agents
+
+You can add a `custom` provider in `.cockpit/agents.yaml` with a shell `command`.
+
+When `schedule run --agent <id>` targets a custom agent, Cockpit will execute that command inside the run worktree and mark the run succeeded or failed from the exit code.
+
 ## Development
 
 ```bash

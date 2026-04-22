@@ -64,6 +64,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "    allowed_repos: []",
       "    allowed_risk: [low, medium, high]",
       "    capabilities: [plan, edit_code, review]",
+      "    environment: {}",
       "",
     ].join("\n"),
     "utf8",

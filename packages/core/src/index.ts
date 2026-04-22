@@ -1,5 +1,6 @@
 export * from "./status-builder.js";
 export * from "./agents.js";
+export * from "./custom-executor.js";
 export * from "./release-snapshot.js";
 export * from "./run-service.js";
 export * from "./state-files.js";
