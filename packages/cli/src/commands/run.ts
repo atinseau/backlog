@@ -1,6 +1,17 @@
 import { Command } from "commander";
 import { findWorkspace } from "@cockpit-ai/config";
-import { getRunEvents, getTask, listActiveRuns, listAllRuns, loadRun, updateRunStatus, updateTaskStatus } from "@cockpit-ai/core";
+import {
+  completeRun,
+  createRunHandoff,
+  failRun,
+  getRunEvents,
+  getTask,
+  listAllRuns,
+  loadRun,
+  sendRunToReview,
+  updateRunStatus,
+  updateTaskStatus,
+} from "@cockpit-ai/core";
 
 export function registerRunCommand(program: Command): void {
   const runs = program.command("runs").description("Inspect execution runs");
@@ -105,5 +116,61 @@ export function registerRunCommand(program: Command): void {
         updateTaskStatus(workspace.cockpitDir, task.id, "running");
       }
       console.log(`Resumed ${runId}`);
+    });
+
+  runs
+    .command("complete")
+    .description("Mark a run as complete and archive it")
+    .argument("<run-id>", "Run id")
+    .option("--summary <text>", "Completion summary")
+    .action((runId: string, options: { summary?: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      completeRun(workspace.cockpitDir, runId, options.summary);
+      console.log(`Completed ${runId}`);
+    });
+
+  runs
+    .command("fail")
+    .description("Mark a run as failed and archive it")
+    .argument("<run-id>", "Run id")
+    .option("--summary <text>", "Failure summary")
+    .action((runId: string, options: { summary?: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      failRun(workspace.cockpitDir, runId, options.summary);
+      console.log(`Failed ${runId}`);
+    });
+
+  runs
+    .command("review")
+    .description("Mark a run as awaiting review")
+    .argument("<run-id>", "Run id")
+    .option("--summary <text>", "Review summary")
+    .action((runId: string, options: { summary?: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      sendRunToReview(workspace.cockpitDir, runId, options.summary);
+      console.log(`Sent ${runId} to review`);
+    });
+
+  runs
+    .command("handoff")
+    .description("Write a handoff note for a run")
+    .argument("<run-id>", "Run id")
+    .requiredOption("--reason <text>", "Why the handoff is needed")
+    .action((runId: string, options: { reason: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+      }
+      const handoffPath = createRunHandoff(workspace.cockpitDir, runId, options.reason);
+      console.log(`Wrote handoff to ${handoffPath}`);
     });
 }

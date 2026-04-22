@@ -66,7 +66,9 @@ export function writeRun(cockpitDir: string, run: Run): void {
 }
 
 export function appendRunEvent(cockpitDir: string, runId: string, event: Record<string, string>): void {
-  const eventsPath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "events.ndjson");
+  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "events.ndjson");
+  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "events.ndjson");
+  const eventsPath = fs.existsSync(path.dirname(activePath)) ? activePath : archivePath;
   fs.appendFileSync(eventsPath, JSON.stringify(event) + "\n", "utf8");
 }
 
@@ -155,6 +157,30 @@ export function listAllRuns(cockpitDir: string): Run[] {
     }
   }
   return runs;
+}
+
+export function archiveRun(cockpitDir: string, runId: string): Run {
+  const run = loadRun(cockpitDir, runId);
+  if (!run) {
+    throw new Error(`Unknown run: ${runId}`);
+  }
+  const activeDir = runDirectory(activeRunsDir(cockpitDir), runId);
+  const archiveDir = runDirectory(archiveRunsDir(cockpitDir), runId);
+  if (!fs.existsSync(activeDir)) {
+    return run;
+  }
+  fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
+  fs.rmSync(archiveDir, { recursive: true, force: true });
+  fs.renameSync(activeDir, archiveDir);
+  return run;
+}
+
+export function writeRunHandoff(cockpitDir: string, runId: string, contents: string): string {
+  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "handoff.md");
+  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "handoff.md");
+  const target = fs.existsSync(path.dirname(activePath)) ? activePath : archivePath;
+  fs.writeFileSync(target, contents, "utf8");
+  return target;
 }
 
 export function addRunArtifact(cockpitDir: string, runId: string, artifact: Artifact): Run {
