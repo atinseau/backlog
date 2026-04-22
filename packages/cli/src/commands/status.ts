@@ -25,6 +25,7 @@ export function registerStatusCommand(program: Command): void {
       console.log(`Workspace: ${status.workspaceName}`);
       console.log(`Repos: ${status.repoCount}`);
       console.log(`Active claims: ${status.activeClaims}`);
+      console.log(`Active runs: ${status.activeRuns}`);
       console.log(`Work items: ${status.workItemCount}`);
       console.log("Work item states:");
       for (const [workStatus, count] of Object.entries(status.workItemCounts)) {
