@@ -1,3 +1,249 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import type { SourceConfig, WorkItem } from "@cockpit-ai/schemas";
+
 export interface SourceConnector {
-  kind: string;
+  validate(): Promise<{ ok: boolean; details: string[] }>;
+  pull(): Promise<WorkItem[]>;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function makeImportedId(): string {
+  return `WI-${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function parsePriority(value: string | undefined): WorkItem["priority"] {
+  switch ((value ?? "").trim().toUpperCase()) {
+    case "P0":
+    case "CRITICAL":
+    case "HIGHEST":
+      return "P0";
+    case "P1":
+    case "HIGH":
+      return "P1";
+    case "P3":
+    case "LOW":
+      return "P3";
+    default:
+      return "P2";
+  }
+}
+
+function parseStatus(value: string | undefined): WorkItem["status"] {
+  switch ((value ?? "").trim().toLowerCase()) {
+    case "ready":
+      return "ready";
+    case "in progress":
+    case "in_progress":
+      return "in_progress";
+    case "review":
+      return "review";
+    case "test":
+      return "test";
+    case "released":
+      return "released";
+    case "done":
+      return "done";
+    case "blocked":
+      return "blocked";
+    default:
+      return "backlog";
+  }
+}
+
+function baseImportedWorkItem(source: SourceConfig, externalId: string, title: string): WorkItem {
+  const now = nowIso();
+  return {
+    id: makeImportedId(),
+    title,
+    source_links: [
+      {
+        kind: source.kind,
+        source_ref: source.id,
+        external_id: externalId,
+      },
+    ],
+    status: "backlog",
+    priority: "P2",
+    labels: [],
+    repo_targets: [],
+    acceptance_criteria: [],
+    dependencies: [],
+    planning: {
+      split_status: "pending",
+      risk: "medium",
+    },
+    sync: {
+      source_of_truth: source.sync.source_of_truth,
+      push_status: source.sync.push_status,
+      push_comments: source.sync.push_comments,
+    },
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+class MarkdownConnector implements SourceConnector {
+  constructor(private readonly source: SourceConfig, private readonly workspaceRoot: string) {}
+
+  async validate() {
+    const filePath = this.resolvePath();
+    return {
+      ok: fs.existsSync(filePath),
+      details: [filePath],
+    };
+  }
+
+  async pull(): Promise<WorkItem[]> {
+    const filePath = this.resolvePath();
+    const lines = fs.readFileSync(filePath, "utf8").split("\n");
+    const items: WorkItem[] = [];
+
+    for (const [index, line] of lines.entries()) {
+      const match = line.match(/^\s*[-*]\s+(?:\[[ xX]\]\s+)?(.+?)\s*$/);
+      if (!match) {
+        continue;
+      }
+      const item = baseImportedWorkItem(this.source, `line-${index + 1}`, match[1]!.trim());
+      items.push(item);
+    }
+
+    return items;
+  }
+
+  private resolvePath(): string {
+    const rawPath = String(this.source.config.path ?? "");
+    return path.isAbsolute(rawPath) ? rawPath : path.join(this.workspaceRoot, rawPath);
+  }
+}
+
+class CsvConnector implements SourceConnector {
+  constructor(private readonly source: SourceConfig, private readonly workspaceRoot: string) {}
+
+  async validate() {
+    const filePath = this.resolvePath();
+    return {
+      ok: fs.existsSync(filePath),
+      details: [filePath],
+    };
+  }
+
+  async pull(): Promise<WorkItem[]> {
+    const filePath = this.resolvePath();
+    const [headerLine, ...rows] = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean);
+    if (!headerLine) {
+      return [];
+    }
+    const headers = headerLine.split(",").map((value) => value.trim());
+    const items: WorkItem[] = [];
+
+    for (const [index, row] of rows.entries()) {
+      const values = row.split(",").map((value) => value.trim());
+      const record = Object.fromEntries(headers.map((header, i) => [header, values[i] ?? ""]));
+      const title = record.title || record.Title || `CSV row ${index + 1}`;
+      const externalId = record.id || record.ID || `row-${index + 1}`;
+      const item = baseImportedWorkItem(this.source, externalId, title);
+      if (record.description || record.Description) {
+        item.description = record.description || record.Description;
+      }
+      item.priority = parsePriority(record.priority || record.Priority);
+      item.status = parseStatus(record.status || record.Status);
+      if (record.labels || record.Labels) {
+        item.labels = String(record.labels || record.Labels)
+          .split(/[|;]/)
+          .map((value) => value.trim())
+          .filter(Boolean);
+      }
+      items.push(item);
+    }
+
+    return items;
+  }
+
+  private resolvePath(): string {
+    const rawPath = String(this.source.config.path ?? "");
+    return path.isAbsolute(rawPath) ? rawPath : path.join(this.workspaceRoot, rawPath);
+  }
+}
+
+class JiraConnector implements SourceConnector {
+  constructor(private readonly source: SourceConfig) {}
+
+  async validate() {
+    const baseUrl = String(this.source.config.base_url ?? "");
+    const emailEnv = String(this.source.auth.refs.email ?? "");
+    const tokenEnv = String(this.source.auth.refs.api_token ?? "");
+    const ok = Boolean(baseUrl && process.env[emailEnv] && process.env[tokenEnv]);
+    return {
+      ok,
+      details: [baseUrl || "<missing base_url>", emailEnv || "<missing email env>", tokenEnv || "<missing token env>"],
+    };
+  }
+
+  async pull(): Promise<WorkItem[]> {
+    const baseUrl = String(this.source.config.base_url ?? "");
+    const jql = String(this.source.config.jql ?? "order by updated desc");
+    const pageSize = Number(this.source.config.page_size ?? 50);
+    const email = process.env[String(this.source.auth.refs.email ?? "")];
+    const apiToken = process.env[String(this.source.auth.refs.api_token ?? "")];
+    if (!baseUrl || !email || !apiToken) {
+      throw new Error(`Source ${this.source.id} is missing Jira auth or base_url.`);
+    }
+
+    const auth = Buffer.from(`${email}:${apiToken}`).toString("base64");
+    const url = new URL("/rest/api/3/search/jql", baseUrl);
+    url.searchParams.set("jql", jql);
+    url.searchParams.set("maxResults", String(pageSize));
+    url.searchParams.set("fields", "summary,description,labels,priority,status");
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        Accept: "application/json",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Jira sync failed for ${this.source.id}: ${response.status} ${response.statusText}`);
+    }
+
+    const payload = await response.json() as {
+      issues?: Array<{
+        key: string;
+        self?: string;
+        fields?: {
+          summary?: string;
+          description?: unknown;
+          labels?: string[];
+          priority?: { name?: string };
+          status?: { name?: string };
+        };
+      }>;
+    };
+
+    return (payload.issues ?? []).map((issue) => {
+      const title = issue.fields?.summary ?? issue.key;
+      const item = baseImportedWorkItem(this.source, issue.key, title);
+      item.priority = parsePriority(issue.fields?.priority?.name);
+      item.status = parseStatus(issue.fields?.status?.name);
+      item.labels = issue.fields?.labels ?? [];
+      item.source_links[0]!.url = issue.self;
+      return item;
+    });
+  }
+}
+
+export function createConnector(source: SourceConfig, workspaceRoot: string): SourceConnector {
+  switch (source.kind) {
+    case "markdown":
+      return new MarkdownConnector(source, workspaceRoot);
+    case "csv":
+      return new CsvConnector(source, workspaceRoot);
+    case "jira":
+      return new JiraConnector(source);
+  }
+  throw new Error(`Unsupported source kind: ${String(source.kind)}`);
 }

@@ -139,4 +139,12 @@ export function registerWorkCommand(program: Command): void {
         console.log(`Recommended next task: ${outline.recommendedNextTaskId}`);
       }
     });
+
+  work
+    .command("import")
+    .description("Alias for source sync when pulling work into Cockpit")
+    .argument("[source-id]", "Optional source id")
+    .action((_sourceId?: string) => {
+      throw new Error("Use `cockpit sources sync [source-id]` to import work.");
+    });
 }

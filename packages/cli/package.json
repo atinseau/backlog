@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@cockpit-ai/claims": "workspace:*",
+    "@cockpit-ai/connectors": "workspace:*",
     "@cockpit-ai/config": "workspace:*",
     "@cockpit-ai/core": "workspace:*",
     "@cockpit-ai/git": "workspace:*",

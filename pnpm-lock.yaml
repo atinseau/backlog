@@ -38,6 +38,9 @@ importers:
       '@cockpit-ai/config':
         specifier: workspace:*
         version: link:../config
+      '@cockpit-ai/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@cockpit-ai/core':
         specifier: workspace:*
         version: link:../core
@@ -63,7 +66,11 @@ importers:
         specifier: ^2.2.5
         version: 2.2.5
 
-  packages/connectors: {}
+  packages/connectors:
+    dependencies:
+      '@cockpit-ai/schemas':
+        specifier: workspace:*
+        version: link:../schemas
 
   packages/core:
     dependencies:

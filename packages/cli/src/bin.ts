@@ -7,6 +7,7 @@ import { registerHooksCommand } from "./commands/hooks.js";
 import { registerInitCommand } from "./commands/init.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerScheduleCommand } from "./commands/schedule.js";
+import { registerSourceCommand } from "./commands/source.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerWorkCommand } from "./commands/work.js";
@@ -27,6 +28,7 @@ registerScheduleCommand(program);
 registerStatusCommand(program);
 registerTaskCommand(program);
 registerRunCommand(program);
+registerSourceCommand(program);
 registerWorkCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {
