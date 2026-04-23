@@ -1,42 +1,94 @@
+import fs from "node:fs";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
 import { buildReleaseSnapshot } from "@cockpit-ai/core";
+
+function renderText(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>): string {
+  return snapshot
+    .map((repo) => `${repo.repo} | enabled=${repo.enabled} | ${repo.branch} | ${repo.head} | ${repo.tag ?? "no-tag"} | dirty=${repo.dirty} | active_runs=${repo.activeRuns} | archived_runs=${repo.archivedRuns}`)
+    .join("\n");
+}
+
+function renderMarkdown(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>): string {
+  const lines = [
+    "| Repo | Enabled | Branch | Head | Tag | Dirty | Active runs | Archived runs |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+  ];
+  for (const repo of snapshot) {
+    lines.push(`| ${repo.repo} | ${repo.enabled ? "yes" : "no"} | ${repo.branch} | ${repo.head} | ${repo.tag ?? "no-tag"} | ${repo.dirty ? "yes" : "no"} | ${repo.activeRuns} | ${repo.archivedRuns} |`);
+  }
+  return lines.join("\n");
+}
 
 export function registerReleaseCommand(program: Command): void {
   const release = program.command("release").description("Inspect repo versions in the workspace");
 
   release
     .command("snapshot")
-    .description("Capture a version snapshot for all enabled repos")
+    .description("Capture a version snapshot for configured repos")
+    .option("--repo <id>", "Only snapshot one configured repo")
+    .option("--include-disabled", "Include disabled repos in the snapshot")
     .option("--dirty-only", "Only show repos with uncommitted changes")
+    .option("--output <path>", "Write the rendered snapshot to a file")
     .option("--markdown", "Render a Markdown table")
     .option("--json", "Emit machine-readable JSON")
-    .action(async (options: { json?: boolean; dirtyOnly?: boolean; markdown?: boolean }) => {
+    .action(async (options: {
+      repo?: string;
+      includeDisabled?: boolean;
+      json?: boolean;
+      dirtyOnly?: boolean;
+      markdown?: boolean;
+      output?: string;
+    }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
       }
+      if (options.json && options.markdown) {
+        throw new Error("Use either --json or --markdown, not both.");
+      }
       const config = loadConfig(workspace.cockpitDir);
-      const snapshot = (await buildReleaseSnapshot(workspace.cockpitDir, config))
+      if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
+        throw new Error(`Unknown repo: ${options.repo}`);
+      }
+      const snapshot = (await buildReleaseSnapshot(workspace.cockpitDir, config, {
+        ...(options.repo ? { repoId: options.repo } : {}),
+        ...(options.includeDisabled ? { includeDisabled: true } : {}),
+      }))
         .filter((repo) => !options.dirtyOnly || repo.dirty);
+
       if (options.json) {
-        console.log(JSON.stringify(snapshot, null, 2));
+        const rendered = JSON.stringify(snapshot, null, 2);
+        if (options.output) {
+          fs.writeFileSync(options.output, rendered + "\n", "utf8");
+          console.log(`Wrote release snapshot to ${options.output}`);
+          return;
+        }
+        console.log(rendered);
         return;
       }
       if (snapshot.length === 0) {
-        console.log(options.dirtyOnly ? "No dirty enabled repos configured." : "No enabled repos configured.");
+        const targetText = options.repo ? `repo ${options.repo}` : options.includeDisabled ? "configured repos" : "enabled repos";
+        console.log(options.dirtyOnly ? `No dirty ${targetText} configured.` : `No ${targetText} configured.`);
         return;
       }
       if (options.markdown) {
-        console.log("| Repo | Branch | Head | Tag | Dirty | Active runs | Archived runs |");
-        console.log("| --- | --- | --- | --- | --- | --- | --- |");
-        for (const repo of snapshot) {
-          console.log(`| ${repo.repo} | ${repo.branch} | ${repo.head} | ${repo.tag ?? "no-tag"} | ${repo.dirty ? "yes" : "no"} | ${repo.activeRuns} | ${repo.archivedRuns} |`);
+        const rendered = renderMarkdown(snapshot);
+        if (options.output) {
+          fs.writeFileSync(options.output, rendered + "\n", "utf8");
+          console.log(`Wrote release snapshot to ${options.output}`);
+          return;
         }
+        console.log(rendered);
         return;
       }
-      for (const repo of snapshot) {
-        console.log(`${repo.repo} | ${repo.branch} | ${repo.head} | ${repo.tag ?? "no-tag"} | dirty=${repo.dirty} | active_runs=${repo.activeRuns} | archived_runs=${repo.archivedRuns}`);
+
+      const rendered = renderText(snapshot);
+      if (options.output) {
+        fs.writeFileSync(options.output, rendered + "\n", "utf8");
+        console.log(`Wrote release snapshot to ${options.output}`);
+        return;
       }
+      console.log(rendered);
     });
 }

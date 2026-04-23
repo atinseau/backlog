@@ -35,6 +35,8 @@ Most `list` commands now support practical filters, for example:
 
 `cockpit release snapshot` now reports dirty repos and per-repo run counts. `cockpit worktree list` shows the worktrees Cockpit knows about through run records, and `cockpit worktree gc --dry-run` previews cleanup before deleting anything.
 
+`cockpit release snapshot` also supports `--repo <id>`, `--include-disabled`, and `--output <path>` when you want a targeted or exportable snapshot for one repo or a full workspace report.
+
 Use `cockpit repos add` and `cockpit repos update` when you want to manage a multi-repo workspace without editing `config.toml` by hand. Forced repo removal can also scrub linked tasks, work items, and agent scopes when you intentionally retire one repo from the workspace.
 
 ## Quickstart

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout, loadConfig } from "@cockpit-ai/config";
+import { initLayout, loadConfig, saveConfig } from "@cockpit-ai/config";
 import { git } from "@cockpit-ai/git";
 import { getAgent } from "./agents.js";
 import { archiveRun, createRun } from "./run-store.js";
@@ -67,10 +67,49 @@ describe("release and worktree operators", () => {
     expect(snapshot).toHaveLength(1);
     expect(snapshot[0]).toMatchObject({
       repo: repoId,
+      enabled: true,
       dirty: true,
       activeRuns: 1,
       archivedRuns: 1,
     });
+  });
+
+  it("can include disabled repos and target one repo explicitly", async () => {
+    const { root, cockpitDir } = await createWorkspace();
+    const docsRoot = path.join(root, "docs");
+    fs.mkdirSync(docsRoot, { recursive: true });
+    await git(["init", "-b", "trunk"], docsRoot);
+    fs.writeFileSync(path.join(docsRoot, "README.md"), "# docs\n", "utf8");
+    await git(["add", "README.md"], docsRoot);
+    await git(["-c", "user.name=Cockpit", "-c", "user.email=cockpit@example.com", "commit", "-m", "init"], docsRoot);
+
+    const config = loadConfig(cockpitDir);
+    config.repos.push({
+      id: "docs",
+      path: docsRoot,
+      default_branch: "trunk",
+      enabled: false,
+    });
+    saveConfig(cockpitDir, config);
+
+    const enabledOnly = await buildReleaseSnapshot(cockpitDir, loadConfig(cockpitDir));
+    expect(enabledOnly.map((repo) => repo.repo)).toEqual(["release-test"]);
+
+    const includingDisabled = await buildReleaseSnapshot(cockpitDir, loadConfig(cockpitDir), {
+      includeDisabled: true,
+    });
+    expect(includingDisabled.map((repo) => repo.repo)).toEqual(["release-test", "docs"]);
+    expect(includingDisabled.find((repo) => repo.repo === "docs")).toMatchObject({
+      enabled: false,
+      branch: "trunk",
+    });
+
+    const targeted = await buildReleaseSnapshot(cockpitDir, loadConfig(cockpitDir), {
+      repoId: "docs",
+      includeDisabled: true,
+    });
+    expect(targeted).toHaveLength(1);
+    expect(targeted[0]?.repo).toBe("docs");
   });
 
   it("lists known worktrees and supports dry-run garbage collection", async () => {
