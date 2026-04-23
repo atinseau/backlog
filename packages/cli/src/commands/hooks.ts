@@ -1,69 +1,136 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
+import { findWorkspace, loadConfig } from "@cockpit-ai/config";
 import { detectGitDir, detectRepoRoot } from "@cockpit-ai/git";
 import { inspectPreCommitHook, installPreCommitHook, uninstallPreCommitHook } from "@cockpit-ai/hooks";
+
+interface HookTarget {
+  id: string;
+  root: string;
+}
+
+async function resolveHookTargets(options: {
+  repo?: string;
+  repoRoot?: string;
+  all?: boolean;
+}): Promise<{ workspace: NonNullable<ReturnType<typeof findWorkspace>>; targets: HookTarget[] }> {
+  const workspace = findWorkspace();
+  if (!workspace) {
+    throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+  }
+  const config = loadConfig(workspace.cockpitDir);
+
+  if (options.all) {
+    if (options.repo || options.repoRoot) {
+      throw new Error("Use --all by itself, without --repo or --repo-root.");
+    }
+    return {
+      workspace,
+      targets: config.repos.map((repo) => ({ id: repo.id, root: repo.path })),
+    };
+  }
+
+  if (options.repo && options.repoRoot) {
+    throw new Error("Use either --repo or --repo-root, not both.");
+  }
+
+  if (options.repo) {
+    const repo = config.repos.find((candidate) => candidate.id === options.repo);
+    if (!repo) {
+      throw new Error(`Unknown repo: ${options.repo}`);
+    }
+    return {
+      workspace,
+      targets: [{ id: repo.id, root: repo.path }],
+    };
+  }
+
+  const repoRoot = options.repoRoot ?? await detectRepoRoot();
+  return {
+    workspace,
+    targets: [{ id: path.basename(repoRoot), root: repoRoot }],
+  };
+}
 
 export function registerHooksCommand(program: Command): void {
   const hooks = program.command("hooks").description("Manage Cockpit Git hooks");
 
   hooks
     .command("status")
-    .description("Inspect the pre-commit hook in the current repo")
+    .description("Inspect Cockpit-managed pre-commit hooks")
+    .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
+    .option("--all", "Inspect every configured repo in this workspace")
     .option("--json", "Emit machine-readable JSON")
-    .action(async (options: { repoRoot?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
-      if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
-      }
-      const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      const gitDir = await detectGitDir(repoRoot);
+    .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; json?: boolean }) => {
+      const { workspace, targets } = await resolveHookTargets(options);
       const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
-      const status = inspectPreCommitHook(gitDir, cockpitBin);
+      const statuses = [];
+      for (const target of targets) {
+        const gitDir = await detectGitDir(target.root);
+        statuses.push({
+          repoId: target.id,
+          repoRoot: target.root,
+          ...inspectPreCommitHook(gitDir, cockpitBin),
+        });
+      }
 
       if (options.json) {
-        console.log(JSON.stringify(status, null, 2));
+        console.log(JSON.stringify(options.all || options.repo ? statuses : statuses[0], null, 2));
         return;
       }
 
-      console.log(`Hook: ${status.hookPath}`);
-      console.log(`Exists: ${status.exists}`);
-      console.log(`Managed: ${status.managed}`);
-      if (status.cockpitBin) {
-        console.log(`Cockpit bin: ${status.cockpitBin}`);
+      for (const [index, status] of statuses.entries()) {
+        if (statuses.length > 1) {
+          if (index > 0) {
+            console.log("");
+          }
+          console.log(`Repo: ${status.repoId}`);
+          console.log(`Root: ${status.repoRoot}`);
+        }
+        console.log(`Hook: ${status.hookPath}`);
+        console.log(`Exists: ${status.exists}`);
+        console.log(`Managed: ${status.managed}`);
+        if (status.cockpitBin) {
+          console.log(`Cockpit bin: ${status.cockpitBin}`);
+        }
+        console.log(`Points to local shim: ${status.pointsToCockpitBin}`);
       }
-      console.log(`Points to local shim: ${status.pointsToCockpitBin}`);
     });
 
   hooks
     .command("install")
-    .description("Install the managed pre-commit hook in the current repo")
+    .description("Install Cockpit-managed pre-commit hooks")
+    .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
+    .option("--all", "Install hooks in every configured repo in this workspace")
     .option("--force", "Replace an existing non-Cockpit hook")
-    .action(async (options: { repoRoot?: string; force?: boolean }) => {
-      const workspace = findWorkspace();
-      if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+    .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; force?: boolean }) => {
+      const { workspace, targets } = await resolveHookTargets(options);
+      const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
+      for (const target of targets) {
+        const gitDir = await detectGitDir(target.root);
+        const hookPath = installPreCommitHook({
+          gitDir,
+          cockpitBin,
+          ...(options.force ? { force: true } : {}),
+        });
+        console.log(`Installed pre-commit hook for ${target.id} at ${hookPath}`);
       }
-      const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      const gitDir = await detectGitDir(repoRoot);
-      const hookPath = installPreCommitHook({
-        gitDir,
-        cockpitBin: path.join(workspace.cockpitDir, "bin", "cockpit"),
-        ...(options.force ? { force: true } : {}),
-      });
-      console.log(`Installed pre-commit hook at ${hookPath}`);
     });
 
   hooks
     .command("uninstall")
-    .description("Remove the managed pre-commit hook from the current repo")
+    .description("Remove Cockpit-managed pre-commit hooks")
+    .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .action(async (options: { repoRoot?: string }) => {
-      const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      const gitDir = await detectGitDir(repoRoot);
-      const removed = uninstallPreCommitHook(gitDir);
-      console.log(removed ? "Removed managed pre-commit hook." : "No managed pre-commit hook found.");
+    .option("--all", "Remove hooks from every configured repo in this workspace")
+    .action(async (options: { repo?: string; repoRoot?: string; all?: boolean }) => {
+      const { targets } = await resolveHookTargets(options);
+      for (const target of targets) {
+        const gitDir = await detectGitDir(target.root);
+        const removed = uninstallPreCommitHook(gitDir);
+        console.log(removed ? `Removed managed pre-commit hook for ${target.id}.` : `No managed pre-commit hook found for ${target.id}.`);
+      }
     });
 }

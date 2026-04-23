@@ -123,6 +123,8 @@ Terminal run transitions now archive linked claims automatically, so finished ru
 
 `cockpit hooks status` inspects the current repo’s pre-commit hook and tells you whether it is Cockpit-managed and whether it points at the local shim created in `.cockpit/bin/cockpit`.
 
+In multi-repo workspaces, `cockpit hooks status|install|uninstall --all` lets you audit or roll out the managed hook across every configured repo in one pass. You can also target one configured repo explicitly with `--repo <id>`.
+
 ## Source Sync
 
 - `sources push --all` pushes every source-linked work item that supports outbound sync.
