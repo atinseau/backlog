@@ -2,15 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { detectGitDir, repoCurrentBranch } from "@cockpit-ai/git";
+import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@cockpit-ai/git";
 import { inspectPreCommitHook } from "@cockpit-ai/hooks";
 
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
     .description("Validate Cockpit workspace health")
+    .option("--repo <id>", "Only inspect one configured repo")
     .option("--json", "Emit machine-readable JSON")
-    .action(async (options: { json?: boolean }) => {
+    .action(async (options: { repo?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
         throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
@@ -33,20 +34,27 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       const config = loadConfig(workspace.cockpitDir);
+      if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
+        throw new Error(`Unknown repo: ${options.repo}`);
+      }
       const warnings: string[] = [];
       const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
       const repos: Array<{
         id: string;
         path: string;
+        enabled: boolean;
+        defaultBranch: string;
         exists: boolean;
         branch?: string;
+        branchMatchesDefault?: boolean;
+        dirty?: boolean;
         hook?: {
           exists: boolean;
           managed: boolean;
           pointsToCockpitBin: boolean;
         };
       }> = [];
-      for (const repo of config.repos) {
+      for (const repo of config.repos.filter((candidate) => !options.repo || candidate.id === options.repo)) {
         const exists = fs.existsSync(repo.path);
         if (!exists) {
           throw new Error(`Configured repo path does not exist: ${repo.path}`);
@@ -57,6 +65,13 @@ export function registerDoctorCommand(program: Command): void {
         } catch {
           branch = undefined;
           warnings.push(`cannot_read_branch:${repo.id}`);
+        }
+        let dirty: boolean | undefined;
+        try {
+          dirty = await repoIsDirty(repo.path);
+        } catch {
+          dirty = undefined;
+          warnings.push(`cannot_read_dirty_state:${repo.id}`);
         }
         let hook: { exists: boolean; managed: boolean; pointsToCockpitBin: boolean } | undefined;
         try {
@@ -73,11 +88,19 @@ export function registerDoctorCommand(program: Command): void {
         } catch {
           warnings.push(`cannot_read_hook:${repo.id}`);
         }
+        const branchMatchesDefault = branch ? branch === repo.default_branch : undefined;
+        if (branchMatchesDefault === false) {
+          warnings.push(`branch_differs_from_default:${repo.id}`);
+        }
         repos.push({
           id: repo.id,
           path: repo.path,
+          enabled: repo.enabled,
+          defaultBranch: repo.default_branch,
           exists,
           ...(branch ? { branch } : {}),
+          ...(branchMatchesDefault !== undefined ? { branchMatchesDefault } : {}),
+          ...(dirty !== undefined ? { dirty } : {}),
           ...(hook ? { hook } : {}),
         });
       }
@@ -108,7 +131,12 @@ export function registerDoctorCommand(program: Command): void {
         const hookText = repo.hook
           ? ` hook=${repo.hook.exists ? (repo.hook.managed && repo.hook.pointsToCockpitBin ? "managed" : "needs_attention") : "missing"}`
           : "";
-        console.log(`- repo ${repo.id}: ${repo.path}${repo.branch ? ` (${repo.branch})` : ""}${hookText}`);
+        const branchText = repo.branch ? ` branch=${repo.branch}` : "";
+        const defaultText = ` default=${repo.defaultBranch}`;
+        const dirtyText = repo.dirty !== undefined ? ` dirty=${repo.dirty}` : "";
+        const enabledText = ` enabled=${repo.enabled}`;
+        const mismatchText = repo.branchMatchesDefault === false ? " branch_mismatch=true" : "";
+        console.log(`- repo ${repo.id}: ${repo.path}${enabledText}${branchText}${defaultText}${dirtyText}${mismatchText}${hookText}`);
       }
       if (warnings.length > 0) {
         console.log(`- warnings: ${warnings.join(", ")}`);

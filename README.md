@@ -37,6 +37,8 @@ Most `list` commands now support practical filters, for example:
 
 `cockpit release snapshot` also supports `--repo <id>`, `--include-disabled`, and `--output <path>` when you want a targeted or exportable snapshot for one repo or a full workspace report.
 
+`cockpit status --repo <id>` now focuses the workspace view on one repo and still keeps a compact per-repo breakdown handy. `cockpit doctor --repo <id>` also drills into one repo and now reports `dirty` state plus branch/default-branch mismatches.
+
 Use `cockpit repos add` and `cockpit repos update` when you want to manage a multi-repo workspace without editing `config.toml` by hand. Forced repo removal can also scrub linked tasks, work items, and agent scopes when you intentionally retire one repo from the workspace.
 
 ## Quickstart
