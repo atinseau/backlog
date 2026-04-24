@@ -1,15 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runSchema, type Artifact, type Run, type Task, type WorkItem } from "@cockpit-ai/schemas";
-import type { Agent } from "@cockpit-ai/schemas";
+import { runSchema, type Artifact, type Run, type Task, type WorkItem } from "@backlog/schemas";
+import type { Agent } from "@backlog/schemas";
 import { makeId } from "./id.js";
 
-function activeRunsDir(cockpitDir: string): string {
-  return path.join(cockpitDir, "runs", "active");
+function activeRunsDir(backlogDir: string): string {
+  return path.join(backlogDir, "runs", "active");
 }
 
-function archiveRunsDir(cockpitDir: string): string {
-  return path.join(cockpitDir, "runs", "archive");
+function archiveRunsDir(backlogDir: string): string {
+  return path.join(backlogDir, "runs", "archive");
 }
 
 function runDirectory(baseDir: string, runId: string): string {
@@ -21,7 +21,7 @@ export function nextRunId(): string {
 }
 
 export function createRun(params: {
-  cockpitDir: string;
+  backlogDir: string;
   runId: string;
   task: Task;
   workItem: WorkItem;
@@ -30,7 +30,7 @@ export function createRun(params: {
   worktreePath: string;
   claimIds: string[];
 }): Run {
-  const directory = runDirectory(activeRunsDir(params.cockpitDir), params.runId);
+  const directory = runDirectory(activeRunsDir(params.backlogDir), params.runId);
   fs.mkdirSync(directory, { recursive: true });
 
   const run: Run = {
@@ -50,8 +50,8 @@ export function createRun(params: {
     started_at: new Date().toISOString(),
   };
 
-  writeRun(params.cockpitDir, run);
-  appendRunEvent(params.cockpitDir, run.id, {
+  writeRun(params.backlogDir, run);
+  appendRunEvent(params.backlogDir, run.id, {
     ts: new Date().toISOString(),
     type: "run.created",
     message: `Created run ${run.id}`,
@@ -59,21 +59,21 @@ export function createRun(params: {
   return run;
 }
 
-export function writeRun(cockpitDir: string, run: Run): void {
-  const directory = runDirectory(activeRunsDir(cockpitDir), run.id);
+export function writeRun(backlogDir: string, run: Run): void {
+  const directory = runDirectory(activeRunsDir(backlogDir), run.id);
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(path.join(directory, "run.json"), JSON.stringify(runSchema.parse(run), null, 2) + "\n", "utf8");
 }
 
-export function appendRunEvent(cockpitDir: string, runId: string, event: Record<string, string>): void {
-  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "events.ndjson");
-  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "events.ndjson");
+export function appendRunEvent(backlogDir: string, runId: string, event: Record<string, string>): void {
+  const activePath = path.join(runDirectory(activeRunsDir(backlogDir), runId), "events.ndjson");
+  const archivePath = path.join(runDirectory(archiveRunsDir(backlogDir), runId), "events.ndjson");
   const eventsPath = fs.existsSync(path.dirname(activePath)) ? activePath : archivePath;
   fs.appendFileSync(eventsPath, JSON.stringify(event) + "\n", "utf8");
 }
 
-export function listActiveRuns(cockpitDir: string): Run[] {
-  const directory = activeRunsDir(cockpitDir);
+export function listActiveRuns(backlogDir: string): Run[] {
+  const directory = activeRunsDir(backlogDir);
   if (!fs.existsSync(directory)) {
     return [];
   }
@@ -86,9 +86,9 @@ export function listActiveRuns(cockpitDir: string): Run[] {
     .filter((run) => !isTerminalRunStatus(run.status));
 }
 
-export function getRunEvents(cockpitDir: string, runId: string): string[] {
-  const activeEventsPath = path.join(activeRunsDir(cockpitDir), runId, "events.ndjson");
-  const archiveEventsPath = path.join(archiveRunsDir(cockpitDir), runId, "events.ndjson");
+export function getRunEvents(backlogDir: string, runId: string): string[] {
+  const activeEventsPath = path.join(activeRunsDir(backlogDir), runId, "events.ndjson");
+  const archiveEventsPath = path.join(archiveRunsDir(backlogDir), runId, "events.ndjson");
   const target = fs.existsSync(activeEventsPath) ? activeEventsPath : archiveEventsPath;
   if (!fs.existsSync(target)) {
     return [];
@@ -96,9 +96,9 @@ export function getRunEvents(cockpitDir: string, runId: string): string[] {
   return fs.readFileSync(target, "utf8").split("\n").filter(Boolean);
 }
 
-export function loadRun(cockpitDir: string, runId: string): Run | null {
-  const activePath = path.join(activeRunsDir(cockpitDir), runId, "run.json");
-  const archivePath = path.join(archiveRunsDir(cockpitDir), runId, "run.json");
+export function loadRun(backlogDir: string, runId: string): Run | null {
+  const activePath = path.join(activeRunsDir(backlogDir), runId, "run.json");
+  const archivePath = path.join(archiveRunsDir(backlogDir), runId, "run.json");
   const target = fs.existsSync(activePath) ? activePath : archivePath;
   if (!fs.existsSync(target)) {
     return null;
@@ -106,8 +106,8 @@ export function loadRun(cockpitDir: string, runId: string): Run | null {
   return runSchema.parse(JSON.parse(fs.readFileSync(target, "utf8")) as unknown);
 }
 
-export function updateRunStatus(cockpitDir: string, runId: string, status: Run["status"], result?: string): Run {
-  const current = loadRun(cockpitDir, runId);
+export function updateRunStatus(backlogDir: string, runId: string, status: Run["status"], result?: string): Run {
+  const current = loadRun(backlogDir, runId);
   if (!current) {
     throw new Error(`Unknown run: ${runId}`);
   }
@@ -119,8 +119,8 @@ export function updateRunStatus(cockpitDir: string, runId: string, status: Run["
       ? { finished_at: new Date().toISOString() }
       : {}),
   };
-  writeRun(cockpitDir, next);
-  appendRunEvent(cockpitDir, runId, {
+  writeRun(backlogDir, next);
+  appendRunEvent(backlogDir, runId, {
     ts: new Date().toISOString(),
     type: "run.status",
     message: `Run moved to ${status}`,
@@ -132,10 +132,10 @@ export function isTerminalRunStatus(status: Run["status"]): boolean {
   return status === "succeeded" || status === "failed" || status === "blocked" || status === "canceled";
 }
 
-export function listAllRuns(cockpitDir: string): Run[] {
+export function listAllRuns(backlogDir: string): Run[] {
   const directories = [
-    activeRunsDir(cockpitDir),
-    archiveRunsDir(cockpitDir),
+    activeRunsDir(backlogDir),
+    archiveRunsDir(backlogDir),
   ];
   const seen = new Set<string>();
   const runs: Run[] = [];
@@ -159,8 +159,8 @@ export function listAllRuns(cockpitDir: string): Run[] {
   return runs;
 }
 
-export function listArchivedRuns(cockpitDir: string): Run[] {
-  const directory = archiveRunsDir(cockpitDir);
+export function listArchivedRuns(backlogDir: string): Run[] {
+  const directory = archiveRunsDir(backlogDir);
   if (!fs.existsSync(directory)) {
     return [];
   }
@@ -172,13 +172,13 @@ export function listArchivedRuns(cockpitDir: string): Run[] {
     });
 }
 
-export function archiveRun(cockpitDir: string, runId: string): Run {
-  const run = loadRun(cockpitDir, runId);
+export function archiveRun(backlogDir: string, runId: string): Run {
+  const run = loadRun(backlogDir, runId);
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
-  const activeDir = runDirectory(activeRunsDir(cockpitDir), runId);
-  const archiveDir = runDirectory(archiveRunsDir(cockpitDir), runId);
+  const activeDir = runDirectory(activeRunsDir(backlogDir), runId);
+  const archiveDir = runDirectory(archiveRunsDir(backlogDir), runId);
   if (!fs.existsSync(activeDir)) {
     return run;
   }
@@ -192,8 +192,8 @@ export interface RunGcResult {
   removed: string[];
 }
 
-export function garbageCollectArchivedRuns(cockpitDir: string): RunGcResult {
-  const directory = archiveRunsDir(cockpitDir);
+export function garbageCollectArchivedRuns(backlogDir: string): RunGcResult {
+  const directory = archiveRunsDir(backlogDir);
   const result: RunGcResult = {
     removed: [],
   };
@@ -214,21 +214,21 @@ export function garbageCollectArchivedRuns(cockpitDir: string): RunGcResult {
   return result;
 }
 
-export function writeRunHandoff(cockpitDir: string, runId: string, contents: string): string {
-  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "handoff.md");
-  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "handoff.md");
+export function writeRunHandoff(backlogDir: string, runId: string, contents: string): string {
+  const activePath = path.join(runDirectory(activeRunsDir(backlogDir), runId), "handoff.md");
+  const archivePath = path.join(runDirectory(archiveRunsDir(backlogDir), runId), "handoff.md");
   const target = fs.existsSync(path.dirname(activePath)) ? activePath : archivePath;
   fs.writeFileSync(target, contents, "utf8");
   return target;
 }
 
-export function getRunHandoffPath(cockpitDir: string, runId: string): string | null {
-  const activePath = path.join(runDirectory(activeRunsDir(cockpitDir), runId), "handoff.md");
+export function getRunHandoffPath(backlogDir: string, runId: string): string | null {
+  const activePath = path.join(runDirectory(activeRunsDir(backlogDir), runId), "handoff.md");
   if (fs.existsSync(activePath)) {
     return activePath;
   }
 
-  const archivePath = path.join(runDirectory(archiveRunsDir(cockpitDir), runId), "handoff.md");
+  const archivePath = path.join(runDirectory(archiveRunsDir(backlogDir), runId), "handoff.md");
   if (fs.existsSync(archivePath)) {
     return archivePath;
   }
@@ -236,8 +236,8 @@ export function getRunHandoffPath(cockpitDir: string, runId: string): string | n
   return null;
 }
 
-export function addRunArtifact(cockpitDir: string, runId: string, artifact: Artifact): Run {
-  const current = loadRun(cockpitDir, runId);
+export function addRunArtifact(backlogDir: string, runId: string, artifact: Artifact): Run {
+  const current = loadRun(backlogDir, runId);
   if (!current) {
     throw new Error(`Unknown run: ${runId}`);
   }
@@ -245,6 +245,6 @@ export function addRunArtifact(cockpitDir: string, runId: string, artifact: Arti
     ...current,
     artifacts: [...current.artifacts, artifact],
   };
-  writeRun(cockpitDir, next);
+  writeRun(backlogDir, next);
   return next;
 }

@@ -1,11 +1,11 @@
 {
-  "name": "cockpit",
+  "name": "backlog",
   "private": true,
   "packageManager": "pnpm@10.7.1",
   "scripts": {
     "build": "tsc -b",
     "clean": "find . -name '*.tsbuildinfo' -delete && find packages -name dist -type d -prune -exec rm -rf {} +",
-    "dev": "pnpm --filter @cockpit-ai/cli dev",
+    "dev": "pnpm --filter @backlog/cli dev",
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false"
   },

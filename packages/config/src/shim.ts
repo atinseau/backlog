@@ -17,10 +17,10 @@ exec pnpm --dir "$WORKSPACE_ROOT" exec tsx "$SRC_BIN" "$@"
 `;
 }
 
-export function writeLocalShim(cockpitDir: string, workspaceRoot: string): string {
-  const binDir = path.join(cockpitDir, "bin");
+export function writeLocalShim(backlogDir: string, workspaceRoot: string): string {
+  const binDir = path.join(backlogDir, "bin");
   fs.mkdirSync(binDir, { recursive: true });
-  const shimPath = path.join(binDir, "cockpit");
+  const shimPath = path.join(binDir, "backlog");
   fs.writeFileSync(shimPath, renderShim(workspaceRoot), "utf8");
   fs.chmodSync(shimPath, 0o755);
   return shimPath;

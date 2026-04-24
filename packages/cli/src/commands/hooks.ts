@@ -1,8 +1,8 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { detectGitDir, detectRepoRoot } from "@cockpit-ai/git";
-import { inspectPreCommitHook, installPreCommitHook, uninstallPreCommitHook } from "@cockpit-ai/hooks";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { detectGitDir, detectRepoRoot } from "@backlog/git";
+import { inspectPreCommitHook, installPreCommitHook, uninstallPreCommitHook } from "@backlog/hooks";
 
 interface HookTarget {
   id: string;
@@ -16,9 +16,9 @@ async function resolveHookTargets(options: {
 }): Promise<{ workspace: NonNullable<ReturnType<typeof findWorkspace>>; targets: HookTarget[] }> {
   const workspace = findWorkspace();
   if (!workspace) {
-    throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+    throw new Error("No .backlog workspace found. Run `backlog init` first.");
   }
-  const config = loadConfig(workspace.cockpitDir);
+  const config = loadConfig(workspace.backlogDir);
 
   if (options.all) {
     if (options.repo || options.repoRoot) {
@@ -53,25 +53,25 @@ async function resolveHookTargets(options: {
 }
 
 export function registerHooksCommand(program: Command): void {
-  const hooks = program.command("hooks").description("Manage Cockpit Git hooks");
+  const hooks = program.command("hooks").description("Manage Backlog Git hooks");
 
   hooks
     .command("status")
-    .description("Inspect Cockpit-managed pre-commit hooks")
+    .description("Inspect Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .option("--all", "Inspect every configured repo in this workspace")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; json?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
-      const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
+      const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
       const statuses = [];
       for (const target of targets) {
         const gitDir = await detectGitDir(target.root);
         statuses.push({
           repoId: target.id,
           repoRoot: target.root,
-          ...inspectPreCommitHook(gitDir, cockpitBin),
+          ...inspectPreCommitHook(gitDir, backlogBin),
         });
       }
 
@@ -91,28 +91,28 @@ export function registerHooksCommand(program: Command): void {
         console.log(`Hook: ${status.hookPath}`);
         console.log(`Exists: ${status.exists}`);
         console.log(`Managed: ${status.managed}`);
-        if (status.cockpitBin) {
-          console.log(`Cockpit bin: ${status.cockpitBin}`);
+        if (status.backlogBin) {
+          console.log(`Backlog bin: ${status.backlogBin}`);
         }
-        console.log(`Points to local shim: ${status.pointsToCockpitBin}`);
+        console.log(`Points to local shim: ${status.pointsToBacklogBin}`);
       }
     });
 
   hooks
     .command("install")
-    .description("Install Cockpit-managed pre-commit hooks")
+    .description("Install Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .option("--all", "Install hooks in every configured repo in this workspace")
-    .option("--force", "Replace an existing non-Cockpit hook")
+    .option("--force", "Replace an existing non-Backlog hook")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; force?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
-      const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
+      const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
       for (const target of targets) {
         const gitDir = await detectGitDir(target.root);
         const hookPath = installPreCommitHook({
           gitDir,
-          cockpitBin,
+          backlogBin,
           ...(options.force ? { force: true } : {}),
         });
         console.log(`Installed pre-commit hook for ${target.id} at ${hookPath}`);
@@ -121,7 +121,7 @@ export function registerHooksCommand(program: Command): void {
 
   hooks
     .command("uninstall")
-    .description("Remove Cockpit-managed pre-commit hooks")
+    .description("Remove Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .option("--all", "Remove hooks from every configured repo in this workspace")

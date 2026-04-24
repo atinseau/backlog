@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { buildReleaseSnapshot } from "@cockpit-ai/core";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { buildReleaseSnapshot } from "@backlog/core";
 
 function renderText(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>): string {
   return snapshot
@@ -42,16 +42,16 @@ export function registerReleaseCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (options.json && options.markdown) {
         throw new Error("Use either --json or --markdown, not both.");
       }
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
         throw new Error(`Unknown repo: ${options.repo}`);
       }
-      const snapshot = (await buildReleaseSnapshot(workspace.cockpitDir, config, {
+      const snapshot = (await buildReleaseSnapshot(workspace.backlogDir, config, {
         ...(options.repo ? { repoId: options.repo } : {}),
         ...(options.includeDisabled ? { includeDisabled: true } : {}),
       }))

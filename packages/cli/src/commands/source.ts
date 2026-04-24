@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
-import { createConnector } from "@cockpit-ai/connectors";
+import { findWorkspace } from "@backlog/config";
+import { createConnector } from "@backlog/connectors";
 import {
   addSource,
   getSource,
@@ -16,8 +16,8 @@ import {
   setSourceEnabled,
   updateSource,
   upsertImportedWorkItems,
-} from "@cockpit-ai/core";
-import type { SourceConfig, SourceKind } from "@cockpit-ai/schemas";
+} from "@backlog/core";
+import type { SourceConfig, SourceKind } from "@backlog/schemas";
 
 function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -69,7 +69,7 @@ export function registerSourceCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
       let source: SourceConfig;
@@ -130,7 +130,7 @@ export function registerSourceCommand(program: Command): void {
           break;
       }
 
-      addSource(workspace.cockpitDir, source);
+      addSource(workspace.backlogDir, source);
       console.log(`Added source ${source.id}`);
     });
 
@@ -141,9 +141,9 @@ export function registerSourceCommand(program: Command): void {
     .action((sourceId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const source = setSourceEnabled(workspace.cockpitDir, sourceId, true);
+      const source = setSourceEnabled(workspace.backlogDir, sourceId, true);
       console.log(`Enabled ${source.id}`);
     });
 
@@ -154,9 +154,9 @@ export function registerSourceCommand(program: Command): void {
     .action((sourceId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const source = setSourceEnabled(workspace.cockpitDir, sourceId, false);
+      const source = setSourceEnabled(workspace.backlogDir, sourceId, false);
       console.log(`Disabled ${source.id}`);
     });
 
@@ -171,7 +171,7 @@ export function registerSourceCommand(program: Command): void {
     .option("--pull <enabled>", "Whether this source can pull")
     .option("--push-status <enabled>", "Whether this source can push statuses")
     .option("--push-comments <enabled>", "Whether this source can push comments")
-    .option("--source-of-truth <mode>", "external or cockpit")
+    .option("--source-of-truth <mode>", "external or backlog")
     .action((sourceId: string, options: {
       config: string[];
       authRef: string[];
@@ -180,13 +180,13 @@ export function registerSourceCommand(program: Command): void {
       pull?: string;
       pushStatus?: string;
       pushComments?: string;
-      sourceOfTruth?: "external" | "cockpit";
+      sourceOfTruth?: "external" | "backlog";
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const source = updateSource(workspace.cockpitDir, sourceId, {
+      const source = updateSource(workspace.backlogDir, sourceId, {
         ...(options.config.length > 0 ? { config: parseKeyValuePairs(options.config) } : {}),
         ...(options.authRef.length > 0 ? { authRefs: parseKeyValuePairs(options.authRef) } : {}),
         ...(options.authStrategy !== undefined ? { authStrategy: options.authStrategy } : {}),
@@ -208,9 +208,9 @@ export function registerSourceCommand(program: Command): void {
     .action((options: { json?: boolean; kind?: string; enabled?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const sources = listSources(workspace.cockpitDir).filter((source) => {
+      const sources = listSources(workspace.backlogDir).filter((source) => {
         if (options.kind && source.kind !== options.kind) {
           return false;
         }
@@ -240,9 +240,9 @@ export function registerSourceCommand(program: Command): void {
     .action((sourceId: string, options: { force?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const source = removeSource(workspace.cockpitDir, sourceId, {
+      const source = removeSource(workspace.backlogDir, sourceId, {
         ...(options.force ? { force: true } : {}),
       });
       console.log(`Removed ${source.id}`);
@@ -255,11 +255,11 @@ export function registerSourceCommand(program: Command): void {
     .action(async (sourceId?: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       const sourcesToValidate = sourceId
-        ? [getSource(workspace.cockpitDir, sourceId)].filter(Boolean)
-        : listSources(workspace.cockpitDir);
+        ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
+        : listSources(workspace.backlogDir);
       if (sourcesToValidate.length === 0) {
         throw new Error(sourceId ? `Unknown source: ${sourceId}` : "No sources configured.");
       }
@@ -278,11 +278,11 @@ export function registerSourceCommand(program: Command): void {
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       const sourcesToSync = sourceId
-        ? [getSource(workspace.cockpitDir, sourceId)].filter(Boolean)
-        : listSources(workspace.cockpitDir).filter((source) => source.enabled);
+        ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
+        : listSources(workspace.backlogDir).filter((source) => source.enabled);
       if (sourcesToSync.length === 0) {
         throw new Error(sourceId ? `Unknown source: ${sourceId}` : "No enabled sources configured.");
       }
@@ -291,7 +291,7 @@ export function registerSourceCommand(program: Command): void {
         const connector = createConnector(source!, workspace.root);
         const items = await connector.pull();
         if (!options?.dryRun) {
-          upsertImportedWorkItems(workspace.cockpitDir, items);
+          upsertImportedWorkItems(workspace.backlogDir, items);
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "synced"}`);
       }
@@ -307,7 +307,7 @@ export function registerSourceCommand(program: Command): void {
     .action(async (workItemId: string | undefined, options: { comment?: string; all?: boolean; allowConflicts?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (!workItemId && !options.all) {
         throw new Error("sources push requires a <work-item-id> or --all.");
@@ -317,8 +317,8 @@ export function registerSourceCommand(program: Command): void {
       }
 
       const items = options.all
-        ? listWorkItems(workspace.cockpitDir).filter((item) => primarySourceLink(item)?.source_ref)
-        : [getWorkItem(workspace.cockpitDir, workItemId!)].filter(Boolean);
+        ? listWorkItems(workspace.backlogDir).filter((item) => primarySourceLink(item)?.source_ref)
+        : [getWorkItem(workspace.backlogDir, workItemId!)].filter(Boolean);
 
       if (items.length === 0) {
         throw new Error(options.all ? "No source-linked work items to push." : `Unknown work item: ${workItemId}`);
@@ -328,7 +328,7 @@ export function registerSourceCommand(program: Command): void {
         if (!workItem) {
           continue;
         }
-        if (!options.allowConflicts && hasPendingSyncConflictsForWorkItem(workspace.cockpitDir, workItem.id)) {
+        if (!options.allowConflicts && hasPendingSyncConflictsForWorkItem(workspace.backlogDir, workItem.id)) {
           throw new Error(`Work item ${workItem.id} still has pending sync conflicts. Resolve them first or pass --allow-conflicts.`);
         }
 
@@ -339,7 +339,7 @@ export function registerSourceCommand(program: Command): void {
           }
           continue;
         }
-        const source = getSource(workspace.cockpitDir, sourceLink.source_ref);
+        const source = getSource(workspace.backlogDir, sourceLink.source_ref);
         if (!source) {
           throw new Error(`Unknown source: ${sourceLink.source_ref}`);
         }
@@ -366,9 +366,9 @@ export function registerSourceCommand(program: Command): void {
     .action((options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const conflicts = listPendingSyncConflicts(workspace.cockpitDir);
+      const conflicts = listPendingSyncConflicts(workspace.backlogDir);
       if (options.json) {
         console.log(JSON.stringify(conflicts, null, 2));
         return;
@@ -391,7 +391,7 @@ export function registerSourceCommand(program: Command): void {
     .action((conflictId: string | undefined, options: { use: "external" | "local"; workItem?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (options.use !== "external" && options.use !== "local") {
         throw new Error("--use must be external or local");
@@ -401,7 +401,7 @@ export function registerSourceCommand(program: Command): void {
       }
 
       if (options.workItem) {
-        const conflicts = resolveSyncConflictsForWorkItem(workspace.cockpitDir, options.workItem, options.use);
+        const conflicts = resolveSyncConflictsForWorkItem(workspace.backlogDir, options.workItem, options.use);
         if (conflicts.length === 0) {
           console.log(`No pending conflicts for ${options.workItem}`);
           return;
@@ -410,7 +410,7 @@ export function registerSourceCommand(program: Command): void {
         return;
       }
 
-      const conflict = resolveSyncConflict(workspace.cockpitDir, conflictId!, options.use);
+      const conflict = resolveSyncConflict(workspace.backlogDir, conflictId!, options.use);
       console.log(`Resolved ${conflict.id} using ${options.use}`);
     });
 }

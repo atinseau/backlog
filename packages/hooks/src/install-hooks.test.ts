@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { inspectPreCommitHook, installPreCommitHook, uninstallPreCommitHook } from "./install-hooks.js";
 
 function createGitDir(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-hooks-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-hooks-"));
   const gitDir = path.join(root, ".git");
   fs.mkdirSync(path.join(gitDir, "hooks"), { recursive: true });
   return gitDir;
@@ -18,23 +18,23 @@ describe("inspectPreCommitHook", () => {
       hookPath: path.join(gitDir, "hooks", "pre-commit"),
       exists: false,
       managed: false,
-      pointsToCockpitBin: false,
+      pointsToBacklogBin: false,
     });
   });
 
-  it("detects a managed hook and its configured cockpit bin", () => {
+  it("detects a managed hook and its configured backlog bin", () => {
     const gitDir = createGitDir();
-    const cockpitBin = "/tmp/cockpit/bin/cockpit";
+    const backlogBin = "/tmp/backlog/bin/backlog";
     installPreCommitHook({
       gitDir,
-      cockpitBin,
+      backlogBin,
     });
 
-    expect(inspectPreCommitHook(gitDir, cockpitBin)).toMatchObject({
+    expect(inspectPreCommitHook(gitDir, backlogBin)).toMatchObject({
       exists: true,
       managed: true,
-      cockpitBin,
-      pointsToCockpitBin: true,
+      backlogBin,
+      pointsToBacklogBin: true,
     });
   });
 
@@ -46,7 +46,7 @@ describe("inspectPreCommitHook", () => {
     expect(inspectPreCommitHook(gitDir)).toMatchObject({
       exists: true,
       managed: false,
-      pointsToCockpitBin: false,
+      pointsToBacklogBin: false,
     });
   });
 
@@ -54,7 +54,7 @@ describe("inspectPreCommitHook", () => {
     const gitDir = createGitDir();
     installPreCommitHook({
       gitDir,
-      cockpitBin: "/tmp/cockpit/bin/cockpit",
+      backlogBin: "/tmp/backlog/bin/backlog",
     });
 
     expect(uninstallPreCommitHook(gitDir)).toBe(true);

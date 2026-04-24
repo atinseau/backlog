@@ -2,8 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout } from "@cockpit-ai/config";
-import type { WorkItem } from "@cockpit-ai/schemas";
+import { initLayout } from "@backlog/config";
+import type { WorkItem } from "@backlog/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
 import { addSource, getSource, removeSource, setSourceEnabled, updateSource, upsertImportedWorkItems } from "./source-state.js";
 import {
@@ -15,13 +15,13 @@ import {
 } from "./sync-conflicts.js";
 
 function createWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-source-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-source-"));
   initLayout({
     root,
     workspaceName: "source-test",
     repos: [{ id: path.basename(root), path: root, default_branch: "main", enabled: true }],
   });
-  return path.join(root, ".cockpit");
+  return path.join(root, ".backlog");
 }
 
 function importedItem(title: string): WorkItem {
@@ -45,9 +45,9 @@ function importedItem(title: string): WorkItem {
 
 describe("upsertImportedWorkItems", () => {
   it("can enable, disable, and update configured sources", () => {
-    const cockpitDir = createWorkspace();
+    const backlogDir = createWorkspace();
 
-    addSource(cockpitDir, {
+    addSource(backlogDir, {
       id: "notes",
       kind: "markdown",
       enabled: true,
@@ -67,11 +67,11 @@ describe("upsertImportedWorkItems", () => {
       },
     });
 
-    expect(getSource(cockpitDir, "notes")?.enabled).toBe(true);
-    setSourceEnabled(cockpitDir, "notes", false);
-    expect(getSource(cockpitDir, "notes")?.enabled).toBe(false);
+    expect(getSource(backlogDir, "notes")?.enabled).toBe(true);
+    setSourceEnabled(backlogDir, "notes", false);
+    expect(getSource(backlogDir, "notes")?.enabled).toBe(false);
 
-    const updated = updateSource(cockpitDir, "notes", {
+    const updated = updateSource(backlogDir, "notes", {
       enabled: true,
       config: {
         path: "docs/backlog.md",
@@ -86,7 +86,7 @@ describe("upsertImportedWorkItems", () => {
       pull: true,
       pushStatus: true,
       pushComments: true,
-      sourceOfTruth: "cockpit",
+      sourceOfTruth: "backlog",
     });
 
     expect(updated.enabled).toBe(true);
@@ -98,13 +98,13 @@ describe("upsertImportedWorkItems", () => {
       pull: true,
       push_status: true,
       push_comments: true,
-      source_of_truth: "cockpit",
+      source_of_truth: "backlog",
     });
   });
 
   it("removes a source and unlinks work items when forced", () => {
-    const cockpitDir = createWorkspace();
-    addSource(cockpitDir, {
+    const backlogDir = createWorkspace();
+    addSource(backlogDir, {
       id: "sheet",
       kind: "csv",
       enabled: true,
@@ -118,61 +118,61 @@ describe("upsertImportedWorkItems", () => {
         source_of_truth: "external",
       },
     });
-    upsertImportedWorkItems(cockpitDir, [importedItem("row-remove")]);
+    upsertImportedWorkItems(backlogDir, [importedItem("row-remove")]);
 
-    expect(() => removeSource(cockpitDir, "sheet")).toThrow(/still linked/);
-    const removed = removeSource(cockpitDir, "sheet", { force: true });
+    expect(() => removeSource(backlogDir, "sheet")).toThrow(/still linked/);
+    const removed = removeSource(backlogDir, "sheet", { force: true });
 
     expect(removed.id).toBe("sheet");
-    expect(getSource(cockpitDir, "sheet")).toBeNull();
-    expect(readWorkItemsFile(cockpitDir).items[0]?.source_links).toEqual([]);
+    expect(getSource(backlogDir, "sheet")).toBeNull();
+    expect(readWorkItemsFile(backlogDir).items[0]?.source_links).toEqual([]);
   });
 
   it("creates and updates imported work items by source identity", () => {
-    const cockpitDir = createWorkspace();
-    upsertImportedWorkItems(cockpitDir, [importedItem("row-1")]);
-    upsertImportedWorkItems(cockpitDir, [{ ...importedItem("row-1"), title: "updated-title" }]);
+    const backlogDir = createWorkspace();
+    upsertImportedWorkItems(backlogDir, [importedItem("row-1")]);
+    upsertImportedWorkItems(backlogDir, [{ ...importedItem("row-1"), title: "updated-title" }]);
 
-    const file = readWorkItemsFile(cockpitDir);
+    const file = readWorkItemsFile(backlogDir);
     expect(file.items).toHaveLength(1);
     expect(file.items[0]?.title).toBe("updated-title");
   });
 
   it("records a sync conflict when external status differs from local status", () => {
-    const cockpitDir = createWorkspace();
+    const backlogDir = createWorkspace();
     const base = importedItem("row-2");
-    upsertImportedWorkItems(cockpitDir, [base]);
-    const file = readWorkItemsFile(cockpitDir);
+    upsertImportedWorkItems(backlogDir, [base]);
+    const file = readWorkItemsFile(backlogDir);
     file.items[0]!.status = "in_progress";
-    writeWorkItemsFile(cockpitDir, file);
+    writeWorkItemsFile(backlogDir, file);
 
-    upsertImportedWorkItems(cockpitDir, [{ ...base, status: "backlog" }]);
-    const conflicts = listPendingSyncConflicts(cockpitDir);
+    upsertImportedWorkItems(backlogDir, [{ ...base, status: "backlog" }]);
+    const conflicts = listPendingSyncConflicts(backlogDir);
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]?.local_value).toBe("in_progress");
     expect(conflicts[0]?.external_value).toBe("backlog");
 
-    resolveSyncConflict(cockpitDir, conflicts[0]!.id, "external");
-    const updated = readWorkItemsFile(cockpitDir);
+    resolveSyncConflict(backlogDir, conflicts[0]!.id, "external");
+    const updated = readWorkItemsFile(backlogDir);
     expect(updated.items[0]?.status).toBe("backlog");
   });
 
   it("can list and resolve all pending conflicts for one work item", () => {
-    const cockpitDir = createWorkspace();
+    const backlogDir = createWorkspace();
     const base = importedItem("row-3");
-    upsertImportedWorkItems(cockpitDir, [base]);
+    upsertImportedWorkItems(backlogDir, [base]);
 
-    const file = readWorkItemsFile(cockpitDir);
+    const file = readWorkItemsFile(backlogDir);
     file.items[0]!.status = "review";
-    writeWorkItemsFile(cockpitDir, file);
+    writeWorkItemsFile(backlogDir, file);
 
-    upsertImportedWorkItems(cockpitDir, [{ ...base, status: "backlog" }]);
+    upsertImportedWorkItems(backlogDir, [{ ...base, status: "backlog" }]);
 
-    expect(hasPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toBe(true);
-    expect(listPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toHaveLength(1);
+    expect(hasPendingSyncConflictsForWorkItem(backlogDir, base.id)).toBe(true);
+    expect(listPendingSyncConflictsForWorkItem(backlogDir, base.id)).toHaveLength(1);
 
-    const resolved = resolveSyncConflictsForWorkItem(cockpitDir, base.id, "local");
+    const resolved = resolveSyncConflictsForWorkItem(backlogDir, base.id, "local");
     expect(resolved).toHaveLength(1);
-    expect(hasPendingSyncConflictsForWorkItem(cockpitDir, base.id)).toBe(false);
+    expect(hasPendingSyncConflictsForWorkItem(backlogDir, base.id)).toBe(false);
   });
 });

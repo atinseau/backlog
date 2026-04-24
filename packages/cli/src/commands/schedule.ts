@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { createClaim, writeContextFile } from "@cockpit-ai/claims";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { createClaim, writeContextFile } from "@backlog/claims";
 import {
   addRunArtifact,
   buildExecutionPlan,
@@ -20,8 +20,8 @@ import {
   updateRunStatus,
   updateTaskStatus,
   writeWorktreeContext,
-} from "@cockpit-ai/core";
-import { detectGitDir } from "@cockpit-ai/git";
+} from "@backlog/core";
+import { detectGitDir } from "@backlog/git";
 
 function parseMaxStart(value: string | undefined): number {
   const parsed = Number.parseInt(value ?? "1", 10);
@@ -36,17 +36,17 @@ export function registerScheduleCommand(program: Command): void {
 
   schedule
     .command("simulate")
-    .description("Explain what Cockpit would run right now")
+    .description("Explain what Backlog would run right now")
     .option("--work-item <id>", "Restrict to one work item")
     .option("--task <id>", "Restrict to one task")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { workItem?: string; task?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
-      const plan = buildExecutionPlan(workspace.cockpitDir, config, {
+      const config = loadConfig(workspace.backlogDir);
+      const plan = buildExecutionPlan(workspace.backlogDir, config, {
         ...(options.workItem ? { workItemId: options.workItem } : {}),
         ...(options.task ? { taskId: options.task } : {}),
       });
@@ -83,21 +83,21 @@ export function registerScheduleCommand(program: Command): void {
     .action((options: { workItem?: string; task?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (!options.workItem && !options.task) {
         throw new Error("schedule explain requires --task or --work-item.");
       }
 
-      const config = loadConfig(workspace.cockpitDir);
-      const plan = buildExecutionPlan(workspace.cockpitDir, config, {
+      const config = loadConfig(workspace.backlogDir);
+      const plan = buildExecutionPlan(workspace.backlogDir, config, {
         ...(options.workItem ? { workItemId: options.workItem } : {}),
         ...(options.task ? { taskId: options.task } : {}),
       });
       const decisions = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped];
       const payload = decisions.map((decision) => {
-        const task = getTask(workspace.cockpitDir, decision.taskId);
-        const rankedAgents = task ? rankAgentsForTask(workspace.cockpitDir, task) : [];
+        const task = getTask(workspace.backlogDir, decision.taskId);
+        const rankedAgents = task ? rankAgentsForTask(workspace.backlogDir, task) : [];
         return {
           ...decision,
           task,
@@ -148,9 +148,9 @@ export function registerScheduleCommand(program: Command): void {
     .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       if (config.autonomy_mode === "observe") {
         throw new Error("schedule run is disabled in observe mode. Use schedule simulate instead.");
       }
@@ -158,7 +158,7 @@ export function registerScheduleCommand(program: Command): void {
         throw new Error("schedule run requires --approve in assist mode.");
       }
 
-      const plan = buildExecutionPlan(workspace.cockpitDir, config, {
+      const plan = buildExecutionPlan(workspace.backlogDir, config, {
         ...(options.workItem ? { workItemId: options.workItem } : {}),
         ...(options.task ? { taskId: options.task } : {}),
       });
@@ -167,12 +167,12 @@ export function registerScheduleCommand(program: Command): void {
       const skipped: Array<{ taskId: string; reasons: string[] }> = [];
 
       for (const decision of plan.runnable.slice(0, maxStart)) {
-        const task = getTask(workspace.cockpitDir, decision.taskId);
+        const task = getTask(workspace.backlogDir, decision.taskId);
         if (!task) {
           skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
           continue;
         }
-        const workItem = getWorkItem(workspace.cockpitDir, task.work_item_id);
+        const workItem = getWorkItem(workspace.backlogDir, task.work_item_id);
         if (!workItem) {
           skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
           continue;
@@ -183,10 +183,10 @@ export function registerScheduleCommand(program: Command): void {
           continue;
         }
 
-        const activeAgentRuns = listActiveRuns(workspace.cockpitDir).filter((run) => run.status === "running" || run.status === "preparing");
+        const activeAgentRuns = listActiveRuns(workspace.backlogDir).filter((run) => run.status === "running" || run.status === "preparing");
         const agent = options.agent
           ? (() => {
-              const forcedSelection = selectionForAgentTask(workspace.cockpitDir, task, options.agent);
+              const forcedSelection = selectionForAgentTask(workspace.backlogDir, task, options.agent);
               if (!forcedSelection) {
                 throw new Error(`Unknown agent: ${options.agent}`);
               }
@@ -198,14 +198,14 @@ export function registerScheduleCommand(program: Command): void {
             })()
             : decision.assignedAgentId
             ? (() => {
-                const assigned = getAgent(workspace.cockpitDir, decision.assignedAgentId!);
+                const assigned = getAgent(workspace.backlogDir, decision.assignedAgentId!);
                 if (!assigned) {
                   skipped.push({ taskId: task.id, reasons: [`unknown_assigned_agent:${decision.assignedAgentId}`] });
                   return null;
                 }
                 return assigned;
               })()
-            : pickAgentForTask(workspace.cockpitDir, task);
+            : pickAgentForTask(workspace.backlogDir, task);
 
         if (!agent) {
           continue;
@@ -221,7 +221,7 @@ export function registerScheduleCommand(program: Command): void {
         }
 
         const claim = createClaim({
-          cockpitDir: workspace.cockpitDir,
+          backlogDir: workspace.backlogDir,
           repo: repo.id,
           repoPath: repo.path,
           topic: `run ${task.id}`,
@@ -239,14 +239,14 @@ export function registerScheduleCommand(program: Command): void {
         const branch = buildRunBranchName(task.id, task.title);
         const runId = nextRunId();
         const worktreePath = await ensureWorktree({
-          cockpitDir: workspace.cockpitDir,
+          backlogDir: workspace.backlogDir,
           repoId: repo.id,
           repoPath: repo.path,
           branch,
           runId,
         });
         const run = createRun({
-          cockpitDir: workspace.cockpitDir,
+          backlogDir: workspace.backlogDir,
           runId,
           task,
           workItem,
@@ -256,9 +256,9 @@ export function registerScheduleCommand(program: Command): void {
           claimIds: [claim.id],
         });
         await writeWorktreeContext(worktreePath, run.id, claim.id);
-        addRunArtifact(workspace.cockpitDir, run.id, { kind: "branch", value: branch });
-        updateRunStatus(workspace.cockpitDir, run.id, "running", "Execution workspace prepared");
-        updateTaskStatus(workspace.cockpitDir, task.id, "running");
+        addRunArtifact(workspace.backlogDir, run.id, { kind: "branch", value: branch });
+        updateRunStatus(workspace.backlogDir, run.id, "running", "Execution workspace prepared");
+        updateTaskStatus(workspace.backlogDir, task.id, "running");
         started.push({
           runId: run.id,
           taskId: task.id,
@@ -267,7 +267,7 @@ export function registerScheduleCommand(program: Command): void {
         });
 
         if (await executeAgentRun({
-          cockpitDir: workspace.cockpitDir,
+          backlogDir: workspace.backlogDir,
           run,
           task,
           workItem,
@@ -277,8 +277,8 @@ export function registerScheduleCommand(program: Command): void {
         }
 
         skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
-        updateRunStatus(workspace.cockpitDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
-        updateTaskStatus(workspace.cockpitDir, task.id, "blocked");
+        updateRunStatus(workspace.backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
+        updateTaskStatus(workspace.backlogDir, task.id, "blocked");
       }
 
       const payload = {

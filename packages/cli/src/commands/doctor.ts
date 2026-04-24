@@ -1,30 +1,30 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@cockpit-ai/git";
-import { inspectPreCommitHook } from "@cockpit-ai/hooks";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@backlog/git";
+import { inspectPreCommitHook } from "@backlog/hooks";
 
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
-    .description("Validate Cockpit workspace health")
+    .description("Validate Backlog workspace health")
     .option("--repo <id>", "Only inspect one configured repo")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
       const requiredPaths = [
-        path.join(workspace.cockpitDir, "config.toml"),
-        path.join(workspace.cockpitDir, "work-items.yaml"),
-        path.join(workspace.cockpitDir, "tasks.yaml"),
-        path.join(workspace.cockpitDir, "sources.yaml"),
-        path.join(workspace.cockpitDir, "sync-conflicts.json"),
-        path.join(workspace.cockpitDir, "agents.yaml"),
-        path.join(workspace.cockpitDir, "bin", "cockpit"),
+        path.join(workspace.backlogDir, "config.toml"),
+        path.join(workspace.backlogDir, "work-items.yaml"),
+        path.join(workspace.backlogDir, "tasks.yaml"),
+        path.join(workspace.backlogDir, "sources.yaml"),
+        path.join(workspace.backlogDir, "sync-conflicts.json"),
+        path.join(workspace.backlogDir, "agents.yaml"),
+        path.join(workspace.backlogDir, "bin", "backlog"),
       ];
 
       for (const requiredPath of requiredPaths) {
@@ -33,12 +33,12 @@ export function registerDoctorCommand(program: Command): void {
         }
       }
 
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
         throw new Error(`Unknown repo: ${options.repo}`);
       }
       const warnings: string[] = [];
-      const cockpitBin = path.join(workspace.cockpitDir, "bin", "cockpit");
+      const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
       const repos: Array<{
         id: string;
         path: string;
@@ -51,7 +51,7 @@ export function registerDoctorCommand(program: Command): void {
         hook?: {
           exists: boolean;
           managed: boolean;
-          pointsToCockpitBin: boolean;
+          pointsToBacklogBin: boolean;
         };
       }> = [];
       for (const repo of config.repos.filter((candidate) => !options.repo || candidate.id === options.repo)) {
@@ -73,16 +73,16 @@ export function registerDoctorCommand(program: Command): void {
           dirty = undefined;
           warnings.push(`cannot_read_dirty_state:${repo.id}`);
         }
-        let hook: { exists: boolean; managed: boolean; pointsToCockpitBin: boolean } | undefined;
+        let hook: { exists: boolean; managed: boolean; pointsToBacklogBin: boolean } | undefined;
         try {
           const gitDir = await detectGitDir(repo.path);
-          const hookStatus = inspectPreCommitHook(gitDir, cockpitBin);
+          const hookStatus = inspectPreCommitHook(gitDir, backlogBin);
           hook = {
             exists: hookStatus.exists,
             managed: hookStatus.managed,
-            pointsToCockpitBin: hookStatus.pointsToCockpitBin,
+            pointsToBacklogBin: hookStatus.pointsToBacklogBin,
           };
-          if (hookStatus.exists && (!hookStatus.managed || !hookStatus.pointsToCockpitBin)) {
+          if (hookStatus.exists && (!hookStatus.managed || !hookStatus.pointsToBacklogBin)) {
             warnings.push(`hook_needs_attention:${repo.id}`);
           }
         } catch {
@@ -112,7 +112,7 @@ export function registerDoctorCommand(program: Command): void {
         workspace: config.workspace_name,
         mode: config.workspace_mode,
         repoCount: config.repos.length,
-        shim: path.join(workspace.cockpitDir, "bin", "cockpit"),
+        shim: path.join(workspace.backlogDir, "bin", "backlog"),
         warnings,
         repos,
       };
@@ -122,14 +122,14 @@ export function registerDoctorCommand(program: Command): void {
         return;
       }
 
-      console.log("Cockpit doctor");
+      console.log("Backlog doctor");
       console.log(`- workspace: ${config.workspace_name}`);
       console.log(`- mode: ${config.workspace_mode}`);
       console.log(`- repos: ${config.repos.length}`);
-      console.log(`- shim: ${path.join(workspace.cockpitDir, "bin", "cockpit")}`);
+      console.log(`- shim: ${path.join(workspace.backlogDir, "bin", "backlog")}`);
       for (const repo of repos) {
         const hookText = repo.hook
-          ? ` hook=${repo.hook.exists ? (repo.hook.managed && repo.hook.pointsToCockpitBin ? "managed" : "needs_attention") : "missing"}`
+          ? ` hook=${repo.hook.exists ? (repo.hook.managed && repo.hook.pointsToBacklogBin ? "managed" : "needs_attention") : "missing"}`
           : "";
         const branchText = repo.branch ? ` branch=${repo.branch}` : "";
         const defaultText = ` default=${repo.defaultBranch}`;

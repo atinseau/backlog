@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, Task, WorkItem } from "@cockpit-ai/schemas";
+import type { Agent, Run, Task, WorkItem } from "@backlog/schemas";
 import { appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { completeRun, failRun } from "./run-service.js";
 
@@ -9,17 +9,17 @@ function buildEnv(agent: Agent, run: Run, task: Task, workItem: WorkItem): NodeJ
   return {
     ...process.env,
     ...agent.environment,
-    COCKPIT_RUN_ID: run.id,
-    COCKPIT_TASK_ID: task.id,
-    COCKPIT_WORK_ITEM_ID: workItem.id,
-    COCKPIT_REPO: run.repo,
-    COCKPIT_BRANCH: run.branch,
-    COCKPIT_WORKTREE: run.worktree_path,
+    BACKLOG_RUN_ID: run.id,
+    BACKLOG_TASK_ID: task.id,
+    BACKLOG_WORK_ITEM_ID: workItem.id,
+    BACKLOG_REPO: run.repo,
+    BACKLOG_BRANCH: run.branch,
+    BACKLOG_WORKTREE: run.worktree_path,
   };
 }
 
 export async function executeCustomAgentRun(params: {
-  cockpitDir: string;
+  backlogDir: string;
   run: Run;
   task: Task;
   workItem: WorkItem;
@@ -29,7 +29,7 @@ export async function executeCustomAgentRun(params: {
     throw new Error(`Custom agent ${params.agent.id} is missing a command.`);
   }
 
-  appendRunEvent(params.cockpitDir, params.run.id, {
+  appendRunEvent(params.backlogDir, params.run.id, {
     ts: new Date().toISOString(),
     type: "executor.start",
     message: `Executing custom command for ${params.agent.id}`,
@@ -43,7 +43,7 @@ export async function executeCustomAgentRun(params: {
       reject: false,
     });
 
-    const logPath = path.join(params.run.worktree_path, ".cockpit-executor.log");
+    const logPath = path.join(params.run.worktree_path, ".backlog-executor.log");
     fs.writeFileSync(
       logPath,
       [`# stdout`, result.stdout, ``, `# stderr`, result.stderr].join("\n"),
@@ -51,8 +51,8 @@ export async function executeCustomAgentRun(params: {
     );
 
     if (result.exitCode === 0) {
-      await completeRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} completed successfully`);
-      appendRunEvent(params.cockpitDir, params.run.id, {
+      await completeRun(params.backlogDir, params.run.id, `Custom agent ${params.agent.id} completed successfully`);
+      appendRunEvent(params.backlogDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
         message: `Custom command exited successfully`,
@@ -61,7 +61,7 @@ export async function executeCustomAgentRun(params: {
     }
 
     const handoffPath = writeRunHandoff(
-      params.cockpitDir,
+      params.backlogDir,
       params.run.id,
       [
         "# Run Handoff",
@@ -71,17 +71,17 @@ export async function executeCustomAgentRun(params: {
         "",
         `Exit code: ${String(result.exitCode)}`,
         "",
-        "Inspect `.cockpit-executor.log` in the worktree for stdout/stderr.",
+        "Inspect `.backlog-executor.log` in the worktree for stdout/stderr.",
       ].join("\n"),
     );
-    await failRun(params.cockpitDir, params.run.id, `Custom agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`);
-    appendRunEvent(params.cockpitDir, params.run.id, {
+    await failRun(params.backlogDir, params.run.id, `Custom agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`);
+    appendRunEvent(params.backlogDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",
       message: `Custom command failed. Handoff: ${handoffPath}`,
     });
   } catch (error) {
-    updateRunStatus(params.cockpitDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));
+    updateRunStatus(params.backlogDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }

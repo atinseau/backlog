@@ -1,39 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { sourcesFileSchema, type SourceConfig, type SourcesFile, type WorkItem } from "@cockpit-ai/schemas";
+import { sourcesFileSchema, type SourceConfig, type SourcesFile, type WorkItem } from "@backlog/schemas";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
 import { recordStatusConflict } from "./sync-conflicts.js";
 
-function sourcesPath(cockpitDir: string): string {
-  return path.join(cockpitDir, "sources.yaml");
+function sourcesPath(backlogDir: string): string {
+  return path.join(backlogDir, "sources.yaml");
 }
 
-export function readSourcesFile(cockpitDir: string): SourcesFile {
-  const parsed = YAML.parse(fs.readFileSync(sourcesPath(cockpitDir), "utf8")) as unknown;
+export function readSourcesFile(backlogDir: string): SourcesFile {
+  const parsed = YAML.parse(fs.readFileSync(sourcesPath(backlogDir), "utf8")) as unknown;
   return sourcesFileSchema.parse(parsed);
 }
 
-export function writeSourcesFile(cockpitDir: string, file: SourcesFile): void {
-  fs.writeFileSync(sourcesPath(cockpitDir), YAML.stringify(file), "utf8");
+export function writeSourcesFile(backlogDir: string, file: SourcesFile): void {
+  fs.writeFileSync(sourcesPath(backlogDir), YAML.stringify(file), "utf8");
 }
 
-export function listSources(cockpitDir: string): SourceConfig[] {
-  return readSourcesFile(cockpitDir).sources;
+export function listSources(backlogDir: string): SourceConfig[] {
+  return readSourcesFile(backlogDir).sources;
 }
 
-export function addSource(cockpitDir: string, source: SourceConfig): SourceConfig {
-  const file = readSourcesFile(cockpitDir);
+export function addSource(backlogDir: string, source: SourceConfig): SourceConfig {
+  const file = readSourcesFile(backlogDir);
   if (file.sources.some((candidate) => candidate.id === source.id)) {
     throw new Error(`Source already exists: ${source.id}`);
   }
   file.sources.push(source);
-  writeSourcesFile(cockpitDir, file);
+  writeSourcesFile(backlogDir, file);
   return source;
 }
 
-export function getSource(cockpitDir: string, id: string): SourceConfig | null {
-  return listSources(cockpitDir).find((source) => source.id === id) ?? null;
+export function getSource(backlogDir: string, id: string): SourceConfig | null {
+  return listSources(backlogDir).find((source) => source.id === id) ?? null;
 }
 
 export interface UpdateSourceInput {
@@ -45,11 +45,11 @@ export interface UpdateSourceInput {
   pull?: boolean;
   pushStatus?: boolean;
   pushComments?: boolean;
-  sourceOfTruth?: "external" | "cockpit";
+  sourceOfTruth?: "external" | "backlog";
 }
 
-export function updateSource(cockpitDir: string, id: string, input: UpdateSourceInput): SourceConfig {
-  const file = readSourcesFile(cockpitDir);
+export function updateSource(backlogDir: string, id: string, input: UpdateSourceInput): SourceConfig {
+  const file = readSourcesFile(backlogDir);
   const source = file.sources.find((candidate) => candidate.id === id);
   if (!source) {
     throw new Error(`Unknown source: ${id}`);
@@ -83,22 +83,22 @@ export function updateSource(cockpitDir: string, id: string, input: UpdateSource
     source.sync.source_of_truth = input.sourceOfTruth;
   }
 
-  writeSourcesFile(cockpitDir, file);
+  writeSourcesFile(backlogDir, file);
   return source;
 }
 
-export function setSourceEnabled(cockpitDir: string, id: string, enabled: boolean): SourceConfig {
-  return updateSource(cockpitDir, id, { enabled });
+export function setSourceEnabled(backlogDir: string, id: string, enabled: boolean): SourceConfig {
+  return updateSource(backlogDir, id, { enabled });
 }
 
-export function removeSource(cockpitDir: string, id: string, options?: { force?: boolean }): SourceConfig {
-  const file = readSourcesFile(cockpitDir);
+export function removeSource(backlogDir: string, id: string, options?: { force?: boolean }): SourceConfig {
+  const file = readSourcesFile(backlogDir);
   const index = file.sources.findIndex((candidate) => candidate.id === id);
   if (index < 0) {
     throw new Error(`Unknown source: ${id}`);
   }
 
-  const workItems = readWorkItemsFile(cockpitDir);
+  const workItems = readWorkItemsFile(backlogDir);
   const linkedWorkItems = workItems.items.filter((item) => item.source_links.some((link) => link.source_ref === id));
   if (linkedWorkItems.length > 0 && !options?.force) {
     throw new Error(`Source ${id} is still linked from ${linkedWorkItems.length} work item(s). Re-run with --force.`);
@@ -109,14 +109,14 @@ export function removeSource(cockpitDir: string, id: string, options?: { force?:
       item.source_links = item.source_links.filter((link) => link.source_ref !== id);
       item.updated_at = new Date().toISOString();
     }
-    writeWorkItemsFile(cockpitDir, workItems);
+    writeWorkItemsFile(backlogDir, workItems);
   }
 
   const [removed] = file.sources.splice(index, 1);
   if (!removed) {
     throw new Error(`Unknown source: ${id}`);
   }
-  writeSourcesFile(cockpitDir, file);
+  writeSourcesFile(backlogDir, file);
   return removed;
 }
 
@@ -136,8 +136,8 @@ function importedKey(sourceKind: string, sourceRef: string, externalId: string):
   return `${sourceKind}:${sourceRef}:${externalId}`;
 }
 
-export function upsertImportedWorkItems(cockpitDir: string, importedItems: WorkItem[]): WorkItem[] {
-  const file = readWorkItemsFile(cockpitDir);
+export function upsertImportedWorkItems(backlogDir: string, importedItems: WorkItem[]): WorkItem[] {
+  const file = readWorkItemsFile(backlogDir);
   const index = new Map<string, WorkItem>();
   for (const item of file.items) {
     const key = sourceKey(item);
@@ -168,7 +168,7 @@ export function upsertImportedWorkItems(cockpitDir: string, importedItems: WorkI
     existing.priority = imported.priority;
     if (existing.status !== imported.status && source.source_ref) {
       recordStatusConflict({
-        cockpitDir,
+        backlogDir,
         workItemId: existing.id,
         sourceRef: source.source_ref,
         localValue: existing.status,
@@ -182,6 +182,6 @@ export function upsertImportedWorkItems(cockpitDir: string, importedItems: WorkI
     touched.push(existing);
   }
 
-  writeWorkItemsFile(cockpitDir, file);
+  writeWorkItemsFile(backlogDir, file);
   return touched;
 }

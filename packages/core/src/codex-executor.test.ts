@@ -2,15 +2,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout } from "@cockpit-ai/config";
-import type { Agent } from "@cockpit-ai/schemas";
+import { initLayout } from "@backlog/config";
+import type { Agent } from "@backlog/schemas";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { createRun, loadRun } from "./run-store.js";
 import { createTask } from "./task-service.js";
 import { createWorkItem } from "./work-service.js";
 
 function createWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-codex-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-codex-"));
   initLayout({
     root,
     workspaceName: "codex-test",
@@ -47,12 +47,12 @@ function writeFakeCodexBinary(root: string): string {
 describe("executeCodexAgentRun", () => {
   it("runs codex exec and sends the run to review by default", async () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
+    const backlogDir = path.join(root, ".backlog");
     const repoId = path.basename(root);
     const fakeCodexPath = writeFakeCodexBinary(root);
 
-    const workItem = createWorkItem(cockpitDir, { title: "Codex run", repoTargets: [repoId] });
-    const task = createTask(cockpitDir, {
+    const workItem = createWorkItem(backlogDir, { title: "Codex run", repoTargets: [repoId] });
+    const task = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "Implement with codex",
       repo: repoId,
@@ -72,28 +72,28 @@ describe("executeCodexAgentRun", () => {
     };
 
     createRun({
-      cockpitDir,
+      backlogDir,
       runId: "RUN-codex",
       task,
       workItem,
       agent,
-      branch: "cockpit/codex",
+      branch: "backlog/codex",
       worktreePath: root,
       claimIds: [],
     });
 
     await executeCodexAgentRun({
-      cockpitDir,
-      run: loadRun(cockpitDir, "RUN-codex")!,
+      backlogDir,
+      run: loadRun(backlogDir, "RUN-codex")!,
       task,
       workItem,
       agent,
     });
 
-    const archivedRun = loadRun(cockpitDir, "RUN-codex");
+    const archivedRun = loadRun(backlogDir, "RUN-codex");
     expect(archivedRun?.status).toBe("awaiting_review");
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "summary")).toBe(true);
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "log")).toBe(true);
-    expect(fs.existsSync(path.join(root, ".cockpit-codex.log"))).toBe(true);
+    expect(fs.existsSync(path.join(root, ".backlog-codex.log"))).toBe(true);
   });
 });

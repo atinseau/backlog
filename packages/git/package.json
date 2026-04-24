@@ -1,5 +1,5 @@
 {
-  "name": "@cockpit-ai/git",
+  "name": "@backlog/git",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,7 +9,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@cockpit-ai/schemas": "workspace:*",
+    "@backlog/schemas": "workspace:*",
     "execa": "^9.6.0"
   }
 }

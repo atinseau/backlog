@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { SourceConfig, WorkItem } from "@cockpit-ai/schemas";
+import type { SourceConfig, WorkItem } from "@backlog/schemas";
 
 export interface SourceConnector {
   validate(): Promise<{ ok: boolean; details: string[] }>;
@@ -258,7 +258,7 @@ class JiraConnector implements SourceConnector {
     };
 
     if (update.status) {
-      const targetStatusName = mapCockpitStatusToJiraStatus(update.status);
+      const targetStatusName = mapBacklogStatusToJiraStatus(update.status);
       if (targetStatusName) {
         const transitionsUrl = new URL(`/rest/api/3/issue/${update.externalId}/transitions`, baseUrl);
         const transitionsResponse = await fetch(transitionsUrl, { headers });
@@ -316,7 +316,7 @@ class JiraConnector implements SourceConnector {
   }
 }
 
-function mapCockpitStatusToJiraStatus(status: WorkItem["status"]): string | null {
+function mapBacklogStatusToJiraStatus(status: WorkItem["status"]): string | null {
   switch (status) {
     case "backlog":
       return "To Do";

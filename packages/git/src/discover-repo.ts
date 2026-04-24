@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { RepoConfig } from "@cockpit-ai/schemas";
+import type { RepoConfig } from "@backlog/schemas";
 import { detectRepoRoot } from "./detect-repo-root.js";
 import { repoCurrentBranch } from "./repo-metadata.js";
 

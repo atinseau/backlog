@@ -1,8 +1,8 @@
 import path from "node:path";
 import { Command } from "commander";
-import { initLayout } from "@cockpit-ai/config";
-import { detectRepoRoot, detectGitDir, discoverRepoForWorkspace } from "@cockpit-ai/git";
-import { installPreCommitHook } from "@cockpit-ai/hooks";
+import { initLayout } from "@backlog/config";
+import { detectRepoRoot, detectGitDir, discoverRepoForWorkspace } from "@backlog/git";
+import { installPreCommitHook } from "@backlog/hooks";
 
 function slugifyWorkspaceName(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -11,13 +11,13 @@ function slugifyWorkspaceName(value: string): string {
 export function registerInitCommand(program: Command): void {
   program
     .command("init")
-    .description("Initialize a Cockpit workspace in the current directory")
+    .description("Initialize a Backlog workspace in the current directory")
     .option("--name <name>", "Workspace name")
-    .option("--force", "Overwrite an existing .cockpit directory")
+    .option("--force", "Overwrite an existing .backlog directory")
     .option("--hooks", "Install the managed pre-commit hook immediately")
     .action(async (options: { name?: string; force?: boolean; hooks?: boolean }) => {
       const root = process.cwd();
-      const workspaceName = options.name ?? (slugifyWorkspaceName(path.basename(root)) || "cockpit-workspace");
+      const workspaceName = options.name ?? (slugifyWorkspaceName(path.basename(root)) || "backlog-workspace");
       const repos = await discoverRepoForWorkspace(root, workspaceName);
 
       const result = initLayout({
@@ -35,11 +35,11 @@ export function registerInitCommand(program: Command): void {
         const gitDir = await detectGitDir(repoRoot);
         installPreCommitHook({
           gitDir,
-          cockpitBin: path.join(result.cockpitDir, "bin", "cockpit"),
+          backlogBin: path.join(result.backlogDir, "bin", "backlog"),
         });
       }
 
-      console.log(`Initialized Cockpit in ${result.cockpitDir}`);
+      console.log(`Initialized Backlog in ${result.backlogDir}`);
       console.log(`Config: ${result.configPath}`);
       console.log(`Shim:   ${result.shimPath}`);
       if (repos.length > 0) {
@@ -52,8 +52,8 @@ export function registerInitCommand(program: Command): void {
         console.log("  none detected yet");
       }
       console.log("Next:");
-      console.log("  cockpit doctor");
-      console.log("  cockpit repos list");
-      console.log("  cockpit status");
+      console.log("  backlog doctor");
+      console.log("  backlog repos list");
+      console.log("  backlog status");
     });
 }

@@ -5,7 +5,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@cockpit-ai/git": ["../git/src/index.ts"]
+      "@backlog/git": ["../git/src/index.ts"]
     }
   },
   "include": ["src"],

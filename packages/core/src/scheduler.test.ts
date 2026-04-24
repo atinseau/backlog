@@ -2,13 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout, loadConfig } from "@cockpit-ai/config";
+import { initLayout, loadConfig } from "@backlog/config";
 import { createTask } from "./task-service.js";
 import { createWorkItem } from "./work-service.js";
 import { buildExecutionPlan } from "./scheduler.js";
 
 function createWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-core-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-core-"));
   initLayout({
     root,
     workspaceName: "test",
@@ -17,24 +17,24 @@ function createWorkspace(): string {
   return root;
 }
 
-function writeAgentsFile(cockpitDir: string, contents: string): void {
-  fs.writeFileSync(path.join(cockpitDir, "agents.yaml"), contents, "utf8");
+function writeAgentsFile(backlogDir: string, contents: string): void {
+  fs.writeFileSync(path.join(backlogDir, "agents.yaml"), contents, "utf8");
 }
 
 describe("buildExecutionPlan", () => {
   it("marks dependency-blocked tasks as waiting", () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
-    const config = loadConfig(cockpitDir);
+    const backlogDir = path.join(root, ".backlog");
+    const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(cockpitDir, { title: "Ship feature", repoTargets: [path.basename(root)] });
-    const first = createTask(cockpitDir, {
+    const work = createWorkItem(backlogDir, { title: "Ship feature", repoTargets: [path.basename(root)] });
+    const first = createTask(backlogDir, {
       workItemId: work.id,
       title: "First task",
       repo: path.basename(root),
       scopes: ["README.md"],
     });
-    const second = createTask(cockpitDir, {
+    const second = createTask(backlogDir, {
       workItemId: work.id,
       title: "Second task",
       repo: path.basename(root),
@@ -42,25 +42,25 @@ describe("buildExecutionPlan", () => {
       dependsOn: [first.id],
     });
 
-    const plan = buildExecutionPlan(cockpitDir, config);
+    const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.runnable.some((decision) => decision.taskId === first.id)).toBe(true);
     expect(plan.waiting.find((decision) => decision.taskId === second.id)?.reasons).toContain(`blocked_by_dependency:${first.id}`);
   });
 
   it("does not schedule overlapping runnable tasks in the same plan", () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
-    const config = loadConfig(cockpitDir);
+    const backlogDir = path.join(root, ".backlog");
+    const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(cockpitDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
-    const first = createTask(cockpitDir, {
+    const work = createWorkItem(backlogDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
+    const first = createTask(backlogDir, {
       workItemId: work.id,
       title: "Core planner",
       repo: path.basename(root),
       scopes: ["packages/core/src/**"],
       risk: "low",
     });
-    const second = createTask(cockpitDir, {
+    const second = createTask(backlogDir, {
       workItemId: work.id,
       title: "Conflicting follow-up",
       repo: path.basename(root),
@@ -69,7 +69,7 @@ describe("buildExecutionPlan", () => {
       priorityScore: 90,
     });
 
-    const plan = buildExecutionPlan(cockpitDir, config);
+    const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.runnable).toHaveLength(1);
     expect(plan.runnable.some((decision) => decision.taskId === first.id || decision.taskId === second.id)).toBe(true);
     expect(plan.waiting.some((decision) => decision.reasons.some((reason) => reason.startsWith("scope_conflict_with_selected:")))).toBe(true);
@@ -77,10 +77,10 @@ describe("buildExecutionPlan", () => {
 
   it("prefers an explicitly preferred compatible agent", () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
-    const config = loadConfig(cockpitDir);
+    const backlogDir = path.join(root, ".backlog");
+    const config = loadConfig(backlogDir);
     writeAgentsFile(
-      cockpitDir,
+      backlogDir,
       [
         "version: 1",
         "agents:",
@@ -104,8 +104,8 @@ describe("buildExecutionPlan", () => {
       ].join("\n"),
     );
 
-    const work = createWorkItem(cockpitDir, { title: "Preferred agent", repoTargets: [path.basename(root)] });
-    createTask(cockpitDir, {
+    const work = createWorkItem(backlogDir, { title: "Preferred agent", repoTargets: [path.basename(root)] });
+    createTask(backlogDir, {
       workItemId: work.id,
       title: "Agent sensitive task",
       repo: path.basename(root),
@@ -115,17 +115,17 @@ describe("buildExecutionPlan", () => {
       requiredCapabilities: ["edit_code"],
     });
 
-    const plan = buildExecutionPlan(cockpitDir, config);
+    const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.runnable[0]?.assignedAgentId).toBe("preferred");
   });
 
   it("blocks tasks when no agent satisfies required capabilities", () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
-    const config = loadConfig(cockpitDir);
+    const backlogDir = path.join(root, ".backlog");
+    const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(cockpitDir, { title: "Capability mismatch", repoTargets: [path.basename(root)] });
-    const task = createTask(cockpitDir, {
+    const work = createWorkItem(backlogDir, { title: "Capability mismatch", repoTargets: [path.basename(root)] });
+    const task = createTask(backlogDir, {
       workItemId: work.id,
       title: "Needs tests",
       repo: path.basename(root),
@@ -134,7 +134,7 @@ describe("buildExecutionPlan", () => {
       requiredCapabilities: ["run_tests"],
     });
 
-    const plan = buildExecutionPlan(cockpitDir, config);
+    const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.blocked.find((decision) => decision.taskId === task.id)?.reasons).toContain("no_compatible_agent");
   });
 });

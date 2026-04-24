@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
+import { findWorkspace } from "@backlog/config";
 import {
   approveRun,
   completeRun,
@@ -15,7 +15,7 @@ import {
   sendRunToReview,
   updateRunStatus,
   updateTaskStatus,
-} from "@cockpit-ai/core";
+} from "@backlog/core";
 
 export function registerRunCommand(program: Command): void {
   const runs = program.command("runs").description("Inspect execution runs");
@@ -28,12 +28,12 @@ export function registerRunCommand(program: Command): void {
     .action((options: { all?: boolean; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (!options.all) {
         throw new Error("runs gc requires --all.");
       }
-      const result = garbageCollectArchivedRuns(workspace.cockpitDir);
+      const result = garbageCollectArchivedRuns(workspace.backlogDir);
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
         return;
@@ -65,9 +65,9 @@ export function registerRunCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const runs = listAllRuns(workspace.cockpitDir).filter((run) => {
+      const runs = listAllRuns(workspace.backlogDir).filter((run) => {
         if (options.review && run.status !== "awaiting_review") {
           return false;
         }
@@ -109,9 +109,9 @@ export function registerRunCommand(program: Command): void {
     .action((runId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const run = loadRun(workspace.cockpitDir, runId);
+      const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
         throw new Error(`Unknown run: ${runId}`);
       }
@@ -129,7 +129,7 @@ export function registerRunCommand(program: Command): void {
       if (run.result) {
         console.log(`Result: ${run.result}`);
       }
-      const handoffPath = getRunHandoffPath(workspace.cockpitDir, run.id);
+      const handoffPath = getRunHandoffPath(workspace.backlogDir, run.id);
       if (handoffPath) {
         console.log(`Handoff: ${handoffPath}`);
       }
@@ -139,7 +139,7 @@ export function registerRunCommand(program: Command): void {
           console.log(`- ${artifact.kind}: ${artifact.value}`);
         }
       }
-      const events = getRunEvents(workspace.cockpitDir, run.id);
+      const events = getRunEvents(workspace.backlogDir, run.id);
       if (events.length > 0) {
         console.log("Recent events:");
         for (const event of events.slice(-5)) {
@@ -155,17 +155,17 @@ export function registerRunCommand(program: Command): void {
     .action((runId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const run = loadRun(workspace.cockpitDir, runId);
+      const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
         throw new Error(`Unknown run: ${runId}`);
       }
       if (run.status !== "running" && run.status !== "preparing") {
         throw new Error(`Run ${runId} is not interruptible from status ${run.status}`);
       }
-      updateRunStatus(workspace.cockpitDir, runId, "interrupted", "Interrupted by operator");
-      updateTaskStatus(workspace.cockpitDir, run.task_id, "planned");
+      updateRunStatus(workspace.backlogDir, runId, "interrupted", "Interrupted by operator");
+      updateTaskStatus(workspace.backlogDir, run.task_id, "planned");
       console.log(`Interrupted ${runId}`);
     });
 
@@ -176,19 +176,19 @@ export function registerRunCommand(program: Command): void {
     .action((runId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const run = loadRun(workspace.cockpitDir, runId);
+      const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
         throw new Error(`Unknown run: ${runId}`);
       }
       if (run.status !== "interrupted") {
         throw new Error(`Run ${runId} is not resumable from status ${run.status}`);
       }
-      updateRunStatus(workspace.cockpitDir, runId, "running", "Resumed by operator");
-      const task = getTask(workspace.cockpitDir, run.task_id);
+      updateRunStatus(workspace.backlogDir, runId, "running", "Resumed by operator");
+      const task = getTask(workspace.backlogDir, run.task_id);
       if (task) {
-        updateTaskStatus(workspace.cockpitDir, task.id, "running");
+        updateTaskStatus(workspace.backlogDir, task.id, "running");
       }
       console.log(`Resumed ${runId}`);
     });
@@ -201,9 +201,9 @@ export function registerRunCommand(program: Command): void {
     .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      await approveRun(workspace.cockpitDir, runId, options.summary);
+      await approveRun(workspace.backlogDir, runId, options.summary);
       console.log(`Approved ${runId}`);
     });
 
@@ -215,9 +215,9 @@ export function registerRunCommand(program: Command): void {
     .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      await completeRun(workspace.cockpitDir, runId, options.summary);
+      await completeRun(workspace.backlogDir, runId, options.summary);
       console.log(`Completed ${runId}`);
     });
 
@@ -229,9 +229,9 @@ export function registerRunCommand(program: Command): void {
     .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      await failRun(workspace.cockpitDir, runId, options.summary);
+      await failRun(workspace.backlogDir, runId, options.summary);
       console.log(`Failed ${runId}`);
     });
 
@@ -243,9 +243,9 @@ export function registerRunCommand(program: Command): void {
     .action(async (runId: string, options: { summary?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      await sendRunToReview(workspace.cockpitDir, runId, options.summary);
+      await sendRunToReview(workspace.backlogDir, runId, options.summary);
       console.log(`Sent ${runId} to review`);
     });
 
@@ -257,9 +257,9 @@ export function registerRunCommand(program: Command): void {
     .action(async (runId: string, options: { reason: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const handoffPath = await requestRunChanges(workspace.cockpitDir, runId, options.reason);
+      const handoffPath = await requestRunChanges(workspace.backlogDir, runId, options.reason);
       console.log(`Requested changes for ${runId}`);
       console.log(`Handoff: ${handoffPath}`);
     });
@@ -272,9 +272,9 @@ export function registerRunCommand(program: Command): void {
     .action((runId: string, options: { reason: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const handoffPath = createRunHandoff(workspace.cockpitDir, runId, options.reason);
+      const handoffPath = createRunHandoff(workspace.backlogDir, runId, options.reason);
       console.log(`Wrote handoff to ${handoffPath}`);
     });
 }

@@ -18,7 +18,7 @@ import { registerWorktreeCommand } from "./commands/worktree.js";
 const program = new Command();
 
 program
-  .name("cockpit")
+  .name("backlog")
   .description("Local-first AI execution control plane for coding teams")
   .version("0.1.0");
 

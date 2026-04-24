@@ -2,15 +2,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { initLayout } from "@cockpit-ai/config";
-import { git } from "@cockpit-ai/git";
+import { initLayout } from "@backlog/config";
+import { git } from "@backlog/git";
 import { createTask } from "./task-service.js";
 import { createWorkItem, updateWorkItemStatus } from "./work-service.js";
 import { buildWorkspaceStatus } from "./status-builder.js";
 import { createRun } from "./run-store.js";
 import { getAgent } from "./agents.js";
-import { createClaim } from "@cockpit-ai/claims";
-import { loadConfig } from "@cockpit-ai/config";
+import { createClaim } from "@backlog/claims";
+import { loadConfig } from "@backlog/config";
 
 async function createGitRepo(root: string, name: string): Promise<string> {
   const repoRoot = path.join(root, name);
@@ -18,84 +18,84 @@ async function createGitRepo(root: string, name: string): Promise<string> {
   await git(["init", "-b", "main"], repoRoot);
   fs.writeFileSync(path.join(repoRoot, "README.md"), `# ${name}\n`, "utf8");
   await git(["add", "README.md"], repoRoot);
-  await git(["-c", "user.name=Cockpit", "-c", "user.email=cockpit@example.com", "commit", "-m", "init"], repoRoot);
+  await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], repoRoot);
   return repoRoot;
 }
 
-async function createWorkspace(): Promise<{ root: string; cockpitDir: string }> {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-status-"));
+async function createWorkspace(): Promise<{ root: string; backlogDir: string }> {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-status-"));
   await git(["init", "-b", "main"], root);
-  fs.writeFileSync(path.join(root, "README.md"), "# cockpit\n", "utf8");
+  fs.writeFileSync(path.join(root, "README.md"), "# backlog\n", "utf8");
   await git(["add", "README.md"], root);
-  await git(["-c", "user.name=Cockpit", "-c", "user.email=cockpit@example.com", "commit", "-m", "init"], root);
+  await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], root);
   const docsRoot = await createGitRepo(root, "docs");
   initLayout({
     root,
     workspaceName: "status-test",
     mode: "embedded",
     repos: [
-      { id: "cockpit", path: root, default_branch: "main", enabled: true },
+      { id: "backlog", path: root, default_branch: "main", enabled: true },
       { id: "docs", path: docsRoot, default_branch: "main", enabled: false },
     ],
   });
-  return { root, cockpitDir: path.join(root, ".cockpit") };
+  return { root, backlogDir: path.join(root, ".backlog") };
 }
 
 describe("buildWorkspaceStatus", () => {
   let root: string;
-  let cockpitDir: string;
+  let backlogDir: string;
 
   beforeEach(async () => {
-    ({ root, cockpitDir } = await createWorkspace());
+    ({ root, backlogDir } = await createWorkspace());
   });
 
   it("builds repo summaries across the workspace", () => {
-    const config = loadConfig(cockpitDir);
-    const appItem = createWorkItem(cockpitDir, {
+    const config = loadConfig(backlogDir);
+    const appItem = createWorkItem(backlogDir, {
       title: "App task",
-      repoTargets: ["cockpit"],
+      repoTargets: ["backlog"],
     });
-    const docsItem = createWorkItem(cockpitDir, {
+    const docsItem = createWorkItem(backlogDir, {
       title: "Docs task",
       repoTargets: ["docs"],
     });
-    updateWorkItemStatus(cockpitDir, docsItem.id, "blocked");
-    createTask(cockpitDir, {
+    updateWorkItemStatus(backlogDir, docsItem.id, "blocked");
+    createTask(backlogDir, {
       workItemId: appItem.id,
       title: "Ship app",
-      repo: "cockpit",
+      repo: "backlog",
     });
-    const docsTask = createTask(cockpitDir, {
+    const docsTask = createTask(backlogDir, {
       workItemId: docsItem.id,
       title: "Write docs",
       repo: "docs",
     });
-    const agent = getAgent(cockpitDir, "manual-default");
+    const agent = getAgent(backlogDir, "manual-default");
     if (!agent) {
       throw new Error("Expected manual-default agent");
     }
     createRun({
-      cockpitDir,
+      backlogDir,
       runId: "RUN-docs",
       task: docsTask,
       workItem: docsItem,
       agent,
-      branch: "cockpit/docs",
+      branch: "backlog/docs",
       worktreePath: root,
       claimIds: [],
     });
     createClaim({
-      cockpitDir,
+      backlogDir,
       repo: "docs",
       repoPath: path.join(root, "docs"),
       topic: "docs scope",
       paths: ["README.md"],
     });
 
-    const status = buildWorkspaceStatus(root, cockpitDir, config);
+    const status = buildWorkspaceStatus(root, backlogDir, config);
     expect(status.repoSummaries).toEqual([
       expect.objectContaining({
-        id: "cockpit",
+        id: "backlog",
         enabled: true,
         workItemCount: 1,
         taskCount: 1,
@@ -114,27 +114,27 @@ describe("buildWorkspaceStatus", () => {
   });
 
   it("can focus status on one repo", () => {
-    const config = loadConfig(cockpitDir);
-    const appItem = createWorkItem(cockpitDir, {
+    const config = loadConfig(backlogDir);
+    const appItem = createWorkItem(backlogDir, {
       title: "App task",
-      repoTargets: ["cockpit"],
+      repoTargets: ["backlog"],
     });
-    const docsItem = createWorkItem(cockpitDir, {
+    const docsItem = createWorkItem(backlogDir, {
       title: "Docs task",
       repoTargets: ["docs"],
     });
-    createTask(cockpitDir, {
+    createTask(backlogDir, {
       workItemId: appItem.id,
       title: "Ship app",
-      repo: "cockpit",
+      repo: "backlog",
     });
-    createTask(cockpitDir, {
+    createTask(backlogDir, {
       workItemId: docsItem.id,
       title: "Write docs",
       repo: "docs",
     });
 
-    const status = buildWorkspaceStatus(root, cockpitDir, config, { repoId: "docs" });
+    const status = buildWorkspaceStatus(root, backlogDir, config, { repoId: "docs" });
     expect(status.selectedRepoId).toBe("docs");
     expect(status.workItemCount).toBe(1);
     expect(status.repoSummaries).toHaveLength(1);

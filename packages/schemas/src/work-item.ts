@@ -47,11 +47,11 @@ export const workItemSchema = z.object({
     preferred_lane: z.string().optional(),
   }),
   sync: z.object({
-    source_of_truth: z.enum(["external", "cockpit"]).default("cockpit"),
+    source_of_truth: z.enum(["external", "backlog"]).default("backlog"),
     push_status: z.boolean().default(false),
     push_comments: z.boolean().default(false),
   }).default({
-    source_of_truth: "cockpit",
+    source_of_truth: "backlog",
     push_status: false,
     push_comments: false,
   }),

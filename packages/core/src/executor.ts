@@ -1,4 +1,4 @@
-import type { Agent, Run, Task, WorkItem } from "@cockpit-ai/schemas";
+import type { Agent, Run, Task, WorkItem } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { executeCustomAgentRun } from "./custom-executor.js";
@@ -14,7 +14,7 @@ export function supportsAgentExecution(agent: Agent): boolean {
 }
 
 export async function executeAgentRun(params: {
-  cockpitDir: string;
+  backlogDir: string;
   run: Run;
   task: Task;
   workItem: WorkItem;

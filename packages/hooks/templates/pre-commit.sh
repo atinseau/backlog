@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-# Managed by Cockpit. Reinstall through:
-#   cockpit hooks install
+# Managed by Backlog. Reinstall through:
+#   backlog hooks install
 
 set -euo pipefail
 
-COCKPIT_BIN="__COCKPIT_BIN__"
+BACKLOG_BIN="__BACKLOG_BIN__"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-if [[ ! -x "$COCKPIT_BIN" ]]; then
-  echo "cockpit: missing local shim at $COCKPIT_BIN" >&2
-  echo "Run cockpit init or cockpit hooks install again." >&2
+if [[ ! -x "$BACKLOG_BIN" ]]; then
+  echo "backlog: missing local shim at $BACKLOG_BIN" >&2
+  echo "Run backlog init or backlog hooks install again." >&2
   exit 1
 fi
 
-"$COCKPIT_BIN" claim check --repo-root "$REPO_ROOT" --staged
+"$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged

@@ -1,4 +1,4 @@
-import { workStatusSchema, type WorkItem, type WorkStatus } from "@cockpit-ai/schemas";
+import { workStatusSchema, type WorkItem, type WorkStatus } from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { readTasksFile, readWorkItemsFile, writeTasksFile, writeWorkItemsFile } from "./state-files.js";
 import { removeSyncConflictsForWorkItem } from "./sync-conflicts.js";
@@ -27,8 +27,8 @@ export interface UpdateWorkItemInput {
   splitStatus?: "pending" | "done";
 }
 
-export function createWorkItem(cockpitDir: string, input: CreateWorkItemInput): WorkItem {
-  const file = readWorkItemsFile(cockpitDir);
+export function createWorkItem(backlogDir: string, input: CreateWorkItemInput): WorkItem {
+  const file = readWorkItemsFile(backlogDir);
   const now = new Date().toISOString();
   const item: WorkItem = {
     id: makeId("WI"),
@@ -46,7 +46,7 @@ export function createWorkItem(cockpitDir: string, input: CreateWorkItemInput): 
       risk: "medium",
     },
     sync: {
-      source_of_truth: "cockpit",
+      source_of_truth: "backlog",
       push_status: false,
       push_comments: false,
     },
@@ -54,16 +54,16 @@ export function createWorkItem(cockpitDir: string, input: CreateWorkItemInput): 
     updated_at: now,
   };
   file.items.push(item);
-  writeWorkItemsFile(cockpitDir, file);
+  writeWorkItemsFile(backlogDir, file);
   return item;
 }
 
-export function getWorkItem(cockpitDir: string, id: string): WorkItem | null {
-  return readWorkItemsFile(cockpitDir).items.find((item) => item.id === id) ?? null;
+export function getWorkItem(backlogDir: string, id: string): WorkItem | null {
+  return readWorkItemsFile(backlogDir).items.find((item) => item.id === id) ?? null;
 }
 
-export function updateWorkItem(cockpitDir: string, id: string, input: UpdateWorkItemInput): WorkItem {
-  const file = readWorkItemsFile(cockpitDir);
+export function updateWorkItem(backlogDir: string, id: string, input: UpdateWorkItemInput): WorkItem {
+  const file = readWorkItemsFile(backlogDir);
   const item = file.items.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
@@ -107,29 +107,29 @@ export function updateWorkItem(cockpitDir: string, id: string, input: UpdateWork
   }
 
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(cockpitDir, file);
+  writeWorkItemsFile(backlogDir, file);
   return item;
 }
 
-export function updateWorkItemStatus(cockpitDir: string, id: string, status: WorkStatus): WorkItem {
+export function updateWorkItemStatus(backlogDir: string, id: string, status: WorkStatus): WorkItem {
   const parsedStatus = workStatusSchema.parse(status);
-  const file = readWorkItemsFile(cockpitDir);
+  const file = readWorkItemsFile(backlogDir);
   const item = file.items.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
   }
   item.status = parsedStatus;
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(cockpitDir, file);
+  writeWorkItemsFile(backlogDir, file);
   return item;
 }
 
 export function updateWorkItemPlanning(
-  cockpitDir: string,
+  backlogDir: string,
   id: string,
   planning: Partial<WorkItem["planning"]>,
 ): WorkItem {
-  const file = readWorkItemsFile(cockpitDir);
+  const file = readWorkItemsFile(backlogDir);
   const item = file.items.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
@@ -139,11 +139,11 @@ export function updateWorkItemPlanning(
     ...planning,
   };
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(cockpitDir, file);
+  writeWorkItemsFile(backlogDir, file);
   return item;
 }
 
-export function workItemsSummary(cockpitDir: string): Record<WorkStatus, number> {
+export function workItemsSummary(backlogDir: string): Record<WorkStatus, number> {
   const summary = {
     backlog: 0,
     ready: 0,
@@ -155,14 +155,14 @@ export function workItemsSummary(cockpitDir: string): Record<WorkStatus, number>
     blocked: 0,
   } satisfies Record<WorkStatus, number>;
 
-  for (const item of readWorkItemsFile(cockpitDir).items) {
+  for (const item of readWorkItemsFile(backlogDir).items) {
     summary[item.status] += 1;
   }
   return summary;
 }
 
-export function deriveWorkStatusFromTasks(cockpitDir: string, workItemId: string): WorkStatus | null {
-  const tasks = readTasksFile(cockpitDir).tasks.filter((task) => task.work_item_id === workItemId);
+export function deriveWorkStatusFromTasks(backlogDir: string, workItemId: string): WorkStatus | null {
+  const tasks = readTasksFile(backlogDir).tasks.filter((task) => task.work_item_id === workItemId);
   if (tasks.length === 0) {
     return null;
   }
@@ -187,14 +187,14 @@ export function deriveWorkStatusFromTasks(cockpitDir: string, workItemId: string
   return null;
 }
 
-export function removeWorkItem(cockpitDir: string, id: string, options?: { cascadeTasks?: boolean }): WorkItem {
-  const workFile = readWorkItemsFile(cockpitDir);
+export function removeWorkItem(backlogDir: string, id: string, options?: { cascadeTasks?: boolean }): WorkItem {
+  const workFile = readWorkItemsFile(backlogDir);
   const itemIndex = workFile.items.findIndex((candidate) => candidate.id === id);
   if (itemIndex < 0) {
     throw new Error(`Unknown work item: ${id}`);
   }
 
-  const taskFile = readTasksFile(cockpitDir);
+  const taskFile = readTasksFile(backlogDir);
   const linkedTasks = taskFile.tasks.filter((task) => task.work_item_id === id);
   if (linkedTasks.length > 0 && !options?.cascadeTasks) {
     throw new Error(`Work item ${id} still has ${linkedTasks.length} task(s). Re-run with --cascade.`);
@@ -215,14 +215,14 @@ export function removeWorkItem(cockpitDir: string, id: string, options?: { casca
           updated_at: new Date().toISOString(),
         };
       });
-    writeTasksFile(cockpitDir, taskFile);
+    writeTasksFile(backlogDir, taskFile);
   }
 
   const [removed] = workFile.items.splice(itemIndex, 1);
   if (!removed) {
     throw new Error(`Unknown work item: ${id}`);
   }
-  writeWorkItemsFile(cockpitDir, workFile);
-  removeSyncConflictsForWorkItem(cockpitDir, id);
+  writeWorkItemsFile(backlogDir, workFile);
+  removeSyncConflictsForWorkItem(backlogDir, id);
   return removed;
 }

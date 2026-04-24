@@ -1,29 +1,29 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { buildExecutionPlan, buildWorkspaceStatus } from "@cockpit-ai/core";
-import { listTasks } from "@cockpit-ai/core";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { buildExecutionPlan, buildWorkspaceStatus } from "@backlog/core";
+import { listTasks } from "@backlog/core";
 
 export function registerStatusCommand(program: Command): void {
   program
     .command("status")
-    .description("Show a compact Cockpit workspace summary")
+    .description("Show a compact Backlog workspace summary")
     .option("--repo <id>", "Focus status on one configured repo")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { repo?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
         throw new Error(`Unknown repo: ${options.repo}`);
       }
-      const status = buildWorkspaceStatus(workspace.root, workspace.cockpitDir, config, {
+      const status = buildWorkspaceStatus(workspace.root, workspace.backlogDir, config, {
         ...(options.repo ? { repoId: options.repo } : {}),
       });
-      const tasksById = new Map(listTasks(workspace.cockpitDir).map((task) => [task.id, task]));
-      const fullPlan = buildExecutionPlan(workspace.cockpitDir, config);
+      const tasksById = new Map(listTasks(workspace.backlogDir).map((task) => [task.id, task]));
+      const fullPlan = buildExecutionPlan(workspace.backlogDir, config);
       const plan = options.repo
         ? {
             ...fullPlan,

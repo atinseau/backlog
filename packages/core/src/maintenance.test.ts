@@ -2,71 +2,71 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout } from "@cockpit-ai/config";
-import { garbageCollectExpiredClaims } from "@cockpit-ai/claims";
-import { createClaim } from "@cockpit-ai/claims";
+import { initLayout } from "@backlog/config";
+import { garbageCollectExpiredClaims } from "@backlog/claims";
+import { createClaim } from "@backlog/claims";
 import { createRun, archiveRun, garbageCollectArchivedRuns, loadRun } from "./run-store.js";
 import { createTask } from "./task-service.js";
 import { createWorkItem } from "./work-service.js";
 import { getAgent } from "./agents.js";
 
 function createWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-maint-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-maint-"));
   initLayout({
     root,
     workspaceName: "maintenance-test",
     repos: [{ id: path.basename(root), path: root, default_branch: "main", enabled: true }],
   });
-  return path.join(root, ".cockpit");
+  return path.join(root, ".backlog");
 }
 
 describe("maintenance gc", () => {
   it("archives expired claims", () => {
-    const cockpitDir = createWorkspace();
-    const repoId = path.basename(path.dirname(cockpitDir));
+    const backlogDir = createWorkspace();
+    const repoId = path.basename(path.dirname(backlogDir));
     const claim = createClaim({
-      cockpitDir,
+      backlogDir,
       repo: repoId,
-      repoPath: path.dirname(cockpitDir),
+      repoPath: path.dirname(backlogDir),
       topic: "expired",
       paths: ["README.md"],
       ttlMinutes: -1,
     });
 
-    const result = garbageCollectExpiredClaims(cockpitDir);
+    const result = garbageCollectExpiredClaims(backlogDir);
     expect(result.archived).toContain(claim.id);
-    expect(fs.existsSync(path.join(cockpitDir, "claims", "archive", `${claim.id}.json`))).toBe(true);
+    expect(fs.existsSync(path.join(backlogDir, "claims", "archive", `${claim.id}.json`))).toBe(true);
   });
 
   it("removes archived run directories", () => {
-    const cockpitDir = createWorkspace();
-    const repoId = path.basename(path.dirname(cockpitDir));
-    const workItem = createWorkItem(cockpitDir, { title: "gc run", repoTargets: [repoId] });
-    const task = createTask(cockpitDir, {
+    const backlogDir = createWorkspace();
+    const repoId = path.basename(path.dirname(backlogDir));
+    const workItem = createWorkItem(backlogDir, { title: "gc run", repoTargets: [repoId] });
+    const task = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "gc task",
       repo: repoId,
     });
-    const agent = getAgent(cockpitDir, "manual-default");
+    const agent = getAgent(backlogDir, "manual-default");
     if (!agent) {
       throw new Error("Expected manual-default agent");
     }
 
     createRun({
-      cockpitDir,
+      backlogDir,
       runId: "RUN-gc",
       task,
       workItem,
       agent,
-      branch: "cockpit/gc",
-      worktreePath: path.dirname(cockpitDir),
+      branch: "backlog/gc",
+      worktreePath: path.dirname(backlogDir),
       claimIds: [],
     });
-    archiveRun(cockpitDir, "RUN-gc");
+    archiveRun(backlogDir, "RUN-gc");
 
-    expect(loadRun(cockpitDir, "RUN-gc")?.id).toBe("RUN-gc");
-    const result = garbageCollectArchivedRuns(cockpitDir);
+    expect(loadRun(backlogDir, "RUN-gc")?.id).toBe("RUN-gc");
+    const result = garbageCollectArchivedRuns(backlogDir);
     expect(result.removed).toContain("RUN-gc");
-    expect(loadRun(cockpitDir, "RUN-gc")).toBeNull();
+    expect(loadRun(backlogDir, "RUN-gc")).toBeNull();
   });
 });

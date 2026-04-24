@@ -4,15 +4,15 @@ import path from "node:path";
 import {
   claimRecordSchema,
   type ClaimRecord,
-} from "@cockpit-ai/schemas";
+} from "@backlog/schemas";
 import { scopesOverlap } from "./overlap-detector.js";
 
-function activeClaimsDir(cockpitDir: string): string {
-  return path.join(cockpitDir, "claims", "active");
+function activeClaimsDir(backlogDir: string): string {
+  return path.join(backlogDir, "claims", "active");
 }
 
-function archiveClaimsDir(cockpitDir: string): string {
-  return path.join(cockpitDir, "claims", "archive");
+function archiveClaimsDir(backlogDir: string): string {
+  return path.join(backlogDir, "claims", "archive");
 }
 
 function claimFilePath(directory: string, claimId: string): string {
@@ -29,7 +29,7 @@ export function isExpired(claim: ClaimRecord): boolean {
 }
 
 export function createClaim(params: {
-  cockpitDir: string;
+  backlogDir: string;
   repo: string;
   repoPath: string;
   topic: string;
@@ -54,15 +54,15 @@ export function createClaim(params: {
   };
 
   fs.writeFileSync(
-    claimFilePath(activeClaimsDir(params.cockpitDir), claim.id),
+    claimFilePath(activeClaimsDir(params.backlogDir), claim.id),
     JSON.stringify(claim, null, 2) + "\n",
     "utf8",
   );
   return claim;
 }
 
-export function listActiveClaims(cockpitDir: string): ClaimRecord[] {
-  const directory = activeClaimsDir(cockpitDir);
+export function listActiveClaims(backlogDir: string): ClaimRecord[] {
+  const directory = activeClaimsDir(backlogDir);
   if (!fs.existsSync(directory)) {
     return [];
   }
@@ -74,15 +74,15 @@ export function listActiveClaims(cockpitDir: string): ClaimRecord[] {
     .filter((claim) => !isExpired(claim));
 }
 
-export function loadActiveClaim(cockpitDir: string, claimId: string): ClaimRecord {
-  return readClaimFile(claimFilePath(activeClaimsDir(cockpitDir), claimId));
+export function loadActiveClaim(backlogDir: string, claimId: string): ClaimRecord {
+  return readClaimFile(claimFilePath(activeClaimsDir(backlogDir), claimId));
 }
 
 export function findOverlappingClaims(
-  cockpitDir: string,
+  backlogDir: string,
   claim: Pick<ClaimRecord, "id" | "repo" | "repo_path" | "paths" | "mode">,
 ): ClaimRecord[] {
-  return listActiveClaims(cockpitDir).filter((candidate) => {
+  return listActiveClaims(backlogDir).filter((candidate) => {
     if (candidate.id === claim.id) {
       return false;
     }
@@ -96,16 +96,16 @@ export function findOverlappingClaims(
   });
 }
 
-export function archiveClaim(cockpitDir: string, claimId: string): ClaimRecord {
-  const activePath = claimFilePath(activeClaimsDir(cockpitDir), claimId);
-  const claim = loadActiveClaim(cockpitDir, claimId);
+export function archiveClaim(backlogDir: string, claimId: string): ClaimRecord {
+  const activePath = claimFilePath(activeClaimsDir(backlogDir), claimId);
+  const claim = loadActiveClaim(backlogDir, claimId);
   const archived: ClaimRecord = {
     ...claim,
     status: "archived",
     finished_at: new Date().toISOString(),
   };
   fs.writeFileSync(
-    claimFilePath(archiveClaimsDir(cockpitDir), claimId),
+    claimFilePath(archiveClaimsDir(backlogDir), claimId),
     JSON.stringify(archived, null, 2) + "\n",
     "utf8",
   );
@@ -117,8 +117,8 @@ export interface ClaimGcResult {
   archived: string[];
 }
 
-export function garbageCollectExpiredClaims(cockpitDir: string): ClaimGcResult {
-  const directory = activeClaimsDir(cockpitDir);
+export function garbageCollectExpiredClaims(backlogDir: string): ClaimGcResult {
+  const directory = activeClaimsDir(backlogDir);
   const result: ClaimGcResult = {
     archived: [],
   };
@@ -132,7 +132,7 @@ export function garbageCollectExpiredClaims(cockpitDir: string): ClaimGcResult {
     if (!isExpired(claim)) {
       continue;
     }
-    archiveClaim(cockpitDir, claim.id);
+    archiveClaim(backlogDir, claim.id);
     result.archived.push(claim.id);
   }
 

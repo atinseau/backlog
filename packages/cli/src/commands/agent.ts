@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
-import { getAgent, healthForAgents, listAgents, setAgentEnabled, updateAgent, validateAgents } from "@cockpit-ai/core";
+import { findWorkspace } from "@backlog/config";
+import { getAgent, healthForAgents, listAgents, setAgentEnabled, updateAgent, validateAgents } from "@backlog/core";
 
 function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -28,9 +28,9 @@ export function registerAgentCommand(program: Command): void {
     .action((options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const agents = listAgents(workspace.cockpitDir);
+      const agents = listAgents(workspace.backlogDir);
       if (options.json) {
         console.log(JSON.stringify(agents, null, 2));
         return;
@@ -48,9 +48,9 @@ export function registerAgentCommand(program: Command): void {
     .action((agentId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const agent = getAgent(workspace.cockpitDir, agentId);
+      const agent = getAgent(workspace.backlogDir, agentId);
       if (!agent) {
         throw new Error(`Unknown agent: ${agentId}`);
       }
@@ -77,9 +77,9 @@ export function registerAgentCommand(program: Command): void {
     .action((agentId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const agent = setAgentEnabled(workspace.cockpitDir, agentId, true);
+      const agent = setAgentEnabled(workspace.backlogDir, agentId, true);
       console.log(`Enabled ${agent.id}`);
     });
 
@@ -90,9 +90,9 @@ export function registerAgentCommand(program: Command): void {
     .action((agentId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const agent = setAgentEnabled(workspace.cockpitDir, agentId, false);
+      const agent = setAgentEnabled(workspace.backlogDir, agentId, false);
       console.log(`Disabled ${agent.id}`);
     });
 
@@ -134,9 +134,9 @@ export function registerAgentCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const agent = updateAgent(workspace.cockpitDir, agentId, {
+      const agent = updateAgent(workspace.backlogDir, agentId, {
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.clearModel ? { clearModel: true } : {}),
         ...(options.profile !== undefined ? { profile: options.profile } : {}),
@@ -162,9 +162,9 @@ export function registerAgentCommand(program: Command): void {
     .action(() => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      for (const result of validateAgents(workspace.cockpitDir)) {
+      for (const result of validateAgents(workspace.backlogDir)) {
         console.log(`${result.id}: ${result.ok ? "ok" : "invalid"}${result.reasons.length > 0 ? ` (${result.reasons.join(", ")})` : ""}`);
       }
     });
@@ -176,9 +176,9 @@ export function registerAgentCommand(program: Command): void {
     .action((options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const health = healthForAgents(workspace.cockpitDir);
+      const health = healthForAgents(workspace.backlogDir);
       if (options.json) {
         console.log(JSON.stringify(health, null, 2));
         return;

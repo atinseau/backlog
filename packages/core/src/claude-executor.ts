@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, Task, WorkItem } from "@cockpit-ai/schemas";
+import type { Agent, Run, Task, WorkItem } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
 
 export async function executeClaudeAgentRun(params: {
-  cockpitDir: string;
+  backlogDir: string;
   run: Run;
   task: Task;
   workItem: WorkItem;
@@ -15,8 +15,8 @@ export async function executeClaudeAgentRun(params: {
 }): Promise<void> {
   const executable = params.agent.command || "claude";
   const prompt = buildProviderPrompt(params.task, params.workItem);
-  const promptPath = path.join(params.run.worktree_path, ".cockpit-claude-prompt.md");
-  const logPath = path.join(params.run.worktree_path, ".cockpit-claude.log");
+  const promptPath = path.join(params.run.worktree_path, ".backlog-claude-prompt.md");
+  const logPath = path.join(params.run.worktree_path, ".backlog-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
   const args = ["-p", "--output-format", "text", "--permission-mode", "bypassPermissions"];
@@ -28,7 +28,7 @@ export async function executeClaudeAgentRun(params: {
   }
   args.push(prompt);
 
-  appendRunEvent(params.cockpitDir, params.run.id, {
+  appendRunEvent(params.backlogDir, params.run.id, {
     ts: new Date().toISOString(),
     type: "executor.start",
     message: `Executing Claude run for ${params.agent.id}`,
@@ -49,21 +49,21 @@ export async function executeClaudeAgentRun(params: {
 
     const summary = result.stdout.trim();
     if (summary) {
-      addRunArtifact(params.cockpitDir, params.run.id, { kind: "summary", value: summary });
+      addRunArtifact(params.backlogDir, params.run.id, { kind: "summary", value: summary });
     }
-    addRunArtifact(params.cockpitDir, params.run.id, { kind: "log", value: ".cockpit-claude.log" });
+    addRunArtifact(params.backlogDir, params.run.id, { kind: "log", value: ".backlog-claude.log" });
     for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
-      addRunArtifact(params.cockpitDir, params.run.id, artifact);
+      addRunArtifact(params.backlogDir, params.run.id, artifact);
     }
 
     if (result.exitCode === 0) {
       await finalizeSuccessfulRun(
-        params.cockpitDir,
+        params.backlogDir,
         params.run.id,
         summary || `Claude agent ${params.agent.id} completed successfully`,
         successModeForAgent(params.agent),
       );
-      appendRunEvent(params.cockpitDir, params.run.id, {
+      appendRunEvent(params.backlogDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
         message: `Claude execution completed with success mode ${successModeForAgent(params.agent)}`,
@@ -72,7 +72,7 @@ export async function executeClaudeAgentRun(params: {
     }
 
     const handoffPath = writeRunHandoff(
-      params.cockpitDir,
+      params.backlogDir,
       params.run.id,
       [
         "# Run Handoff",
@@ -82,21 +82,21 @@ export async function executeClaudeAgentRun(params: {
         "",
         `Exit code: ${String(result.exitCode)}`,
         "",
-        "Inspect `.cockpit-claude.log` in the worktree.",
+        "Inspect `.backlog-claude.log` in the worktree.",
       ].join("\n"),
     );
     await failRun(
-      params.cockpitDir,
+      params.backlogDir,
       params.run.id,
       summary || `Claude agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`,
     );
-    appendRunEvent(params.cockpitDir, params.run.id, {
+    appendRunEvent(params.backlogDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",
       message: `Claude execution failed. Handoff: ${handoffPath}`,
     });
   } catch (error) {
-    updateRunStatus(params.cockpitDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));
+    updateRunStatus(params.backlogDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }

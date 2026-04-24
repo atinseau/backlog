@@ -15,11 +15,11 @@ export const claimRecordSchema = z.object({
   finished_at: z.string().min(1).optional(),
 });
 
-export const cockpitContextSchema = z.object({
+export const backlogContextSchema = z.object({
   version: z.literal(1),
   claim_id: z.string().min(1),
   updated_at: z.string().min(1),
 });
 
 export type ClaimRecord = z.infer<typeof claimRecordSchema>;
-export type CockpitContext = z.infer<typeof cockpitContextSchema>;
+export type BacklogContext = z.infer<typeof backlogContextSchema>;

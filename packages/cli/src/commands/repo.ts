@@ -1,8 +1,8 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { detectRepoRoot, repoCurrentBranch } from "@cockpit-ai/git";
-import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "@cockpit-ai/core";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { detectRepoRoot, repoCurrentBranch } from "@backlog/git";
+import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -40,10 +40,10 @@ export function registerRepoCommand(program: Command): void {
     .action((options: { enabled?: string; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const repos = listRepos(workspace.cockpitDir).filter((repo) => {
+      const repos = listRepos(workspace.backlogDir).filter((repo) => {
         if (options.enabled === undefined) {
           return true;
         }
@@ -71,9 +71,9 @@ export function registerRepoCommand(program: Command): void {
     .action((repoId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const repo = getRepo(workspace.cockpitDir, repoId);
+      const repo = getRepo(workspace.backlogDir, repoId);
       if (!repo) {
         throw new Error(`Unknown repo: ${repoId}`);
       }
@@ -107,13 +107,13 @@ export function registerRepoCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       const requestedPath = path.resolve(workspace.root, options.path);
       const repoId = options.id ?? slugify(path.basename(requestedPath));
       const defaultBranch = options.defaultBranch ?? await resolveRepoBranch(requestedPath, config.default_branch);
-      const repo = addRepo(workspace.cockpitDir, {
+      const repo = addRepo(workspace.backlogDir, {
         id: repoId,
         path: requestedPath,
         defaultBranch,
@@ -145,12 +145,12 @@ export function registerRepoCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       if (options.enable && options.disable) {
         throw new Error("Use either --enable or --disable, not both.");
       }
-      const repo = updateRepo(workspace.cockpitDir, repoId, {
+      const repo = updateRepo(workspace.backlogDir, repoId, {
         ...(options.id !== undefined ? { id: options.id } : {}),
         ...(options.path !== undefined ? { path: path.resolve(workspace.root, options.path) } : {}),
         ...(options.defaultBranch !== undefined ? { defaultBranch: options.defaultBranch } : {}),
@@ -170,9 +170,9 @@ export function registerRepoCommand(program: Command): void {
     .action((repoId: string, options: { force?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const repo = removeRepo(workspace.cockpitDir, repoId, {
+      const repo = removeRepo(workspace.backlogDir, repoId, {
         ...(options.force ? { force: true } : {}),
       });
       console.log(`Removed repo ${repo.id}`);

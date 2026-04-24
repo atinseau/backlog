@@ -19,7 +19,7 @@ export const sourceConfigSchema = z.object({
     pull: z.boolean().default(true),
     push_status: z.boolean().default(false),
     push_comments: z.boolean().default(false),
-    source_of_truth: z.enum(["external", "cockpit"]).default("external"),
+    source_of_truth: z.enum(["external", "backlog"]).default("external"),
   }).default({
     pull: true,
     push_status: false,

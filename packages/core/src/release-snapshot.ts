@@ -1,5 +1,5 @@
-import type { WorkspaceConfig } from "@cockpit-ai/schemas";
-import { repoCurrentBranch, repoCurrentTag, repoHeadSha, repoIsDirty } from "@cockpit-ai/git";
+import type { WorkspaceConfig } from "@backlog/schemas";
+import { repoCurrentBranch, repoCurrentTag, repoHeadSha, repoIsDirty } from "@backlog/git";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 
 export interface RepoSnapshot {
@@ -20,13 +20,13 @@ export interface BuildReleaseSnapshotOptions {
 }
 
 export async function buildReleaseSnapshot(
-  cockpitDir: string,
+  backlogDir: string,
   config: WorkspaceConfig,
   options?: BuildReleaseSnapshotOptions,
 ): Promise<RepoSnapshot[]> {
   const snapshots: RepoSnapshot[] = [];
-  const activeRuns = listActiveRuns(cockpitDir);
-  const archivedRuns = listArchivedRuns(cockpitDir);
+  const activeRuns = listActiveRuns(backlogDir);
+  const archivedRuns = listArchivedRuns(backlogDir);
   const repos = config.repos.filter((candidate) => {
     if (options?.repoId && candidate.id !== options.repoId) {
       return false;

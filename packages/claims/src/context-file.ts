@@ -1,24 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
-import { cockpitContextSchema, type CockpitContext } from "@cockpit-ai/schemas";
+import { backlogContextSchema, type BacklogContext } from "@backlog/schemas";
 
-export function readContextFile(gitDir: string): CockpitContext | null {
-  const filePath = path.join(gitDir, "cockpit-context.json");
+export function readContextFile(gitDir: string): BacklogContext | null {
+  const filePath = path.join(gitDir, "backlog-context.json");
   if (!fs.existsSync(filePath)) {
     return null;
   }
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
-  return cockpitContextSchema.parse(raw);
+  return backlogContextSchema.parse(raw);
 }
 
-export function writeContextFile(gitDir: string, context: CockpitContext): string {
-  const filePath = path.join(gitDir, "cockpit-context.json");
+export function writeContextFile(gitDir: string, context: BacklogContext): string {
+  const filePath = path.join(gitDir, "backlog-context.json");
   fs.writeFileSync(filePath, JSON.stringify(context, null, 2) + "\n", "utf8");
   return filePath;
 }
 
 export function removeContextFile(gitDir: string, claimId?: string): void {
-  const filePath = path.join(gitDir, "cockpit-context.json");
+  const filePath = path.join(gitDir, "backlog-context.json");
   if (!fs.existsSync(filePath)) {
     return;
   }

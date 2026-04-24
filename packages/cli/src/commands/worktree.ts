@@ -1,9 +1,9 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { garbageCollectWorktrees, listKnownWorktrees } from "@cockpit-ai/core";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { garbageCollectWorktrees, listKnownWorktrees } from "@backlog/core";
 
 export function registerWorktreeCommand(program: Command): void {
-  const worktree = program.command("worktree").description("Manage Cockpit worktrees");
+  const worktree = program.command("worktree").description("Manage Backlog worktrees");
 
   worktree
     .command("list")
@@ -15,9 +15,9 @@ export function registerWorktreeCommand(program: Command): void {
     .action((options: { repo?: string; status?: string; missing?: boolean; json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const worktrees = listKnownWorktrees(workspace.cockpitDir).filter((entry) => {
+      const worktrees = listKnownWorktrees(workspace.backlogDir).filter((entry) => {
         if (options.repo && entry.repo !== options.repo) {
           return false;
         }
@@ -50,10 +50,10 @@ export function registerWorktreeCommand(program: Command): void {
     .action(async (options: { json?: boolean; dryRun?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
-      const result = await garbageCollectWorktrees(workspace.cockpitDir, config, {
+      const config = loadConfig(workspace.backlogDir);
+      const result = await garbageCollectWorktrees(workspace.backlogDir, config, {
         ...(options.dryRun ? { dryRun: true } : {}),
       });
       if (options.json) {

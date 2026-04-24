@@ -2,28 +2,28 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import YAML from "yaml";
-import { agentsFileSchema, type Agent, type AgentsFile, type Task } from "@cockpit-ai/schemas";
+import { agentsFileSchema, type Agent, type AgentsFile, type Task } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 
-function agentsPath(cockpitDir: string): string {
-  return path.join(cockpitDir, "agents.yaml");
+function agentsPath(backlogDir: string): string {
+  return path.join(backlogDir, "agents.yaml");
 }
 
-export function readAgentsFile(cockpitDir: string): AgentsFile {
-  const parsed = YAML.parse(fs.readFileSync(agentsPath(cockpitDir), "utf8")) as unknown;
+export function readAgentsFile(backlogDir: string): AgentsFile {
+  const parsed = YAML.parse(fs.readFileSync(agentsPath(backlogDir), "utf8")) as unknown;
   return agentsFileSchema.parse(parsed);
 }
 
-export function writeAgentsFile(cockpitDir: string, file: AgentsFile): void {
-  fs.writeFileSync(agentsPath(cockpitDir), YAML.stringify(agentsFileSchema.parse(file)), "utf8");
+export function writeAgentsFile(backlogDir: string, file: AgentsFile): void {
+  fs.writeFileSync(agentsPath(backlogDir), YAML.stringify(agentsFileSchema.parse(file)), "utf8");
 }
 
-export function listAgents(cockpitDir: string): Agent[] {
-  return readAgentsFile(cockpitDir).agents;
+export function listAgents(backlogDir: string): Agent[] {
+  return readAgentsFile(backlogDir).agents;
 }
 
-export function getAgent(cockpitDir: string, id: string): Agent | null {
-  return listAgents(cockpitDir).find((candidate) => candidate.id === id) ?? null;
+export function getAgent(backlogDir: string, id: string): Agent | null {
+  return listAgents(backlogDir).find((candidate) => candidate.id === id) ?? null;
 }
 
 export interface UpdateAgentInput {
@@ -45,8 +45,8 @@ export interface UpdateAgentInput {
   capabilities?: string[];
 }
 
-export function updateAgent(cockpitDir: string, id: string, input: UpdateAgentInput): Agent {
-  const file = readAgentsFile(cockpitDir);
+export function updateAgent(backlogDir: string, id: string, input: UpdateAgentInput): Agent {
+  const file = readAgentsFile(backlogDir);
   const agent = file.agents.find((candidate) => candidate.id === id);
   if (!agent) {
     throw new Error(`Unknown agent: ${id}`);
@@ -101,12 +101,12 @@ export function updateAgent(cockpitDir: string, id: string, input: UpdateAgentIn
     agent.capabilities = input.capabilities;
   }
 
-  writeAgentsFile(cockpitDir, file);
+  writeAgentsFile(backlogDir, file);
   return agent;
 }
 
-export function setAgentEnabled(cockpitDir: string, id: string, enabled: boolean): Agent {
-  return updateAgent(cockpitDir, id, { enabled });
+export function setAgentEnabled(backlogDir: string, id: string, enabled: boolean): Agent {
+  return updateAgent(backlogDir, id, { enabled });
 }
 
 export interface AgentHealth {
@@ -134,8 +134,8 @@ function executableExists(command: string): boolean {
   return spawnSync("which", [command], { stdio: "ignore" }).status === 0;
 }
 
-export function validateAgents(cockpitDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
-  return listAgents(cockpitDir).map((agent) => {
+export function validateAgents(backlogDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
+  return listAgents(backlogDir).map((agent) => {
     const reasons: string[] = [];
     if (agent.max_concurrent_runs < 1) {
       reasons.push("max_concurrent_runs_must_be_positive");
@@ -163,9 +163,9 @@ export function validateAgents(cockpitDir: string): Array<{ id: string; ok: bool
   });
 }
 
-export function healthForAgents(cockpitDir: string): AgentHealth[] {
-  const activeRuns = listActiveRuns(cockpitDir);
-  return listAgents(cockpitDir).map((agent) => {
+export function healthForAgents(backlogDir: string): AgentHealth[] {
+  const activeRuns = listActiveRuns(backlogDir);
+  return listAgents(backlogDir).map((agent) => {
     const count = activeRuns.filter((run) => run.agent_id === agent.id).length;
     const reasons: string[] = [];
     if (!agent.enabled) {
@@ -208,14 +208,14 @@ export function canAgentRunTask(agent: Agent, task: Pick<Task, "repo" | "risk" |
   return task.execution.required_capabilities.every((capability) => agent.capabilities.includes(capability));
 }
 
-export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): AgentSelection[] {
-  const activeRuns = listActiveRuns(cockpitDir);
+export function rankAgentsForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): AgentSelection[] {
+  const activeRuns = listActiveRuns(backlogDir);
   const activeRunCounts = new Map<string, number>();
   for (const run of activeRuns) {
     activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
   }
 
-  return listAgents(cockpitDir)
+  return listAgents(backlogDir)
     .map((agent) => {
       const reasons: string[] = [];
       if (!agent.enabled) {
@@ -278,23 +278,23 @@ export function rankAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | 
 }
 
 export function selectionForAgentTask(
-  cockpitDir: string,
+  backlogDir: string,
   task: Pick<Task, "repo" | "risk" | "execution">,
   agentId: string,
 ): AgentSelection | null {
-  return rankAgentsForTask(cockpitDir, task).find((candidate) => candidate.agent.id === agentId) ?? null;
+  return rankAgentsForTask(backlogDir, task).find((candidate) => candidate.agent.id === agentId) ?? null;
 }
 
-export function pickAgentForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent {
-  const agent = rankAgentsForTask(cockpitDir, task).find((candidate) => candidate.available)?.agent;
+export function pickAgentForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent {
+  const agent = rankAgentsForTask(backlogDir, task).find((candidate) => candidate.available)?.agent;
   if (!agent) {
     throw new Error(`No enabled agent can run repo ${task.repo} at risk ${task.risk}.`);
   }
   return agent;
 }
 
-export function compatibleAgentsForTask(cockpitDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent[] {
-  return rankAgentsForTask(cockpitDir, task)
+export function compatibleAgentsForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent[] {
+  return rankAgentsForTask(backlogDir, task)
     .filter((candidate) => candidate.available)
     .map((candidate) => candidate.agent);
 }

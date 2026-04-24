@@ -1,5 +1,5 @@
-import { listActiveClaims, scopesOverlap } from "@cockpit-ai/claims";
-import type { Task, WorkItem, WorkspaceConfig } from "@cockpit-ai/schemas";
+import { listActiveClaims, scopesOverlap } from "@backlog/claims";
+import type { Task, WorkItem, WorkspaceConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { listActiveRuns } from "./run-store.js";
 import { listTasks, listWorkItems } from "./state-files.js";
@@ -112,15 +112,15 @@ function scoreTask(task: Task, workItem: WorkItem): number {
 }
 
 export function buildExecutionPlan(
-  cockpitDir: string,
+  backlogDir: string,
   config: WorkspaceConfig,
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
-  const tasks = listTasks(cockpitDir).filter((task) => !isTerminal(task.status));
-  const workItems = listWorkItems(cockpitDir);
+  const tasks = listTasks(backlogDir).filter((task) => !isTerminal(task.status));
+  const workItems = listWorkItems(backlogDir);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));
-  const claims = listActiveClaims(cockpitDir);
+  const claims = listActiveClaims(backlogDir);
 
   const candidates = tasks.filter((task) => {
     if (options?.taskId) {
@@ -132,7 +132,7 @@ export function buildExecutionPlan(
     return true;
   });
 
-  const activeRuns = listActiveRuns(cockpitDir);
+  const activeRuns = listActiveRuns(backlogDir);
   const activeRunCounts = new Map<string, number>();
   for (const run of activeRuns) {
     activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
@@ -175,7 +175,7 @@ export function buildExecutionPlan(
     }
 
     const score = scoreTask(task, workItem);
-    const rankedAgents = rankAgentsForTask(cockpitDir, task);
+    const rankedAgents = rankAgentsForTask(backlogDir, task);
     const compatibleAgents = rankedAgents.filter((candidate) => candidate.available).map((candidate) => candidate.agent);
     if (compatibleAgents.length === 0) {
       reasons.push("no_compatible_agent");
@@ -265,7 +265,7 @@ export function buildExecutionPlan(
       continue;
     }
 
-    const compatibleAgents = compatibleAgentsForTask(cockpitDir, task);
+    const compatibleAgents = compatibleAgentsForTask(backlogDir, task);
     const agent = compatibleAgentIds
       .map((agentId) => ({
         id: agentId,
@@ -355,15 +355,15 @@ export interface WorkExecutionOutline {
   recommendedNextTaskId: string | null;
 }
 
-export function buildWorkExecutionOutline(cockpitDir: string, config: WorkspaceConfig, workItemId: string): WorkExecutionOutline {
-  const workItem = listWorkItems(cockpitDir).find((item) => item.id === workItemId);
+export function buildWorkExecutionOutline(backlogDir: string, config: WorkspaceConfig, workItemId: string): WorkExecutionOutline {
+  const workItem = listWorkItems(backlogDir).find((item) => item.id === workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${workItemId}`);
   }
-  const tasks = listTasks(cockpitDir)
+  const tasks = listTasks(backlogDir)
     .filter((task) => task.work_item_id === workItemId)
     .sort((left, right) => left.depends_on.length - right.depends_on.length || left.created_at.localeCompare(right.created_at));
-  const plan = buildExecutionPlan(cockpitDir, config, { workItemId });
+  const plan = buildExecutionPlan(backlogDir, config, { workItemId });
   return {
     workItem,
     tasks,

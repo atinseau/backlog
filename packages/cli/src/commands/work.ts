@@ -1,8 +1,8 @@
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
-import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, removeWorkItem, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@cockpit-ai/core";
-import { loadConfig } from "@cockpit-ai/config";
-import { createConnector } from "@cockpit-ai/connectors";
+import { findWorkspace } from "@backlog/config";
+import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, removeWorkItem, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@backlog/core";
+import { loadConfig } from "@backlog/config";
+import { createConnector } from "@backlog/connectors";
 
 function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -44,9 +44,9 @@ export function registerWorkCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const item = createWorkItem(workspace.cockpitDir, {
+      const item = createWorkItem(workspace.backlogDir, {
         title: options.title,
         ...(options.description ? { description: options.description } : {}),
         ...(options.priority ? { priority: options.priority } : {}),
@@ -89,9 +89,9 @@ export function registerWorkCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const item = updateWorkItem(workspace.cockpitDir, workItemId, {
+      const item = updateWorkItem(workspace.backlogDir, workItemId, {
         ...(options.title !== undefined ? { title: options.title } : {}),
         ...(options.description !== undefined ? { description: options.description } : {}),
         ...(options.clearDescription ? { clearDescription: true } : {}),
@@ -119,9 +119,9 @@ export function registerWorkCommand(program: Command): void {
     .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const items = listWorkItems(workspace.cockpitDir).filter((item) => {
+      const items = listWorkItems(workspace.backlogDir).filter((item) => {
         if (options.status && item.status !== options.status) {
           return false;
         }
@@ -157,9 +157,9 @@ export function registerWorkCommand(program: Command): void {
     .action((workItemId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const item = getWorkItem(workspace.cockpitDir, workItemId);
+      const item = getWorkItem(workspace.backlogDir, workItemId);
       if (!item) {
         throw new Error(`Unknown work item: ${workItemId}`);
       }
@@ -187,9 +187,9 @@ export function registerWorkCommand(program: Command): void {
     .action((workItemId: string, options: { cascade?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const item = removeWorkItem(workspace.cockpitDir, workItemId, {
+      const item = removeWorkItem(workspace.backlogDir, workItemId, {
         ...(options.cascade ? { cascadeTasks: true } : {}),
       });
       console.log(`Removed ${item.id}`);
@@ -203,9 +203,9 @@ export function registerWorkCommand(program: Command): void {
     .action((workItemId: string, status: "backlog" | "ready" | "in_progress" | "review" | "test" | "released" | "done" | "blocked") => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const item = updateWorkItemStatus(workspace.cockpitDir, workItemId, status);
+      const item = updateWorkItemStatus(workspace.backlogDir, workItemId, status);
       console.log(`Moved ${item.id} to ${item.status}`);
     });
 
@@ -217,10 +217,10 @@ export function registerWorkCommand(program: Command): void {
     .action((workItemId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
-      const outline = buildWorkExecutionOutline(workspace.cockpitDir, config, workItemId);
+      const config = loadConfig(workspace.backlogDir);
+      const outline = buildWorkExecutionOutline(workspace.backlogDir, config, workItemId);
 
       if (options.json) {
         console.log(JSON.stringify(outline, null, 2));
@@ -264,16 +264,16 @@ export function registerWorkCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
-      const item = getWorkItem(workspace.cockpitDir, workItemId);
+      const config = loadConfig(workspace.backlogDir);
+      const item = getWorkItem(workspace.backlogDir, workItemId);
       if (!item) {
         throw new Error(`Unknown work item: ${workItemId}`);
       }
 
       const repos = resolveSplitRepos(config, item, options.repo);
-      const result = splitWorkItem(workspace.cockpitDir, {
+      const result = splitWorkItem(workspace.backlogDir, {
         workItemId,
         repos,
         mode: options.mode === "serial" ? "serial" : "parallel",
@@ -303,11 +303,11 @@ export function registerWorkCommand(program: Command): void {
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
       const sourcesToSync = sourceId
-        ? [getSource(workspace.cockpitDir, sourceId)].filter(Boolean)
-        : listSources(workspace.cockpitDir).filter((source) => source.enabled);
+        ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
+        : listSources(workspace.backlogDir).filter((source) => source.enabled);
       if (sourcesToSync.length === 0) {
         throw new Error(sourceId ? `Unknown source: ${sourceId}` : "No enabled sources configured.");
       }
@@ -316,7 +316,7 @@ export function registerWorkCommand(program: Command): void {
         const connector = createConnector(source!, workspace.root);
         const items = await connector.pull();
         if (!options?.dryRun) {
-          upsertImportedWorkItems(workspace.cockpitDir, items);
+          upsertImportedWorkItems(workspace.backlogDir, items);
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "imported"}`);
       }

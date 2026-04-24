@@ -2,7 +2,7 @@ import {
   taskStatusSchema,
   type Task,
   type TaskStatus,
-} from "@cockpit-ai/schemas";
+} from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { getWorkItem, updateWorkItemStatus, deriveWorkStatusFromTasks } from "./work-service.js";
 import { readTasksFile, writeTasksFile } from "./state-files.js";
@@ -42,13 +42,13 @@ export interface UpdateTaskInput {
   plannerLocked?: boolean;
 }
 
-export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
-  const workItem = getWorkItem(cockpitDir, input.workItemId);
+export function createTask(backlogDir: string, input: CreateTaskInput): Task {
+  const workItem = getWorkItem(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
 
-  const file = readTasksFile(cockpitDir);
+  const file = readTasksFile(backlogDir);
   const now = new Date().toISOString();
   const task: Task = {
     id: makeId("TASK"),
@@ -80,17 +80,17 @@ export function createTask(cockpitDir: string, input: CreateTaskInput): Task {
     updated_at: now,
   };
   file.tasks.push(task);
-  writeTasksFile(cockpitDir, file);
-  updateWorkItemStatus(cockpitDir, input.workItemId, "ready");
+  writeTasksFile(backlogDir, file);
+  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
   return task;
 }
 
-export function getTask(cockpitDir: string, id: string): Task | null {
-  return readTasksFile(cockpitDir).tasks.find((task) => task.id === id) ?? null;
+export function getTask(backlogDir: string, id: string): Task | null {
+  return readTasksFile(backlogDir).tasks.find((task) => task.id === id) ?? null;
 }
 
-export function updateTask(cockpitDir: string, id: string, input: UpdateTaskInput): Task {
-  const file = readTasksFile(cockpitDir);
+export function updateTask(backlogDir: string, id: string, input: UpdateTaskInput): Task {
+  const file = readTasksFile(backlogDir);
   const task = file.tasks.find((candidate) => candidate.id === id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
@@ -140,42 +140,42 @@ export function updateTask(cockpitDir: string, id: string, input: UpdateTaskInpu
   }
 
   task.updated_at = new Date().toISOString();
-  writeTasksFile(cockpitDir, file);
+  writeTasksFile(backlogDir, file);
   return task;
 }
 
-export function updateTaskStatus(cockpitDir: string, id: string, status: TaskStatus): Task {
+export function updateTaskStatus(backlogDir: string, id: string, status: TaskStatus): Task {
   const parsedStatus = taskStatusSchema.parse(status);
-  const file = readTasksFile(cockpitDir);
+  const file = readTasksFile(backlogDir);
   const task = file.tasks.find((candidate) => candidate.id === id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
   task.status = parsedStatus;
   task.updated_at = new Date().toISOString();
-  writeTasksFile(cockpitDir, file);
+  writeTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveWorkStatusFromTasks(cockpitDir, task.work_item_id);
+  const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, task.work_item_id);
   if (derivedWorkStatus) {
-    updateWorkItemStatus(cockpitDir, task.work_item_id, derivedWorkStatus);
+    updateWorkItemStatus(backlogDir, task.work_item_id, derivedWorkStatus);
   }
 
   return task;
 }
 
-export function blockTask(cockpitDir: string, id: string, reasons: string[]): Task {
-  const task = getTask(cockpitDir, id);
+export function blockTask(backlogDir: string, id: string, reasons: string[]): Task {
+  const task = getTask(backlogDir, id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
 
   const blockers = Array.from(new Set([...task.blockers, ...reasons]));
-  updateTask(cockpitDir, id, { blockers });
-  return updateTaskStatus(cockpitDir, id, "blocked");
+  updateTask(backlogDir, id, { blockers });
+  return updateTaskStatus(backlogDir, id, "blocked");
 }
 
-export function unblockTask(cockpitDir: string, id: string, reasons?: string[]): Task {
-  const task = getTask(cockpitDir, id);
+export function unblockTask(backlogDir: string, id: string, reasons?: string[]): Task {
+  const task = getTask(backlogDir, id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
@@ -184,12 +184,12 @@ export function unblockTask(cockpitDir: string, id: string, reasons?: string[]):
     ? task.blockers.filter((blocker) => !reasons.includes(blocker))
     : [];
 
-  updateTask(cockpitDir, id, { blockers });
-  return updateTaskStatus(cockpitDir, id, blockers.length > 0 ? "blocked" : "planned");
+  updateTask(backlogDir, id, { blockers });
+  return updateTaskStatus(backlogDir, id, blockers.length > 0 ? "blocked" : "planned");
 }
 
-export function removeTask(cockpitDir: string, id: string): Task {
-  const file = readTasksFile(cockpitDir);
+export function removeTask(backlogDir: string, id: string): Task {
+  const file = readTasksFile(backlogDir);
   const index = file.tasks.findIndex((candidate) => candidate.id === id);
   if (index < 0) {
     throw new Error(`Unknown task: ${id}`);
@@ -205,13 +205,13 @@ export function removeTask(cockpitDir: string, id: string): Task {
       task.updated_at = new Date().toISOString();
     }
   }
-  writeTasksFile(cockpitDir, file);
+  writeTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveWorkStatusFromTasks(cockpitDir, removed.work_item_id);
+  const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, removed.work_item_id);
   if (derivedWorkStatus) {
-    updateWorkItemStatus(cockpitDir, removed.work_item_id, derivedWorkStatus);
+    updateWorkItemStatus(backlogDir, removed.work_item_id, derivedWorkStatus);
   } else {
-    updateWorkItemStatus(cockpitDir, removed.work_item_id, "backlog");
+    updateWorkItemStatus(backlogDir, removed.work_item_id, "backlog");
   }
 
   return removed;

@@ -12,10 +12,10 @@ import {
   readContextFile,
   removeContextFile,
   writeContextFile,
-} from "@cockpit-ai/claims";
-import { findWorkspace, loadConfig } from "@cockpit-ai/config";
-import { detectGitDir, detectRepoRoot, stagedPaths } from "@cockpit-ai/git";
-import type { ClaimRecord, RepoConfig } from "@cockpit-ai/schemas";
+} from "@backlog/claims";
+import { findWorkspace, loadConfig } from "@backlog/config";
+import { detectGitDir, detectRepoRoot, stagedPaths } from "@backlog/git";
+import type { ClaimRecord, RepoConfig } from "@backlog/schemas";
 
 function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?: string): RepoConfig {
   if (explicitRepo) {
@@ -40,17 +40,17 @@ function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?
   throw new Error("Unable to determine repo. Pass --repo explicitly.");
 }
 
-async function resolveClaimFromContext(cockpitDir: string, repoRoot: string): Promise<ClaimRecord> {
+async function resolveClaimFromContext(backlogDir: string, repoRoot: string): Promise<ClaimRecord> {
   const gitDir = await detectGitDir(repoRoot);
   const context = readContextFile(gitDir);
   if (!context) {
-    throw new Error(`No local cockpit context found in ${gitDir}. Start a claim first.`);
+    throw new Error(`No local backlog context found in ${gitDir}. Start a claim first.`);
   }
-  return loadActiveClaim(cockpitDir, context.claim_id);
+  return loadActiveClaim(backlogDir, context.claim_id);
 }
 
 export function registerClaimCommand(program: Command): void {
-  const claim = program.command("claim").description("Manage local Cockpit claims");
+  const claim = program.command("claim").description("Manage local Backlog claims");
 
   claim
     .command("start")
@@ -73,14 +73,14 @@ export function registerClaimCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const config = loadConfig(workspace.cockpitDir);
+      const config = loadConfig(workspace.backlogDir);
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
       const repo = resolveRepo(config.repos, options.repo, repoRoot);
       const claimRecord = createClaim({
-        cockpitDir: workspace.cockpitDir,
+        backlogDir: workspace.backlogDir,
         repo: repo.id,
         repoPath: repo.path,
         topic: options.topic,
@@ -89,9 +89,9 @@ export function registerClaimCommand(program: Command): void {
         ttlMinutes: Number.parseInt(options.ttlMinutes, 10),
       });
 
-      const overlaps = findOverlappingClaims(workspace.cockpitDir, claimRecord);
+      const overlaps = findOverlappingClaims(workspace.backlogDir, claimRecord);
       if (overlaps.length > 0 && !options.allowOverlap) {
-        archiveClaim(workspace.cockpitDir, claimRecord.id);
+        archiveClaim(workspace.backlogDir, claimRecord.id);
         throw new Error(
           `Overlapping claim detected: ${overlaps.map((item) => `${item.id} (${item.topic})`).join(", ")}`,
         );
@@ -117,10 +117,10 @@ export function registerClaimCommand(program: Command): void {
     .action((options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const result = garbageCollectExpiredClaims(workspace.cockpitDir);
+      const result = garbageCollectExpiredClaims(workspace.backlogDir);
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
         return;
@@ -137,10 +137,10 @@ export function registerClaimCommand(program: Command): void {
     .action(() => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const claims = listActiveClaims(workspace.cockpitDir);
+      const claims = listActiveClaims(workspace.backlogDir);
       if (claims.length === 0) {
         console.log("No active claims.");
         return;
@@ -162,11 +162,11 @@ export function registerClaimCommand(program: Command): void {
     .action(async (options: { repoRoot?: string; staged?: boolean; path?: string[] }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      const claimRecord = await resolveClaimFromContext(workspace.cockpitDir, repoRoot);
+      const claimRecord = await resolveClaimFromContext(workspace.backlogDir, repoRoot);
       if (isExpired(claimRecord)) {
         throw new Error(`Claim ${claimRecord.id} expired at ${claimRecord.expires_at}.`);
       }
@@ -184,7 +184,7 @@ export function registerClaimCommand(program: Command): void {
         );
       }
 
-      const overlaps = findOverlappingClaims(workspace.cockpitDir, claimRecord)
+      const overlaps = findOverlappingClaims(workspace.backlogDir, claimRecord)
         .flatMap((otherClaim) =>
           paths
             .filter((candidate) => pathsCoveredByScopes(otherClaim.paths, [candidate]).length === 0)
@@ -205,7 +205,7 @@ export function registerClaimCommand(program: Command): void {
     .action(async (options: { repoRoot?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
@@ -215,7 +215,7 @@ export function registerClaimCommand(program: Command): void {
         throw new Error("No active local claim pointer found.");
       }
 
-      const archived = archiveClaim(workspace.cockpitDir, context.claim_id);
+      const archived = archiveClaim(workspace.backlogDir, context.claim_id);
       removeContextFile(gitDir, archived.id);
       console.log(`Finished claim ${archived.id}`);
     });

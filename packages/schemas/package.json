@@ -1,5 +1,5 @@
 {
-  "name": "@cockpit-ai/schemas",
+  "name": "@backlog/schemas",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",

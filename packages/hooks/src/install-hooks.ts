@@ -1,59 +1,59 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const MANAGED_HOOK_MARKER = "Managed by Cockpit";
+export const MANAGED_HOOK_MARKER = "Managed by Backlog";
 
 export interface PreCommitHookStatus {
   hookPath: string;
   exists: boolean;
   managed: boolean;
-  cockpitBin?: string;
-  pointsToCockpitBin: boolean;
+  backlogBin?: string;
+  pointsToBacklogBin: boolean;
 }
 
 function readTemplate(): string {
   return fs.readFileSync(new URL("../templates/pre-commit.sh", import.meta.url), "utf8");
 }
 
-export function inspectPreCommitHook(gitDir: string, cockpitBin?: string): PreCommitHookStatus {
+export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCommitHookStatus {
   const hookPath = path.join(gitDir, "hooks", "pre-commit");
   if (!fs.existsSync(hookPath)) {
     return {
       hookPath,
       exists: false,
       managed: false,
-      pointsToCockpitBin: false,
+      pointsToBacklogBin: false,
     };
   }
 
   const contents = fs.readFileSync(hookPath, "utf8");
   const managed = contents.includes(MANAGED_HOOK_MARKER);
-  const cockpitBinMatch = contents.match(/COCKPIT_BIN="([^"]+)"/);
-  const configuredBin = cockpitBinMatch?.[1];
+  const backlogBinMatch = contents.match(/BACKLOG_BIN="([^"]+)"/);
+  const configuredBin = backlogBinMatch?.[1];
 
   return {
     hookPath,
     exists: true,
     managed,
-    ...(configuredBin ? { cockpitBin: configuredBin } : {}),
-    pointsToCockpitBin: cockpitBin ? configuredBin === cockpitBin : Boolean(configuredBin),
+    ...(configuredBin ? { backlogBin: configuredBin } : {}),
+    pointsToBacklogBin: backlogBin ? configuredBin === backlogBin : Boolean(configuredBin),
   };
 }
 
 export function installPreCommitHook(params: {
   gitDir: string;
-  cockpitBin: string;
+  backlogBin: string;
   force?: boolean;
 }): string {
   const hookPath = path.join(params.gitDir, "hooks", "pre-commit");
   const existing = fs.existsSync(hookPath) ? fs.readFileSync(hookPath, "utf8") : "";
   if (existing && !existing.includes(MANAGED_HOOK_MARKER) && !params.force) {
     throw new Error(
-      `Existing pre-commit hook is not Cockpit-managed at ${hookPath}. Re-run with --force to replace it.`,
+      `Existing pre-commit hook is not Backlog-managed at ${hookPath}. Re-run with --force to replace it.`,
     );
   }
 
-  const rendered = readTemplate().replace("__COCKPIT_BIN__", params.cockpitBin);
+  const rendered = readTemplate().replace("__BACKLOG_BIN__", params.backlogBin);
   fs.mkdirSync(path.dirname(hookPath), { recursive: true });
   fs.writeFileSync(hookPath, rendered, "utf8");
   fs.chmodSync(hookPath, 0o755);

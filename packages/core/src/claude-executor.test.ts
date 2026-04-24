@@ -2,15 +2,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout } from "@cockpit-ai/config";
-import type { Agent } from "@cockpit-ai/schemas";
+import { initLayout } from "@backlog/config";
+import type { Agent } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { createRun, loadRun } from "./run-store.js";
 import { createTask } from "./task-service.js";
 import { createWorkItem } from "./work-service.js";
 
 function createWorkspace(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-claude-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-claude-"));
   initLayout({
     root,
     workspaceName: "claude-test",
@@ -37,12 +37,12 @@ function writeFakeClaudeBinary(root: string): string {
 describe("executeClaudeAgentRun", () => {
   it("runs claude print mode and sends the run to review by default", async () => {
     const root = createWorkspace();
-    const cockpitDir = path.join(root, ".cockpit");
+    const backlogDir = path.join(root, ".backlog");
     const repoId = path.basename(root);
     const fakeClaudePath = writeFakeClaudeBinary(root);
 
-    const workItem = createWorkItem(cockpitDir, { title: "Claude run", repoTargets: [repoId] });
-    const task = createTask(cockpitDir, {
+    const workItem = createWorkItem(backlogDir, { title: "Claude run", repoTargets: [repoId] });
+    const task = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "Implement with claude",
       repo: repoId,
@@ -62,28 +62,28 @@ describe("executeClaudeAgentRun", () => {
     };
 
     createRun({
-      cockpitDir,
+      backlogDir,
       runId: "RUN-claude",
       task,
       workItem,
       agent,
-      branch: "cockpit/claude",
+      branch: "backlog/claude",
       worktreePath: root,
       claimIds: [],
     });
 
     await executeClaudeAgentRun({
-      cockpitDir,
-      run: loadRun(cockpitDir, "RUN-claude")!,
+      backlogDir,
+      run: loadRun(backlogDir, "RUN-claude")!,
       task,
       workItem,
       agent,
     });
 
-    const archivedRun = loadRun(cockpitDir, "RUN-claude");
+    const archivedRun = loadRun(backlogDir, "RUN-claude");
     expect(archivedRun?.status).toBe("awaiting_review");
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "summary")).toBe(true);
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "log")).toBe(true);
-    expect(fs.existsSync(path.join(root, ".cockpit-claude.log"))).toBe(true);
+    expect(fs.existsSync(path.join(root, ".backlog-claude.log"))).toBe(true);
   });
 });

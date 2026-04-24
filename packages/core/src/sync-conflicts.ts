@@ -1,15 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { syncConflictsFileSchema, type SyncConflict, type SyncConflictsFile, type WorkItem } from "@cockpit-ai/schemas";
+import { syncConflictsFileSchema, type SyncConflict, type SyncConflictsFile, type WorkItem } from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
 
-function conflictsPath(cockpitDir: string): string {
-  return path.join(cockpitDir, "sync-conflicts.json");
+function conflictsPath(backlogDir: string): string {
+  return path.join(backlogDir, "sync-conflicts.json");
 }
 
-export function readSyncConflictsFile(cockpitDir: string): SyncConflictsFile {
-  const filePath = conflictsPath(cockpitDir);
+export function readSyncConflictsFile(backlogDir: string): SyncConflictsFile {
+  const filePath = conflictsPath(backlogDir);
   if (!fs.existsSync(filePath)) {
     return { version: 1, conflicts: [] };
   }
@@ -17,34 +17,34 @@ export function readSyncConflictsFile(cockpitDir: string): SyncConflictsFile {
   return syncConflictsFileSchema.parse(raw);
 }
 
-export function writeSyncConflictsFile(cockpitDir: string, file: SyncConflictsFile): void {
-  fs.writeFileSync(conflictsPath(cockpitDir), JSON.stringify(file, null, 2) + "\n", "utf8");
+export function writeSyncConflictsFile(backlogDir: string, file: SyncConflictsFile): void {
+  fs.writeFileSync(conflictsPath(backlogDir), JSON.stringify(file, null, 2) + "\n", "utf8");
 }
 
-export function listSyncConflicts(cockpitDir: string): SyncConflict[] {
-  return readSyncConflictsFile(cockpitDir).conflicts;
+export function listSyncConflicts(backlogDir: string): SyncConflict[] {
+  return readSyncConflictsFile(backlogDir).conflicts;
 }
 
-export function listPendingSyncConflicts(cockpitDir: string): SyncConflict[] {
-  return listSyncConflicts(cockpitDir).filter((conflict) => conflict.resolution === "pending");
+export function listPendingSyncConflicts(backlogDir: string): SyncConflict[] {
+  return listSyncConflicts(backlogDir).filter((conflict) => conflict.resolution === "pending");
 }
 
-export function listPendingSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): SyncConflict[] {
-  return listPendingSyncConflicts(cockpitDir).filter((conflict) => conflict.work_item_id === workItemId);
+export function listPendingSyncConflictsForWorkItem(backlogDir: string, workItemId: string): SyncConflict[] {
+  return listPendingSyncConflicts(backlogDir).filter((conflict) => conflict.work_item_id === workItemId);
 }
 
-export function hasPendingSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): boolean {
-  return listPendingSyncConflictsForWorkItem(cockpitDir, workItemId).length > 0;
+export function hasPendingSyncConflictsForWorkItem(backlogDir: string, workItemId: string): boolean {
+  return listPendingSyncConflictsForWorkItem(backlogDir, workItemId).length > 0;
 }
 
 export function recordStatusConflict(params: {
-  cockpitDir: string;
+  backlogDir: string;
   workItemId: string;
   sourceRef: string;
   localValue: string;
   externalValue: string;
 }): SyncConflict {
-  const file = readSyncConflictsFile(params.cockpitDir);
+  const file = readSyncConflictsFile(params.backlogDir);
   const existing = file.conflicts.find((conflict) =>
     conflict.work_item_id === params.workItemId &&
     conflict.source_ref === params.sourceRef &&
@@ -56,7 +56,7 @@ export function recordStatusConflict(params: {
     existing.local_value = params.localValue;
     existing.external_value = params.externalValue;
     existing.detected_at = new Date().toISOString();
-    writeSyncConflictsFile(params.cockpitDir, file);
+    writeSyncConflictsFile(params.backlogDir, file);
     return existing;
   }
 
@@ -71,12 +71,12 @@ export function recordStatusConflict(params: {
     detected_at: new Date().toISOString(),
   };
   file.conflicts.push(conflict);
-  writeSyncConflictsFile(params.cockpitDir, file);
+  writeSyncConflictsFile(params.backlogDir, file);
   return conflict;
 }
 
-export function resolveSyncConflict(cockpitDir: string, conflictId: string, resolution: "external" | "local"): SyncConflict {
-  const conflicts = readSyncConflictsFile(cockpitDir);
+export function resolveSyncConflict(backlogDir: string, conflictId: string, resolution: "external" | "local"): SyncConflict {
+  const conflicts = readSyncConflictsFile(backlogDir);
   const conflict = conflicts.conflicts.find((item) => item.id === conflictId);
   if (!conflict) {
     throw new Error(`Unknown sync conflict: ${conflictId}`);
@@ -85,32 +85,32 @@ export function resolveSyncConflict(cockpitDir: string, conflictId: string, reso
   conflict.resolved_at = new Date().toISOString();
 
   if (resolution === "external") {
-    const workItems = readWorkItemsFile(cockpitDir);
+    const workItems = readWorkItemsFile(backlogDir);
     const workItem = workItems.items.find((item) => item.id === conflict.work_item_id);
     if (workItem) {
       workItem.status = conflict.external_value as WorkItem["status"];
       workItem.updated_at = new Date().toISOString();
-      writeWorkItemsFile(cockpitDir, workItems);
+      writeWorkItemsFile(backlogDir, workItems);
     }
   }
 
-  writeSyncConflictsFile(cockpitDir, conflicts);
+  writeSyncConflictsFile(backlogDir, conflicts);
   return conflict;
 }
 
 export function resolveSyncConflictsForWorkItem(
-  cockpitDir: string,
+  backlogDir: string,
   workItemId: string,
   resolution: "external" | "local",
 ): SyncConflict[] {
-  const pending = listPendingSyncConflictsForWorkItem(cockpitDir, workItemId);
-  return pending.map((conflict) => resolveSyncConflict(cockpitDir, conflict.id, resolution));
+  const pending = listPendingSyncConflictsForWorkItem(backlogDir, workItemId);
+  return pending.map((conflict) => resolveSyncConflict(backlogDir, conflict.id, resolution));
 }
 
-export function removeSyncConflictsForWorkItem(cockpitDir: string, workItemId: string): number {
-  const file = readSyncConflictsFile(cockpitDir);
+export function removeSyncConflictsForWorkItem(backlogDir: string, workItemId: string): number {
+  const file = readSyncConflictsFile(backlogDir);
   const before = file.conflicts.length;
   file.conflicts = file.conflicts.filter((conflict) => conflict.work_item_id !== workItemId);
-  writeSyncConflictsFile(cockpitDir, file);
+  writeSyncConflictsFile(backlogDir, file);
   return before - file.conflicts.length;
 }

@@ -5,7 +5,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@cockpit-ai/connectors": ["../connectors/src/index.ts"]
+      "@backlog/connectors": ["../connectors/src/index.ts"]
     }
   },
   "include": ["src"],

@@ -1,5 +1,5 @@
 {
-  "name": "@cockpit-ai/core",
+  "name": "@backlog/core",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,10 +9,10 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@cockpit-ai/config": "workspace:*",
-    "@cockpit-ai/claims": "workspace:*",
-    "@cockpit-ai/git": "workspace:*",
-    "@cockpit-ai/schemas": "workspace:*",
+    "@backlog/config": "workspace:*",
+    "@backlog/claims": "workspace:*",
+    "@backlog/git": "workspace:*",
+    "@backlog/schemas": "workspace:*",
     "execa": "^9.6.0",
     "yaml": "^2.8.0"
   }

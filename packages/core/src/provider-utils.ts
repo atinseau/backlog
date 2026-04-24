@@ -1,24 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Agent, Artifact, Run, Task, WorkItem } from "@cockpit-ai/schemas";
+import type { Agent, Artifact, Run, Task, WorkItem } from "@backlog/schemas";
 import { execa } from "execa";
 
 export function buildProviderEnv(agent: Agent, run: Run, task: Task, workItem: WorkItem): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...agent.environment,
-    COCKPIT_RUN_ID: run.id,
-    COCKPIT_TASK_ID: task.id,
-    COCKPIT_WORK_ITEM_ID: workItem.id,
-    COCKPIT_REPO: run.repo,
-    COCKPIT_BRANCH: run.branch,
-    COCKPIT_WORKTREE: run.worktree_path,
+    BACKLOG_RUN_ID: run.id,
+    BACKLOG_TASK_ID: task.id,
+    BACKLOG_WORK_ITEM_ID: workItem.id,
+    BACKLOG_REPO: run.repo,
+    BACKLOG_BRANCH: run.branch,
+    BACKLOG_WORKTREE: run.worktree_path,
   };
 }
 
 export function buildProviderPrompt(task: Task, workItem: WorkItem): string {
   const lines = [
-    "You are executing one Cockpit coding task in an isolated git worktree.",
+    "You are executing one Backlog coding task in an isolated git worktree.",
     "Stay within the declared scope whenever possible.",
     "",
     `Work item: ${workItem.id}`,
@@ -81,9 +81,9 @@ export async function collectWorktreeArtifacts(worktreePath: string): Promise<Ar
     reject: false,
   });
   if (diff.stdout.trim().length > 0) {
-    const patchPath = path.join(worktreePath, ".cockpit-run.patch");
+    const patchPath = path.join(worktreePath, ".backlog-run.patch");
     fs.writeFileSync(patchPath, diff.stdout, "utf8");
-    artifacts.push({ kind: "patch", value: ".cockpit-run.patch" });
+    artifacts.push({ kind: "patch", value: ".backlog-run.patch" });
   }
 
   return artifacts;

@@ -5,7 +5,7 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@cockpit-ai/schemas": ["../schemas/src/index.ts"]
+      "@backlog/schemas": ["../schemas/src/index.ts"]
     }
   },
   "include": ["src"],

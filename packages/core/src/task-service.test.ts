@@ -2,24 +2,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { initLayout, loadConfig } from "@cockpit-ai/config";
-import { git } from "@cockpit-ai/git";
+import { initLayout, loadConfig } from "@backlog/config";
+import { git } from "@backlog/git";
 import { blockTask, createTask, getTask, removeTask, unblockTask, updateTask } from "./task-service.js";
 import { createWorkItem, getWorkItem } from "./work-service.js";
 
 async function createWorkspace(): Promise<string> {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-task-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-task-"));
   await git(["init", "-b", "main"], root);
-  fs.writeFileSync(path.join(root, "README.md"), "# cockpit\n", "utf8");
+  fs.writeFileSync(path.join(root, "README.md"), "# backlog\n", "utf8");
   await git(["add", "README.md"], root);
-  await git(["-c", "user.name=Cockpit", "-c", "user.email=cockpit@example.com", "commit", "-m", "init"], root);
+  await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], root);
   initLayout({
     root,
     workspaceName: "task-test",
     mode: "embedded",
     repos: [
       {
-        id: "cockpit",
+        id: "backlog",
         path: root,
         default_branch: "main",
         enabled: true,
@@ -31,18 +31,18 @@ async function createWorkspace(): Promise<string> {
 
 describe("task-service", () => {
   let root: string;
-  let cockpitDir: string;
+  let backlogDir: string;
   let repoId: string;
 
   beforeEach(async () => {
     root = await createWorkspace();
-    cockpitDir = path.join(root, ".cockpit");
-    repoId = loadConfig(cockpitDir).repos[0]!.id;
+    backlogDir = path.join(root, ".backlog");
+    repoId = loadConfig(backlogDir).repos[0]!.id;
   });
 
   it("updates task metadata without changing its identity", () => {
-    const workItem = createWorkItem(cockpitDir, { title: "Task editing", repoTargets: [repoId] });
-    const task = createTask(cockpitDir, {
+    const workItem = createWorkItem(backlogDir, { title: "Task editing", repoTargets: [repoId] });
+    const task = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "Initial task",
       repo: repoId,
@@ -50,7 +50,7 @@ describe("task-service", () => {
       risk: "low",
     });
 
-    const updated = updateTask(cockpitDir, task.id, {
+    const updated = updateTask(backlogDir, task.id, {
       title: "Updated task",
       scopes: ["packages/core/src/**"],
       preferredAgents: ["codex-default"],
@@ -71,8 +71,8 @@ describe("task-service", () => {
   });
 
   it("blocks and unblocks tasks while keeping work status in sync", () => {
-    const workItem = createWorkItem(cockpitDir, { title: "Task blocking", repoTargets: [repoId] });
-    const task = createTask(cockpitDir, {
+    const workItem = createWorkItem(backlogDir, { title: "Task blocking", repoTargets: [repoId] });
+    const task = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "Task to block",
       repo: repoId,
@@ -80,41 +80,41 @@ describe("task-service", () => {
       risk: "low",
     });
 
-    const blocked = blockTask(cockpitDir, task.id, ["waiting on API", "needs review"]);
+    const blocked = blockTask(backlogDir, task.id, ["waiting on API", "needs review"]);
     expect(blocked.status).toBe("blocked");
     expect(blocked.blockers).toEqual(["waiting on API", "needs review"]);
-    expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("blocked");
+    expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("blocked");
 
-    const stillBlocked = unblockTask(cockpitDir, task.id, ["waiting on API"]);
+    const stillBlocked = unblockTask(backlogDir, task.id, ["waiting on API"]);
     expect(stillBlocked.status).toBe("blocked");
     expect(stillBlocked.blockers).toEqual(["needs review"]);
 
-    const reopened = unblockTask(cockpitDir, task.id);
+    const reopened = unblockTask(backlogDir, task.id);
     expect(reopened.status).toBe("planned");
     expect(reopened.blockers).toEqual([]);
-    expect(getTask(cockpitDir, task.id)?.status).toBe("planned");
-    expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("in_progress");
+    expect(getTask(backlogDir, task.id)?.status).toBe("planned");
+    expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("in_progress");
   });
 
   it("removes one task and cleans up dependencies that point to it", () => {
-    const workItem = createWorkItem(cockpitDir, { title: "Task removal", repoTargets: [repoId] });
-    const first = createTask(cockpitDir, {
+    const workItem = createWorkItem(backlogDir, { title: "Task removal", repoTargets: [repoId] });
+    const first = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "First",
       repo: repoId,
     });
-    const second = createTask(cockpitDir, {
+    const second = createTask(backlogDir, {
       workItemId: workItem.id,
       title: "Second",
       repo: repoId,
       dependsOn: [first.id],
     });
 
-    const removed = removeTask(cockpitDir, first.id);
+    const removed = removeTask(backlogDir, first.id);
 
     expect(removed.id).toBe(first.id);
-    expect(getTask(cockpitDir, first.id)).toBeNull();
-    expect(getTask(cockpitDir, second.id)?.depends_on).toEqual([]);
-    expect(getWorkItem(cockpitDir, workItem.id)?.status).toBe("ready");
+    expect(getTask(backlogDir, first.id)).toBeNull();
+    expect(getTask(backlogDir, second.id)?.depends_on).toEqual([]);
+    expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("ready");
   });
 });

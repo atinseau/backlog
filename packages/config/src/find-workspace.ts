@@ -3,16 +3,16 @@ import path from "node:path";
 
 export interface WorkspacePaths {
   root: string;
-  cockpitDir: string;
+  backlogDir: string;
 }
 
 export function findWorkspace(startDir = process.cwd()): WorkspacePaths | null {
   let current = path.resolve(startDir);
 
   while (true) {
-    const cockpitDir = path.join(current, ".cockpit");
-    if (fs.existsSync(cockpitDir) && fs.statSync(cockpitDir).isDirectory()) {
-      return { root: current, cockpitDir };
+    const backlogDir = path.join(current, ".backlog");
+    if (fs.existsSync(backlogDir) && fs.statSync(backlogDir).isDirectory()) {
+      return { root: current, backlogDir };
     }
 
     const parent = path.dirname(current);

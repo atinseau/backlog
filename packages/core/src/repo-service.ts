@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { listActiveClaims } from "@cockpit-ai/claims";
-import { loadConfig, saveConfig } from "@cockpit-ai/config";
-import type { RepoConfig } from "@cockpit-ai/schemas";
+import { listActiveClaims } from "@backlog/claims";
+import { loadConfig, saveConfig } from "@backlog/config";
+import type { RepoConfig } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { deriveWorkStatusFromTasks } from "./work-service.js";
@@ -25,12 +25,12 @@ export interface UpdateRepoInput {
   enabled?: boolean;
 }
 
-function workspaceRootFromCockpitDir(cockpitDir: string): string {
-  return path.dirname(cockpitDir);
+function workspaceRootFromBacklogDir(backlogDir: string): string {
+  return path.dirname(backlogDir);
 }
 
-function normalizeRepoPath(cockpitDir: string, repoPath: string): string {
-  return path.resolve(workspaceRootFromCockpitDir(cockpitDir), repoPath);
+function normalizeRepoPath(backlogDir: string, repoPath: string): string {
+  return path.resolve(workspaceRootFromBacklogDir(backlogDir), repoPath);
 }
 
 function ensureRepoPathExists(repoPath: string): void {
@@ -39,17 +39,17 @@ function ensureRepoPathExists(repoPath: string): void {
   }
 }
 
-export function listRepos(cockpitDir: string): RepoConfig[] {
-  return loadConfig(cockpitDir).repos;
+export function listRepos(backlogDir: string): RepoConfig[] {
+  return loadConfig(backlogDir).repos;
 }
 
-export function getRepo(cockpitDir: string, repoId: string): RepoConfig | null {
-  return listRepos(cockpitDir).find((repo) => repo.id === repoId) ?? null;
+export function getRepo(backlogDir: string, repoId: string): RepoConfig | null {
+  return listRepos(backlogDir).find((repo) => repo.id === repoId) ?? null;
 }
 
-export function addRepo(cockpitDir: string, input: AddRepoInput): RepoConfig {
-  const config = loadConfig(cockpitDir);
-  const normalizedPath = normalizeRepoPath(cockpitDir, input.path);
+export function addRepo(backlogDir: string, input: AddRepoInput): RepoConfig {
+  const config = loadConfig(backlogDir);
+  const normalizedPath = normalizeRepoPath(backlogDir, input.path);
   ensureRepoPathExists(normalizedPath);
 
   if (config.repos.some((repo) => repo.id === input.id)) {
@@ -67,19 +67,19 @@ export function addRepo(cockpitDir: string, input: AddRepoInput): RepoConfig {
     enabled: input.enabled ?? true,
   };
   config.repos.push(repo);
-  saveConfig(cockpitDir, config);
+  saveConfig(backlogDir, config);
   return repo;
 }
 
-export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepoInput): RepoConfig {
-  const config = loadConfig(cockpitDir);
+export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepoInput): RepoConfig {
+  const config = loadConfig(backlogDir);
   const repo = config.repos.find((candidate) => candidate.id === repoId);
   if (!repo) {
     throw new Error(`Unknown repo: ${repoId}`);
   }
 
-  const activeClaims = listActiveClaims(cockpitDir).filter((claim) => claim.repo === repoId);
-  const activeRuns = listActiveRuns(cockpitDir).filter((run) => run.repo === repoId);
+  const activeClaims = listActiveClaims(backlogDir).filter((claim) => claim.repo === repoId);
+  const activeRuns = listActiveRuns(backlogDir).filter((run) => run.repo === repoId);
   if ((input.id !== undefined || input.path !== undefined) && (activeClaims.length > 0 || activeRuns.length > 0)) {
     throw new Error(`Cannot change repo identity for ${repoId} while active claims or runs still reference it.`);
   }
@@ -90,7 +90,7 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
 
   let normalizedPath: string | undefined;
   if (input.path !== undefined) {
-    normalizedPath = normalizeRepoPath(cockpitDir, input.path);
+    normalizedPath = normalizeRepoPath(backlogDir, input.path);
     ensureRepoPathExists(normalizedPath);
     if (config.repos.some((candidate) => candidate.id !== repoId && candidate.path === normalizedPath)) {
       throw new Error(`Repo path already exists in this workspace: ${normalizedPath}`);
@@ -99,7 +99,7 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
 
   if (input.id !== undefined) {
     const nextId = input.id;
-    const tasksFile = readTasksFile(cockpitDir);
+    const tasksFile = readTasksFile(backlogDir);
     let tasksChanged = false;
     for (const task of tasksFile.tasks) {
       if (task.repo !== repoId) {
@@ -110,10 +110,10 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
       tasksChanged = true;
     }
     if (tasksChanged) {
-      writeTasksFile(cockpitDir, tasksFile);
+      writeTasksFile(backlogDir, tasksFile);
     }
 
-    const workItemsFile = readWorkItemsFile(cockpitDir);
+    const workItemsFile = readWorkItemsFile(backlogDir);
     let workItemsChanged = false;
     for (const item of workItemsFile.items) {
       let changed = false;
@@ -131,10 +131,10 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
       }
     }
     if (workItemsChanged) {
-      writeWorkItemsFile(cockpitDir, workItemsFile);
+      writeWorkItemsFile(backlogDir, workItemsFile);
     }
 
-    const agentsFile = readAgentsFile(cockpitDir);
+    const agentsFile = readAgentsFile(backlogDir);
     let agentsChanged = false;
     for (const agent of agentsFile.agents) {
       if (!agent.allowed_repos.includes(repoId)) {
@@ -144,7 +144,7 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
       agentsChanged = true;
     }
     if (agentsChanged) {
-      writeAgentsFile(cockpitDir, agentsFile);
+      writeAgentsFile(backlogDir, agentsFile);
     }
 
     repo.id = input.id;
@@ -165,32 +165,32 @@ export function updateRepo(cockpitDir: string, repoId: string, input: UpdateRepo
     repo.enabled = input.enabled;
   }
 
-  saveConfig(cockpitDir, config);
+  saveConfig(backlogDir, config);
   return repo;
 }
 
-export function removeRepo(cockpitDir: string, repoId: string, options?: { force?: boolean }): RepoConfig {
-  const config = loadConfig(cockpitDir);
+export function removeRepo(backlogDir: string, repoId: string, options?: { force?: boolean }): RepoConfig {
+  const config = loadConfig(backlogDir);
   const repoIndex = config.repos.findIndex((candidate) => candidate.id === repoId);
   if (repoIndex < 0) {
     throw new Error(`Unknown repo: ${repoId}`);
   }
 
-  const activeClaims = listActiveClaims(cockpitDir).filter((claim) => claim.repo === repoId);
+  const activeClaims = listActiveClaims(backlogDir).filter((claim) => claim.repo === repoId);
   if (activeClaims.length > 0) {
     throw new Error(`Cannot remove repo ${repoId} while ${activeClaims.length} active claim(s) still reference it.`);
   }
 
-  const activeRuns = listActiveRuns(cockpitDir).filter((run) => run.repo === repoId);
+  const activeRuns = listActiveRuns(backlogDir).filter((run) => run.repo === repoId);
   if (activeRuns.length > 0) {
     throw new Error(`Cannot remove repo ${repoId} while ${activeRuns.length} active run(s) still reference it.`);
   }
 
-  const tasksFile = readTasksFile(cockpitDir);
+  const tasksFile = readTasksFile(backlogDir);
   const linkedTasks = tasksFile.tasks.filter((task) => task.repo === repoId);
-  const workItemsFile = readWorkItemsFile(cockpitDir);
+  const workItemsFile = readWorkItemsFile(backlogDir);
   const linkedWorkItems = workItemsFile.items.filter((item) => item.repo_targets.includes(repoId) || item.planning.preferred_lane === repoId);
-  const agentsFile = readAgentsFile(cockpitDir);
+  const agentsFile = readAgentsFile(backlogDir);
   const linkedAgents = agentsFile.agents.filter((agent) => agent.allowed_repos.includes(repoId));
 
   if (!options?.force && (linkedTasks.length > 0 || linkedWorkItems.length > 0 || linkedAgents.length > 0)) {
@@ -215,7 +215,7 @@ export function removeRepo(cockpitDir: string, repoId: string, options?: { force
             updated_at: new Date().toISOString(),
           };
         });
-      writeTasksFile(cockpitDir, tasksFile);
+      writeTasksFile(backlogDir, tasksFile);
     }
 
     let workItemsChanged = false;
@@ -231,7 +231,7 @@ export function removeRepo(cockpitDir: string, repoId: string, options?: { force
         changed = true;
       }
       if (affectedWorkItems.has(item.id)) {
-        item.status = deriveWorkStatusFromTasks(cockpitDir, item.id) ?? "backlog";
+        item.status = deriveWorkStatusFromTasks(backlogDir, item.id) ?? "backlog";
         changed = true;
       }
       if (changed) {
@@ -240,7 +240,7 @@ export function removeRepo(cockpitDir: string, repoId: string, options?: { force
       }
     }
     if (workItemsChanged) {
-      writeWorkItemsFile(cockpitDir, workItemsFile);
+      writeWorkItemsFile(backlogDir, workItemsFile);
     }
 
     let agentsChanged = false;
@@ -252,7 +252,7 @@ export function removeRepo(cockpitDir: string, repoId: string, options?: { force
       agentsChanged = true;
     }
     if (agentsChanged) {
-      writeAgentsFile(cockpitDir, agentsFile);
+      writeAgentsFile(backlogDir, agentsFile);
     }
   }
 
@@ -260,6 +260,6 @@ export function removeRepo(cockpitDir: string, repoId: string, options?: { force
   if (!removed) {
     throw new Error(`Unknown repo: ${repoId}`);
   }
-  saveConfig(cockpitDir, config);
+  saveConfig(backlogDir, config);
   return removed;
 }

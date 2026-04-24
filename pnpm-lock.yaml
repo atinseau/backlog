@@ -23,7 +23,7 @@ importers:
 
   packages/claims:
     dependencies:
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
       picomatch:
@@ -32,25 +32,25 @@ importers:
 
   packages/cli:
     dependencies:
-      '@cockpit-ai/claims':
+      '@backlog/claims':
         specifier: workspace:*
         version: link:../claims
-      '@cockpit-ai/config':
+      '@backlog/config':
         specifier: workspace:*
         version: link:../config
-      '@cockpit-ai/connectors':
+      '@backlog/connectors':
         specifier: workspace:*
         version: link:../connectors
-      '@cockpit-ai/core':
+      '@backlog/core':
         specifier: workspace:*
         version: link:../core
-      '@cockpit-ai/git':
+      '@backlog/git':
         specifier: workspace:*
         version: link:../git
-      '@cockpit-ai/hooks':
+      '@backlog/hooks':
         specifier: workspace:*
         version: link:../hooks
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
       commander:
@@ -59,7 +59,7 @@ importers:
 
   packages/config:
     dependencies:
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
       '@iarna/toml':
@@ -68,22 +68,22 @@ importers:
 
   packages/connectors:
     dependencies:
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
 
   packages/core:
     dependencies:
-      '@cockpit-ai/claims':
+      '@backlog/claims':
         specifier: workspace:*
         version: link:../claims
-      '@cockpit-ai/config':
+      '@backlog/config':
         specifier: workspace:*
         version: link:../config
-      '@cockpit-ai/git':
+      '@backlog/git':
         specifier: workspace:*
         version: link:../git
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
       execa:
@@ -95,7 +95,7 @@ importers:
 
   packages/git:
     dependencies:
-      '@cockpit-ai/schemas':
+      '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
       execa:

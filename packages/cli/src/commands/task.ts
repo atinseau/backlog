@@ -1,7 +1,7 @@
 import { Command } from "commander";
-import { findWorkspace } from "@cockpit-ai/config";
-import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, removeTask, unblockTask, updateTask, updateTaskStatus } from "@cockpit-ai/core";
-import { loadConfig } from "@cockpit-ai/config";
+import { findWorkspace } from "@backlog/config";
+import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, removeTask, unblockTask, updateTask, updateTaskStatus } from "@backlog/core";
+import { loadConfig } from "@backlog/config";
 
 function collectValues(value: string, previous: string[]): string[] {
   return [...previous, value];
@@ -48,9 +48,9 @@ export function registerTaskCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const created = createTask(workspace.cockpitDir, {
+      const created = createTask(workspace.backlogDir, {
         workItemId: options.workItem,
         title: options.title,
         repo: options.repo,
@@ -101,10 +101,10 @@ export function registerTaskCommand(program: Command): void {
     }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
 
-      const updated = updateTask(workspace.cockpitDir, taskId, {
+      const updated = updateTask(workspace.backlogDir, taskId, {
         ...(options.title !== undefined ? { title: options.title } : {}),
         ...(options.repo !== undefined ? { repo: options.repo } : {}),
         ...(options.scope.length > 0 ? { scopes: options.scope } : {}),
@@ -133,9 +133,9 @@ export function registerTaskCommand(program: Command): void {
     .action((options: { json?: boolean; repo?: string; status?: string; workItem?: string }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const tasks = listTasks(workspace.cockpitDir).filter((item) => {
+      const tasks = listTasks(workspace.backlogDir).filter((item) => {
         if (options.repo && item.repo !== options.repo) {
           return false;
         }
@@ -167,9 +167,9 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const task = removeTask(workspace.cockpitDir, taskId);
+      const task = removeTask(workspace.backlogDir, taskId);
       console.log(`Removed ${task.id}`);
     });
 
@@ -181,9 +181,9 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const task = getTask(workspace.cockpitDir, taskId);
+      const task = getTask(workspace.backlogDir, taskId);
       if (!task) {
         throw new Error(`Unknown task: ${taskId}`);
       }
@@ -209,9 +209,9 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string, status: "queued" | "planned" | "running" | "waiting" | "review" | "completed" | "blocked" | "canceled") => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const task = updateTaskStatus(workspace.cockpitDir, taskId, status);
+      const task = updateTaskStatus(workspace.backlogDir, taskId, status);
       console.log(`Moved ${task.id} to ${task.status}`);
     });
 
@@ -223,9 +223,9 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string, options: { reason: string[] }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const task = blockTask(workspace.cockpitDir, taskId, options.reason);
+      const task = blockTask(workspace.backlogDir, taskId, options.reason);
       console.log(`Blocked ${task.id}`);
     });
 
@@ -238,9 +238,9 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string, options: { reason: string[]; all?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const task = unblockTask(workspace.cockpitDir, taskId, options.all ? undefined : options.reason);
+      const task = unblockTask(workspace.backlogDir, taskId, options.all ? undefined : options.reason);
       console.log(`Unblocked ${task.id}`);
     });
 
@@ -252,10 +252,10 @@ export function registerTaskCommand(program: Command): void {
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findWorkspace();
       if (!workspace) {
-        throw new Error("No .cockpit workspace found. Run `cockpit init` first.");
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
-      const config = loadConfig(workspace.cockpitDir);
-      const plan = buildExecutionPlan(workspace.cockpitDir, config, { taskId });
+      const config = loadConfig(workspace.backlogDir);
+      const plan = buildExecutionPlan(workspace.backlogDir, config, { taskId });
       const decision = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped][0];
       if (!decision) {
         throw new Error(`No schedulable decision found for task: ${taskId}`);

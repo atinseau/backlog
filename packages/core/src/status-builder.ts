@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import type { WorkspaceConfig } from "@cockpit-ai/schemas";
-import { listActiveClaims } from "@cockpit-ai/claims";
+import type { WorkspaceConfig } from "@backlog/schemas";
+import { listActiveClaims } from "@backlog/claims";
 import { buildExecutionPlan } from "./scheduler.js";
 import { listActiveRuns } from "./run-store.js";
 import { listPendingSyncConflicts } from "./sync-conflicts.js";
 import { listTasks, listWorkItems } from "./state-files.js";
-import type { Task, WorkItem, WorkStatus } from "@cockpit-ai/schemas";
+import type { Task, WorkItem, WorkStatus } from "@backlog/schemas";
 
 type WorkItemsFile = {
   version: number;
@@ -94,15 +94,15 @@ function workItemTouchesRepo(item: WorkItem, repoId: string, tasksByWorkItem: Ma
 
 export function buildWorkspaceStatus(
   root: string,
-  cockpitDir: string,
+  backlogDir: string,
   config: WorkspaceConfig,
   options?: { repoId?: string },
 ): WorkspaceStatus {
-  const workItems = readYamlFile<WorkItemsFile>(path.join(cockpitDir, "work-items.yaml"));
-  const tasks = readYamlFile<TasksFile>(path.join(cockpitDir, "tasks.yaml"));
-  const plan = buildExecutionPlan(cockpitDir, config);
-  const allTasks = listTasks(cockpitDir);
-  const allWorkItems = listWorkItems(cockpitDir);
+  const workItems = readYamlFile<WorkItemsFile>(path.join(backlogDir, "work-items.yaml"));
+  const tasks = readYamlFile<TasksFile>(path.join(backlogDir, "tasks.yaml"));
+  const plan = buildExecutionPlan(backlogDir, config);
+  const allTasks = listTasks(backlogDir);
+  const allWorkItems = listWorkItems(backlogDir);
   const tasksById = new Map(allTasks.map((task) => [task.id, task]));
   const workItemsById = new Map(allWorkItems.map((item) => [item.id, item]));
   const tasksByWorkItem = new Map<string, Task[]>();
@@ -137,8 +137,8 @@ export function buildWorkspaceStatus(
     };
   });
 
-  const activeClaims = listActiveClaims(cockpitDir);
-  const activeRuns = listActiveRuns(cockpitDir);
+  const activeClaims = listActiveClaims(backlogDir);
+  const activeRuns = listActiveRuns(backlogDir);
   const repoSummaries = config.repos
     .filter((repo) => !selectedRepoId || repo.id === selectedRepoId)
     .map((repo) => {
@@ -163,7 +163,7 @@ export function buildWorkspaceStatus(
         const task = tasksById.get(decision.taskId);
         return `${decision.taskId}${task ? ` (${task.title})` : ""}: ${decision.reasons.join(", ")}`;
       }),
-    ...listPendingSyncConflicts(cockpitDir)
+    ...listPendingSyncConflicts(backlogDir)
       .filter((conflict) => {
         if (!selectedRepoId) {
           return true;
@@ -188,7 +188,7 @@ export function buildWorkspaceStatus(
     workItemCount: filteredWorkItems.length ?? workItems.items?.length ?? 0,
     workItemCounts: summarizeWorkItems(filteredWorkItems),
     taskCounts: taskCountsForTasks(filteredTasks),
-    pendingSyncConflicts: listPendingSyncConflicts(cockpitDir).filter((conflict) => {
+    pendingSyncConflicts: listPendingSyncConflicts(backlogDir).filter((conflict) => {
       if (!selectedRepoId) {
         return true;
       }

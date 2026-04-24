@@ -8,7 +8,7 @@ import {
   type WorkItem,
   workItemsFileSchema,
   type WorkItemsFile,
-} from "@cockpit-ai/schemas";
+} from "@backlog/schemas";
 
 function readYaml<T>(filePath: string, parser: (value: unknown) => T): T {
   const raw = YAML.parse(fs.readFileSync(filePath, "utf8")) as unknown;
@@ -19,34 +19,34 @@ function writeYaml(filePath: string, value: object): void {
   fs.writeFileSync(filePath, YAML.stringify(value), "utf8");
 }
 
-export function workItemsPath(cockpitDir: string): string {
-  return path.join(cockpitDir, "work-items.yaml");
+export function workItemsPath(backlogDir: string): string {
+  return path.join(backlogDir, "work-items.yaml");
 }
 
-export function tasksPath(cockpitDir: string): string {
-  return path.join(cockpitDir, "tasks.yaml");
+export function tasksPath(backlogDir: string): string {
+  return path.join(backlogDir, "tasks.yaml");
 }
 
-export function readWorkItemsFile(cockpitDir: string): WorkItemsFile {
-  return readYaml(workItemsPath(cockpitDir), (value) => workItemsFileSchema.parse(value));
+export function readWorkItemsFile(backlogDir: string): WorkItemsFile {
+  return readYaml(workItemsPath(backlogDir), (value) => workItemsFileSchema.parse(value));
 }
 
-export function writeWorkItemsFile(cockpitDir: string, file: WorkItemsFile): void {
-  writeYaml(workItemsPath(cockpitDir), file);
+export function writeWorkItemsFile(backlogDir: string, file: WorkItemsFile): void {
+  writeYaml(workItemsPath(backlogDir), file);
 }
 
-export function readTasksFile(cockpitDir: string): TasksFile {
-  return readYaml(tasksPath(cockpitDir), (value) => tasksFileSchema.parse(value));
+export function readTasksFile(backlogDir: string): TasksFile {
+  return readYaml(tasksPath(backlogDir), (value) => tasksFileSchema.parse(value));
 }
 
-export function writeTasksFile(cockpitDir: string, file: TasksFile): void {
-  writeYaml(tasksPath(cockpitDir), file);
+export function writeTasksFile(backlogDir: string, file: TasksFile): void {
+  writeYaml(tasksPath(backlogDir), file);
 }
 
-export function listWorkItems(cockpitDir: string): WorkItem[] {
-  return readWorkItemsFile(cockpitDir).items;
+export function listWorkItems(backlogDir: string): WorkItem[] {
+  return readWorkItemsFile(backlogDir).items;
 }
 
-export function listTasks(cockpitDir: string): Task[] {
-  return readTasksFile(cockpitDir).tasks;
+export function listTasks(backlogDir: string): Task[] {
+  return readTasksFile(backlogDir).tasks;
 }

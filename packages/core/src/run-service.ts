@@ -1,41 +1,41 @@
-import { archiveClaim, listActiveClaims, removeContextFile } from "@cockpit-ai/claims";
-import { detectGitDir } from "@cockpit-ai/git";
+import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
+import { detectGitDir } from "@backlog/git";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { updateWorkItemStatus } from "./work-service.js";
 import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 
-function syncParentWorkAfterRun(cockpitDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
-  const task = getTask(cockpitDir, taskId);
+function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
+  const task = getTask(backlogDir, taskId);
   if (!task) {
     return;
   }
   if (status === "review") {
-    updateTaskStatus(cockpitDir, taskId, "review");
-    updateWorkItemStatus(cockpitDir, task.work_item_id, "review");
+    updateTaskStatus(backlogDir, taskId, "review");
+    updateWorkItemStatus(backlogDir, task.work_item_id, "review");
     return;
   }
   if (status === "completed") {
-    updateTaskStatus(cockpitDir, taskId, "completed");
-    updateWorkItemStatus(cockpitDir, task.work_item_id, "done");
+    updateTaskStatus(backlogDir, taskId, "completed");
+    updateWorkItemStatus(backlogDir, task.work_item_id, "done");
     return;
   }
-  updateTaskStatus(cockpitDir, taskId, "blocked");
-  updateWorkItemStatus(cockpitDir, task.work_item_id, "blocked");
+  updateTaskStatus(backlogDir, taskId, "blocked");
+  updateWorkItemStatus(backlogDir, task.work_item_id, "blocked");
 }
 
-async function releaseRunClaims(cockpitDir: string, runId: string): Promise<void> {
-  const run = loadRun(cockpitDir, runId);
+async function releaseRunClaims(backlogDir: string, runId: string): Promise<void> {
+  const run = loadRun(backlogDir, runId);
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
 
-  const activeClaims = new Map(listActiveClaims(cockpitDir).map((claim) => [claim.id, claim]));
+  const activeClaims = new Map(listActiveClaims(backlogDir).map((claim) => [claim.id, claim]));
   for (const claimId of run.claim_ids) {
     const claim = activeClaims.get(claimId);
     if (!claim) {
       continue;
     }
-    archiveClaim(cockpitDir, claimId);
+    archiveClaim(backlogDir, claimId);
 
     try {
       const repoGitDir = await detectGitDir(claim.repo_path);
@@ -53,57 +53,57 @@ async function releaseRunClaims(cockpitDir: string, runId: string): Promise<void
   }
 }
 
-export async function completeRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
-  const run = updateRunStatus(cockpitDir, runId, "succeeded", summary ?? "Completed by operator");
-  syncParentWorkAfterRun(cockpitDir, run.task_id, "completed");
-  await releaseRunClaims(cockpitDir, runId);
-  archiveRun(cockpitDir, runId);
+export async function completeRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  const run = updateRunStatus(backlogDir, runId, "succeeded", summary ?? "Completed by operator");
+  syncParentWorkAfterRun(backlogDir, run.task_id, "completed");
+  await releaseRunClaims(backlogDir, runId);
+  archiveRun(backlogDir, runId);
 }
 
-export async function approveRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
-  await completeRun(cockpitDir, runId, summary ?? "Approved in review");
+export async function approveRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  await completeRun(backlogDir, runId, summary ?? "Approved in review");
 }
 
-export async function failRun(cockpitDir: string, runId: string, summary?: string): Promise<void> {
-  const run = updateRunStatus(cockpitDir, runId, "failed", summary ?? "Failed by operator");
-  syncParentWorkAfterRun(cockpitDir, run.task_id, "blocked");
-  await releaseRunClaims(cockpitDir, runId);
-  archiveRun(cockpitDir, runId);
+export async function failRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  const run = updateRunStatus(backlogDir, runId, "failed", summary ?? "Failed by operator");
+  syncParentWorkAfterRun(backlogDir, run.task_id, "blocked");
+  await releaseRunClaims(backlogDir, runId);
+  archiveRun(backlogDir, runId);
 }
 
-export async function sendRunToReview(cockpitDir: string, runId: string, summary?: string): Promise<void> {
-  const run = updateRunStatus(cockpitDir, runId, "awaiting_review", summary ?? "Awaiting review");
-  syncParentWorkAfterRun(cockpitDir, run.task_id, "review");
-  await releaseRunClaims(cockpitDir, runId);
+export async function sendRunToReview(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  const run = updateRunStatus(backlogDir, runId, "awaiting_review", summary ?? "Awaiting review");
+  syncParentWorkAfterRun(backlogDir, run.task_id, "review");
+  await releaseRunClaims(backlogDir, runId);
 }
 
 export async function finalizeSuccessfulRun(
-  cockpitDir: string,
+  backlogDir: string,
   runId: string,
   summary: string | undefined,
   successMode: "review" | "complete",
 ): Promise<void> {
   if (successMode === "complete") {
-    await completeRun(cockpitDir, runId, summary);
+    await completeRun(backlogDir, runId, summary);
     return;
   }
-  await sendRunToReview(cockpitDir, runId, summary);
+  await sendRunToReview(backlogDir, runId, summary);
 }
 
-export async function requestRunChanges(cockpitDir: string, runId: string, reason: string): Promise<string> {
-  const run = updateRunStatus(cockpitDir, runId, "blocked", reason);
-  updateTaskStatus(cockpitDir, run.task_id, "planned");
-  createRunHandoff(cockpitDir, runId, reason);
-  archiveRun(cockpitDir, runId);
-  return getRunHandoffPath(cockpitDir, runId) ?? writeRunHandoff(cockpitDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
+export async function requestRunChanges(backlogDir: string, runId: string, reason: string): Promise<string> {
+  const run = updateRunStatus(backlogDir, runId, "blocked", reason);
+  updateTaskStatus(backlogDir, run.task_id, "planned");
+  createRunHandoff(backlogDir, runId, reason);
+  archiveRun(backlogDir, runId);
+  return getRunHandoffPath(backlogDir, runId) ?? writeRunHandoff(backlogDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
 }
 
-export function createRunHandoff(cockpitDir: string, runId: string, reason: string): string {
-  const run = loadRun(cockpitDir, runId);
+export function createRunHandoff(backlogDir: string, runId: string, reason: string): string {
+  const run = loadRun(backlogDir, runId);
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
-  const task = run ? getTask(cockpitDir, run.task_id) : null;
+  const task = run ? getTask(backlogDir, run.task_id) : null;
   const handoff = [
     `# Run Handoff`,
     ``,
@@ -114,5 +114,5 @@ export function createRunHandoff(cockpitDir: string, runId: string, reason: stri
     `- Review the run artifacts and decide whether to resume, complete, or replace the task.`,
     task ? `- Related task: ${task.id}` : ``,
   ].filter(Boolean).join("\n");
-  return writeRunHandoff(cockpitDir, runId, handoff);
+  return writeRunHandoff(backlogDir, runId, handoff);
 }

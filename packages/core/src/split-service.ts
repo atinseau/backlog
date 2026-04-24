@@ -1,4 +1,4 @@
-import type { Task, WorkItem, WorkspaceConfig } from "@cockpit-ai/schemas";
+import type { Task, WorkItem, WorkspaceConfig } from "@backlog/schemas";
 import { createTask } from "./task-service.js";
 import { listTasks } from "./state-files.js";
 import { getWorkItem, updateWorkItemPlanning, updateWorkItemStatus } from "./work-service.js";
@@ -60,13 +60,13 @@ export function resolveSplitRepos(config: WorkspaceConfig, workItem: WorkItem, r
   return deduped;
 }
 
-export function splitWorkItem(cockpitDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
-  const workItem = getWorkItem(cockpitDir, input.workItemId);
+export function splitWorkItem(backlogDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
+  const workItem = getWorkItem(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
 
-  const existingTasks = listTasks(cockpitDir).filter((task) => task.work_item_id === input.workItemId);
+  const existingTasks = listTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(`Work item ${input.workItemId} already has ${existingTasks.length} task(s). Use --force to append more split tasks.`);
   }
@@ -75,7 +75,7 @@ export function splitWorkItem(cockpitDir: string, input: SplitWorkItemInput): Sp
   let previousTaskId: string | undefined;
 
   for (const repo of input.repos) {
-    const created = createTask(cockpitDir, {
+    const created = createTask(backlogDir, {
       workItemId: input.workItemId,
       title: buildTaskTitle(workItem, repo, input.repos),
       repo,
@@ -91,14 +91,14 @@ export function splitWorkItem(cockpitDir: string, input: SplitWorkItemInput): Sp
     previousTaskId = created.id;
   }
 
-  updateWorkItemPlanning(cockpitDir, input.workItemId, {
+  updateWorkItemPlanning(backlogDir, input.workItemId, {
     split_status: "done",
     ...(input.repos[0] ? { preferred_lane: input.repos[0] } : {}),
   });
-  updateWorkItemStatus(cockpitDir, input.workItemId, "ready");
+  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
 
   return {
-    workItem: getWorkItem(cockpitDir, input.workItemId)!,
+    workItem: getWorkItem(backlogDir, input.workItemId)!,
     createdTasks,
     mode: input.mode,
   };
