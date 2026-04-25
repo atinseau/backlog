@@ -8,6 +8,13 @@ All notable changes to the `backlog` CLI are documented here.
 
 - The repo is a pnpm monorepo. The `backlog` CLI lives in `packages/cli/`. Backlog Cloud (the hosted backend) is a private project and not part of this repo.
 
+## [1.1.1] - 2026-04-25
+
+### Changed
+
+- Reverts the experimental auth commands (`backlog auth login/logout/status/whoami/signup`) shipped briefly in `1.1.0`. Those commands depended on a `backlog-server` package that has since been removed. `1.1.1` is functionally equivalent to `1.0.3` plus a `zod` dependency bump (3.25.76 → 4.3.6).
+- If you installed `1.1.0`, upgrade with `npm i -g backlog@latest`.
+
 ## [1.0.3] - 2026-04-25
 
 ### Changed
