@@ -1,0 +1,448 @@
+openapi: 3.0.3
+info:
+  title: Backlog Cloud API
+  description: |
+    Public REST API for [Backlog Cloud](https://backlog.so). Used by the
+    [`backlog`](https://www.npmjs.com/package/backlog) CLI and any
+    integration that wants to drive backlog programmatically.
+
+    All endpoints (except `/health`, `/auth/signup`, `/auth/login`,
+    and webhook receivers) require a Bearer token in the `Authorization`
+    header. Tokens are issued by `/auth/signup` and `/auth/login`,
+    expire after 30 days, and use HS256 JWT.
+  version: 1.0.0
+  license:
+    name: Proprietary
+    url: https://backlog.so/legal/terms
+  contact:
+    name: Osmove
+    url: https://backlog.so
+
+servers:
+  - url: https://backlog.so/api/v1
+    description: Production
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+security:
+  - bearer: []
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    queryToken:
+      type: apiKey
+      in: query
+      name: user_token
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        details: { type: object }
+      required: [error]
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+      required: [id, email]
+
+    AuthResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+      required: [user, token, expires_at]
+
+    Workspace:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        slug: { type: string }
+        owner_id: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+      required: [id, name, slug, owner_id, created_at]
+
+    WorkItem:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        workspace_id: { type: integer, format: int64 }
+        external_id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [ready, in_progress, review, done, blocked, archived] }
+        priority: { type: string, enum: [P0, P1, P2, P3, P4] }
+        payload: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, workspace_id, external_id, title, status, priority]
+
+    Task:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        work_item_id: { type: integer, format: int64 }
+        repo: { type: string, nullable: true }
+        scope: { type: string, nullable: true }
+        status: { type: string, enum: [planned, ready, in_progress, awaiting_review, done, failed, blocked] }
+        assigned_agent: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, work_item_id, status]
+
+    Run:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        task_id: { type: integer, format: int64 }
+        status: { type: string, enum: [queued, running, awaiting_review, approved, completed, failed, cancelled] }
+        started_at: { type: string, format: date-time, nullable: true }
+        finished_at: { type: string, format: date-time, nullable: true }
+        summary: { type: string, nullable: true }
+        artifacts: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, task_id, status]
+
+    Health:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+        version: { type: string, example: "0.1.0" }
+
+paths:
+  /health:
+    get:
+      summary: Server health and version
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /auth/signup:
+    post:
+      summary: Create a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '200':
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/login:
+    post:
+      summary: Sign in with email + password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/logout:
+    post:
+      summary: Sign out (client-side token discard)
+      responses:
+        '204':
+          description: Logged out
+
+  /auth/me:
+    get:
+      summary: Current authenticated user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /workspaces:
+    get:
+      summary: List accessible workspaces
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspaces:
+                    type: array
+                    items: { $ref: '#/components/schemas/Workspace' }
+    post:
+      summary: Create a workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspace: { $ref: '#/components/schemas/Workspace' }
+
+  /workspaces/{id}:
+    get:
+      summary: Show one workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspace: { $ref: '#/components/schemas/Workspace' }
+        '404':
+          description: Not found
+
+  /workspaces/{id}/work-items:
+    get:
+      summary: List work items in a workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkItem' }
+    post:
+      summary: Create a work item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_id, title]
+              properties:
+                external_id: { type: string }
+                title: { type: string }
+                status: { type: string }
+                priority: { type: string }
+                payload: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_item: { $ref: '#/components/schemas/WorkItem' }
+
+  /workspaces/{workspace_id}/tasks:
+    get:
+      summary: List tasks in a workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items: { $ref: '#/components/schemas/Task' }
+    post:
+      summary: Create a task
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [work_item_id]
+              properties:
+                work_item_id: { type: integer }
+                repo: { type: string }
+                scope: { type: string }
+                status: { type: string }
+                assigned_agent: { type: string }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+
+  /workspaces/{workspace_id}/runs:
+    get:
+      summary: List runs in a workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: '#/components/schemas/Run' }
+    post:
+      summary: Create a run
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id]
+              properties:
+                task_id: { type: integer }
+                status: { type: string }
+                summary: { type: string }
+                artifacts: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run: { $ref: '#/components/schemas/Run' }
+
+  /webhooks/github/{workspace_slug}:
+    post:
+      summary: GitHub Issues webhook
+      description: |
+        Receives GitHub webhook events. Validates `X-Hub-Signature-256`
+        when `GITHUB_WEBHOOK_SECRET` is set in the workspace config.
+
+        Currently handles `issues` events (opened, closed, reopened) and
+        creates/updates a corresponding work item.
+      security: []
+      parameters:
+        - name: workspace_slug
+          in: path
+          required: true
+          schema: { type: string }
+        - name: X-GitHub-Event
+          in: header
+          required: true
+          schema: { type: string, example: issues }
+        - name: X-Hub-Signature-256
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Processed
+        '401':
+          description: Signature mismatch
+        '404':
+          description: Workspace not found

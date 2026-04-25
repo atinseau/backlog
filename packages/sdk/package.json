@@ -1,0 +1,59 @@
+{
+  "name": "backlog-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Backlog Cloud (https://backlog.so) — talk to the backlog.so REST API or any self-hosted backlog backend.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "openapi:fetch": "curl -fsSL https://backlog-cloud-aae188b0bb0b.herokuapp.com/openapi/v1.yaml -o openapi/v1.yaml",
+    "openapi:types": "openapi-typescript ./openapi/v1.yaml -o ./src/generated/openapi-types.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "openapi-typescript": "^7.6.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.5"
+  },
+  "author": "Jimmy Douieb",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/osmove/backlog.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://backlog.so",
+  "bugs": {
+    "url": "https://github.com/osmove/backlog/issues"
+  },
+  "keywords": [
+    "backlog",
+    "sdk",
+    "api-client",
+    "typescript",
+    "openapi"
+  ]
+}
