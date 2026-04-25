@@ -25,7 +25,7 @@ const program = new Command();
 program
   .name("backlog")
   .description("Backlog — turns planning inputs into safe agent execution.")
-  .version(VERSION);
+  .version(VERSION, "-v, --version");
 
 registerInitCommand(program);
 registerDoctorCommand(program);
