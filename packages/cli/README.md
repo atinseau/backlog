@@ -5,6 +5,10 @@
 Vendor-neutral orchestration with claims, worktrees, and parallel runs for
 AI coding agents.
 
+[![npm version](https://img.shields.io/npm/v/backlog.svg)](https://www.npmjs.com/package/backlog)
+[![license](https://img.shields.io/npm/l/backlog.svg)](https://github.com/osmove/backlog/blob/main/LICENSE)
+[![CI](https://github.com/osmove/backlog/actions/workflows/ci.yml/badge.svg)](https://github.com/osmove/backlog/actions/workflows/ci.yml)
+
 ---
 
 ## What is Backlog?
