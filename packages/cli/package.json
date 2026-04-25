@@ -1,18 +1,35 @@
 {
-  "name": "@backlog/cli",
-  "version": "0.1.0",
+  "name": "backlog",
+  "version": "1.0.0",
+  "description": "Execution engine that turns backlog into scoped, reviewable agent work — vendor-neutral, multi-target.",
   "type": "module",
   "bin": {
     "backlog": "./dist/bin.js"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "main": "./dist/bin.js",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc -b",
-    "dev": "tsx src/bin.ts"
+    "build": "tsup",
+    "build:tsc": "tsc -b",
+    "dev": "tsx src/bin.ts",
+    "prepublishOnly": "tsup"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "commander": "^13.1.0",
+    "execa": "^9.6.0",
+    "picomatch": "^4.0.2",
+    "yaml": "^2.8.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
     "@backlog/claims": "workspace:*",
     "@backlog/connectors": "workspace:*",
     "@backlog/config": "workspace:*",
@@ -20,6 +37,30 @@
     "@backlog/git": "workspace:*",
     "@backlog/hooks": "workspace:*",
     "@backlog/schemas": "workspace:*",
-    "commander": "^13.1.0"
-  }
+    "tsup": "^8.4.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "author": "Jimmy Douieb",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/osmove/backlog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/osmove/backlog/issues"
+  },
+  "homepage": "https://github.com/osmove/backlog#readme",
+  "keywords": [
+    "backlog",
+    "agents",
+    "ai",
+    "claude",
+    "codex",
+    "claims",
+    "worktree",
+    "orchestration",
+    "scheduler",
+    "cli"
+  ]
 }

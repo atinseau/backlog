@@ -3,3 +3,4 @@ dist/
 *.tsbuildinfo
 .backlog/
 .DS_Store
+packages/cli/backlog-*.tgz

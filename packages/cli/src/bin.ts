@@ -19,8 +19,8 @@ const program = new Command();
 
 program
   .name("backlog")
-  .description("Local-first AI execution control plane for coding teams")
-  .version("0.1.0");
+  .description("Backlog — turns planning inputs into safe agent execution.")
+  .version("1.0.0");
 
 registerInitCommand(program);
 registerDoctorCommand(program);
