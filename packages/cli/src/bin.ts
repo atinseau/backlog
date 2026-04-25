@@ -15,12 +15,17 @@ import { registerTaskCommand } from "./commands/task.js";
 import { registerWorkCommand } from "./commands/work.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
 
+declare const __BACKLOG_VERSION__: string;
+// Replaced at build time by tsup's `define` from package.json#version.
+// Falls back to "0.0.0-dev" when running via tsx/dev mode.
+const VERSION = typeof __BACKLOG_VERSION__ !== "undefined" ? __BACKLOG_VERSION__ : "0.0.0-dev";
+
 const program = new Command();
 
 program
   .name("backlog")
   .description("Backlog — turns planning inputs into safe agent execution.")
-  .version("1.0.0");
+  .version(VERSION);
 
 registerInitCommand(program);
 registerDoctorCommand(program);

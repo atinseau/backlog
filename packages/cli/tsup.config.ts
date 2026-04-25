@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 export default defineConfig({
   entry: ["src/bin.ts"],
@@ -16,6 +19,11 @@ export default defineConfig({
   shims: false,
   minify: false,
   outDir: "dist",
+  // Inject version from package.json at build time so the CLI's --version
+  // never drifts from the published package version.
+  define: {
+    __BACKLOG_VERSION__: JSON.stringify(pkg.version),
+  },
   esbuildOptions(options) {
     // Preserve `import.meta.url` semantics for templates that read relative files.
     options.charset = "utf8";
