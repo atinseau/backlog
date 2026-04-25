@@ -2,6 +2,9 @@
 
 Self-hosted backend for the [Backlog CLI](https://www.npmjs.com/package/backlog).
 
+[![Docker image](https://ghcr-badge.egpl.dev/osmove/backlog-server/latest_tag?label=ghcr.io)](https://github.com/osmove/backlog/pkgs/container/backlog-server)
+[![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE)
+
 > **Status: scaffold (0.1.0).** Boots, exposes `/health`, but the workspaces, work items, tasks, runs, and source webhook endpoints are still being implemented.
 
 ## What this is
