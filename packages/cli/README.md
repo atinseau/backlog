@@ -215,3 +215,13 @@ corepack pnpm build
 ```
 
 Issues, PRs, and design discussions welcome.
+
+## Sister projects
+
+- [`lint`](https://www.npmjs.com/package/lint) — universal linter CLI with AI-powered code review
+- [`backlog-server`](https://github.com/osmove/backlog) (in this repo, `packages/server/`) — self-hostable BUSL-1.1 backend
+- Backlog Cloud — managed hosted version (planned)
+
+## License
+
+[Apache-2.0](./LICENSE) for the CLI. The optional self-hostable server (`backlog-server`) ships under [BUSL-1.1](../server/LICENSE) (converts to Apache-2.0 in 2030).
