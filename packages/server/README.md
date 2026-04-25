@@ -14,7 +14,25 @@ The hosted SaaS version (Backlog Cloud) is the same API contract, run by Osmove.
 
 [BUSL-1.1](./LICENSE) — non-production use is free, self-hosted production use is permitted, hosted commercial competition with Backlog requires a commercial license. The license auto-converts to **Apache-2.0 on 2030-04-25**.
 
-## Quickstart (dev mode)
+## Quickstart (Docker — easiest)
+
+```sh
+docker run -d --name backlog-server \
+  -p 3002:3002 \
+  -v backlog-server-data:/data \
+  ghcr.io/osmove/backlog-server:latest
+
+curl http://127.0.0.1:3002/health
+```
+
+Or via `docker compose` from a repo checkout:
+
+```sh
+cd packages/server
+docker compose up -d
+```
+
+## Quickstart (dev mode, from source)
 
 ```sh
 corepack enable
@@ -28,7 +46,7 @@ Then:
 curl http://127.0.0.1:3002/health
 ```
 
-## Quickstart (production)
+## Quickstart (production, from source)
 
 ```sh
 pnpm --filter backlog-server build
