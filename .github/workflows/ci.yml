@@ -38,15 +38,6 @@ jobs:
       - name: Build (CLI)
         run: pnpm --filter backlog build
 
-      - name: Type check (server)
-        run: pnpm --filter backlog-server typecheck
-
-      - name: Build (server)
-        run: pnpm --filter backlog-server build
-
-      - name: Test (server)
-        run: pnpm --filter backlog-server test
-
       - name: Package check (CLI)
         run: pnpm --filter backlog pack:check
         # backlog CLI publish runs from packages/cli; guard tarball shape

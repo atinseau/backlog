@@ -6,7 +6,7 @@ All notable changes to the `backlog` CLI are documented here.
 
 ### Notes
 
-- The repo is a pnpm monorepo. The `backlog` CLI lives in `packages/cli/`. The OSS server (`backlog-server`) lives in `packages/server/`.
+- The repo is a pnpm monorepo. The `backlog` CLI lives in `packages/cli/`. Backlog Cloud (the hosted backend) is a private project and not part of this repo.
 
 ## [1.0.3] - 2026-04-25
 
