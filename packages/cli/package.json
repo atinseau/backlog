@@ -4,7 +4,7 @@
   "description": "Execution engine that turns backlog into scoped, reviewable agent work — vendor-neutral, multi-target.",
   "type": "module",
   "bin": {
-    "backlog": "./dist/bin.js"
+    "backlog": "dist/bin.js"
   },
   "main": "./dist/bin.js",
   "files": [
