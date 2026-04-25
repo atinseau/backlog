@@ -1,0 +1,18 @@
+services:
+  backlog-server:
+    build:
+      context: ../..
+      dockerfile: packages/server/Dockerfile
+    image: osmove/backlog-server:dev
+    container_name: backlog-server
+    ports:
+      - "3002:3002"
+    volumes:
+      - backlog-server-data:/data
+    environment:
+      LOG_LEVEL: info
+      BACKLOG_SERVER_CORS_ORIGIN: "*"
+    restart: unless-stopped
+
+volumes:
+  backlog-server-data:
