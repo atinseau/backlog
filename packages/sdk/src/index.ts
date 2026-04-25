@@ -7,6 +7,14 @@ export type Task = components["schemas"]["Task"];
 export type Run = components["schemas"]["Run"];
 export type User = components["schemas"]["User"];
 export type AuthResponse = components["schemas"]["AuthResponse"];
+export type Subscription = components["schemas"]["Subscription"];
+export type BillingConfig = components["schemas"]["BillingConfig"];
+export type CheckoutSession = components["schemas"]["CheckoutSession"];
+export type PortalSession = components["schemas"]["PortalSession"];
+export type UsageReport = components["schemas"]["UsageReport"];
+export type AiMessage = components["schemas"]["AiMessage"];
+export type AiMessageRequest = components["schemas"]["AiMessageRequest"];
+export type AiMessageResponse = components["schemas"]["AiMessageResponse"];
 
 export interface BacklogClientOptions {
   baseUrl?: string;
@@ -187,6 +195,95 @@ export class BacklogClient {
     });
     if (error || !data?.run) throw new BacklogApiError("create run failed", error);
     return data.run;
+  }
+
+  // ── Billing ──────────────────────────────────────────────────────────
+
+  /** Public Stripe.js bootstrap data: publishable key + price IDs. Auth required. */
+  async getBillingConfig(): Promise<BillingConfig> {
+    const { data, error } = await this.client.GET("/billing/config");
+    if (error || !data) throw new BacklogApiError("get billing config failed", error);
+    return data;
+  }
+
+  /** Current subscription for a workspace (auto-resyncs from Stripe if local state is stale). */
+  async getBilling(workspaceId: number): Promise<Subscription> {
+    const { data, error } = await this.client.GET("/workspaces/{workspace_id}/billing", {
+      params: { path: { workspace_id: workspaceId } },
+    });
+    if (error || !data?.subscription) throw new BacklogApiError("get billing failed", error);
+    return data.subscription;
+  }
+
+  /** Create a Stripe Checkout session to upgrade the workspace. Returns the URL to redirect to. */
+  async createCheckoutSession(
+    workspaceId: number,
+    input: {
+      plan?: "pro";
+      interval?: "monthly" | "yearly";
+      success_url?: string;
+      cancel_url?: string;
+    } = {},
+  ): Promise<CheckoutSession> {
+    const { data, error } = await this.client.POST(
+      "/workspaces/{workspace_id}/billing/checkout",
+      {
+        params: { path: { workspace_id: workspaceId } },
+        body: input,
+      },
+    );
+    if (error || !data) throw new BacklogApiError("create checkout failed", error);
+    return data;
+  }
+
+  /** Create a Stripe Billing Portal session for the workspace owner. */
+  async createPortalSession(
+    workspaceId: number,
+    input: { return_url?: string } = {},
+  ): Promise<PortalSession> {
+    const { data, error } = await this.client.POST(
+      "/workspaces/{workspace_id}/billing/portal",
+      {
+        params: { path: { workspace_id: workspaceId } },
+        body: input,
+      },
+    );
+    if (error || !data) throw new BacklogApiError("create portal failed", error);
+    return data;
+  }
+
+  // ── Usage ────────────────────────────────────────────────────────────
+
+  /** Month-to-date token spend, AI calls, and remaining quota for a workspace. */
+  async getUsage(workspaceId: number): Promise<UsageReport> {
+    const { data, error } = await this.client.GET(
+      "/workspaces/{workspace_id}/usage",
+      { params: { path: { workspace_id: workspaceId } } },
+    );
+    if (error || !data) throw new BacklogApiError("get usage failed", error);
+    return data;
+  }
+
+  // ── AI proxy ─────────────────────────────────────────────────────────
+
+  /**
+   * Send a message to Anthropic Claude through the workspace proxy.
+   * Tokens are billed against the workspace's monthly quota — see {@link getUsage}.
+   * Returns Anthropic's raw Messages API response (passthrough).
+   */
+  async aiMessages(
+    workspaceId: number,
+    input: AiMessageRequest,
+  ): Promise<AiMessageResponse> {
+    const { data, error } = await this.client.POST(
+      "/workspaces/{workspace_id}/ai/messages",
+      {
+        params: { path: { workspace_id: workspaceId } },
+        body: input,
+      },
+    );
+    if (error || !data) throw new BacklogApiError("ai messages failed", error);
+    return data;
   }
 }
 

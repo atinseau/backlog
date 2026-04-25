@@ -567,6 +567,422 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stripe.js bootstrap data (publishable key + price IDs) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BillingConfig"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current subscription for a workspace */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            subscription?: components["schemas"]["Subscription"];
+                        };
+                    };
+                };
+                /** @description Workspace not found or not a member */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Stripe Checkout Session for upgrading the workspace */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @default pro
+                         * @enum {string}
+                         */
+                        plan?: "pro";
+                        /**
+                         * @default monthly
+                         * @enum {string}
+                         */
+                        interval?: "monthly" | "yearly";
+                        /** Format: uri */
+                        success_url?: string;
+                        /** Format: uri */
+                        cancel_url?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Checkout session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckoutSession"];
+                    };
+                };
+                /** @description Forbidden — only workspace owner can checkout */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Workspace not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unknown plan or invalid input */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Billing is not configured on this server */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/billing/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Stripe Billing Portal session for the workspace */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        return_url?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Portal session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalSession"];
+                    };
+                };
+                /** @description Forbidden — only workspace owner can manage billing */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Workspace not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No Stripe customer linked yet (workspace never checked out) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Billing is not configured on this server */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Token spend and remaining quota for the current calendar month */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UsageReport"];
+                    };
+                };
+                /** @description Workspace not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/ai/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a message to Anthropic Claude through the workspace proxy
+         * @description Proxies the request to the Anthropic Messages API using a
+         *     server-side API key. Tokens consumed are billed against the
+         *     workspace's monthly quota (see `/usage`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AiMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description Pass-through response from Anthropic */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AiMessageResponse"];
+                    };
+                };
+                /** @description Workspace has hit its monthly token quota */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Workspace not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Upstream Anthropic error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description AI proxy not configured on this server */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stripe billing webhook
+         * @description Receives Stripe webhook events. Validates the `Stripe-Signature` header
+         *     against `STRIPE_WEBHOOK_SECRET`. Currently handles
+         *     `checkout.session.completed`, `customer.subscription.created/updated/deleted`,
+         *     and `invoice.payment_failed`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "Stripe-Signature"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description Processed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Signature mismatch */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/github/{workspace_slug}": {
         parameters: {
             query?: never;
@@ -716,6 +1132,83 @@ export interface components {
             status?: string;
             /** @example 0.1.0 */
             version?: string;
+        };
+        Subscription: {
+            /** @enum {string} */
+            plan: "free" | "pro" | "enterprise";
+            /** @enum {string} */
+            status: "active" | "trialing" | "past_due" | "canceled" | "incomplete" | "incomplete_expired" | "unpaid" | "paused";
+            /** Format: date-time */
+            current_period_end?: string | null;
+            cancel_at_period_end?: boolean;
+            limits: {
+                work_items?: number | null;
+                tasks_per_month?: number | null;
+                members?: number | null;
+                ai_tokens_per_month?: number | null;
+            };
+            stripe_customer_id?: string | null;
+        };
+        BillingConfig: {
+            publishable_key?: string | null;
+            prices?: {
+                pro_monthly?: string | null;
+                pro_yearly?: string | null;
+            };
+        };
+        CheckoutSession: {
+            /** Format: uri */
+            url: string;
+            session_id: string;
+        };
+        PortalSession: {
+            /** Format: uri */
+            url: string;
+        };
+        AiMessage: {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string | Record<string, never>[];
+        };
+        AiMessageRequest: {
+            /** @example claude-haiku-4-5-20251001 */
+            model?: string;
+            /** @default 1024 */
+            max_tokens: number;
+            system?: string;
+            /** Format: float */
+            temperature?: number;
+            messages: components["schemas"]["AiMessage"][];
+        };
+        /**
+         * @description Pass-through of the Anthropic Messages API response. Token usage
+         *     is also recorded server-side and counted against the workspace
+         *     quota; consumers should rely on `/usage` for billing.
+         */
+        AiMessageResponse: {
+            [key: string]: unknown;
+        };
+        UsageReport: {
+            period?: {
+                /** Format: date-time */
+                start?: string;
+                /** Format: date-time */
+                end?: string;
+            };
+            /** @enum {string} */
+            plan?: "free" | "pro" | "enterprise";
+            usage?: {
+                ai_tokens?: number;
+                ai_input_tokens?: number;
+                ai_output_tokens?: number;
+                ai_calls?: number;
+            };
+            limits?: {
+                ai_tokens_per_month?: number | null;
+            };
+            remaining?: {
+                ai_tokens?: number | null;
+            };
         };
     };
     responses: never;

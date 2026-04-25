@@ -35,6 +35,17 @@ const item = await backlog.createWorkItem(ws.id, {
 
 const items = await backlog.listWorkItems(ws.id);
 console.log(items);
+
+// Drive an agent through the proxy — tokens metered against your plan
+const reply = await backlog.aiMessages(ws.id, {
+  model: "claude-haiku-4-5-20251001",
+  max_tokens: 256,
+  messages: [{ role: "user", content: "Summarize: " + items[0].title }],
+});
+console.log(reply.content);
+
+const usage = await backlog.getUsage(ws.id);
+console.log(`${usage.usage.ai_tokens} / ${usage.limits.ai_tokens_per_month} tokens used`);
 ```
 
 ## API
@@ -61,6 +72,18 @@ console.log(items);
 ### Runs
 - `listRuns(workspaceId, status?)` → `Run[]`
 - `createRun(workspaceId, input)` → `Run`
+
+### Billing
+- `getBillingConfig()` → `{ publishable_key, prices }` — Stripe.js bootstrap data
+- `getBilling(workspaceId)` → `Subscription` — current plan, status, limits
+- `createCheckoutSession(workspaceId, { plan, interval, success_url, cancel_url })` → `{ url, session_id }`
+- `createPortalSession(workspaceId, { return_url })` → `{ url }`
+
+### Usage
+- `getUsage(workspaceId)` → `UsageReport` — month-to-date AI tokens / calls / quota
+
+### AI proxy
+- `aiMessages(workspaceId, { model, messages, max_tokens, system, temperature })` → `AiMessageResponse` — Anthropic Messages passthrough, billed against the workspace quota
 
 ## Custom backend
 

@@ -2,6 +2,15 @@
 
 All notable changes to `backlog-sdk` are documented here.
 
+## [0.2.0] - 2026-04-25
+
+### Added
+
+- Billing: `getBillingConfig`, `getBilling`, `createCheckoutSession`, `createPortalSession`.
+- Usage: `getUsage` — month-to-date token spend and remaining quota.
+- AI proxy: `aiMessages` — Anthropic Messages passthrough, billed against the workspace quota.
+- New exported types: `Subscription`, `BillingConfig`, `CheckoutSession`, `PortalSession`, `UsageReport`, `AiMessage`, `AiMessageRequest`, `AiMessageResponse`.
+
 ## [0.1.0] - 2026-04-25
 
 ### Added

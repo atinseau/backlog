@@ -118,6 +118,101 @@ components:
         status: { type: string, example: ok }
         version: { type: string, example: "0.1.0" }
 
+    Subscription:
+      type: object
+      properties:
+        plan: { type: string, enum: [free, pro, enterprise] }
+        status: { type: string, enum: [active, trialing, past_due, canceled, incomplete, incomplete_expired, unpaid, paused] }
+        current_period_end: { type: string, format: date-time, nullable: true }
+        cancel_at_period_end: { type: boolean }
+        limits:
+          type: object
+          properties:
+            work_items: { type: integer, nullable: true }
+            tasks_per_month: { type: integer, nullable: true }
+            members: { type: integer, nullable: true }
+            ai_tokens_per_month: { type: integer, nullable: true }
+        stripe_customer_id: { type: string, nullable: true }
+      required: [plan, status, limits]
+
+    BillingConfig:
+      type: object
+      properties:
+        publishable_key: { type: string, nullable: true }
+        prices:
+          type: object
+          properties:
+            pro_monthly: { type: string, nullable: true }
+            pro_yearly:  { type: string, nullable: true }
+
+    CheckoutSession:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+        session_id: { type: string }
+      required: [url, session_id]
+
+    PortalSession:
+      type: object
+      properties:
+        url: { type: string, format: uri }
+      required: [url]
+
+    AiMessage:
+      type: object
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content:
+          oneOf:
+            - { type: string }
+            - { type: array, items: { type: object } }
+      required: [role, content]
+
+    AiMessageRequest:
+      type: object
+      properties:
+        model: { type: string, example: claude-haiku-4-5-20251001 }
+        max_tokens: { type: integer, default: 1024 }
+        system: { type: string }
+        temperature: { type: number, format: float }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/AiMessage' }
+      required: [messages]
+
+    AiMessageResponse:
+      type: object
+      description: |
+        Pass-through of the Anthropic Messages API response. Token usage
+        is also recorded server-side and counted against the workspace
+        quota; consumers should rely on `/usage` for billing.
+      additionalProperties: true
+
+    UsageReport:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start: { type: string, format: date-time }
+            end:   { type: string, format: date-time }
+        plan: { type: string, enum: [free, pro, enterprise] }
+        usage:
+          type: object
+          properties:
+            ai_tokens:        { type: integer }
+            ai_input_tokens:  { type: integer }
+            ai_output_tokens: { type: integer }
+            ai_calls:         { type: integer }
+        limits:
+          type: object
+          properties:
+            ai_tokens_per_month: { type: integer, nullable: true }
+        remaining:
+          type: object
+          properties:
+            ai_tokens: { type: integer, nullable: true }
+
 paths:
   /health:
     get:
@@ -410,6 +505,169 @@ paths:
                 type: object
                 properties:
                   run: { $ref: '#/components/schemas/Run' }
+
+  /billing/config:
+    get:
+      summary: Stripe.js bootstrap data (publishable key + price IDs)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BillingConfig' }
+
+  /workspaces/{workspace_id}/billing:
+    get:
+      summary: Current subscription for a workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription: { $ref: '#/components/schemas/Subscription' }
+        '404':
+          description: Workspace not found or not a member
+
+  /workspaces/{workspace_id}/billing/checkout:
+    post:
+      summary: Create a Stripe Checkout Session for upgrading the workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan: { type: string, enum: [pro], default: pro }
+                interval: { type: string, enum: [monthly, yearly], default: monthly }
+                success_url: { type: string, format: uri }
+                cancel_url: { type: string, format: uri }
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckoutSession' }
+        '403': { description: Forbidden — only workspace owner can checkout }
+        '404': { description: Workspace not found }
+        '422': { description: Unknown plan or invalid input }
+        '503': { description: Billing is not configured on this server }
+
+  /workspaces/{workspace_id}/billing/portal:
+    post:
+      summary: Create a Stripe Billing Portal session for the workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                return_url: { type: string, format: uri }
+      responses:
+        '200':
+          description: Portal session created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalSession' }
+        '403': { description: Forbidden — only workspace owner can manage billing }
+        '404': { description: Workspace not found }
+        '422': { description: No Stripe customer linked yet (workspace never checked out) }
+        '503': { description: Billing is not configured on this server }
+
+  /workspaces/{workspace_id}/usage:
+    get:
+      summary: Token spend and remaining quota for the current calendar month
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageReport' }
+        '404':
+          description: Workspace not found
+
+  /workspaces/{workspace_id}/ai/messages:
+    post:
+      summary: Send a message to Anthropic Claude through the workspace proxy
+      description: |
+        Proxies the request to the Anthropic Messages API using a
+        server-side API key. Tokens consumed are billed against the
+        workspace's monthly quota (see `/usage`).
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AiMessageRequest' }
+      responses:
+        '200':
+          description: Pass-through response from Anthropic
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AiMessageResponse' }
+        '402':
+          description: Workspace has hit its monthly token quota
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Workspace not found
+        '502':
+          description: Upstream Anthropic error
+        '503':
+          description: AI proxy not configured on this server
+
+  /webhooks/stripe:
+    post:
+      summary: Stripe billing webhook
+      description: |
+        Receives Stripe webhook events. Validates the `Stripe-Signature` header
+        against `STRIPE_WEBHOOK_SECRET`. Currently handles
+        `checkout.session.completed`, `customer.subscription.created/updated/deleted`,
+        and `invoice.payment_failed`.
+      security: []
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Processed
+        '401':
+          description: Signature mismatch
 
   /webhooks/github/{workspace_slug}:
     post:
