@@ -5,7 +5,7 @@ This repo is a **pnpm monorepo**. Read [CONTRIBUTING.md](./CONTRIBUTING.md) befo
 ## Layout (canonical)
 
 - `packages/cli/` — `backlog` (Apache-2.0, npm: [`backlog`](https://www.npmjs.com/package/backlog))
-- `packages/server/` — `@osmove/backlog-server` (BUSL-1.1, scaffold)
+- `packages/server/` — `backlog-server` (BUSL-1.1, scaffold)
 - `packages/{core,claims,connectors,config,git,hooks,schemas}/` — workspace-internal modules
 - `docs/ROADMAP.md` — multi-target roadmap (sources, repos, sandboxes, executors, deploy targets)
 - Root `README.md` is symlinked from `packages/cli/README.md` (CLI README is the canonical one for npm)
@@ -14,7 +14,7 @@ This repo is a **pnpm monorepo**. Read [CONTRIBUTING.md](./CONTRIBUTING.md) befo
 
 - `packages/schemas/` (Zod) is the **source of truth for cross-boundary types**. Both CLI and server import from there.
 - Internal packages use `workspace:*` deps; tsup bundles everything for the published `backlog` tarball.
-- Server (`packages/server/`) is a separate publishable artifact (`@osmove/backlog-server`), not bundled into CLI.
+- Server (`packages/server/`) is a separate publishable artifact (`backlog-server`), not bundled into CLI.
 
 ## Common commands
 
@@ -24,8 +24,8 @@ pnpm test                                      # vitest run (workspace-wide)
 pnpm typecheck                                 # tsc -b
 pnpm --filter backlog dev                      # CLI dev mode (tsx)
 pnpm --filter backlog build                    # CLI build (tsup)
-pnpm --filter @osmove/backlog-server dev       # server dev mode
-pnpm --filter @osmove/backlog-server build     # server build
+pnpm --filter backlog-server dev       # server dev mode
+pnpm --filter backlog-server build     # server build
 ```
 
 ## CLI conventions

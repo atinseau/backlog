@@ -39,10 +39,10 @@ jobs:
         run: pnpm --filter backlog build
 
       - name: Type check (server)
-        run: pnpm --filter @osmove/backlog-server typecheck
+        run: pnpm --filter backlog-server typecheck
 
       - name: Build (server)
-        run: pnpm --filter @osmove/backlog-server build
+        run: pnpm --filter backlog-server build
 
       - name: Package check (CLI)
         run: pnpm --filter backlog pack:check

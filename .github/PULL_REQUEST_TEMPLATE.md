@@ -7,7 +7,7 @@
 - [ ] `pnpm test` passes locally
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm --filter backlog build` succeeds
-- [ ] If touching `packages/server`, `pnpm --filter @osmove/backlog-server build` also succeeds
+- [ ] If touching `packages/server`, `pnpm --filter backlog-server build` also succeeds
 - [ ] CLI changes preserve the canonical command surface
 - [ ] `README.md`, `docs/ROADMAP.md` updated where relevant
 - [ ] Tests added or updated for new behavior

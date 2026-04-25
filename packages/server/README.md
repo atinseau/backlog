@@ -1,4 +1,4 @@
-# `@osmove/backlog-server`
+# `backlog-server`
 
 Self-hosted backend for the [Backlog CLI](https://www.npmjs.com/package/backlog).
 
@@ -19,7 +19,7 @@ The hosted SaaS version (Backlog Cloud) is the same API contract, run by Osmove.
 ```sh
 corepack enable
 pnpm install
-pnpm --filter @osmove/backlog-server dev
+pnpm --filter backlog-server dev
 ```
 
 Then:
@@ -31,7 +31,7 @@ curl http://127.0.0.1:3002/health
 ## Quickstart (production)
 
 ```sh
-pnpm --filter @osmove/backlog-server build
+pnpm --filter backlog-server build
 PORT=3002 node packages/server/dist/index.js
 ```
 

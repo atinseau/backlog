@@ -1,5 +1,5 @@
 {
-  "name": "@osmove/backlog-server",
+  "name": "backlog-server",
   "version": "0.1.0",
   "description": "Backlog server — self-hosted backend for the Backlog CLI (BUSL 1.1).",
   "license": "BUSL-1.1",

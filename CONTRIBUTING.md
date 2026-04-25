@@ -5,7 +5,7 @@ Thanks for contributing to `backlog`.
 This is a pnpm monorepo with two publishable packages today:
 
 - `packages/cli/` — the `backlog` CLI (Apache-2.0, npm: `backlog`)
-- `packages/server/` — the `@osmove/backlog-server` self-hostable backend (BUSL-1.1)
+- `packages/server/` — the `backlog-server` self-hostable backend (BUSL-1.1)
 
 ## Development Setup
 
@@ -26,7 +26,7 @@ backlog/
 ├── pnpm-workspace.yaml
 ├── packages/
 │   ├── cli/                        (public, "backlog", Apache-2.0)
-│   ├── server/                     (public, "@osmove/backlog-server", BUSL-1.1)
+│   ├── server/                     (public, "backlog-server", BUSL-1.1)
 │   ├── core/, claims/, ...         (workspace-internal)
 │   └── schemas/                    (workspace-internal, shared types)
 ├── docs/
@@ -43,14 +43,14 @@ backlog/
 ```sh
 pnpm test                                   # workspace-wide vitest run
 pnpm --filter backlog test                  # CLI only
-pnpm --filter @osmove/backlog-server test   # server only
+pnpm --filter backlog-server test   # server only
 ```
 
 ## Build
 
 ```sh
 pnpm --filter backlog build                  # CLI
-pnpm --filter @osmove/backlog-server build   # server
+pnpm --filter backlog-server build   # server
 ```
 
 ## Before You Commit
@@ -65,7 +65,7 @@ Backlog uses its own claim system internally for change scoping. Most repos with
 
 - Update `README.md` or `docs/ROADMAP.md` when behavior changes
 - For CLI releases (`backlog`): bump `packages/cli/package.json#version`, then publish from that directory
-- For server releases (`@osmove/backlog-server`): bump `packages/server/package.json#version`, then publish from that directory
+- For server releases (`backlog-server`): bump `packages/server/package.json#version`, then publish from that directory
 
 ## Code Guidelines
 
