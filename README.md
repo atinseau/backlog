@@ -1,67 +1,69 @@
 # Backlog
 
-Local-first AI execution control plane for coding teams and coding subagents.
+**Turn planning inputs into safe agent execution.**
 
-Backlog ingests work from sources like Markdown, CSV, and Jira, turns backlog into executable tasks, protects file scopes with claims, and prepares isolated worktree runs for parallel execution.
+Vendor-neutral orchestration with claims, worktrees, and parallel runs for
+AI coding agents.
 
-## Current MVP
+---
 
-- `backlog init`
-- `backlog doctor`
-- `backlog repos list|show|add|update|remove`
-- `backlog work add|list|show|move|update|remove|plan|split|import`
-- `backlog work update`
-- `backlog task add|list|show|move|update|remove|block|unblock|plan`
-- `backlog claim start|check|finish|list`
-- `backlog claim start|check|finish|list|gc`
-- `backlog hooks status|install|uninstall`
-- `backlog schedule simulate|explain|run`
-- `backlog runs list|show|gc`
-- `backlog runs interrupt|resume`
-- `backlog runs review|approve|request-changes|complete|fail|handoff`
-- `backlog agents list|show|enable|disable|update|validate|health`
-- `backlog sources add|list|enable|disable|update|remove|validate|sync`
-- `backlog sources push`
-- `backlog sources conflicts|resolve`
-- `backlog release snapshot`
-- `backlog worktree list|gc`
+## What is Backlog?
 
-Most `list` commands now support practical filters, for example:
-- `backlog repos list --enabled true`
-- `backlog work list --status ready --repo backlog`
-- `backlog task list --repo backlog --status blocked`
-- `backlog runs list --review --agent codex-default`
-- `backlog sources list --enabled true`
+Backlog is the engine that sits between your backlog and your agents.
 
-`backlog release snapshot` now reports dirty repos and per-repo run counts. `backlog worktree list` shows the worktrees Backlog knows about through run records, and `backlog worktree gc --dry-run` previews cleanup before deleting anything.
+It ingests work from sources you already use (Markdown, CSV, Jira — more
+coming), decomposes work items into scoped, executable tasks, and runs each
+task in an isolated git worktree under a file-scope claim so multiple agents
+can work in parallel without stepping on each other.
 
-`backlog release snapshot` also supports `--repo <id>`, `--include-disabled`, and `--output <path>` when you want a targeted or exportable snapshot for one repo or a full workspace report.
+When a run finishes, you review it, approve it, request changes, or hand it
+off — and the next eligible task can start immediately.
 
-`backlog status --repo <id>` now focuses the workspace view on one repo and still keeps a compact per-repo breakdown handy. `backlog doctor --repo <id>` also drills into one repo and now reports `dirty` state plus branch/default-branch mismatches.
+Backlog runs end-to-end on your machine by default. Remote sources, remote
+repos, remote sandboxes, remote executors, and deploy targets are part of
+the [multi-target roadmap](docs/ROADMAP.md).
 
-Use `backlog repos add` and `backlog repos update` when you want to manage a multi-repo workspace without editing `config.toml` by hand. Forced repo removal can also scrub linked tasks, work items, and agent scopes when you intentionally retire one repo from the workspace.
+## How it works
+
+| Layer | What it does |
+|-------|--------------|
+| **Sources** | Ingest work items from Markdown, CSV, Jira (and more — see roadmap) |
+| **Work items** | High-level units of intent imported from sources |
+| **Tasks** | Repo-scoped executable units split out from work items |
+| **Claims** | Lock file/path scopes so concurrent runs cannot conflict |
+| **Worktrees** | Each run executes in its own isolated git worktree |
+| **Scheduler** | Picks eligible tasks, assigns agents, respects claim conflicts |
+| **Runs** | Track agent execution with summary, log, and changed-files artifacts |
+| **Review** | Approve, request changes, complete, fail, or handoff each run |
 
 ## Quickstart
 
 ```bash
 corepack pnpm install
 corepack pnpm build
+
 node packages/cli/dist/bin.js init --name my-workspace
 node packages/cli/dist/bin.js doctor
 ```
 
-Create a local work item and a task:
+Create a local work item, split it into tasks, and run the scheduler:
 
 ```bash
 node packages/cli/dist/bin.js work add --title "Build the scheduler"
-node packages/cli/dist/bin.js work split WI-xxxx --repo backlog --scope backlog=packages/core/src/**
-node packages/cli/dist/bin.js task add --work-item WI-xxxx --title "Implement scheduler" --repo backlog --preferred-agent manual-default --require-capability edit_code
+node packages/cli/dist/bin.js work split WI-xxxx --repo backlog \
+  --scope backlog=packages/core/src/**
+node packages/cli/dist/bin.js task add \
+  --work-item WI-xxxx \
+  --title "Implement scheduler" \
+  --repo backlog \
+  --preferred-agent manual-default \
+  --require-capability edit_code
 node packages/cli/dist/bin.js schedule simulate
 node packages/cli/dist/bin.js schedule explain --work-item WI-xxxx
 node packages/cli/dist/bin.js schedule run --approve
 ```
 
-Add a source and sync:
+Add a source and sync work items in:
 
 ```bash
 node packages/cli/dist/bin.js sources add markdown --id notes --path backlog.md
@@ -71,74 +73,133 @@ node packages/cli/dist/bin.js sources conflicts
 node packages/cli/dist/bin.js sources resolve --work-item WI-xxxx --use local
 ```
 
-## Workspace State
+## CLI
 
-Backlog stores local state in `.backlog/`:
+```
+backlog init                                          Initialize a workspace
+backlog doctor [--repo <id>] [--json]                 Inspect workspace health
+backlog status [--repo <id>]                          Workspace overview
 
-- `config.toml`
-- `work-items.yaml`
-- `tasks.yaml`
-- `sources.yaml`
-- `agents.yaml`
-- `claims/`
-- `runs/`
-- `worktrees/`
+backlog repos    list|show|add|update|remove          Manage tracked repos
+backlog work     add|list|show|move|update|remove
+                 |plan|split|import                   Manage work items
+backlog task     add|list|show|move|update|remove
+                 |block|unblock|plan                  Manage tasks
+backlog claim    start|check|finish|list|gc           Manage file-scope claims
+backlog hooks    status|install|uninstall [--all|--repo <id>]
+                                                      Manage git hooks
+backlog schedule simulate|explain|run                 Schedule and run agents
+backlog runs     list|show|gc|interrupt|resume
+                 |review|approve|request-changes
+                 |complete|fail|handoff               Manage runs
+backlog agents   list|show|enable|disable|update
+                 |validate|health                     Manage agent providers
+backlog sources  add|list|enable|disable|update|remove
+                 |validate|sync|push|conflicts|resolve
+                                                      Manage source connectors
+backlog release  snapshot [--repo <id>] [--include-disabled] [--output <path>]
+                                                      Export a release report
+backlog worktree list|gc                              Inspect tracked worktrees
+```
+
+Most `list` commands support practical filters, for example:
+
+```bash
+backlog repos list --enabled true
+backlog work list --status ready --repo backlog
+backlog task list --repo backlog --status blocked
+backlog runs list --review --agent codex-default
+backlog sources list --enabled true
+```
+
+## Workspace state
+
+Backlog stores workspace state in `.backlog/`:
+
+```
+.backlog/
+├── config.toml
+├── work-items.yaml
+├── tasks.yaml
+├── sources.yaml
+├── agents.yaml
+├── claims/        # active and archived
+├── runs/          # active and archived
+└── worktrees/     # tracked run worktrees
+```
+
+You can edit YAML by hand, but `backlog repos`, `backlog work`, `backlog task`,
+`backlog agents`, and `backlog sources` are designed to keep state consistent
+without manual edits.
 
 ## Agents
 
-You can add a `custom` provider in `.backlog/agents.yaml` with a shell `command`.
+Backlog ships with three executor providers:
 
-When `schedule run --agent <id>` targets a custom agent, Backlog will execute that command inside the run worktree and mark the run succeeded or failed from the exit code.
+- **`claude`** — runs `claude -p` inside the run worktree
+- **`codex`** — runs `codex exec` inside the run worktree
+- **`custom`** — runs an arbitrary shell command inside the run worktree
 
-Backlog also supports `provider: codex`. A Codex agent runs `codex exec` inside the isolated worktree, captures the last agent message, and stores it on the run as a summary artifact.
+`backlog init` seeds disabled `claude-default` and `codex-default` agents.
+Enable, retarget, or override their executable with:
 
-`init` now seeds a disabled `codex-default` agent in `.backlog/agents.yaml` that you can enable and tune with `model`, `profile`, `sandbox_mode`, and an optional `command` override for the Codex executable path.
+```bash
+backlog agents enable codex-default
+backlog agents update codex-default --model gpt-5
+backlog agents update codex-default --command /usr/local/bin/codex
+```
 
-Backlog also supports `provider: claude` through `claude -p`, using the same isolated worktree flow. `init` seeds a disabled `claude-default` agent as well.
+By default, `claude` and `codex` runs land in `awaiting_review` instead of
+auto-completing. Their claims are released, but the run and worktree stay
+available for review.
 
-Use `backlog agents enable|disable|update` when you want to flip a seeded agent on, change its model, override its executable, or narrow its allowed repos/risk/capabilities without editing YAML by hand.
+```bash
+backlog runs list --review                # see the review queue
+backlog runs approve <run-id>             # accept a reviewed run
+backlog runs request-changes <run-id> --reason "..."
+                                          # archive run, return task to planned
+```
 
-Both `codex` and `claude` now attach richer run artifacts:
-- summary
-- executor log
-- changed files detected in the worktree
+Both `claude` and `codex` runs attach summary, executor log, and the list of
+changed files detected in the worktree.
 
-By default, `codex` and `claude` successful runs now land in `awaiting_review` instead of auto-completing the task. Their claims are released, but the run and worktree stay available for review.
+## Source sync
 
-Use `backlog runs list --review` to see the review queue, `backlog runs approve <run-id>` to accept a reviewed run, and `backlog runs request-changes <run-id> --reason "..."` to archive the run with a handoff while returning the task to `planned`.
-
-Terminal run transitions now archive linked claims automatically, so finished runs stop blocking future scheduling.
-
-## Split Planning
-
-`backlog work split` turns one backlog item into repo-scoped executable tasks.
-
-- Use `--repo` to override target repos.
-- Use `--mode serial` to chain generated tasks in order.
-- Use `--scope repo=glob` to seed initial safe claim scopes for each generated task.
-
-## Scheduling Explainability
-
-`backlog schedule explain` shows the chosen action for each selected task plus the ranked candidate agents and why they were accepted or rejected.
-
-`backlog schedule run` now supports `--json` and reports both started runs and skipped tasks, including cases where a forced or assigned agent is unavailable or not executable.
-
-`backlog init` now auto-registers the current git repo when it can, using the workspace name as a stable repo id and the current branch as the default branch. `backlog doctor --json` also reports repo-level warnings and detected branches.
-
-`backlog hooks status` inspects the current repo’s pre-commit hook and tells you whether it is Backlog-managed and whether it points at the local shim created in `.backlog/bin/backlog`.
-
-In multi-repo workspaces, `backlog hooks status|install|uninstall --all` lets you audit or roll out the managed hook across every configured repo in one pass. You can also target one configured repo explicitly with `--repo <id>`.
-
-## Source Sync
-
-- `sources push --all` pushes every source-linked work item that supports outbound sync.
-- `sources push` now refuses to push an item while it still has pending sync conflicts, unless you pass `--allow-conflicts`.
-- `sources resolve --work-item <id> --use local|external` resolves every pending conflict for that work item in one step.
+- `backlog sources push --all` pushes every source-linked work item that
+  supports outbound sync.
+- `backlog sources push` refuses to push an item while it has pending
+  conflicts, unless you pass `--allow-conflicts`.
+- `backlog sources resolve --work-item <id> --use local|external` resolves
+  every pending conflict for that work item in one step.
 
 ## Maintenance
 
-- `claim gc` archives expired active claims that would otherwise stay on disk.
-- `runs gc --all` purges archived run directories when you want to clean local runtime history.
+- `backlog claim gc` archives expired active claims.
+- `backlog runs gc --all` purges archived run directories.
+- `backlog worktree list` shows worktrees Backlog knows about.
+- `backlog worktree gc --dry-run` previews cleanup before deleting anything.
+
+## Hooks
+
+In multi-repo workspaces, `backlog hooks status|install|uninstall --all` lets
+you audit or roll out the managed pre-commit hook across every configured
+repo in one pass. You can also target one configured repo explicitly with
+`--repo <id>`.
+
+## Release snapshots
+
+`backlog release snapshot` reports dirty repos and per-repo run counts. It
+supports:
+
+- `--repo <id>` to focus on one repo
+- `--include-disabled` to include disabled repos in the snapshot
+- `--output <path>` to write the snapshot to a file for export
+
+## Roadmap
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the multi-target plan covering
+remote sources, remote repos, remote sandboxes, remote executors, deploy
+targets, and the upcoming UI.
 
 ## Development
 
@@ -148,3 +209,5 @@ corepack pnpm typecheck
 corepack pnpm test
 corepack pnpm build
 ```
+
+Issues, PRs, and design discussions welcome.
