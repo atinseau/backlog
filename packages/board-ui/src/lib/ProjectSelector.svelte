@@ -10,6 +10,8 @@
 
   let { projects, selectedId, onSelect, onManage }: Props = $props();
 
+  const liveProjects = $derived(projects.filter((p) => !p.archived));
+
   function handleChange(event: Event) {
     const target = event.currentTarget as HTMLSelectElement;
     onSelect(target.value || null);
@@ -18,8 +20,8 @@
 
 <div class="project-selector">
   <select value={selectedId ?? ""} onchange={handleChange}>
-    <option value="">Tous les projets</option>
-    {#each projects.filter((p) => !p.archived) as project (project.id)}
+    <option value="">Tous les projets ({liveProjects.length})</option>
+    {#each liveProjects as project (project.id)}
       <option value={project.id}>{project.name}</option>
     {/each}
   </select>

@@ -31,13 +31,27 @@ export interface UpdateProjectInput {
   archived?: boolean;
 }
 
-function validateRepoIds(backlogDir: string, repoIds: string[]): void {
+function validateRepoIds(backlogDir: string, repoIds: string[], excludeProjectId?: string): void {
   if (repoIds.length === 0) return;
   const config = loadConfig(backlogDir);
   const known = new Set(config.repos.map((repo) => repo.id));
   const unknown = repoIds.filter((id) => !known.has(id));
   if (unknown.length > 0) {
     throw new Error(`Unknown repo id(s): ${unknown.join(", ")}`);
+  }
+  // Enforce 1:N — a repo can belong to at most one non-archived project.
+  const conflicts: string[] = [];
+  for (const project of listProjects(backlogDir)) {
+    if (project.archived) continue;
+    if (excludeProjectId && project.id === excludeProjectId) continue;
+    for (const repoId of project.repo_ids) {
+      if (repoIds.includes(repoId)) {
+        conflicts.push(`${repoId} is already attached to project ${project.slug}`);
+      }
+    }
+  }
+  if (conflicts.length > 0) {
+    throw new Error(`Repo conflict: ${conflicts.join("; ")}. Detach it first or move it via update.`);
   }
 }
 
@@ -88,7 +102,7 @@ export function updateProject(backlogDir: string, idOrSlug: string, input: Updat
   if (input.color !== undefined) project.color = input.color;
   if (input.clearColor) delete project.color;
   if (input.repoIds !== undefined) {
-    validateRepoIds(backlogDir, input.repoIds);
+    validateRepoIds(backlogDir, input.repoIds, project.id);
     project.repo_ids = input.repoIds;
   }
   if (input.maxAgents !== undefined) project.max_agents = input.maxAgents;

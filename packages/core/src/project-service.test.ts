@@ -113,4 +113,27 @@ describe("project-service", () => {
     expect(getProject(backlogDir, p.id)?.slug).toBe("demo");
     expect(getProject(backlogDir, "nope")).toBeNull();
   });
+
+  it("rejects attaching a repo that already belongs to another project", () => {
+    createProject(backlogDir, { slug: "alpha", name: "Alpha", repoIds: ["frontend"] });
+    expect(() =>
+      createProject(backlogDir, { slug: "beta", name: "Beta", repoIds: ["frontend", "api"] }),
+    ).toThrowError(/already attached to project alpha/);
+  });
+
+  it("allows moving a repo via update on the original project", () => {
+    const alpha = createProject(backlogDir, { slug: "alpha", name: "Alpha", repoIds: ["frontend", "api"] });
+    updateProject(backlogDir, alpha.id, { repoIds: ["frontend"] });
+    // api is now free, can attach to a new project
+    const beta = createProject(backlogDir, { slug: "beta", name: "Beta", repoIds: ["api"] });
+    expect(beta.repo_ids).toEqual(["api"]);
+  });
+
+  it("ignores archived projects when checking repo conflicts", () => {
+    const alpha = createProject(backlogDir, { slug: "alpha", name: "Alpha", repoIds: ["frontend"] });
+    archiveProject(backlogDir, alpha.id);
+    // archived project no longer claims the repo
+    const beta = createProject(backlogDir, { slug: "beta", name: "Beta", repoIds: ["frontend"] });
+    expect(beta.repo_ids).toEqual(["frontend"]);
+  });
 });

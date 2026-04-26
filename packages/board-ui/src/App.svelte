@@ -10,9 +10,10 @@
   import PermissionsView from "./lib/PermissionsView.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
+  import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
-  import { fetchBoard, fetchProjects, moveWorkItem, reorderWorkItem } from "./lib/api.js";
+  import { fetchBoard, fetchProjects, fetchRepos, moveWorkItem, reorderWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
   import {
@@ -20,14 +21,18 @@
     type BoardResponse,
     type ColumnKey,
     type Project,
+    type Repo,
     type WorkItemCard,
   } from "./lib/types.js";
 
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
+  const REPO_STORAGE_KEY = "backlog.selected_repo_id";
 
   let board = $state<BoardResponse | null>(null);
   let projects = $state<Project[]>([]);
+  let workspaceRepos = $state<Repo[]>([]);
   let selectedProjectId = $state<string | null>(null);
+  let selectedRepoId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
@@ -45,8 +50,10 @@
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const repos = $derived.by(() => {
-    if (!board) return [];
+  // Repos visible in the kanban — the "fallback" set when the workspace has no
+  // configured repos yet (we surface whatever the cards reference).
+  const boardRepoIds = $derived.by(() => {
+    if (!board) return [] as string[];
     const set = new Set<string>();
     for (const column of Object.values(board.columns)) {
       for (const card of column) {
@@ -57,9 +64,27 @@
     return [...set].sort();
   });
 
+  // Repo dropdown source — workspace repos when known, otherwise reverse-engineered
+  // from the board cards. Filtered by the active project's repo_ids when one is set.
+  const repoOptions = $derived.by<Repo[]>(() => {
+    const baseRepos: Repo[] = workspaceRepos.length > 0
+      ? workspaceRepos
+      : boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
+    if (!selectedProjectId) return baseRepos;
+    const project = projects.find((p) => p.id === selectedProjectId);
+    if (!project || project.repo_ids.length === 0) return baseRepos;
+    const allowed = new Set(project.repo_ids);
+    return baseRepos.filter((repo) => allowed.has(repo.id));
+  });
+
+  // The string-only `repos` prop fed to the modals/dialogs that just need a list of repo ids.
+  const repos = $derived(repoOptions.map((r) => r.id));
+
   async function refresh() {
     try {
-      const opts = selectedProjectId ? { project: selectedProjectId } : {};
+      const opts: { project?: string; repo?: string } = {};
+      if (selectedProjectId) opts.project = selectedProjectId;
+      if (selectedRepoId) opts.repo = selectedRepoId;
       board = await fetchBoard(opts);
       error = null;
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
@@ -77,6 +102,14 @@
     }
   }
 
+  async function refreshRepos() {
+    try {
+      workspaceRepos = await fetchRepos();
+    } catch (err) {
+      console.warn("repo fetch failed", err);
+    }
+  }
+
   function scheduleRefresh() {
     if (refreshTimer) return;
     refreshTimer = setTimeout(() => {
@@ -89,6 +122,21 @@
     selectedProjectId = id;
     if (id) localStorage.setItem(PROJECT_STORAGE_KEY, id);
     else localStorage.removeItem(PROJECT_STORAGE_KEY);
+    // If the picked project doesn't include the currently-selected repo, drop it.
+    if (id && selectedRepoId) {
+      const project = projects.find((p) => p.id === id);
+      if (project && project.repo_ids.length > 0 && !project.repo_ids.includes(selectedRepoId)) {
+        persistRepo(null);
+        return;
+      }
+    }
+    refresh();
+  }
+
+  function persistRepo(id: string | null) {
+    selectedRepoId = id;
+    if (id) localStorage.setItem(REPO_STORAGE_KEY, id);
+    else localStorage.removeItem(REPO_STORAGE_KEY);
     refresh();
   }
 
@@ -120,13 +168,16 @@
 
   onMount(() => {
     selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
+    selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
     refresh();
     refreshProjects();
+    refreshRepos();
     sse = subscribeToBoard(
       (type) => {
         if (type === "ping" || type === "ready") return;
         scheduleRefresh();
         if (type === "project.changed") refreshProjects();
+        if (type === "repo.changed") refreshRepos();
       },
       (alive) => {
         connected = alive;
@@ -155,6 +206,13 @@
       selectedId={selectedProjectId}
       onSelect={persistProject}
       onManage={() => (projectsViewOpen = true)}
+    />
+    <RepoSelector
+      repos={repoOptions}
+      selectedId={selectedRepoId}
+      projectScoped={selectedProjectId !== null}
+      onSelect={persistRepo}
+      onManage={() => (reposViewOpen = true)}
     />
     <OrchestratorControls
       {selectedProjectId}
@@ -185,7 +243,6 @@
         <span class="moving">↻ déplacement…</span>
       {/if}
     {/if}
-    <button onclick={() => (reposViewOpen = true)}>📁 Repos</button>
     <button onclick={() => (permissionsViewOpen = true)}>🔒 Permissions</button>
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
     <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
@@ -235,6 +292,7 @@
   <ReposView
     onClose={() => (reposViewOpen = false)}
     onChanged={() => {
+      refreshRepos();
       if (!connected) refresh();
     }}
   />
