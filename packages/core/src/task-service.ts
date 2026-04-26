@@ -188,6 +188,91 @@ export function unblockTask(backlogDir: string, id: string, reasons?: string[]):
   return updateTaskStatus(backlogDir, id, blockers.length > 0 ? "blocked" : "planned");
 }
 
+export function setTaskEstimate(
+  backlogDir: string,
+  id: string,
+  seconds: number,
+  source: "manual" | "auto" = "manual",
+): Task {
+  if (!Number.isInteger(seconds) || seconds <= 0) {
+    throw new Error("estimate must be a positive integer (seconds)");
+  }
+  const file = readTasksFile(backlogDir);
+  const task = file.tasks.find((candidate) => candidate.id === id);
+  if (!task) throw new Error(`Unknown task: ${id}`);
+  task.estimated_duration_seconds = seconds;
+  task.estimate_source = source;
+  task.updated_at = new Date().toISOString();
+  writeTasksFile(backlogDir, file);
+  return task;
+}
+
+export function clearTaskEstimate(backlogDir: string, id: string): Task {
+  const file = readTasksFile(backlogDir);
+  const task = file.tasks.find((candidate) => candidate.id === id);
+  if (!task) throw new Error(`Unknown task: ${id}`);
+  delete task.estimated_duration_seconds;
+  delete task.estimate_source;
+  task.updated_at = new Date().toISOString();
+  writeTasksFile(backlogDir, file);
+  return task;
+}
+
+export function setTaskProgress(backlogDir: string, id: string, percent: number): Task {
+  if (!Number.isFinite(percent)) throw new Error("progress must be a number");
+  const value = Math.min(100, Math.max(0, Math.round(percent)));
+  const file = readTasksFile(backlogDir);
+  const task = file.tasks.find((candidate) => candidate.id === id);
+  if (!task) throw new Error(`Unknown task: ${id}`);
+  task.progress_percent = value;
+  task.updated_at = new Date().toISOString();
+  writeTasksFile(backlogDir, file);
+  return task;
+}
+
+export interface ReorderTaskInput {
+  taskId: string;
+  beforeId?: string;
+  afterId?: string;
+}
+
+export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
+  const file = readTasksFile(backlogDir);
+  const task = file.tasks.find((candidate) => candidate.id === input.taskId);
+  if (!task) throw new Error(`Unknown task: ${input.taskId}`);
+
+  const sameWorkItem = file.tasks
+    .filter((candidate) => candidate.work_item_id === task.work_item_id)
+    .sort((a, b) => b.priority_score - a.priority_score);
+
+  const without = sameWorkItem.filter((candidate) => candidate.id !== task.id);
+
+  let insertIndex = without.length;
+  if (input.beforeId) {
+    const idx = without.findIndex((candidate) => candidate.id === input.beforeId);
+    if (idx >= 0) insertIndex = idx;
+  } else if (input.afterId) {
+    const idx = without.findIndex((candidate) => candidate.id === input.afterId);
+    if (idx >= 0) insertIndex = idx + 1;
+  } else {
+    insertIndex = 0;
+  }
+
+  const reordered = [...without.slice(0, insertIndex), task, ...without.slice(insertIndex)];
+  const top = 1000;
+  const step = 10;
+  const now = new Date().toISOString();
+  reordered.forEach((entry, idx) => {
+    const newScore = top - idx * step;
+    if (entry.priority_score !== newScore) {
+      entry.priority_score = newScore;
+      entry.updated_at = now;
+    }
+  });
+  writeTasksFile(backlogDir, file);
+  return task;
+}
+
 export function removeTask(backlogDir: string, id: string): Task {
   const file = readTasksFile(backlogDir);
   const index = file.tasks.findIndex((candidate) => candidate.id === id);

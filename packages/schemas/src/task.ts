@@ -23,6 +23,9 @@ export const taskSchema = z.object({
   claim_mode: z.enum(["exclusive", "shared"]).default("exclusive"),
   depends_on: z.array(z.string()).default([]),
   blockers: z.array(z.string()).default([]),
+  estimated_duration_seconds: z.number().int().positive().optional(),
+  estimate_source: z.enum(["manual", "auto"]).optional(),
+  progress_percent: z.number().int().min(0).max(100).optional(),
   execution: z.object({
     lane: z.string().optional(),
     preferred_agents: z.array(z.string()).default([]),

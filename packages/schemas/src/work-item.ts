@@ -41,6 +41,9 @@ export const workItemSchema = z.object({
   repo_targets: z.array(z.string()).default([]),
   acceptance_criteria: z.array(z.string()).default([]),
   dependencies: z.array(z.string()).default([]),
+  project_id: z.string().optional(),
+  rank: z.number().int().optional(),
+  estimated_duration_seconds: z.number().int().positive().optional(),
   planning: z.object({
     split_status: z.enum(["pending", "done"]).default("pending"),
     risk: z.enum(["low", "medium", "high"]).default("medium"),

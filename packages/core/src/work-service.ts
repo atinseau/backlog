@@ -143,6 +143,77 @@ export function updateWorkItemPlanning(
   return item;
 }
 
+export function assignProjectToWorkItem(backlogDir: string, id: string, projectId: string | null): WorkItem {
+  const file = readWorkItemsFile(backlogDir);
+  const item = file.items.find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`Unknown work item: ${id}`);
+  if (projectId === null) delete item.project_id;
+  else item.project_id = projectId;
+  item.updated_at = new Date().toISOString();
+  writeWorkItemsFile(backlogDir, file);
+  return item;
+}
+
+export function setWorkItemEstimate(backlogDir: string, id: string, seconds: number | null): WorkItem {
+  const file = readWorkItemsFile(backlogDir);
+  const item = file.items.find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`Unknown work item: ${id}`);
+  if (seconds === null) {
+    delete item.estimated_duration_seconds;
+  } else {
+    if (!Number.isInteger(seconds) || seconds <= 0) {
+      throw new Error("estimate must be a positive integer (seconds)");
+    }
+    item.estimated_duration_seconds = seconds;
+  }
+  item.updated_at = new Date().toISOString();
+  writeWorkItemsFile(backlogDir, file);
+  return item;
+}
+
+export interface ReorderWorkItemInput {
+  workItemId: string;
+  beforeId?: string;
+  afterId?: string;
+}
+
+export function reorderWorkItem(backlogDir: string, input: ReorderWorkItemInput): WorkItem {
+  const file = readWorkItemsFile(backlogDir);
+  const item = file.items.find((candidate) => candidate.id === input.workItemId);
+  if (!item) throw new Error(`Unknown work item: ${input.workItemId}`);
+
+  const samePriority = file.items
+    .filter((candidate) => candidate.priority === item.priority)
+    .sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
+
+  const without = samePriority.filter((candidate) => candidate.id !== item.id);
+
+  let insertIndex = without.length;
+  if (input.beforeId) {
+    const idx = without.findIndex((candidate) => candidate.id === input.beforeId);
+    if (idx >= 0) insertIndex = idx;
+  } else if (input.afterId) {
+    const idx = without.findIndex((candidate) => candidate.id === input.afterId);
+    if (idx >= 0) insertIndex = idx + 1;
+  } else {
+    insertIndex = 0;
+  }
+
+  const reordered = [...without.slice(0, insertIndex), item, ...without.slice(insertIndex)];
+  const top = 1000;
+  const step = 10;
+  const now = new Date().toISOString();
+  reordered.forEach((entry, idx) => {
+    const newRank = top - idx * step;
+    if (entry.rank !== newRank) {
+      entry.rank = newRank;
+      entry.updated_at = now;
+    }
+  });
+  writeWorkItemsFile(backlogDir, file);
+  return item;
+}
+
 export function workItemsSummary(backlogDir: string): Record<WorkStatus, number> {
   const summary = {
     backlog: 0,

@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import {
+  defaultOrchestratorState,
+  type OrchestratorState,
+  orchestratorStateSchema,
+  type Project,
+  type ProjectsFile,
+  projectsFileSchema,
   tasksFileSchema,
   type Task,
   type TasksFile,
@@ -49,4 +55,44 @@ export function listWorkItems(backlogDir: string): WorkItem[] {
 
 export function listTasks(backlogDir: string): Task[] {
   return readTasksFile(backlogDir).tasks;
+}
+
+export function projectsPath(backlogDir: string): string {
+  return path.join(backlogDir, "projects.yaml");
+}
+
+export function readProjectsFile(backlogDir: string): ProjectsFile {
+  const filePath = projectsPath(backlogDir);
+  if (!fs.existsSync(filePath)) {
+    return { version: 1, projects: [] };
+  }
+  return readYaml(filePath, (value) => projectsFileSchema.parse(value));
+}
+
+export function writeProjectsFile(backlogDir: string, file: ProjectsFile): void {
+  writeYaml(projectsPath(backlogDir), file);
+}
+
+export function listProjects(backlogDir: string): Project[] {
+  return readProjectsFile(backlogDir).projects;
+}
+
+export function orchestratorStatePath(backlogDir: string): string {
+  return path.join(backlogDir, "orchestrator.json");
+}
+
+export function readOrchestratorState(backlogDir: string): OrchestratorState {
+  const filePath = orchestratorStatePath(backlogDir);
+  if (!fs.existsSync(filePath)) {
+    return defaultOrchestratorState();
+  }
+  const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+  return orchestratorStateSchema.parse(raw);
+}
+
+export function writeOrchestratorState(backlogDir: string, state: OrchestratorState): void {
+  const filePath = orchestratorStatePath(backlogDir);
+  const tmpPath = `${filePath}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf8");
+  fs.renameSync(tmpPath, filePath);
 }
