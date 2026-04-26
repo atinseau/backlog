@@ -18,7 +18,13 @@ interface ClaudeSessionInfo {
 }
 
 const CLAUDE_SESSIONS_DIR = path.join(os.homedir(), ".claude", "sessions");
-const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+const CLAUDE_CODE_SESSIONS_DIR = path.join(
+  os.homedir(),
+  "Library",
+  "Application Support",
+  "Claude",
+  "claude-code-sessions",
+);
 
 function readClaudeSessionForPid(pid: number): ClaudeSessionInfo | null {
   const filePath = path.join(CLAUDE_SESSIONS_DIR, `${pid}.json`);
@@ -57,55 +63,61 @@ function detectClaudeCodeSession(maxDepth = 8): ClaudeSessionInfo | null {
   return null;
 }
 
-function readSessionTitleFromJsonl(sessionId: string, cwd: string | undefined): string | null {
-  if (!cwd) return null;
-  const encoded = cwd.replace(/\//g, "-");
-  const filePath = path.join(CLAUDE_PROJECTS_DIR, encoded, `${sessionId}.jsonl`);
-  if (!fs.existsSync(filePath)) return null;
-  try {
-    // Stream-read line by line; bail out as soon as we find the first user message.
-    // Avoid loading the whole file (sessions can be 5+ MB).
-    const fd = fs.openSync(filePath, "r");
-    const buffer = Buffer.alloc(64 * 1024);
-    let acc = "";
-    let bytesRead = 0;
-    while ((bytesRead = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
-      acc += buffer.subarray(0, bytesRead).toString("utf8");
-      let idx = acc.indexOf("\n");
-      while (idx >= 0) {
-        const line = acc.slice(0, idx);
-        acc = acc.slice(idx + 1);
-        idx = acc.indexOf("\n");
-        if (!line.trim()) continue;
+interface ClaudeCodeSessionMetadata {
+  title?: string;
+  titleSource?: string;
+  model?: string;
+  effort?: string;
+}
+
+/**
+ * Walk ~/Library/Application Support/Claude/claude-code-sessions/<...>/<...>.json
+ * looking for the file whose `cliSessionId` matches the requested session UUID.
+ * Returns the parsed metadata (title, model, effort) when found, null otherwise.
+ *
+ * Performance note: the tree typically holds tens-to-low-hundreds of files; we
+ * sort by mtime desc so a freshly-active session is found in O(1) reads.
+ */
+function findClaudeCodeSessionMetadata(sessionId: string): ClaudeCodeSessionMetadata | null {
+  if (!fs.existsSync(CLAUDE_CODE_SESSIONS_DIR)) return null;
+  const candidates: { filePath: string; mtimeMs: number }[] = [];
+  const stack: string[] = [CLAUDE_CODE_SESSIONS_DIR];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.isFile() && entry.name.endsWith(".json")) {
         try {
-          const obj = JSON.parse(line) as Record<string, unknown>;
-          if (obj.type !== "user") continue;
-          const message = obj.message as { content?: unknown } | undefined;
-          if (!message) continue;
-          const content = message.content;
-          let text = "";
-          if (typeof content === "string") {
-            text = content;
-          } else if (Array.isArray(content)) {
-            for (const part of content) {
-              if (part && typeof part === "object" && "text" in part && typeof (part as { text?: unknown }).text === "string") {
-                text = (part as { text: string }).text;
-                break;
-              }
-            }
-          }
-          text = text.trim().split("\n")[0]?.trim() ?? "";
-          fs.closeSync(fd);
-          if (!text) return null;
-          return text.length > 80 ? `${text.slice(0, 77)}…` : text;
+          const stat = fs.statSync(full);
+          candidates.push({ filePath: full, mtimeMs: stat.mtimeMs });
         } catch {
-          // skip malformed lines
+          // skip
         }
       }
     }
-    fs.closeSync(fd);
-  } catch {
-    // ignore
+  }
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  for (const candidate of candidates) {
+    try {
+      const json = JSON.parse(fs.readFileSync(candidate.filePath, "utf8")) as Record<string, unknown>;
+      if (json.cliSessionId !== sessionId) continue;
+      const result: ClaudeCodeSessionMetadata = {};
+      if (typeof json.title === "string" && json.title.trim()) result.title = json.title.trim();
+      if (typeof json.titleSource === "string") result.titleSource = json.titleSource;
+      if (typeof json.model === "string") result.model = json.model;
+      if (typeof json.effort === "string") result.effort = json.effort;
+      return result;
+    } catch {
+      // bad json or read error — keep scanning
+    }
   }
   return null;
 }
@@ -125,9 +137,18 @@ export function detectClaimSourceMetadata(): Record<string, string> {
   };
   if (session.entrypoint) meta.entrypoint = session.entrypoint;
   if (session.cwd) meta.session_cwd = session.cwd;
-  const envModel = process.env.DEFAULT_LLM_MODEL ?? process.env.CLAUDE_MODEL;
-  if (envModel) meta.model = envModel;
-  const title = readSessionTitleFromJsonl(session.sessionId, session.cwd);
-  if (title) meta.session_title = title;
+  // Prefer the cached session metadata (it has the model the runner is
+  // actually using, plus the AI-generated title) over the env defaults.
+  const cached = findClaudeCodeSessionMetadata(session.sessionId);
+  if (cached?.model) {
+    meta.model = cached.model;
+  } else {
+    const envModel = process.env.DEFAULT_LLM_MODEL ?? process.env.CLAUDE_MODEL;
+    if (envModel) meta.model = envModel;
+  }
+  if (cached?.effort) meta.effort = cached.effort;
+  // Only attach a title when Claude Code has computed and cached one — no
+  // fallback to the first user message, which is just noisy raw text.
+  if (cached?.title) meta.session_title = cached.title;
   return meta;
 }
