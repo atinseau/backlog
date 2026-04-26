@@ -69,12 +69,27 @@ export function registerServeCommand(program: Command): void {
         openInBrowser(server.url);
       }
 
+      let shuttingDown = false;
       const shutdown = async (signal: NodeJS.Signals) => {
+        if (shuttingDown) {
+          // Second Ctrl+C → exit immediately, even if a stream is still hanging.
+          console.log(`\n${signal} received again, forcing exit.`);
+          process.exit(130);
+        }
+        shuttingDown = true;
         console.log(`\nReceived ${signal}, stopping…`);
+        // Safety net: if server.close() somehow still hangs, give it 3 s then exit.
+        const hardExit = setTimeout(() => {
+          console.error("Shutdown timed out, forcing exit.");
+          process.exit(1);
+        }, 3000);
+        hardExit.unref();
         try {
           await server.close();
+          clearTimeout(hardExit);
           process.exit(0);
         } catch (error) {
+          clearTimeout(hardExit);
           console.error(error);
           process.exit(1);
         }

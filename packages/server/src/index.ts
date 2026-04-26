@@ -40,6 +40,16 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     close: () =>
       new Promise<void>((closeResolve, closeReject) => {
         bus.stop();
+        // Drop every open socket — without this, long-lived SSE streams hold
+        // server.close() open indefinitely on Ctrl+C.
+        const closeable = server as unknown as { closeAllConnections?: () => void };
+        if (typeof closeable.closeAllConnections === "function") {
+          try {
+            closeable.closeAllConnections();
+          } catch {
+            // best effort
+          }
+        }
         server.close((error) => {
           if (error) {
             closeReject(error);
