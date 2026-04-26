@@ -113,6 +113,7 @@ export function registerHooksCommand(program: Command): void {
         const hookPath = installPreCommitHook({
           gitDir,
           backlogBin,
+          workspaceRoot: workspace.root,
           ...(options.force ? { force: true } : {}),
         });
         console.log(`Installed pre-commit hook for ${target.id} at ${hookPath}`);

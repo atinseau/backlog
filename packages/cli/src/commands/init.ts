@@ -36,6 +36,7 @@ export function registerInitCommand(program: Command): void {
         installPreCommitHook({
           gitDir,
           backlogBin: path.join(result.backlogDir, "bin", "backlog"),
+          workspaceRoot: root,
         });
       }
 
