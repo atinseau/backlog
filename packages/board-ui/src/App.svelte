@@ -4,6 +4,7 @@
   import Column from "./lib/Column.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import CreateTicketDialog from "./lib/CreateTicketDialog.svelte";
+  import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
@@ -148,6 +149,10 @@
       selectedId={selectedProjectId}
       onSelect={persistProject}
       onManage={() => (projectsViewOpen = true)}
+    />
+    <OrchestratorControls
+      {selectedProjectId}
+      onError={(message) => (error = message)}
     />
   </div>
   <div class="meta">
