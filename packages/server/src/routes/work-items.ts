@@ -1,8 +1,12 @@
 import { loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
+  assignProjectToWorkItem,
+  createWorkItem,
   listWorkItems,
+  reorderWorkItem,
   resolveSplitRepos,
+  setWorkItemEstimate,
   splitWorkItem,
   updateWorkItemStatus,
 } from "@backlog/core";
@@ -23,6 +27,34 @@ const moveBodySchema = z.object({
     "blocked",
   ]),
 });
+
+const createBodySchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
+  repo_targets: z.array(z.string().min(1)).optional(),
+  labels: z.array(z.string().min(1)).optional(),
+  acceptance_criteria: z.array(z.string().min(1)).optional(),
+  project_id: z.string().min(1).optional(),
+  estimated_duration_seconds: z.number().int().positive().optional(),
+});
+
+const reorderBodySchema = z.object({
+  before_id: z.string().min(1).optional(),
+  after_id: z.string().min(1).optional(),
+});
+
+const projectAssignBodySchema = z
+  .object({
+    project_id: z.string().min(1).nullable(),
+  })
+  .strict();
+
+const estimateBodySchema = z
+  .object({
+    seconds: z.number().int().positive().nullable(),
+  })
+  .strict();
 
 const splitBodySchema = z.object({
   repos: z.array(z.string().min(1)).optional(),
@@ -50,6 +82,35 @@ const applySplitBodySchema = z.object({
 
 export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   const app = new Hono();
+
+  app.post("/work-items", async (c) => {
+    const raw = await c.req.json().catch(() => null);
+    const parsed = createBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const input: Parameters<typeof createWorkItem>[1] = {
+        title: parsed.data.title,
+      };
+      if (parsed.data.description !== undefined) input.description = parsed.data.description;
+      if (parsed.data.priority !== undefined) input.priority = parsed.data.priority;
+      if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
+      if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
+      if (parsed.data.acceptance_criteria !== undefined) input.acceptanceCriteria = parsed.data.acceptance_criteria;
+      let workItem = createWorkItem(workspace.backlogDir, input);
+      if (parsed.data.project_id) {
+        workItem = assignProjectToWorkItem(workspace.backlogDir, workItem.id, parsed.data.project_id);
+      }
+      if (parsed.data.estimated_duration_seconds) {
+        workItem = setWorkItemEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
+      }
+      return c.json({ work_item: workItem }, 201);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "create_failed", detail: message }, 400);
+    }
+  });
 
   app.post("/work-items/:id/move", async (c) => {
     const id = c.req.param("id");
@@ -170,6 +231,57 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
       const message = error instanceof Error ? error.message : String(error);
       const status = message.startsWith("Unknown") ? 404 : 400;
       return c.json({ error: "apply_failed", detail: message }, status);
+    }
+  });
+
+  app.post("/work-items/:id/reorder", async (c) => {
+    const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => ({}));
+    const parsed = reorderBodySchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const input: Parameters<typeof reorderWorkItem>[1] = { workItemId: id };
+      if (parsed.data.before_id !== undefined) input.beforeId = parsed.data.before_id;
+      if (parsed.data.after_id !== undefined) input.afterId = parsed.data.after_id;
+      const workItem = reorderWorkItem(workspace.backlogDir, input);
+      return c.json({ work_item: workItem });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "reorder_failed", detail: message }, 404);
+    }
+  });
+
+  app.patch("/work-items/:id/project", async (c) => {
+    const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = projectAssignBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const workItem = assignProjectToWorkItem(workspace.backlogDir, id, parsed.data.project_id);
+      return c.json({ work_item: workItem });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "assign_failed", detail: message }, 404);
+    }
+  });
+
+  app.patch("/work-items/:id/estimate", async (c) => {
+    const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = estimateBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const workItem = setWorkItemEstimate(workspace.backlogDir, id, parsed.data.seconds);
+      return c.json({ work_item: workItem });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "estimate_failed", detail: message }, 404);
     }
   });
 

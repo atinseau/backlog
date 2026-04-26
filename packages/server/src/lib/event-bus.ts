@@ -7,6 +7,8 @@ export type BoardEventType =
   | "task.changed"
   | "work_item.changed"
   | "run.changed"
+  | "project.changed"
+  | "orchestrator.changed"
   | "board.refresh";
 
 export interface BoardEvent {
@@ -25,6 +27,8 @@ const WATCH_TARGETS: WatchSpec[] = [
   { relative: "runs/active", type: "run.changed", recursive: true },
   { relative: "tasks.yaml", type: "task.changed" },
   { relative: "work-items.yaml", type: "work_item.changed" },
+  { relative: "projects.yaml", type: "project.changed" },
+  { relative: "orchestrator.json", type: "orchestrator.changed" },
 ];
 
 const DEBOUNCE_MS = 200;

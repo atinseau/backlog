@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { hydrateOrchestrator } from "@backlog/core";
 import { Hono } from "hono";
 import { EventBus } from "./lib/event-bus.js";
 import { agentsRoutes } from "./routes/agents.js";
@@ -9,6 +10,8 @@ import { claimsRoutes } from "./routes/claims.js";
 import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
+import { orchestratorRoutes } from "./routes/orchestrator.js";
+import { projectsRoutes } from "./routes/projects.js";
 import { runsRoutes } from "./routes/runs.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
@@ -81,8 +84,16 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", workItemsRoutes(options.workspace));
   app.route("/api/v1", tasksRoutes(options.workspace));
   app.route("/api/v1", orchestrateRoutes(options.workspace));
+  app.route("/api/v1", orchestratorRoutes(options.workspace));
+  app.route("/api/v1", projectsRoutes(options.workspace));
   app.route("/api/v1", runsRoutes(options.workspace));
   app.route("/api/v1", eventsRoutes(bus));
+
+  void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {
+    if (process.env.BACKLOG_SERVER_LOG === "1") {
+      console.error("orchestrator hydrate failed", error);
+    }
+  });
 
   const uiDir = options.uiDistDir ?? defaultUiDistDir();
   if (existsSync(uiDir)) {

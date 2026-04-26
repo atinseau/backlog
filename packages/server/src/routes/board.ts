@@ -1,5 +1,15 @@
 import { listActiveClaims } from "@backlog/claims";
-import { listActiveRuns, listTasks, listWorkItems } from "@backlog/core";
+import {
+  computeTaskProgress,
+  computeWorkItemProgress,
+  elapsedSeconds,
+  estimateTask,
+  etaIso,
+  getProject,
+  listActiveRuns,
+  listTasks,
+  listWorkItems,
+} from "@backlog/core";
 import type {
   ClaimRecord,
   Run,
@@ -27,8 +37,15 @@ interface TaskCard {
   status: Task["status"];
   scopes: string[];
   risk: Task["risk"];
+  priority_score: number;
   active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at"> | null;
   active_claim: ClaimSummary | null;
+  estimated_duration_seconds: number;
+  estimate_source: "manual" | "auto";
+  elapsed_seconds: number | null;
+  progress_percent: number;
+  progress_source: "agent" | "elapsed" | "status";
+  eta: string | null;
 }
 
 interface WorkItemCard {
@@ -38,8 +55,13 @@ interface WorkItemCard {
   status: WorkItem["status"];
   labels: string[];
   repo_targets: string[];
+  project_id: string | null;
+  rank: number | null;
   tasks: TaskCard[];
   blocked_by_claims: ClaimSummary[];
+  estimated_duration_seconds: number;
+  remaining_seconds: number;
+  progress_percent: number;
 }
 
 interface BoardResponse {
@@ -48,6 +70,8 @@ interface BoardResponse {
   columns: Record<ColumnKey, WorkItemCard[]>;
   active_claims_count: number;
   active_runs_count: number;
+  total_estimated_seconds: number;
+  total_remaining_seconds: number;
 }
 
 function summarizeClaim(claim: ClaimRecord, blocking = false): ClaimSummary {
@@ -79,11 +103,23 @@ function findActiveClaimForTask(
   return null;
 }
 
-function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardResponse {
+interface BoardFilters {
+  repo?: string | undefined;
+  projectIdOrSlug?: string | undefined;
+}
+
+function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardResponse {
   const workItems = listWorkItems(workspace.backlogDir);
   const tasks = listTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);
   const runs = listActiveRuns(workspace.backlogDir);
+
+  const project = filters.projectIdOrSlug ? getProject(workspace.backlogDir, filters.projectIdOrSlug) : null;
+  const projectRepoSet = project ? new Set(project.repo_ids) : null;
+
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const archivedRunsCtx = { tasksById };
+  const now = Date.now();
 
   const columns: Record<ColumnKey, WorkItemCard[]> = {
     todo: [],
@@ -92,20 +128,47 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
     done: [],
   };
 
+  let totalEstimated = 0;
+  let totalRemaining = 0;
+
   for (const workItem of workItems) {
+    if (project && workItem.project_id && workItem.project_id !== project.id) continue;
+    if (project && !workItem.project_id) {
+      const itemRepos = new Set(workItem.repo_targets);
+      const overlap = [...itemRepos].some((id) => projectRepoSet?.has(id));
+      if (!overlap) continue;
+    }
     const column = statusToColumn(workItem.status);
     if (!column) continue;
 
     const itemTasks = tasks.filter((task) => {
       if (task.work_item_id !== workItem.id) return false;
-      if (repoFilter && task.repo !== repoFilter) return false;
+      if (filters.repo && task.repo !== filters.repo) return false;
+      if (projectRepoSet && !projectRepoSet.has(task.repo)) return false;
       return true;
     });
+
+    let cardEstimateSeconds = 0;
+    let cardRemainingSeconds = 0;
 
     const taskCards: TaskCard[] = itemTasks.map((task) => {
       const activeRun = findActiveRun(runs, task.id);
       const claimIds = activeRun?.claim_ids ?? [];
       const activeClaim = findActiveClaimForTask(claims, task, claimIds);
+      const estimate = estimateTask(workspace.backlogDir, task, archivedRunsCtx);
+      const progress = computeTaskProgress({
+        task,
+        activeRun,
+        estimateSeconds: estimate.seconds,
+        now,
+      });
+      const isOpen = task.status !== "completed" && task.status !== "canceled";
+      cardEstimateSeconds += isOpen ? estimate.seconds : 0;
+      const elapsed = elapsedSeconds(activeRun, now);
+      const remainingForTask = isOpen
+        ? Math.max(0, estimate.seconds - (elapsed ?? 0))
+        : 0;
+      cardRemainingSeconds += remainingForTask;
       return {
         id: task.id,
         title: task.title,
@@ -113,6 +176,7 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
         status: task.status,
         scopes: task.scopes,
         risk: task.risk,
+        priority_score: task.priority_score,
         active_run: activeRun
           ? {
               id: activeRun.id,
@@ -122,8 +186,16 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
             }
           : null,
         active_claim: activeClaim ? summarizeClaim(activeClaim) : null,
+        estimated_duration_seconds: estimate.seconds,
+        estimate_source: estimate.source,
+        elapsed_seconds: progress.elapsed_seconds,
+        progress_percent: progress.percent,
+        progress_source: progress.source,
+        eta: etaIso(activeRun, estimate.seconds),
       };
     });
+
+    taskCards.sort((a, b) => b.priority_score - a.priority_score);
 
     const blockedByClaims: ClaimSummary[] = claims
       .filter((claim) =>
@@ -136,6 +208,15 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
       )
       .map((claim) => summarizeClaim(claim, true));
 
+    const itemProgress = computeWorkItemProgress({
+      taskProgresses: taskCards.map((tc) => ({
+        percent: tc.progress_percent,
+        estimateSeconds: tc.estimated_duration_seconds,
+      })),
+    });
+
+    const itemEstimate = workItem.estimated_duration_seconds ?? cardEstimateSeconds;
+
     const card: WorkItemCard = {
       id: workItem.id,
       title: workItem.title,
@@ -143,15 +224,29 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
       status: workItem.status,
       labels: workItem.labels,
       repo_targets: workItem.repo_targets,
+      project_id: workItem.project_id ?? null,
+      rank: workItem.rank ?? null,
       tasks: taskCards,
       blocked_by_claims: blockedByClaims,
+      estimated_duration_seconds: itemEstimate,
+      remaining_seconds: cardRemainingSeconds,
+      progress_percent: itemProgress,
     };
+
+    totalEstimated += itemEstimate;
+    totalRemaining += cardRemainingSeconds;
 
     columns[column].push(card);
   }
 
   for (const key of COLUMN_KEYS) {
-    columns[key].sort((a, b) => priorityOrder(a.priority) - priorityOrder(b.priority));
+    columns[key].sort((a, b) => {
+      const priorityDiff = priorityOrder(a.priority) - priorityOrder(b.priority);
+      if (priorityDiff !== 0) return priorityDiff;
+      const rankDiff = (b.rank ?? 0) - (a.rank ?? 0);
+      if (rankDiff !== 0) return rankDiff;
+      return 0;
+    });
   }
 
   return {
@@ -160,6 +255,8 @@ function buildBoard(workspace: ServerWorkspace, repoFilter?: string): BoardRespo
     columns,
     active_claims_count: claims.length,
     active_runs_count: runs.length,
+    total_estimated_seconds: totalEstimated,
+    total_remaining_seconds: totalRemaining,
   };
 }
 
@@ -179,8 +276,9 @@ function priorityOrder(priority: WorkItem["priority"]): number {
 export function boardRoutes(workspace: ServerWorkspace): Hono {
   const app = new Hono();
   app.get("/board", (c) => {
-    const repo = c.req.query("repo");
-    return c.json(buildBoard(workspace, repo ?? undefined));
+    const repo = c.req.query("repo") ?? undefined;
+    const projectIdOrSlug = c.req.query("project") ?? undefined;
+    return c.json(buildBoard(workspace, { repo, projectIdOrSlug }));
   });
   return app;
 }
