@@ -11,8 +11,35 @@ export interface PreCommitHookStatus {
   pointsToBacklogBin: boolean;
 }
 
+// Keep the template inline so the bundled CLI tarball doesn't ship a
+// separate templates/ directory. Mirrors templates/pre-commit.sh — keep
+// both in sync if you change one (tested by install-hooks.test.ts).
+const PRE_COMMIT_TEMPLATE = `#!/usr/bin/env bash
+
+# Managed by Backlog. Reinstall through:
+#   backlog hooks install
+
+set -euo pipefail
+
+BACKLOG_BIN="__BACKLOG_BIN__"
+BACKLOG_WORKSPACE="__BACKLOG_WORKSPACE__"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+if [[ ! -x "$BACKLOG_BIN" ]]; then
+  echo "backlog: missing local shim at $BACKLOG_BIN" >&2
+  echo "Run backlog init or backlog hooks install again." >&2
+  exit 1
+fi
+
+# Run from the workspace dir so \`claim check\` can locate .backlog/ even when
+# the staged repo is a sibling of the workspace (e.g. twoody-app committing
+# against a workspace at twoody-backlog/.backlog/).
+cd "$BACKLOG_WORKSPACE"
+"$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged
+`;
+
 function readTemplate(): string {
-  return fs.readFileSync(new URL("../templates/pre-commit.sh", import.meta.url), "utf8");
+  return PRE_COMMIT_TEMPLATE;
 }
 
 export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCommitHookStatus {
