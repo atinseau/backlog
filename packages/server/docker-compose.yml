@@ -1,20 +1,20 @@
+# Self-host @backlog/server. Mount the workspace you want to serve at
+# /workspace and expose the board on port 7878. No DB, no auth — bind the
+# host port to 127.0.0.1 if you don't want neighbours on the LAN to reach it.
+
 services:
   backlog-server:
-    # Pull from GHCR by default. To build locally instead, comment `image:` and
-    # uncomment the `build:` block below.
+    # Pull from GHCR by default. To build locally instead, comment `image:`
+    # and uncomment the `build:` block below.
     image: ghcr.io/osmove/backlog-server:latest
     # build:
     #   context: ../..
     #   dockerfile: packages/server/Dockerfile
     container_name: backlog-server
     ports:
-      - "3002:3002"
+      - "127.0.0.1:7878:7878"   # localhost only; change to "7878:7878" for LAN
     volumes:
-      - backlog-server-data:/data
+      - "${BACKLOG_WORKSPACE:-./workspace}:/workspace"   # mount the workspace
     environment:
-      LOG_LEVEL: info
-      BACKLOG_SERVER_CORS_ORIGIN: "*"
+      BACKLOG_SERVER_LOG: "0"   # set to "1" for per-request logging
     restart: unless-stopped
-
-volumes:
-  backlog-server-data:
