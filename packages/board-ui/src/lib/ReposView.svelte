@@ -14,8 +14,11 @@
   let error = $state<string | null>(null);
 
   let showCreate = $state(false);
+  let createMode = $state<"local" | "clone">("local");
   let newId = $state("");
   let newPath = $state("");
+  let newGitUrl = $state("");
+  let newCloneInto = $state("");
   let newBranch = $state("main");
   let newRole = $state("");
   let creating = $state(false);
@@ -36,15 +39,27 @@
     event.preventDefault();
     creating = true;
     try {
-      const input: Parameters<typeof createRepo>[0] = {
-        id: newId.trim(),
-        path: newPath.trim(),
-        default_branch: newBranch.trim() || "main",
-      };
+      const input: Parameters<typeof createRepo>[0] = {};
+      if (newId.trim()) input.id = newId.trim();
       if (newRole.trim()) input.role = newRole.trim();
+      if (newBranch.trim()) input.default_branch = newBranch.trim();
+
+      if (createMode === "clone") {
+        if (!newGitUrl.trim()) throw new Error("URL Git requise");
+        input.git_url = newGitUrl.trim();
+        if (newCloneInto.trim()) input.clone_into = newCloneInto.trim();
+      } else {
+        if (!newPath.trim()) throw new Error("Chemin local requis");
+        if (!newId.trim()) throw new Error("Id requis");
+        if (!newBranch.trim()) throw new Error("Branche par défaut requise");
+        input.path = newPath.trim();
+      }
+
       await createRepo(input);
       newId = "";
       newPath = "";
+      newGitUrl = "";
+      newCloneInto = "";
       newBranch = "main";
       newRole = "";
       showCreate = false;
@@ -138,21 +153,62 @@
 
       {#if showCreate}
         <form class="create" onsubmit={handleCreate}>
-          <div class="row">
-            <label>Id<input bind:value={newId} placeholder="frontend" required pattern="[a-zA-Z0-9_-]+" /></label>
-            <label>Branche par défaut<input bind:value={newBranch} placeholder="main" /></label>
+          <div class="tabs">
+            <button
+              type="button"
+              class="tab"
+              class:active={createMode === "local"}
+              onclick={() => (createMode = "local")}
+            >
+              📁 Local
+            </button>
+            <button
+              type="button"
+              class="tab"
+              class:active={createMode === "clone"}
+              onclick={() => (createMode = "clone")}
+            >
+              ⬇ Cloner Git
+            </button>
           </div>
-          <label class="full">
-            Chemin (absolu ou relatif au workspace)
-            <input bind:value={newPath} placeholder="/Users/jimmy/Dev/twoody/twoody-frontend" required />
-          </label>
+
+          {#if createMode === "clone"}
+            <label class="full">
+              URL Git
+              <input
+                bind:value={newGitUrl}
+                placeholder="https://github.com/user/repo.git"
+                required
+              />
+            </label>
+            <div class="row">
+              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="repo" pattern="[a-zA-Z0-9_-]*" /></label>
+              <label>Branche<input bind:value={newBranch} placeholder="main" /></label>
+            </div>
+            <label class="full">
+              Cloner dans <span class="hint">(défaut : workspace/repos/&lt;id&gt;)</span>
+              <input bind:value={newCloneInto} placeholder="repos/frontend" />
+            </label>
+          {:else}
+            <div class="row">
+              <label>Id<input bind:value={newId} placeholder="frontend" required pattern="[a-zA-Z0-9_-]+" /></label>
+              <label>Branche par défaut<input bind:value={newBranch} placeholder="main" /></label>
+            </div>
+            <label class="full">
+              Chemin (absolu ou relatif au workspace)
+              <input bind:value={newPath} placeholder="/Users/jimmy/Dev/twoody/twoody-frontend" required />
+            </label>
+          {/if}
+
           <label class="full">
             Rôle (optionnel)
             <input bind:value={newRole} placeholder="api / web / firmware" />
           </label>
           <div class="form-actions">
             <button type="button" onclick={() => (showCreate = false)}>annuler</button>
-            <button class="primary" type="submit" disabled={creating}>{creating ? "ajout…" : "ajouter"}</button>
+            <button class="primary" type="submit" disabled={creating}>
+              {creating ? (createMode === "clone" ? "clonage…" : "ajout…") : (createMode === "clone" ? "cloner" : "ajouter")}
+            </button>
           </div>
         </form>
       {:else}
@@ -280,6 +336,30 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .tab {
+    flex: 1;
+    background: white;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475467;
+  }
+  .tab.active {
+    background: #1570ef;
+    color: white;
+    border-color: #1570ef;
+  }
+  .hint {
+    color: #98a2b3;
+    font-weight: 400;
   }
   .row {
     display: grid;

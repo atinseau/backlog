@@ -76,12 +76,16 @@ export interface Project {
   updated_at: string;
 }
 
+export type RepoProvider = "local" | "github" | "gitlab" | "bitbucket" | "other";
+
 export interface Repo {
   id: string;
   path: string;
   default_branch: string;
   role?: string;
   enabled: boolean;
+  git_url?: string;
+  provider?: RepoProvider;
 }
 
 export interface OrchestratorState {

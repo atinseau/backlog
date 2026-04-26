@@ -89,14 +89,16 @@ export async function fetchRepos(): Promise<Repo[]> {
 }
 
 export interface CreateRepoInput {
-  id: string;
-  path: string;
-  default_branch: string;
+  id?: string;
+  path?: string;
+  default_branch?: string;
   role?: string;
   enabled?: boolean;
+  git_url?: string;
+  clone_into?: string;
 }
 
-export async function createRepo(input: CreateRepoInput): Promise<Repo> {
+export async function createRepo(input: CreateRepoInput): Promise<{ repo: Repo; cloned: boolean }> {
   const response = await fetch(`${BASE}/repos`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -106,8 +108,7 @@ export async function createRepo(input: CreateRepoInput): Promise<Repo> {
     const detail = await response.text().catch(() => "");
     throw new Error(`Create repo failed (${response.status}): ${detail}`);
   }
-  const json = (await response.json()) as { repo: Repo };
-  return json.repo;
+  return (await response.json()) as { repo: Repo; cloned: boolean };
 }
 
 export interface UpdateRepoInput {

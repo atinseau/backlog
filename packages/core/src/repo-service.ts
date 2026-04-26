@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { listActiveClaims } from "@backlog/claims";
 import { loadConfig, saveConfig } from "@backlog/config";
-import type { RepoConfig } from "@backlog/schemas";
+import { cloneRepo, detectGitProvider, repoIdFromGitUrl } from "@backlog/git";
+import type { RepoConfig, RepoProvider } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { deriveWorkStatusFromTasks } from "./work-service.js";
@@ -14,6 +15,17 @@ export interface AddRepoInput {
   defaultBranch: string;
   role?: string;
   enabled?: boolean;
+  gitUrl?: string;
+  provider?: RepoProvider;
+}
+
+export interface CloneAndAddRepoInput {
+  url: string;
+  id?: string;
+  destDir?: string;
+  defaultBranch?: string;
+  role?: string;
+  enabled?: boolean;
 }
 
 export interface UpdateRepoInput {
@@ -23,6 +35,10 @@ export interface UpdateRepoInput {
   role?: string;
   clearRole?: boolean;
   enabled?: boolean;
+  gitUrl?: string;
+  clearGitUrl?: boolean;
+  provider?: RepoProvider;
+  clearProvider?: boolean;
 }
 
 function workspaceRootFromBacklogDir(backlogDir: string): string {
@@ -65,10 +81,48 @@ export function addRepo(backlogDir: string, input: AddRepoInput): RepoConfig {
     default_branch: input.defaultBranch,
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
+    ...(input.gitUrl ? { git_url: input.gitUrl } : {}),
+    ...(input.provider ? { provider: input.provider } : {}),
   };
   config.repos.push(repo);
   saveConfig(backlogDir, config);
   return repo;
+}
+
+export async function cloneAndAddRepo(
+  backlogDir: string,
+  input: CloneAndAddRepoInput,
+): Promise<RepoConfig> {
+  const config = loadConfig(backlogDir);
+  const id = input.id ?? repoIdFromGitUrl(input.url);
+  if (config.repos.some((repo) => repo.id === id)) {
+    throw new Error(`Repo id already exists: ${id}`);
+  }
+  const workspaceRoot = workspaceRootFromBacklogDir(backlogDir);
+  const destDir = input.destDir
+    ? path.resolve(workspaceRoot, input.destDir)
+    : path.resolve(workspaceRoot, "repos", id);
+  if (config.repos.some((repo) => repo.path === destDir)) {
+    throw new Error(`Repo path already exists in this workspace: ${destDir}`);
+  }
+
+  const cloneOptions: Parameters<typeof cloneRepo>[0] = {
+    url: input.url,
+    dest: destDir,
+  };
+  if (input.defaultBranch) cloneOptions.branch = input.defaultBranch;
+  await cloneRepo(cloneOptions);
+
+  const provider = detectGitProvider(input.url);
+  return addRepo(backlogDir, {
+    id,
+    path: destDir,
+    defaultBranch: input.defaultBranch ?? config.default_branch,
+    ...(input.role ? { role: input.role } : {}),
+    enabled: input.enabled ?? true,
+    gitUrl: input.url,
+    provider,
+  });
 }
 
 export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepoInput): RepoConfig {
@@ -163,6 +217,18 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   }
   if (input.enabled !== undefined) {
     repo.enabled = input.enabled;
+  }
+  if (input.gitUrl !== undefined) {
+    repo.git_url = input.gitUrl;
+  }
+  if (input.clearGitUrl) {
+    delete repo.git_url;
+  }
+  if (input.provider !== undefined) {
+    repo.provider = input.provider;
+  }
+  if (input.clearProvider) {
+    delete repo.provider;
   }
 
   saveConfig(backlogDir, config);

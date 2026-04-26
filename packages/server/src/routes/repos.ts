@@ -1,14 +1,16 @@
-import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
+import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ServerWorkspace } from "../workspace-context.js";
 
 const createBodySchema = z.object({
-  id: z.string().min(1),
-  path: z.string().min(1),
-  default_branch: z.string().min(1),
+  id: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  default_branch: z.string().min(1).optional(),
   role: z.string().optional(),
   enabled: z.boolean().optional(),
+  git_url: z.string().min(1).optional(),
+  clone_into: z.string().min(1).optional(),
 });
 
 const updateBodySchema = z
@@ -40,7 +42,25 @@ export function reposRoutes(workspace: ServerWorkspace): Hono {
     if (!parsed.success) {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
+
     try {
+      if (parsed.data.git_url) {
+        const cloneInput: Parameters<typeof cloneAndAddRepo>[1] = { url: parsed.data.git_url };
+        if (parsed.data.id) cloneInput.id = parsed.data.id;
+        if (parsed.data.clone_into) cloneInput.destDir = parsed.data.clone_into;
+        if (parsed.data.default_branch) cloneInput.defaultBranch = parsed.data.default_branch;
+        if (parsed.data.role !== undefined) cloneInput.role = parsed.data.role;
+        if (parsed.data.enabled !== undefined) cloneInput.enabled = parsed.data.enabled;
+        const repo = await cloneAndAddRepo(workspace.backlogDir, cloneInput);
+        return c.json({ repo, cloned: true }, 201);
+      }
+
+      if (!parsed.data.id || !parsed.data.path || !parsed.data.default_branch) {
+        return c.json(
+          { error: "invalid_body", detail: "Provide id + path + default_branch, or git_url to clone." },
+          400,
+        );
+      }
       const input: Parameters<typeof addRepo>[1] = {
         id: parsed.data.id,
         path: parsed.data.path,
@@ -49,7 +69,7 @@ export function reposRoutes(workspace: ServerWorkspace): Hono {
       if (parsed.data.role !== undefined) input.role = parsed.data.role;
       if (parsed.data.enabled !== undefined) input.enabled = parsed.data.enabled;
       const repo = addRepo(workspace.backlogDir, input);
-      return c.json({ repo }, 201);
+      return c.json({ repo, cloned: false }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "create_failed", detail: message }, 400);

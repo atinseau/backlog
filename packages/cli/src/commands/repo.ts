@@ -2,7 +2,7 @@ import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@backlog/config";
 import { detectRepoRoot, repoCurrentBranch } from "@backlog/git";
-import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
+import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -92,15 +92,19 @@ export function registerRepoCommand(program: Command): void {
 
   repos
     .command("add")
-    .description("Add one repo to the workspace")
-    .requiredOption("--path <path>", "Path to the repo")
-    .option("--id <id>", "Repo id; defaults to the repo directory name")
+    .description("Add one repo to the workspace (local path) or clone from a Git URL")
+    .option("--path <path>", "Path to a local repo (mutually exclusive with --url)")
+    .option("--url <url>", "Git URL to clone (e.g. https://github.com/user/repo.git)")
+    .option("--clone-into <path>", "Destination directory for the clone; defaults to <workspace>/repos/<id>")
+    .option("--id <id>", "Repo id; defaults to the repo directory name (or URL slug)")
     .option("--default-branch <branch>", "Default branch; defaults to the detected git branch or workspace default")
     .option("--role <role>", "Optional repo role")
     .option("--disabled", "Add the repo as disabled")
     .action(async (options: {
       id?: string;
-      path: string;
+      path?: string;
+      url?: string;
+      cloneInto?: string;
       defaultBranch?: string;
       role?: string;
       disabled?: boolean;
@@ -109,8 +113,27 @@ export function registerRepoCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog workspace found. Run `backlog init` first.");
       }
+      if (!options.path && !options.url) {
+        throw new Error("Provide either --path <path> or --url <git-url>.");
+      }
+      if (options.path && options.url) {
+        throw new Error("--path and --url are mutually exclusive.");
+      }
+
+      if (options.url) {
+        const input: Parameters<typeof cloneAndAddRepo>[1] = { url: options.url };
+        if (options.id) input.id = options.id;
+        if (options.cloneInto) input.destDir = options.cloneInto;
+        if (options.defaultBranch) input.defaultBranch = options.defaultBranch;
+        if (options.role) input.role = options.role;
+        if (options.disabled !== undefined) input.enabled = !options.disabled;
+        const repo = await cloneAndAddRepo(workspace.backlogDir, input);
+        console.log(`Cloned and added repo ${repo.id} → ${repo.path}`);
+        return;
+      }
+
       const config = loadConfig(workspace.backlogDir);
-      const requestedPath = path.resolve(workspace.root, options.path);
+      const requestedPath = path.resolve(workspace.root, options.path!);
       const repoId = options.id ?? slugify(path.basename(requestedPath));
       const defaultBranch = options.defaultBranch ?? await resolveRepoBranch(requestedPath, config.default_branch);
       const repo = addRepo(workspace.backlogDir, {

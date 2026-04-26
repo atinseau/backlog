@@ -1,11 +1,15 @@
 import { z } from "zod";
 
+export const repoProviderSchema = z.enum(["local", "github", "gitlab", "bitbucket", "other"]);
+
 export const repoConfigSchema = z.object({
   id: z.string().min(1),
   path: z.string().min(1),
   default_branch: z.string().min(1),
   role: z.string().optional(),
   enabled: z.boolean().default(true),
+  git_url: z.string().optional(),
+  provider: repoProviderSchema.optional(),
 });
 
 export const workspaceConfigSchema = z.object({
@@ -23,4 +27,5 @@ export const workspaceConfigSchema = z.object({
 });
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
+export type RepoProvider = z.infer<typeof repoProviderSchema>;
 export type WorkspaceConfig = z.infer<typeof workspaceConfigSchema>;
