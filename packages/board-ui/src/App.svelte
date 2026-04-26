@@ -3,9 +3,10 @@
   import ClaimDialog from "./lib/ClaimDialog.svelte";
   import Column from "./lib/Column.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
+  import SplitDialog from "./lib/SplitDialog.svelte";
   import { fetchBoard, moveWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
-  import { COLUMN_ORDER, type BoardResponse, type ColumnKey } from "./lib/types.js";
+  import { COLUMN_ORDER, type BoardResponse, type ColumnKey, type WorkItemCard } from "./lib/types.js";
 
   let board = $state<BoardResponse | null>(null);
   let error = $state<string | null>(null);
@@ -14,6 +15,7 @@
   let connected = $state(false);
   let dialogOpen = $state(false);
   let panelOpen = $state(false);
+  let splitTarget = $state<WorkItemCard | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -120,7 +122,12 @@
 
 <main class="board">
   {#each COLUMN_ORDER as key (key)}
-    <Column columnKey={key} cards={board?.columns[key] ?? []} onMove={handleMove} />
+    <Column
+      columnKey={key}
+      cards={board?.columns[key] ?? []}
+      onMove={handleMove}
+      onSplit={(card) => (splitTarget = card)}
+    />
   {/each}
 </main>
 
@@ -136,6 +143,17 @@
 
 {#if panelOpen}
   <OrchestratorPanel onClose={() => (panelOpen = false)} />
+{/if}
+
+{#if splitTarget}
+  <SplitDialog
+    workItem={splitTarget}
+    availableRepos={repos}
+    onClose={() => (splitTarget = null)}
+    onSplit={() => {
+      if (!connected) refresh();
+    }}
+  />
 {/if}
 
 <style>

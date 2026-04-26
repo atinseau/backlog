@@ -96,6 +96,33 @@ export async function fetchOrchestratePlan(): Promise<OrchestratePlan> {
   return (await response.json()) as OrchestratePlan;
 }
 
+export interface SplitInput {
+  repos?: string[];
+  mode: "parallel" | "serial";
+  scope_by_repo?: Record<string, string[]>;
+  risk?: "low" | "medium" | "high";
+  force?: boolean;
+}
+
+export interface SplitResult {
+  work_item: unknown;
+  created_tasks: Array<{ id: string; title: string; repo: string; scopes: string[] }>;
+  mode: "parallel" | "serial";
+}
+
+export async function splitWorkItem(id: string, input: SplitInput): Promise<SplitResult> {
+  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/split`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Split failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as SplitResult;
+}
+
 export async function createClaim(input: ClaimCreateInput): Promise<ClaimCreateResult> {
   const response = await fetch(`${BASE}/claims`, {
     method: "POST",

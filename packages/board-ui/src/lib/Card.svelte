@@ -4,19 +4,28 @@
 
   interface Props {
     card: WorkItemCard;
+    onSplit?: (card: WorkItemCard) => void;
   }
 
-  let { card }: Props = $props();
+  let { card, onSplit }: Props = $props();
 
   const priorityClass = $derived(`pri pri-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
   const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
+
+  function handleSplitClick(event: MouseEvent) {
+    event.stopPropagation();
+    onSplit?.(card);
+  }
 </script>
 
 <article class="card">
   <header>
     <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
+    {#if onSplit && card.tasks.length === 0}
+      <button class="split-btn" onclick={handleSplitClick} aria-label="Split into tasks" title="Split into tasks">✂</button>
+    {/if}
   </header>
 
   {#if card.repo_targets.length > 0}
@@ -107,6 +116,21 @@
   .pri-p1 { background: #f79009; }
   .pri-p2 { background: #2e90fa; }
   .pri-p3 { background: #98a2b3; }
+
+  .split-btn {
+    background: transparent;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #475467;
+    flex-shrink: 0;
+  }
+  .split-btn:hover {
+    background: #f2f4f7;
+    border-color: #98a2b3;
+  }
 
   .chips {
     display: flex;

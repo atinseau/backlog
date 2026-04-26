@@ -12,9 +12,10 @@
     columnKey: ColumnKey;
     cards: WorkItemCard[];
     onMove: (workItemId: string, toStatus: string, toColumn: ColumnKey) => void;
+    onSplit?: (card: WorkItemCard) => void;
   }
 
-  let { columnKey, cards, onMove }: Props = $props();
+  let { columnKey, cards, onMove, onSplit }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -52,7 +53,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} />
+        <Card {card} {onSplit} />
       </div>
     {/each}
     {#if localCards.length === 0}
