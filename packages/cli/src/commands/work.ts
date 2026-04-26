@@ -1,6 +1,21 @@
 import { Command } from "commander";
 import { findWorkspace } from "@backlog/config";
-import { buildWorkExecutionOutline, createWorkItem, getSource, getWorkItem, listSources, listWorkItems, removeWorkItem, resolveSplitRepos, splitWorkItem, updateWorkItem, upsertImportedWorkItems, updateWorkItemStatus } from "@backlog/core";
+import {
+  assignProjectToWorkItem,
+  buildWorkExecutionOutline,
+  createWorkItem,
+  getSource,
+  getWorkItem,
+  listSources,
+  listWorkItems,
+  removeWorkItem,
+  resolveSplitRepos,
+  setWorkItemEstimate,
+  splitWorkItem,
+  updateWorkItem,
+  upsertImportedWorkItems,
+  updateWorkItemStatus,
+} from "@backlog/core";
 import { loadConfig } from "@backlog/config";
 import { createConnector } from "@backlog/connectors";
 
@@ -320,5 +335,55 @@ export function registerWorkCommand(program: Command): void {
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "imported"}`);
       }
+    });
+
+  work
+    .command("assign-project")
+    .description("Attach a work item to a project (or detach with --clear)")
+    .argument("<work-item-id>", "Work item id")
+    .argument("[project]", "Project id or slug (omit with --clear)")
+    .option("--clear", "Detach the work item from any project")
+    .action((workItemId: string, projectArg: string | undefined, options: { clear?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      if (options.clear) {
+        const updated = assignProjectToWorkItem(workspace.backlogDir, workItemId, null);
+        console.log(`Detached ${updated.id} from any project`);
+        return;
+      }
+      if (!projectArg) {
+        throw new Error("Provide a project id or slug, or pass --clear.");
+      }
+      const updated = assignProjectToWorkItem(workspace.backlogDir, workItemId, projectArg);
+      console.log(`Assigned ${updated.id} to project ${updated.project_id}`);
+    });
+
+  work
+    .command("estimate")
+    .description("Set or clear the work item override estimate (in seconds)")
+    .argument("<work-item-id>", "Work item id")
+    .argument("[seconds]", "Duration in seconds (omit with --clear)")
+    .option("--clear", "Remove the override; the estimate falls back to the sum of task estimates")
+    .action((workItemId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      if (options.clear) {
+        setWorkItemEstimate(workspace.backlogDir, workItemId, null);
+        console.log(`Cleared estimate on ${workItemId}`);
+        return;
+      }
+      if (!secondsArg) {
+        throw new Error("Provide seconds, or pass --clear.");
+      }
+      const seconds = parseInt(secondsArg, 10);
+      if (!Number.isInteger(seconds) || seconds <= 0) {
+        throw new Error("seconds must be a positive integer");
+      }
+      const updated = setWorkItemEstimate(workspace.backlogDir, workItemId, seconds);
+      console.log(`Set estimate to ${updated.estimated_duration_seconds}s on ${updated.id}`);
     });
 }

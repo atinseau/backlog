@@ -1,6 +1,19 @@
 import { Command } from "commander";
 import { findWorkspace } from "@backlog/config";
-import { blockTask, buildExecutionPlan, createTask, getTask, listTasks, removeTask, unblockTask, updateTask, updateTaskStatus } from "@backlog/core";
+import {
+  blockTask,
+  buildExecutionPlan,
+  clearTaskEstimate,
+  createTask,
+  getTask,
+  listTasks,
+  removeTask,
+  setTaskEstimate,
+  setTaskProgress,
+  unblockTask,
+  updateTask,
+  updateTaskStatus,
+} from "@backlog/core";
 import { loadConfig } from "@backlog/config";
 
 function collectValues(value: string, previous: string[]): string[] {
@@ -271,5 +284,50 @@ export function registerTaskCommand(program: Command): void {
         console.log(`Assigned agent: ${decision.assignedAgentId}`);
       }
       console.log(`Reasons: ${decision.reasons.join(", ")}`);
+    });
+
+  task
+    .command("estimate")
+    .description("Set or clear a manual estimate (in seconds)")
+    .argument("<task-id>", "Task id")
+    .argument("[seconds]", "Duration in seconds (omit with --clear)")
+    .option("--clear", "Remove the manual estimate")
+    .action((taskId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      if (options.clear) {
+        clearTaskEstimate(workspace.backlogDir, taskId);
+        console.log(`Cleared estimate on ${taskId}`);
+        return;
+      }
+      if (!secondsArg) {
+        throw new Error("Provide seconds, e.g. `backlog task estimate TASK-x 1800`, or pass --clear.");
+      }
+      const seconds = parseInt(secondsArg, 10);
+      if (!Number.isInteger(seconds) || seconds <= 0) {
+        throw new Error("seconds must be a positive integer");
+      }
+      const updated = setTaskEstimate(workspace.backlogDir, taskId, seconds, "manual");
+      console.log(`Set estimate to ${updated.estimated_duration_seconds}s on ${updated.id}`);
+    });
+
+  task
+    .command("progress")
+    .description("Set the progress percent reported by the agent (0-100)")
+    .argument("<task-id>", "Task id")
+    .argument("<percent>", "Progress percent")
+    .action((taskId: string, percentArg: string) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      const percent = parseInt(percentArg, 10);
+      if (!Number.isFinite(percent)) {
+        throw new Error("percent must be a number");
+      }
+      const updated = setTaskProgress(workspace.backlogDir, taskId, percent);
+      console.log(`Set progress to ${updated.progress_percent}% on ${updated.id}`);
     });
 }
