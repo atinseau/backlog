@@ -1,27 +1,11 @@
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@backlog/config";
-import { createClaim, writeContextFile } from "@backlog/claims";
 import {
-  addRunArtifact,
   buildExecutionPlan,
-  buildRunBranchName,
-  executeAgentRun,
-  createRun,
-  ensureWorktree,
-  getAgent,
   getTask,
-  getWorkItem,
-  listActiveRuns,
-  nextRunId,
-  pickAgentForTask,
   rankAgentsForTask,
-  selectionForAgentTask,
-  supportsAgentExecution,
-  updateRunStatus,
-  updateTaskStatus,
-  writeWorktreeContext,
+  startRunsForPlan,
 } from "@backlog/core";
-import { detectGitDir } from "@backlog/git";
 
 function parseMaxStart(value: string | undefined): number {
   const parsed = Number.parseInt(value ?? "1", 10);
@@ -163,123 +147,13 @@ export function registerScheduleCommand(program: Command): void {
         ...(options.task ? { taskId: options.task } : {}),
       });
       const maxStart = parseMaxStart(options.maxStart);
-      const started: Array<{ runId: string; taskId: string; agentId: string; branch: string }> = [];
-      const skipped: Array<{ taskId: string; reasons: string[] }> = [];
-
-      for (const decision of plan.runnable.slice(0, maxStart)) {
-        const task = getTask(workspace.backlogDir, decision.taskId);
-        if (!task) {
-          skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
-          continue;
-        }
-        const workItem = getWorkItem(workspace.backlogDir, task.work_item_id);
-        if (!workItem) {
-          skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
-          continue;
-        }
-        const repo = config.repos.find((candidate) => candidate.id === task.repo);
-        if (!repo) {
-          skipped.push({ taskId: task.id, reasons: [`unknown_repo:${task.repo}`] });
-          continue;
-        }
-
-        const activeAgentRuns = listActiveRuns(workspace.backlogDir).filter((run) => run.status === "running" || run.status === "preparing");
-        const agent = options.agent
-          ? (() => {
-              const forcedSelection = selectionForAgentTask(workspace.backlogDir, task, options.agent);
-              if (!forcedSelection) {
-                throw new Error(`Unknown agent: ${options.agent}`);
-              }
-              if (!forcedSelection.available) {
-                skipped.push({ taskId: task.id, reasons: forcedSelection.reasons });
-                return null;
-              }
-              return forcedSelection.agent;
-            })()
-            : decision.assignedAgentId
-            ? (() => {
-                const assigned = getAgent(workspace.backlogDir, decision.assignedAgentId!);
-                if (!assigned) {
-                  skipped.push({ taskId: task.id, reasons: [`unknown_assigned_agent:${decision.assignedAgentId}`] });
-                  return null;
-                }
-                return assigned;
-              })()
-            : pickAgentForTask(workspace.backlogDir, task);
-
-        if (!agent) {
-          continue;
-        }
-
-        if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
-          skipped.push({ taskId: task.id, reasons: ["no_agent_capacity"] });
-          continue;
-        }
-        if (!supportsAgentExecution(agent)) {
-          skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
-          continue;
-        }
-
-        const claim = createClaim({
-          backlogDir: workspace.backlogDir,
-          repo: repo.id,
-          repoPath: repo.path,
-          topic: `run ${task.id}`,
-          paths: task.scopes.length > 0 ? task.scopes : ["**"],
-          mode: task.claim_mode,
-          ttlMinutes: config.claims.ttl_minutes,
-        });
-        const gitDir = await detectGitDir(repo.path);
-        writeContextFile(gitDir, {
-          version: 1,
-          claim_id: claim.id,
-          updated_at: new Date().toISOString(),
-        });
-
-        const branch = buildRunBranchName(task.id, task.title);
-        const runId = nextRunId();
-        const worktreePath = await ensureWorktree({
-          backlogDir: workspace.backlogDir,
-          repoId: repo.id,
-          repoPath: repo.path,
-          branch,
-          runId,
-        });
-        const run = createRun({
-          backlogDir: workspace.backlogDir,
-          runId,
-          task,
-          workItem,
-          agent,
-          branch,
-          worktreePath,
-          claimIds: [claim.id],
-        });
-        await writeWorktreeContext(worktreePath, run.id, claim.id);
-        addRunArtifact(workspace.backlogDir, run.id, { kind: "branch", value: branch });
-        updateRunStatus(workspace.backlogDir, run.id, "running", "Execution workspace prepared");
-        updateTaskStatus(workspace.backlogDir, task.id, "running");
-        started.push({
-          runId: run.id,
-          taskId: task.id,
-          agentId: agent.id,
-          branch,
-        });
-
-        if (await executeAgentRun({
-          backlogDir: workspace.backlogDir,
-          run,
-          task,
-          workItem,
-          agent,
-        })) {
-          continue;
-        }
-
-        skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
-        updateRunStatus(workspace.backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
-        updateTaskStatus(workspace.backlogDir, task.id, "blocked");
-      }
+      const { started, skipped } = await startRunsForPlan({
+        backlogDir: workspace.backlogDir,
+        config,
+        plan,
+        maxStart,
+        ...(options.agent ? { forcedAgentId: options.agent } : {}),
+      });
 
       const payload = {
         started,
