@@ -12,10 +12,12 @@
     columnKey: ColumnKey;
     cards: WorkItemCard[];
     onMove: (workItemId: string, toStatus: string, toColumn: ColumnKey) => void;
+    onReorder?: (workItemId: string, beforeId: string | null, afterId: string | null) => void;
     onSplit?: (card: WorkItemCard) => void;
+    onAddTask?: (card: WorkItemCard) => void;
   }
 
-  let { columnKey, cards, onMove, onSplit }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -30,12 +32,45 @@
   }
 
   function handleFinalize(event: CustomEvent<{ items: WorkItemCard[]; info: { id: string; trigger: string } }>) {
-    localCards = event.detail.items;
+    const nextItems = event.detail.items;
     const trigger = event.detail.info.trigger;
-    if (trigger === "droppedIntoZone") {
-      const droppedId = event.detail.info.id;
+    if (trigger !== "droppedIntoZone") {
+      localCards = nextItems;
+      return;
+    }
+
+    const droppedId = event.detail.info.id;
+    const wasAlreadyInColumn = cards.some((card) => card.id === droppedId);
+
+    if (!wasAlreadyInColumn) {
+      // Cross-column drop → status change.
+      localCards = nextItems;
       const status = COLUMN_DEFAULT_STATUS[columnKey];
       onMove(droppedId, status, columnKey);
+      return;
+    }
+
+    // Same-column reorder.
+    localCards = nextItems;
+    const newIndex = nextItems.findIndex((card) => card.id === droppedId);
+    const oldIndex = cards.findIndex((card) => card.id === droppedId);
+    if (newIndex < 0 || newIndex === oldIndex) return;
+    const beforeCard = newIndex > 0 ? nextItems[newIndex - 1] : null;
+    const afterCard = newIndex < nextItems.length - 1 ? nextItems[newIndex + 1] : null;
+    if (onReorder) {
+      // The server expects the IDs of the neighbours in the post-drop order, but its
+      // semantics map to "place before X" for upward moves and "place after X" for
+      // downward moves.
+      const movingUp = newIndex < oldIndex;
+      if (movingUp && beforeCard) {
+        onReorder(droppedId, beforeCard.id, null);
+      } else if (!movingUp && afterCard) {
+        onReorder(droppedId, null, afterCard.id);
+      } else if (beforeCard) {
+        onReorder(droppedId, beforeCard.id, null);
+      } else if (afterCard) {
+        onReorder(droppedId, null, afterCard.id);
+      }
     }
   }
 </script>
@@ -53,7 +88,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} {onSplit} />
+        <Card {card} {onSplit} {onAddTask} />
       </div>
     {/each}
     {#if localCards.length === 0}

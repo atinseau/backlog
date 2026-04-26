@@ -1,15 +1,242 @@
-import type { BoardResponse } from "./types.js";
+import type { BoardResponse, OrchestratorState, Project } from "./types.js";
 
 const BASE = "/api/v1";
 
-export async function fetchBoard(repo?: string): Promise<BoardResponse> {
+export async function fetchBoard(opts: { repo?: string; project?: string } = {}): Promise<BoardResponse> {
   const url = new URL(`${BASE}/board`, window.location.origin);
-  if (repo) url.searchParams.set("repo", repo);
+  if (opts.repo) url.searchParams.set("repo", opts.repo);
+  if (opts.project) url.searchParams.set("project", opts.project);
   const response = await fetch(url.toString());
   if (!response.ok) {
     throw new Error(`Board fetch failed: ${response.status} ${response.statusText}`);
   }
   return (await response.json()) as BoardResponse;
+}
+
+// Projects ------------------------------------------------------------------
+
+export async function fetchProjects(): Promise<Project[]> {
+  const response = await fetch(`${BASE}/projects`);
+  if (!response.ok) throw new Error(`Projects fetch failed: ${response.status}`);
+  const json = (await response.json()) as { projects: Project[] };
+  return json.projects;
+}
+
+export interface CreateProjectInput {
+  slug: string;
+  name: string;
+  description?: string;
+  color?: string;
+  repo_ids?: string[];
+  max_agents?: number;
+}
+
+export async function createProject(input: CreateProjectInput): Promise<Project> {
+  const response = await fetch(`${BASE}/projects`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create project failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { project: Project };
+  return json.project;
+}
+
+export interface UpdateProjectInput {
+  slug?: string;
+  name?: string;
+  description?: string | null;
+  color?: string | null;
+  repo_ids?: string[];
+  max_agents?: number | null;
+  archived?: boolean;
+}
+
+export async function updateProject(idOrSlug: string, input: UpdateProjectInput): Promise<Project> {
+  const response = await fetch(`${BASE}/projects/${encodeURIComponent(idOrSlug)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Update project failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { project: Project };
+  return json.project;
+}
+
+export async function deleteProject(idOrSlug: string): Promise<void> {
+  const response = await fetch(`${BASE}/projects/${encodeURIComponent(idOrSlug)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Delete project failed (${response.status}): ${detail}`);
+  }
+}
+
+// Orchestrator --------------------------------------------------------------
+
+export async function fetchOrchestratorState(): Promise<OrchestratorState> {
+  const response = await fetch(`${BASE}/orchestrator/state`);
+  if (!response.ok) throw new Error(`Orchestrator state failed: ${response.status}`);
+  const json = (await response.json()) as { state: OrchestratorState };
+  return json.state;
+}
+
+export async function startOrchestrator(input: {
+  max_agents?: number;
+  auto_pick_agents?: boolean;
+  tick_interval_ms?: number;
+  project_id?: string;
+} = {}): Promise<OrchestratorState> {
+  const response = await fetch(`${BASE}/orchestrator/start`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Start orchestrator failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { state: OrchestratorState };
+  return json.state;
+}
+
+export async function pauseOrchestrator(): Promise<OrchestratorState> {
+  const response = await fetch(`${BASE}/orchestrator/pause`, { method: "POST" });
+  if (!response.ok) throw new Error(`Pause orchestrator failed: ${response.status}`);
+  const json = (await response.json()) as { state: OrchestratorState };
+  return json.state;
+}
+
+export async function stopOrchestrator(): Promise<OrchestratorState> {
+  const response = await fetch(`${BASE}/orchestrator/stop`, { method: "POST" });
+  if (!response.ok) throw new Error(`Stop orchestrator failed: ${response.status}`);
+  const json = (await response.json()) as { state: OrchestratorState };
+  return json.state;
+}
+
+export async function patchOrchestratorConfig(input: {
+  max_agents?: number;
+  auto_pick_agents?: boolean;
+  tick_interval_ms?: number;
+}): Promise<OrchestratorState> {
+  const response = await fetch(`${BASE}/orchestrator/config`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Config orchestrator failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { state: OrchestratorState };
+  return json.state;
+}
+
+// Work items + tasks --------------------------------------------------------
+
+export interface CreateWorkItemInput {
+  title: string;
+  description?: string;
+  priority?: "P0" | "P1" | "P2" | "P3";
+  repo_targets?: string[];
+  labels?: string[];
+  acceptance_criteria?: string[];
+  project_id?: string;
+  estimated_duration_seconds?: number;
+}
+
+export async function createWorkItem(input: CreateWorkItemInput): Promise<unknown> {
+  const response = await fetch(`${BASE}/work-items`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create work item failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as unknown;
+}
+
+export async function reorderWorkItem(
+  id: string,
+  input: { before_id?: string; after_id?: string },
+): Promise<void> {
+  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/reorder`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Reorder failed (${response.status}): ${detail}`);
+  }
+}
+
+export async function assignWorkItemProject(id: string, projectId: string | null): Promise<void> {
+  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/project`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Assign project failed (${response.status}): ${detail}`);
+  }
+}
+
+export interface CreateTaskInput {
+  work_item_id: string;
+  title: string;
+  repo: string;
+  scopes?: string[];
+  depends_on?: string[];
+  risk?: "low" | "medium" | "high";
+  lane?: string;
+}
+
+export async function createTask(input: CreateTaskInput): Promise<unknown> {
+  const response = await fetch(`${BASE}/tasks`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create task failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as unknown;
+}
+
+export async function reorderTask(id: string, input: { before_id?: string; after_id?: string }): Promise<void> {
+  const response = await fetch(`${BASE}/tasks/${encodeURIComponent(id)}/reorder`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Reorder task failed (${response.status}): ${detail}`);
+  }
+}
+
+export async function setTaskEstimate(id: string, seconds: number | null): Promise<void> {
+  const response = await fetch(`${BASE}/tasks/${encodeURIComponent(id)}/estimate`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ seconds, source: seconds === null ? undefined : "manual" }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Estimate failed (${response.status}): ${detail}`);
+  }
 }
 
 export async function fetchHealth(): Promise<{ ok: boolean; workspace: string; version: string }> {

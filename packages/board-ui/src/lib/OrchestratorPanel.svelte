@@ -1,16 +1,23 @@
 <script lang="ts">
   import {
     fetchOrchestratePlan,
+    fetchOrchestratorState,
+    pauseOrchestrator,
+    patchOrchestratorConfig,
+    startOrchestrator,
     startRun,
+    stopOrchestrator,
     type EnrichedDecision,
     type OrchestratePlan,
   } from "./api.js";
+  import type { OrchestratorState } from "./types.js";
 
   interface Props {
     onClose: () => void;
+    selectedProjectId?: string | null;
   }
 
-  let { onClose }: Props = $props();
+  let { onClose, selectedProjectId }: Props = $props();
 
   let plan = $state<OrchestratePlan | null>(null);
   let loading = $state(false);
@@ -18,11 +25,78 @@
   let starting = $state<string | null>(null);
   let lastResult = $state<string | null>(null);
 
+  let orchState = $state<OrchestratorState | null>(null);
+  let busy = $state(false);
+  let maxAgents = $state(3);
+  let autoPick = $state(true);
+
+  async function loadState() {
+    try {
+      orchState = await fetchOrchestratorState();
+      maxAgents = orchState.max_agents;
+      autoPick = orchState.auto_pick_agents;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleStart() {
+    busy = true;
+    error = null;
+    try {
+      const input: Parameters<typeof startOrchestrator>[0] = {
+        max_agents: maxAgents,
+        auto_pick_agents: autoPick,
+      };
+      if (selectedProjectId) input.project_id = selectedProjectId;
+      orchState = await startOrchestrator(input);
+      lastResult = "Orchestrateur démarré.";
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function handlePause() {
+    busy = true;
+    try {
+      orchState = await pauseOrchestrator();
+      lastResult = "Orchestrateur en pause (les runs en cours finissent).";
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function handleStop() {
+    busy = true;
+    try {
+      lastResult = "Arrêt en cours — attente de fin des runs actifs…";
+      orchState = await stopOrchestrator();
+      lastResult = "Orchestrateur arrêté.";
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function syncMaxAgents() {
+    if (!orchState) return;
+    try {
+      orchState = await patchOrchestratorConfig({ max_agents: maxAgents, auto_pick_agents: autoPick });
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   async function load() {
     loading = true;
     error = null;
     try {
-      plan = await fetchOrchestratePlan();
+      [plan] = await Promise.all([fetchOrchestratePlan(), loadState()]);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -83,6 +157,46 @@
       <button onclick={onClose} aria-label="Close panel">×</button>
     </div>
   </header>
+
+  <section class="controls">
+    {#if orchState}
+      <div class="state-row">
+        <span class="state-pill state-{orchState.mode}">{orchState.mode}</span>
+        {#if orchState.last_tick_at}
+          <span class="state-meta">tick {new Date(orchState.last_tick_at).toLocaleTimeString("fr-FR")}</span>
+        {/if}
+        {#if orchState.last_started_count !== undefined && orchState.last_started_count > 0}
+          <span class="state-meta">+{orchState.last_started_count} run(s)</span>
+        {/if}
+      </div>
+    {/if}
+    <div class="control-row">
+      <button class="play" onclick={handleStart} disabled={busy || orchState?.mode === "running"}>▶ Play</button>
+      <button onclick={handlePause} disabled={busy || orchState?.mode !== "running"}>⏸ Pause</button>
+      <button class="stop" onclick={handleStop} disabled={busy || orchState?.mode === "idle"}>⏹ Stop</button>
+    </div>
+    <div class="control-row settings">
+      <label class="auto">
+        <input type="checkbox" bind:checked={autoPick} onchange={syncMaxAgents} />
+        Auto
+      </label>
+      <label class="slider">
+        <span>Agents max</span>
+        <input
+          type="range"
+          min="1"
+          max="10"
+          bind:value={maxAgents}
+          onchange={syncMaxAgents}
+          disabled={autoPick}
+        />
+        <span class="slider-val">{maxAgents}</span>
+      </label>
+    </div>
+    {#if orchState?.last_error}
+      <div class="warn">⚠ {orchState.last_error}</div>
+    {/if}
+  </section>
 
   {#if error}
     <div class="error">{error}</div>
@@ -336,4 +450,83 @@
   }
   .other.muted { opacity: 0.7; }
   .other li { display: flex; gap: 8px; align-items: center; }
+
+  .controls {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e4e7ec;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .state-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #667085;
+  }
+  .state-pill {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: white;
+  }
+  .state-idle    { background: #98a2b3; }
+  .state-running { background: #027a48; }
+  .state-paused  { background: #f79009; }
+  .state-stopping { background: #b42318; }
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .control-row.settings { gap: 12px; font-size: 12px; color: #475467; }
+  .control-row button {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    background: white;
+    border: 1px solid #d0d5dd;
+  }
+  .control-row button.play { background: #027a48; color: white; border-color: #027a48; }
+  .control-row button.play:hover:not(:disabled) { background: #036a3e; }
+  .control-row button.stop { background: #b42318; color: white; border-color: #b42318; }
+  .control-row button.stop:hover:not(:disabled) { background: #9a1d14; }
+  .control-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .auto {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .slider {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  .slider input[type="range"] {
+    flex: 1;
+  }
+  .slider input[type="range"]:disabled {
+    opacity: 0.4;
+  }
+  .slider-val {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #1d2939;
+    min-width: 16px;
+    text-align: right;
+  }
+  .warn {
+    background: #fef0c7;
+    color: #b54708;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
 </style>

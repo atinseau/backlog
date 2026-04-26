@@ -2,18 +2,36 @@
   import { onDestroy, onMount } from "svelte";
   import ClaimDialog from "./lib/ClaimDialog.svelte";
   import Column from "./lib/Column.svelte";
+  import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
+  import CreateTicketDialog from "./lib/CreateTicketDialog.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
+  import ProjectSelector from "./lib/ProjectSelector.svelte";
+  import ProjectsView from "./lib/ProjectsView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
-  import { fetchBoard, moveWorkItem } from "./lib/api.js";
+  import { fetchBoard, fetchProjects, moveWorkItem, reorderWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
-  import { COLUMN_ORDER, type BoardResponse, type ColumnKey, type WorkItemCard } from "./lib/types.js";
+  import { formatDuration } from "./lib/timer.svelte.js";
+  import {
+    COLUMN_ORDER,
+    type BoardResponse,
+    type ColumnKey,
+    type Project,
+    type WorkItemCard,
+  } from "./lib/types.js";
+
+  const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
 
   let board = $state<BoardResponse | null>(null);
+  let projects = $state<Project[]>([]);
+  let selectedProjectId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
-  let dialogOpen = $state(false);
+  let claimDialogOpen = $state(false);
+  let projectsViewOpen = $state(false);
+  let createTicketOpen = $state(false);
+  let createTaskTarget = $state<WorkItemCard | null>(null);
   let panelOpen = $state(false);
   let splitTarget = $state<WorkItemCard | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -34,11 +52,21 @@
 
   async function refresh() {
     try {
-      board = await fetchBoard();
+      const opts = selectedProjectId ? { project: selectedProjectId } : {};
+      board = await fetchBoard(opts);
       error = null;
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function refreshProjects() {
+    try {
+      projects = await fetchProjects();
+    } catch (err) {
+      // Don't surface project errors as fatal — backlog without projects is still functional.
+      console.warn("project fetch failed", err);
     }
   }
 
@@ -50,6 +78,13 @@
     }, 150);
   }
 
+  function persistProject(id: string | null) {
+    selectedProjectId = id;
+    if (id) localStorage.setItem(PROJECT_STORAGE_KEY, id);
+    else localStorage.removeItem(PROJECT_STORAGE_KEY);
+    refresh();
+  }
+
   async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
     if (!board) return;
     inFlightMove = workItemId;
@@ -59,17 +94,32 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       inFlightMove = null;
-      // SSE will trigger a refresh; fall back if disconnected.
+      if (!connected) await refresh();
+    }
+  }
+
+  async function handleReorder(workItemId: string, beforeId: string | null, afterId: string | null) {
+    try {
+      const input: { before_id?: string; after_id?: string } = {};
+      if (beforeId) input.before_id = beforeId;
+      if (afterId) input.after_id = afterId;
+      await reorderWorkItem(workItemId, input);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
       if (!connected) await refresh();
     }
   }
 
   onMount(() => {
+    selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
     refresh();
+    refreshProjects();
     sse = subscribeToBoard(
       (type) => {
         if (type === "ping" || type === "ready") return;
         scheduleRefresh();
+        if (type === "project.changed") refreshProjects();
       },
       (alive) => {
         connected = alive;
@@ -91,11 +141,21 @@
 </script>
 
 <header class="topbar">
-  <h1>Backlog Board</h1>
+  <div class="topbar-left">
+    <h1>Backlog</h1>
+    <ProjectSelector
+      {projects}
+      selectedId={selectedProjectId}
+      onSelect={persistProject}
+      onManage={() => (projectsViewOpen = true)}
+    />
+  </div>
   <div class="meta">
     {#if board}
-      <span>{board.workspace}</span>
-      <span class="dot">·</span>
+      {#if board.total_remaining_seconds > 0}
+        <span class="eta-pill">⏱ {formatDuration(board.total_remaining_seconds)} restantes</span>
+        <span class="dot">·</span>
+      {/if}
       <span>{board.active_runs_count} runs · {board.active_claims_count} claims</span>
       <span class="dot">·</span>
       <span class:on={connected} class:off={!connected} class="conn">
@@ -111,7 +171,8 @@
       {/if}
     {/if}
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
-    <button class="primary" onclick={() => (dialogOpen = true)}>+ Claim</button>
+    <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
+    <button onclick={() => (claimDialogOpen = true)}>+ Claim</button>
     <button onclick={refresh}>↻</button>
   </div>
 </header>
@@ -126,15 +187,50 @@
       columnKey={key}
       cards={board?.columns[key] ?? []}
       onMove={handleMove}
+      onReorder={handleReorder}
       onSplit={(card) => (splitTarget = card)}
+      onAddTask={(card) => (createTaskTarget = card)}
     />
   {/each}
 </main>
 
-{#if dialogOpen}
+{#if claimDialogOpen}
   <ClaimDialog
     {repos}
-    onClose={() => (dialogOpen = false)}
+    onClose={() => (claimDialogOpen = false)}
+    onCreated={() => {
+      if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if projectsViewOpen}
+  <ProjectsView
+    availableRepos={repos}
+    onClose={() => (projectsViewOpen = false)}
+    onChanged={() => {
+      refreshProjects();
+    }}
+  />
+{/if}
+
+{#if createTicketOpen}
+  <CreateTicketDialog
+    {projects}
+    availableRepos={repos}
+    {selectedProjectId}
+    onClose={() => (createTicketOpen = false)}
+    onCreated={() => {
+      if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if createTaskTarget}
+  <CreateTaskDialog
+    workItem={createTaskTarget}
+    availableRepos={repos}
+    onClose={() => (createTaskTarget = null)}
     onCreated={() => {
       if (!connected) refresh();
     }}
@@ -142,7 +238,10 @@
 {/if}
 
 {#if panelOpen}
-  <OrchestratorPanel onClose={() => (panelOpen = false)} />
+  <OrchestratorPanel
+    {selectedProjectId}
+    onClose={() => (panelOpen = false)}
+  />
 {/if}
 
 {#if splitTarget}
@@ -174,6 +273,11 @@
     top: 0;
     z-index: 10;
   }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
   h1 {
     margin: 0;
     font-size: 18px;
@@ -190,6 +294,13 @@
   .moving { color: #1570ef; }
   .conn.on { color: #027a48; }
   .conn.off { color: #b54708; }
+  .eta-pill {
+    background: #eff8ff;
+    color: #175cd3;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
   button {
     background: #f2f4f7;
     border: 1px solid #d0d5dd;
