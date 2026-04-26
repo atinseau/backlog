@@ -43,6 +43,7 @@ const createClaimBodySchema = z.object({
   ttl_minutes: z.number().int().positive().optional(),
   expected_duration_seconds: z.number().int().positive().optional(),
   agent_id: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 function buildConflictResponse(blocking: ClaimRecord) {
@@ -152,6 +153,9 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
       createInput.expectedDurationSeconds = body.expected_duration_seconds;
     }
     if (body.agent_id !== undefined) createInput.agentId = body.agent_id;
+    if (body.metadata && Object.keys(body.metadata).length > 0) {
+      createInput.metadata = body.metadata;
+    }
 
     const claim = createClaim(createInput);
     return c.json({ claim }, 201);

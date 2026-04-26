@@ -40,6 +40,40 @@ function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?
   throw new Error("Unable to determine repo. Pass --repo explicitly.");
 }
 
+function parseMetadataKv(entries: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    const sep = trimmed.indexOf("=");
+    if (sep <= 0 || sep === trimmed.length - 1) {
+      throw new Error(`Invalid --metadata entry: ${entry}. Expected key=value.`);
+    }
+    const key = trimmed.slice(0, sep).trim();
+    const value = trimmed.slice(sep + 1).trim();
+    if (!key) throw new Error(`Invalid --metadata entry: ${entry}. Empty key.`);
+    result[key] = value;
+  }
+  return result;
+}
+
+export function parseClaimMetadata(
+  flagValues: string[] | undefined,
+  envValue: string | undefined,
+): Record<string, string> | undefined {
+  const parts: string[] = [];
+  if (envValue && envValue.trim()) {
+    // Accept comma- or newline-separated key=value pairs in the env.
+    parts.push(...envValue.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean));
+  }
+  if (flagValues && flagValues.length > 0) {
+    parts.push(...flagValues);
+  }
+  if (parts.length === 0) return undefined;
+  const merged = parseMetadataKv(parts);
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
 async function resolveClaimFromContext(backlogDir: string, repoRoot: string): Promise<ClaimRecord> {
   const gitDir = await detectGitDir(repoRoot);
   const context = readContextFile(gitDir);
@@ -63,6 +97,10 @@ export function registerClaimCommand(program: Command): void {
     .option("--ttl-minutes <minutes>", "Claim TTL in minutes", "30")
     .option("--duration <seconds>", "Expected work duration in seconds (powers retry-after hints)")
     .option("--agent <id>", "Agent id holding this claim")
+    .option(
+      "--metadata <kv...>",
+      "Free-form attribution, repeatable: key=value (also reads BACKLOG_CLAIM_METADATA env)",
+    )
     .option("--allow-overlap", "Allow overlap with active claims")
     .action(async (options: {
       topic: string;
@@ -73,6 +111,7 @@ export function registerClaimCommand(program: Command): void {
       ttlMinutes: string;
       duration?: string;
       agent?: string;
+      metadata?: string[];
       allowOverlap?: boolean;
     }) => {
       const workspace = findWorkspace();
@@ -101,6 +140,10 @@ export function registerClaimCommand(program: Command): void {
       }
       if (options.agent) {
         createInput.agentId = options.agent;
+      }
+      const metadata = parseClaimMetadata(options.metadata, process.env.BACKLOG_CLAIM_METADATA);
+      if (metadata) {
+        createInput.metadata = metadata;
       }
       const claimRecord = createClaim(createInput);
 

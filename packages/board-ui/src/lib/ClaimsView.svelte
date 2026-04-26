@@ -151,6 +151,14 @@
               {/each}
             </ul>
 
+            {#if claim.metadata && Object.keys(claim.metadata).length > 0}
+              <div class="metadata">
+                {#each Object.entries(claim.metadata) as [key, value] (key)}
+                  <span class="meta-chip"><strong>{key}</strong>={value}</span>
+                {/each}
+              </div>
+            {/if}
+
             <div class="meta">
               <span>créé il y a {formatDuration(ageSeconds(claim))}</span>
               <span class="dot">·</span>
@@ -373,6 +381,23 @@
     padding: 6px 10px;
   }
   .paths li { padding: 1px 0; word-break: break-all; }
+  .metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .meta-chip {
+    background: #f4ebff;
+    color: #6941c6;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+  }
+  .meta-chip strong {
+    font-weight: 600;
+    margin-right: 2px;
+  }
   .meta {
     display: flex;
     align-items: center;

@@ -35,6 +35,7 @@ export interface ClaimRecord {
   expected_finish_at?: string;
   agent_id?: string;
   agent?: ClaimAgentInfo;
+  metadata?: Record<string, string>;
 }
 
 export interface RunSummary {

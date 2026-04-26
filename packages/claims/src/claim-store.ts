@@ -38,6 +38,7 @@ export function createClaim(params: {
   ttlMinutes?: number;
   expectedDurationSeconds?: number;
   agentId?: string;
+  metadata?: Record<string, string>;
 }): ClaimRecord {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + (params.ttlMinutes ?? 30) * 60_000);
@@ -62,6 +63,9 @@ export function createClaim(params: {
   }
   if (params.agentId !== undefined) {
     claim.agent_id = params.agentId;
+  }
+  if (params.metadata && Object.keys(params.metadata).length > 0) {
+    claim.metadata = params.metadata;
   }
 
   fs.writeFileSync(
