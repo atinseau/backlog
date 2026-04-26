@@ -8,6 +8,27 @@ All notable changes to the `backlog` CLI are documented here.
 
 - The repo is a pnpm monorepo. The `backlog` CLI lives in `packages/cli/`. Backlog Cloud (the hosted backend) is a private project and not part of this repo.
 
+## [1.2.0] - 2026-04-26
+
+### Added
+
+- `backlog serve` — local Hono server + Svelte 5 kanban board (BSL 1.1 on the server package, Apache-2.0 on the UI). Boots on `127.0.0.1:7878`, opens the browser, serves the bundled UI from the same `backlog` binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every YAML/JSON mutation in `.backlog/`.
+- Orchestrator side panel — wave-bucketed parallel execution plan reusing `buildExecutionPlan` from `@backlog/core`, with a green ▶ button per runnable task that POSTs `/api/v1/runs` and starts the agent.
+- Mechanical splitter — ✂ button on every work item with no tasks; modal for repos + scopes + parallel/serial mode + risk.
+- AI splitter (optional) — `🤖 Suggest with AI` tab calls Claude (`claude-opus-4-7` by default, overridable via `BACKLOG_AI_MODEL`) with adaptive thinking and a JSON-schema constrained output. Returns an editable proposal; `Apply` creates the tasks. Requires `ANTHROPIC_API_KEY`; degrades gracefully with a clear error when absent.
+- Claim creation modal — `+ Claim` button opens a form, server returns 409 with `retry_after_seconds`, `retry_after_source`, and blocking-agent metadata when paths overlap.
+
+### Changed
+
+- `claim` schema gains three optional fields: `expected_finish_at`, `expected_duration_seconds`, `agent_id`. Existing claims parse unchanged. `backlog claim start` accepts `--duration <seconds>` and `--agent <id>`.
+- Run-launching logic extracted from `backlog schedule run` into `startRunsForPlan()` in `@backlog/core` so the CLI and the new `POST /api/v1/runs` endpoint share one code path.
+
+### Documentation
+
+- README rewritten for the `npm install -g backlog` flow with a "Run the kanban board" section.
+- New per-package READMEs for `@backlog/server` and `@backlog/board-ui`.
+- `Dockerfile` + `docker-compose.yml` cleaned up: removed sqlite/SaaS leftovers (`BACKLOG_SERVER_DB_PATH`, port 3002, etc.), default to `127.0.0.1:7878` with the workspace mounted at `/workspace`.
+
 ## [1.1.1] - 2026-04-25
 
 ### Changed
