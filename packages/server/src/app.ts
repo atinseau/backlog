@@ -6,6 +6,8 @@ import { agentsRoutes } from "./routes/agents.js";
 import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
 import { healthRoutes } from "./routes/health.js";
+import { tasksRoutes } from "./routes/tasks.js";
+import { workItemsRoutes } from "./routes/work-items.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerWorkspace } from "./workspace-context.js";
 
@@ -65,6 +67,8 @@ export function buildApp(options: BuildAppOptions): Hono {
   app.route("/api/v1", boardRoutes(options.workspace));
   app.route("/api/v1", claimsRoutes(options.workspace));
   app.route("/api/v1", agentsRoutes(options.workspace));
+  app.route("/api/v1", workItemsRoutes(options.workspace));
+  app.route("/api/v1", tasksRoutes(options.workspace));
 
   const uiDir = options.uiDistDir ?? defaultUiDistDir();
   if (existsSync(uiDir)) {
