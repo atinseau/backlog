@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Command } from "commander";
-import { initLayout } from "@backlog/config";
+import { initLayout, registerWorkspace } from "@backlog/config";
 import { detectRepoRoot, detectGitDir, discoverRepoForWorkspace } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
 
@@ -40,9 +40,12 @@ export function registerInitCommand(program: Command): void {
         });
       }
 
+      const registryEntry = registerWorkspace({ workspaceRoot: root });
+
       console.log(`Initialized Backlog in ${result.backlogDir}`);
       console.log(`Config: ${result.configPath}`);
       console.log(`Shim:   ${result.shimPath}`);
+      console.log(`Registered as ${registryEntry.id}`);
       if (repos.length > 0) {
         console.log("Repos:");
         for (const repo of repos) {
