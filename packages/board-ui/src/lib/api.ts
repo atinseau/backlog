@@ -154,6 +154,60 @@ export async function startRun(input: StartRunInput): Promise<StartRunResult> {
   return json as StartRunResult;
 }
 
+export interface ProposedTask {
+  title: string;
+  repo: string;
+  scopes: string[];
+  risk: "low" | "medium" | "high";
+  depends_on_indices: number[];
+}
+
+export interface SplitProposal {
+  work_item_id: string;
+  model: string;
+  rationale: string;
+  tasks: ProposedTask[];
+}
+
+export type SuggestSplitResult =
+  | { ok: true; proposal: SplitProposal }
+  | { ok: false; error: "ai_unavailable" | "suggest_failed" | "no_repos"; detail: string };
+
+export async function suggestSplit(workItemId: string): Promise<SuggestSplitResult> {
+  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(workItemId)}/suggest-split`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  if (response.ok) {
+    const proposal = (await response.json()) as SplitProposal;
+    return { ok: true, proposal };
+  }
+  const json = (await response.json().catch(() => ({}))) as { error?: string; detail?: string };
+  return {
+    ok: false,
+    error: (json.error ?? "suggest_failed") as "ai_unavailable" | "suggest_failed" | "no_repos",
+    detail: json.detail ?? `HTTP ${response.status}`,
+  };
+}
+
+export async function applySplitProposal(
+  workItemId: string,
+  tasks: ProposedTask[],
+  force = false,
+): Promise<SplitResult> {
+  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(workItemId)}/apply-split`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tasks, force }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Apply split failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as SplitResult;
+}
+
 export async function splitWorkItem(id: string, input: SplitInput): Promise<SplitResult> {
   const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/split`, {
     method: "POST",
