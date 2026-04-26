@@ -1,0 +1,57 @@
+FROM node:22-slim AS build
+
+# Build the workspace bundle. We treat the monorepo root as the build context
+# so pnpm can resolve `workspace:*` deps and tsup can bundle them.
+WORKDIR /workspace
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/cli/package.json ./packages/cli/
+COPY packages/claims/package.json ./packages/claims/
+COPY packages/connectors/package.json ./packages/connectors/
+COPY packages/config/package.json ./packages/config/
+COPY packages/core/package.json ./packages/core/
+COPY packages/git/package.json ./packages/git/
+COPY packages/hooks/package.json ./packages/hooks/
+COPY packages/schemas/package.json ./packages/schemas/
+COPY packages/server/package.json ./packages/server/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Re-run install once code is present so native bindings (better-sqlite3) build.
+COPY packages/schemas ./packages/schemas
+COPY packages/server ./packages/server
+RUN pnpm install --frozen-lockfile && \
+    pnpm --filter backlog-server build
+
+# Use `pnpm deploy` to produce a self-contained, symlink-free node_modules tree
+# that survives being copied into a fresh image without the workspace root.
+RUN pnpm deploy --legacy --filter backlog-server --prod /deploy && \
+    cp -r packages/server/dist /deploy/dist
+
+# ── runtime image ──────────────────────────────────────────────────────────
+FROM node:22-slim AS runtime
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /deploy/dist ./dist
+COPY --from=build /deploy/package.json ./package.json
+COPY --from=build /deploy/node_modules ./node_modules
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3002
+ENV BACKLOG_SERVER_DB_PATH=/data/backlog-server.db
+
+VOLUME ["/data"]
+EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "dist/index.js"]

@@ -1,0 +1,53 @@
+{
+  "name": "@backlog/server",
+  "version": "0.1.0",
+  "description": "Local Backlog server — Hono + SSE, exposes the workspace via a Trello-like board (BUSL 1.1).",
+  "license": "BUSL-1.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx --watch src/dev-server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@backlog/claims": "workspace:*",
+    "@backlog/config": "workspace:*",
+    "@backlog/core": "workspace:*",
+    "@backlog/schemas": "workspace:*",
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.13"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "author": "Jimmy Douieb",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/osmove/backlog.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/osmove/backlog#readme",
+  "bugs": {
+    "url": "https://github.com/osmove/backlog/issues"
+  },
+  "keywords": [
+    "backlog",
+    "agents",
+    "self-hosted",
+    "kanban",
+    "hono"
+  ]
+}

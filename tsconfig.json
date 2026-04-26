@@ -8,6 +8,7 @@
     { "path": "./packages/hooks" },
     { "path": "./packages/core" },
     { "path": "./packages/connectors" },
+    { "path": "./packages/server" },
     { "path": "./packages/cli" }
   ]
 }
