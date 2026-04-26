@@ -52,8 +52,39 @@
       return parts.join(" · ");
     }
     if (claim.agent_id) return claim.agent_id;
+    if (claim.metadata?.source) {
+      const parts = [claim.metadata.source];
+      if (claim.metadata.model) parts.push(claim.metadata.model);
+      return parts.join(" · ");
+    }
     return "aucun agent attribué";
   }
+
+  function sessionResumeUrl(claim: ClaimRecord): string | null {
+    if (claim.metadata?.source !== "claude-code") return null;
+    const id = claim.metadata.session_id;
+    if (!id) return null;
+    return `claude://resume/${id}`;
+  }
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore — older browsers fall back to manual copy
+    }
+  }
+
+  // Keys we render with bespoke chips; everything else falls back to the
+  // generic key=value chip.
+  const SPECIAL_META_KEYS = new Set([
+    "source",
+    "session_id",
+    "session_title",
+    "session_cwd",
+    "model",
+    "entrypoint",
+  ]);
 
   async function handleArchive(claim: ClaimRecord) {
     if (!confirm(`Finir le claim "${claim.topic}" ?\n\nIl sera archivé et libérera ses paths.`)) return;
@@ -152,8 +183,42 @@
             </ul>
 
             {#if claim.metadata && Object.keys(claim.metadata).length > 0}
+              {#if claim.metadata.session_title}
+                <div class="session-title" title={claim.metadata.session_title}>
+                  💬 {claim.metadata.session_title}
+                </div>
+              {/if}
               <div class="metadata">
-                {#each Object.entries(claim.metadata) as [key, value] (key)}
+                {#if claim.metadata.source}
+                  <span class="meta-chip source">{claim.metadata.source}</span>
+                {/if}
+                {#if claim.metadata.model}
+                  <span class="meta-chip model">{claim.metadata.model}</span>
+                {/if}
+                {#if claim.metadata.session_id}
+                  {@const resumeUrl = sessionResumeUrl(claim)}
+                  {#if resumeUrl}
+                    <a
+                      class="meta-chip session"
+                      href={resumeUrl}
+                      title="Reprendre cette session dans Claude Code"
+                    >
+                      ↗ session {claim.metadata.session_id.slice(0, 8)}
+                    </a>
+                  {:else}
+                    <button
+                      class="meta-chip session"
+                      onclick={() => copyToClipboard(claim.metadata!.session_id!)}
+                      title="Copier l'id de session"
+                    >
+                      session {claim.metadata.session_id.slice(0, 8)}
+                    </button>
+                  {/if}
+                {/if}
+                {#if claim.metadata.entrypoint && claim.metadata.entrypoint !== "claude-desktop"}
+                  <span class="meta-chip">{claim.metadata.entrypoint}</span>
+                {/if}
+                {#each Object.entries(claim.metadata).filter(([key]) => !SPECIAL_META_KEYS.has(key)) as [key, value] (key)}
                   <span class="meta-chip"><strong>{key}</strong>={value}</span>
                 {/each}
               </div>
@@ -381,22 +446,56 @@
     padding: 6px 10px;
   }
   .paths li { padding: 1px 0; word-break: break-all; }
+  .session-title {
+    font-size: 12px;
+    color: #344054;
+    background: #fafafa;
+    border-left: 3px solid #6941c6;
+    padding: 4px 8px;
+    border-radius: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .metadata {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     font-size: 11px;
+    align-items: center;
   }
   .meta-chip {
     background: #f4ebff;
     color: #6941c6;
-    padding: 1px 6px;
+    padding: 2px 8px;
     border-radius: 3px;
     font-family: ui-monospace, monospace;
+    border: none;
+    font-size: 11px;
+    cursor: default;
   }
   .meta-chip strong {
     font-weight: 600;
     margin-right: 2px;
+  }
+  .meta-chip.source {
+    background: #d1fadf;
+    color: #027a48;
+  }
+  .meta-chip.model {
+    background: #eff8ff;
+    color: #175cd3;
+  }
+  a.meta-chip.session,
+  button.meta-chip.session {
+    background: #f4ebff;
+    color: #6941c6;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  a.meta-chip.session:hover,
+  button.meta-chip.session:hover {
+    background: #e9d7fe;
   }
   .meta {
     display: flex;

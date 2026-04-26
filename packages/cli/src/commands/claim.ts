@@ -16,6 +16,7 @@ import {
 import { findWorkspace, loadConfig } from "@backlog/config";
 import { detectGitDir, detectRepoRoot, stagedPaths } from "@backlog/git";
 import type { ClaimRecord, RepoConfig } from "@backlog/schemas";
+import { detectClaimSourceMetadata } from "./claim-source.js";
 
 function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?: string): RepoConfig {
   if (explicitRepo) {
@@ -60,17 +61,24 @@ function parseMetadataKv(entries: string[]): Record<string, string> {
 export function parseClaimMetadata(
   flagValues: string[] | undefined,
   envValue: string | undefined,
+  options: { detectSource?: boolean } = {},
 ): Record<string, string> | undefined {
-  const parts: string[] = [];
+  const merged: Record<string, string> = {};
+  // Lowest priority: auto-detected source (only if not opted out).
+  if (options.detectSource !== false) {
+    Object.assign(merged, detectClaimSourceMetadata());
+  }
+  // Mid priority: env var.
   if (envValue && envValue.trim()) {
-    // Accept comma- or newline-separated key=value pairs in the env.
-    parts.push(...envValue.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean));
+    const envParts = envValue.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean);
+    if (envParts.length > 0) {
+      Object.assign(merged, parseMetadataKv(envParts));
+    }
   }
+  // Highest priority: explicit --metadata flags.
   if (flagValues && flagValues.length > 0) {
-    parts.push(...flagValues);
+    Object.assign(merged, parseMetadataKv(flagValues));
   }
-  if (parts.length === 0) return undefined;
-  const merged = parseMetadataKv(parts);
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
@@ -101,6 +109,7 @@ export function registerClaimCommand(program: Command): void {
       "--metadata <kv...>",
       "Free-form attribution, repeatable: key=value (also reads BACKLOG_CLAIM_METADATA env)",
     )
+    .option("--no-detect-source", "Skip auto-detection of the calling tool (Claude Code, etc.)")
     .option("--allow-overlap", "Allow overlap with active claims")
     .action(async (options: {
       topic: string;
@@ -112,6 +121,7 @@ export function registerClaimCommand(program: Command): void {
       duration?: string;
       agent?: string;
       metadata?: string[];
+      detectSource?: boolean;
       allowOverlap?: boolean;
     }) => {
       const workspace = findWorkspace();
@@ -141,7 +151,9 @@ export function registerClaimCommand(program: Command): void {
       if (options.agent) {
         createInput.agentId = options.agent;
       }
-      const metadata = parseClaimMetadata(options.metadata, process.env.BACKLOG_CLAIM_METADATA);
+      const metadata = parseClaimMetadata(options.metadata, process.env.BACKLOG_CLAIM_METADATA, {
+        detectSource: options.detectSource !== false,
+      });
       if (metadata) {
         createInput.metadata = metadata;
       }
