@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import Card from "./lib/Card.svelte";
-  import { fetchBoard } from "./lib/api.js";
-  import { COLUMN_LABELS, COLUMN_ORDER, type BoardResponse } from "./lib/types.js";
+  import Column from "./lib/Column.svelte";
+  import { fetchBoard, moveWorkItem } from "./lib/api.js";
+  import { COLUMN_ORDER, type BoardResponse, type ColumnKey } from "./lib/types.js";
 
   let board = $state<BoardResponse | null>(null);
   let error = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
+  let inFlightMove = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
@@ -16,6 +17,20 @@
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
+    if (!board) return;
+    inFlightMove = workItemId;
+    try {
+      await moveWorkItem(workItemId, toStatus);
+      await refresh();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      await refresh();
+    } finally {
+      inFlightMove = null;
     }
   }
 
@@ -40,6 +55,10 @@
         <span class="dot">·</span>
         <span>maj {lastUpdated}</span>
       {/if}
+      {#if inFlightMove}
+        <span class="dot">·</span>
+        <span class="moving">↻ déplacement…</span>
+      {/if}
     {/if}
     <button onclick={refresh}>↻</button>
   </div>
@@ -51,24 +70,7 @@
 
 <main class="board">
   {#each COLUMN_ORDER as key (key)}
-    {@const cards = board?.columns[key] ?? []}
-    <section class="column">
-      <header>
-        <h2>{COLUMN_LABELS[key]}</h2>
-        <span class="count">{cards.length}</span>
-      </header>
-      <div class="cards">
-        {#if !board}
-          <div class="placeholder">Chargement…</div>
-        {:else if cards.length === 0}
-          <div class="placeholder">—</div>
-        {:else}
-          {#each cards as card (card.id)}
-            <Card {card} />
-          {/each}
-        {/if}
-      </div>
-    </section>
+    <Column columnKey={key} cards={board?.columns[key] ?? []} onMove={handleMove} />
   {/each}
 </main>
 
@@ -103,6 +105,7 @@
     color: #667085;
   }
   .dot { opacity: 0.5; }
+  .moving { color: #1570ef; }
   button {
     background: #f2f4f7;
     border: 1px solid #d0d5dd;
@@ -125,41 +128,5 @@
     padding: 16px;
     align-items: start;
     min-height: calc(100vh - 60px);
-  }
-  .column {
-    background: #eef0f3;
-    border-radius: 8px;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    min-height: 200px;
-  }
-  .column header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    padding: 0 4px;
-  }
-  h2 {
-    margin: 0;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #475467;
-  }
-  .count {
-    background: #d0d5dd;
-    color: #344054;
-    font-size: 11px;
-    padding: 1px 7px;
-    border-radius: 10px;
-  }
-  .cards { flex: 1; }
-  .placeholder {
-    padding: 16px 0;
-    text-align: center;
-    color: #98a2b3;
-    font-size: 13px;
   }
 </style>

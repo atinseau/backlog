@@ -54,3 +54,10 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
 };
 
 export const COLUMN_ORDER: ColumnKey[] = ["todo", "doing", "review", "done"];
+
+export const COLUMN_DEFAULT_STATUS: Record<ColumnKey, string> = {
+  todo: "ready",
+  doing: "in_progress",
+  review: "review",
+  done: "done",
+};
