@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import ClaimDialog from "./lib/ClaimDialog.svelte";
+  import ClaimsBoard from "./lib/ClaimsBoard.svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
@@ -13,6 +14,7 @@
   import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
+  import ViewToggle from "./lib/ViewToggle.svelte";
   import { fetchBoard, fetchProjects, fetchRepos, moveWorkItem, reorderWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
@@ -27,12 +29,17 @@
 
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
+  const VIEW_STORAGE_KEY = "backlog.kanban_view";
+
+  type KanbanView = "tickets" | "claims";
 
   let board = $state<BoardResponse | null>(null);
   let projects = $state<Project[]>([]);
   let workspaceRepos = $state<Repo[]>([]);
   let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
+  let view = $state<KanbanView>("tickets");
+  let claimsBoardSignal = $state(0);
   let error = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
@@ -140,6 +147,15 @@
     refresh();
   }
 
+  function persistView(next: KanbanView) {
+    view = next;
+    localStorage.setItem(VIEW_STORAGE_KEY, next);
+  }
+
+  function bumpClaimsBoard() {
+    claimsBoardSignal += 1;
+  }
+
   async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
     if (!board) return;
     inFlightMove = workItemId;
@@ -169,6 +185,8 @@
   onMount(() => {
     selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
+    const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (storedView === "tickets" || storedView === "claims") view = storedView;
     refresh();
     refreshProjects();
     refreshRepos();
@@ -178,6 +196,7 @@
         scheduleRefresh();
         if (type === "project.changed") refreshProjects();
         if (type === "repo.changed") refreshRepos();
+        if (type === "claim.changed") bumpClaimsBoard();
       },
       (alive) => {
         connected = alive;
@@ -218,6 +237,7 @@
       {selectedProjectId}
       onError={(message) => (error = message)}
     />
+    <ViewToggle value={view} onChange={persistView} />
   </div>
   <div class="meta">
     {#if board}
@@ -255,18 +275,26 @@
   <div class="error">{error}</div>
 {/if}
 
-<main class="board">
-  {#each COLUMN_ORDER as key (key)}
-    <Column
-      columnKey={key}
-      cards={board?.columns[key] ?? []}
-      onMove={handleMove}
-      onReorder={handleReorder}
-      onSplit={(card) => (splitTarget = card)}
-      onAddTask={(card) => (createTaskTarget = card)}
-    />
-  {/each}
-</main>
+{#if view === "tickets"}
+  <main class="board">
+    {#each COLUMN_ORDER as key (key)}
+      <Column
+        columnKey={key}
+        cards={board?.columns[key] ?? []}
+        onMove={handleMove}
+        onReorder={handleReorder}
+        onSplit={(card) => (splitTarget = card)}
+        onAddTask={(card) => (createTaskTarget = card)}
+      />
+    {/each}
+  </main>
+{:else}
+  <ClaimsBoard
+    repoFilter={selectedRepoId}
+    refreshSignal={claimsBoardSignal}
+    onChanged={bumpClaimsBoard}
+  />
+{/if}
 
 {#if claimDialogOpen}
   <ClaimDialog
