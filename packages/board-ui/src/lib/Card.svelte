@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RetryBadge from "./RetryBadge.svelte";
   import type { WorkItemCard } from "./types.js";
 
   interface Props {
@@ -38,8 +39,27 @@
             {/if}
             {#if task.active_claim}
               · 🔒 {task.active_claim.topic}
+              <RetryBadge
+                expiresAt={task.active_claim.expires_at}
+                expectedFinishAt={task.active_claim.expected_finish_at}
+              />
             {/if}
           </span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#if card.blocked_by_claims.length > 0}
+    <ul class="blockers">
+      {#each card.blocked_by_claims as claim (claim.id)}
+        <li>
+          <span>blocked: {claim.topic}{claim.agent_id ? ` (${claim.agent_id})` : ""}</span>
+          <RetryBadge
+            expiresAt={claim.expires_at}
+            expectedFinishAt={claim.expected_finish_at}
+            blocking
+          />
         </li>
       {/each}
     </ul>
@@ -102,13 +122,13 @@
     color: #344054;
   }
 
-  .tasks {
+  .tasks, .blockers {
     list-style: none;
     padding: 0;
     margin: 6px 0 0;
     font-size: 12px;
   }
-  .tasks li {
+  .tasks li, .blockers li {
     padding: 4px 0;
     border-top: 1px solid #f0f0f0;
   }
@@ -118,6 +138,13 @@
     color: #667085;
     font-size: 11px;
     display: block;
+  }
+  .blockers li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    color: #b54708;
   }
 
   footer {

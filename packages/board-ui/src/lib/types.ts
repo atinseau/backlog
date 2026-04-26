@@ -7,6 +7,8 @@ export interface ClaimSummary {
   paths: string[];
   expires_at: string;
   blocking: boolean;
+  expected_finish_at?: string | null;
+  agent_id?: string | null;
 }
 
 export interface RunSummary {
