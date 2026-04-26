@@ -36,6 +36,8 @@ export function createClaim(params: {
   paths: string[];
   mode?: "exclusive" | "shared";
   ttlMinutes?: number;
+  expectedDurationSeconds?: number;
+  agentId?: string;
 }): ClaimRecord {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + (params.ttlMinutes ?? 30) * 60_000);
@@ -52,6 +54,15 @@ export function createClaim(params: {
     heartbeat_at: now.toISOString(),
     expires_at: expiresAt.toISOString(),
   };
+  if (params.expectedDurationSeconds !== undefined) {
+    claim.expected_duration_seconds = params.expectedDurationSeconds;
+    claim.expected_finish_at = new Date(
+      now.getTime() + params.expectedDurationSeconds * 1000,
+    ).toISOString();
+  }
+  if (params.agentId !== undefined) {
+    claim.agent_id = params.agentId;
+  }
 
   fs.writeFileSync(
     claimFilePath(activeClaimsDir(params.backlogDir), claim.id),

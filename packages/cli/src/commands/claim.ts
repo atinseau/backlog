@@ -61,6 +61,8 @@ export function registerClaimCommand(program: Command): void {
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .option("--mode <mode>", "Claim mode (exclusive or shared)", "exclusive")
     .option("--ttl-minutes <minutes>", "Claim TTL in minutes", "30")
+    .option("--duration <seconds>", "Expected work duration in seconds (powers retry-after hints)")
+    .option("--agent <id>", "Agent id holding this claim")
     .option("--allow-overlap", "Allow overlap with active claims")
     .action(async (options: {
       topic: string;
@@ -69,6 +71,8 @@ export function registerClaimCommand(program: Command): void {
       repoRoot?: string;
       mode: "exclusive" | "shared";
       ttlMinutes: string;
+      duration?: string;
+      agent?: string;
       allowOverlap?: boolean;
     }) => {
       const workspace = findWorkspace();
@@ -79,7 +83,7 @@ export function registerClaimCommand(program: Command): void {
       const config = loadConfig(workspace.backlogDir);
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
       const repo = resolveRepo(config.repos, options.repo, repoRoot);
-      const claimRecord = createClaim({
+      const createInput: Parameters<typeof createClaim>[0] = {
         backlogDir: workspace.backlogDir,
         repo: repo.id,
         repoPath: repo.path,
@@ -87,7 +91,18 @@ export function registerClaimCommand(program: Command): void {
         paths: options.path,
         mode: options.mode,
         ttlMinutes: Number.parseInt(options.ttlMinutes, 10),
-      });
+      };
+      if (options.duration) {
+        const parsed = Number.parseInt(options.duration, 10);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+          throw new Error(`Invalid --duration: ${options.duration}`);
+        }
+        createInput.expectedDurationSeconds = parsed;
+      }
+      if (options.agent) {
+        createInput.agentId = options.agent;
+      }
+      const claimRecord = createClaim(createInput);
 
       const overlaps = findOverlappingClaims(workspace.backlogDir, claimRecord);
       if (overlaps.length > 0 && !options.allowOverlap) {

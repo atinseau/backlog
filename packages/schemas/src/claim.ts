@@ -13,6 +13,9 @@ export const claimRecordSchema = z.object({
   heartbeat_at: z.string().min(1),
   expires_at: z.string().min(1),
   finished_at: z.string().min(1).optional(),
+  expected_duration_seconds: z.number().int().positive().optional(),
+  expected_finish_at: z.string().min(1).optional(),
+  agent_id: z.string().min(1).optional(),
 });
 
 export const backlogContextSchema = z.object({
