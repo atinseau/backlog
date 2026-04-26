@@ -16,6 +16,8 @@ interface ClaimSummary {
   paths: string[];
   expires_at: string;
   blocking: boolean;
+  expected_finish_at: string | null;
+  agent_id: string | null;
 }
 
 interface TaskCard {
@@ -54,6 +56,8 @@ function summarizeClaim(claim: ClaimRecord, blocking = false): ClaimSummary {
     topic: claim.topic,
     paths: claim.paths,
     expires_at: claim.expires_at,
+    expected_finish_at: claim.expected_finish_at ?? null,
+    agent_id: claim.agent_id ?? null,
     blocking,
   };
 }

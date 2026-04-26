@@ -21,7 +21,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const workspace = resolveWorkspace(options.workspace);
   const appOptions: { workspace: ServerWorkspace; uiDistDir?: string } = { workspace };
   if (options.uiDistDir) appOptions.uiDistDir = options.uiDistDir;
-  const app = buildApp(appOptions);
+  const { app, bus } = buildApp(appOptions);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 7878;
 
@@ -39,6 +39,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     workspace,
     close: () =>
       new Promise<void>((closeResolve, closeReject) => {
+        bus.stop();
         server.close((error) => {
           if (error) {
             closeReject(error);

@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
+import { EventBus } from "./lib/event-bus.js";
 import { agentsRoutes } from "./routes/agents.js";
 import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
+import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
@@ -18,6 +20,11 @@ const VERSION =
 export interface BuildAppOptions {
   workspace: ServerWorkspace;
   uiDistDir?: string;
+}
+
+export interface BuildAppResult {
+  app: Hono;
+  bus: EventBus;
 }
 
 const PLACEHOLDER_HTML = `<!doctype html>
@@ -51,8 +58,10 @@ function defaultUiDistDir(): string {
   return resolve(here, "public");
 }
 
-export function buildApp(options: BuildAppOptions): Hono {
+export function buildApp(options: BuildAppOptions): BuildAppResult {
   const app = new Hono();
+  const bus = new EventBus();
+  bus.start(options.workspace.backlogDir);
 
   app.use("*", async (c, next) => {
     const start = Date.now();
@@ -69,6 +78,7 @@ export function buildApp(options: BuildAppOptions): Hono {
   app.route("/api/v1", agentsRoutes(options.workspace));
   app.route("/api/v1", workItemsRoutes(options.workspace));
   app.route("/api/v1", tasksRoutes(options.workspace));
+  app.route("/api/v1", eventsRoutes(bus));
 
   const uiDir = options.uiDistDir ?? defaultUiDistDir();
   if (existsSync(uiDir)) {
@@ -79,7 +89,7 @@ export function buildApp(options: BuildAppOptions): Hono {
 
   app.notFound((c) => c.json({ error: "not_found", path: c.req.path }, 404));
 
-  return app;
+  return { app, bus };
 }
 
 export { VERSION };
