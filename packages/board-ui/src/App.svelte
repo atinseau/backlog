@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import ClaimDialog from "./lib/ClaimDialog.svelte";
+  import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import CreateTicketDialog from "./lib/CreateTicketDialog.svelte";
@@ -32,6 +33,7 @@
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
   let claimDialogOpen = $state(false);
+  let claimsViewOpen = $state(false);
   let projectsViewOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
@@ -165,7 +167,11 @@
         <span class="eta-pill">⏱ {formatDuration(board.total_remaining_seconds)} restantes</span>
         <span class="dot">·</span>
       {/if}
-      <span>{board.active_runs_count} runs · {board.active_claims_count} claims</span>
+      <span>{board.active_runs_count} runs ·
+        <button class="claims-link" onclick={() => (claimsViewOpen = true)} title="Voir tous les claims">
+          {board.active_claims_count} claims
+        </button>
+      </span>
       <span class="dot">·</span>
       <span class:on={connected} class:off={!connected} class="conn">
         {connected ? "● live" : "○ polling"}
@@ -228,6 +234,15 @@
 {#if reposViewOpen}
   <ReposView
     onClose={() => (reposViewOpen = false)}
+    onChanged={() => {
+      if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if claimsViewOpen}
+  <ClaimsView
+    onClose={() => (claimsViewOpen = false)}
     onChanged={() => {
       if (!connected) refresh();
     }}
@@ -331,6 +346,17 @@
     border-radius: 10px;
     font-weight: 500;
   }
+  .claims-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    font: inherit;
+  }
+  .claims-link:hover { color: #1570ef; }
   button {
     background: #f2f4f7;
     border: 1px solid #d0d5dd;

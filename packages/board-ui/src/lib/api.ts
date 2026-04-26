@@ -1,6 +1,7 @@
 import type {
   AgentSummary,
   BoardResponse,
+  ClaimRecord,
   OrchestratorState,
   Project,
   Repo,
@@ -585,6 +586,23 @@ export async function splitWorkItem(id: string, input: SplitInput): Promise<Spli
     throw new Error(`Split failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as SplitResult;
+}
+
+export async function fetchAllClaims(repo?: string): Promise<ClaimRecord[]> {
+  const url = new URL(`${BASE}/claims`, window.location.origin);
+  if (repo) url.searchParams.set("repo", repo);
+  const response = await fetch(url.toString());
+  if (!response.ok) throw new Error(`Claims fetch failed: ${response.status}`);
+  const json = (await response.json()) as { claims: ClaimRecord[] };
+  return json.claims;
+}
+
+export async function archiveClaim(id: string): Promise<void> {
+  const response = await fetch(`${BASE}/claims/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Archive claim failed (${response.status}): ${detail}`);
+  }
 }
 
 export async function createClaim(input: ClaimCreateInput): Promise<ClaimCreateResult> {

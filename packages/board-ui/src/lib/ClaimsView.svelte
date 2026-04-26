@@ -1,0 +1,298 @@
+<script lang="ts">
+  import { archiveClaim, fetchAllClaims } from "./api.js";
+  import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
+  import type { ClaimRecord } from "./types.js";
+  import { onDestroy } from "svelte";
+
+  interface Props {
+    onClose: () => void;
+    onChanged?: () => void;
+  }
+
+  let { onClose, onChanged }: Props = $props();
+
+  const timer = useTimer();
+  onDestroy(() => timer.release());
+
+  let claims = $state<ClaimRecord[]>([]);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+  let archiving = $state<string | null>(null);
+
+  async function load() {
+    loading = true;
+    try {
+      claims = await fetchAllClaims();
+      error = null;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleArchive(claim: ClaimRecord) {
+    if (!confirm(`Finir le claim "${claim.topic}" ?\n\nIl sera archivé et libérera ses paths.`)) return;
+    archiving = claim.id;
+    try {
+      await archiveClaim(claim.id);
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      archiving = null;
+    }
+  }
+
+  function isExpired(claim: ClaimRecord): boolean {
+    const expiresMs = Date.parse(claim.expires_at);
+    return Number.isFinite(expiresMs) && expiresMs < timer.now;
+  }
+
+  function ageSeconds(claim: ClaimRecord): number {
+    const createdMs = Date.parse(claim.created_at);
+    return Math.max(0, Math.round((timer.now - createdMs) / 1000));
+  }
+
+  load();
+</script>
+
+<div class="backdrop" onclick={onClose} role="presentation">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <header>
+      <h2>Claims actifs <span class="size">({claims.length})</span></h2>
+      <div class="header-actions">
+        <button class="refresh" onclick={load} title="Rafraîchir">↻</button>
+        <button class="close" onclick={onClose}>✕</button>
+      </div>
+    </header>
+
+    {#if error}
+      <div class="error">{error}</div>
+    {/if}
+
+    {#if loading}
+      <div class="loading">chargement…</div>
+    {:else if claims.length === 0}
+      <div class="empty">
+        Aucun claim actif. Crée-en un avec <code>backlog claim start</code> ou via le bouton <strong>+ Claim</strong>.
+      </div>
+    {:else}
+      <ul class="claims">
+        {#each claims as claim (claim.id)}
+          <li class:expired={isExpired(claim)}>
+            <header class="claim-header">
+              <div class="title-line">
+                <strong>{claim.topic}</strong>
+                <span class="mode mode-{claim.mode}">{claim.mode}</span>
+                {#if isExpired(claim)}<span class="expired-tag">expiré</span>{/if}
+              </div>
+              <button
+                class="finish"
+                onclick={() => handleArchive(claim)}
+                disabled={archiving === claim.id}
+                title="Finir / archiver le claim"
+              >
+                {archiving === claim.id ? "…" : "Finir"}
+              </button>
+            </header>
+
+            <div class="row">
+              <span class="repo">{claim.repo}</span>
+              {#if claim.agent_id}
+                <span class="agent">→ {claim.agent_id}</span>
+              {/if}
+              <span class="id">{claim.id}</span>
+            </div>
+
+            <ul class="paths">
+              {#each claim.paths as path (path)}
+                <li>{path}</li>
+              {/each}
+            </ul>
+
+            <div class="meta">
+              <span>créé il y a {formatDuration(ageSeconds(claim))}</span>
+              <span class="dot">·</span>
+              <span>
+                {#if isExpired(claim)}
+                  expiré
+                {:else}
+                  expire dans {formatRemaining(claim.expires_at, timer.now) ?? "?"}
+                {/if}
+              </span>
+              {#if claim.expected_finish_at}
+                <span class="dot">·</span>
+                <span>fin estimée : {formatRemaining(claim.expected_finish_at, timer.now) ?? "?"}</span>
+              {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 24, 40, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    max-width: 640px;
+    width: 92%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e4e7ec;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h2 { margin: 0; font-size: 16px; }
+  .size { color: #98a2b3; font-weight: 400; }
+  .header-actions { display: flex; gap: 4px; }
+  .refresh, .close {
+    background: transparent;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475467;
+  }
+  .close { border: none; font-size: 18px; }
+  .refresh:hover { background: #f2f4f7; }
+  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
+  .loading { padding: 32px; text-align: center; color: #667085; }
+  .empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: #667085;
+    font-size: 13px;
+  }
+  .empty code {
+    font-family: ui-monospace, monospace;
+    background: #f2f4f7;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  .claims {
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .claims > li {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .claims > li.expired { background: #fef9f3; opacity: 0.7; }
+  .claim-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: none;
+    padding: 0;
+  }
+  .title-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  .mode {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+  .mode-exclusive { background: #fee4e2; color: #b42318; }
+  .mode-shared { background: #d1fadf; color: #027a48; }
+  .expired-tag {
+    font-size: 10px;
+    background: #f2f4f7;
+    color: #475467;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .finish {
+    background: #f2f4f7;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #1d2939;
+    flex-shrink: 0;
+  }
+  .finish:hover:not(:disabled) {
+    background: #fee4e2;
+    color: #b42318;
+    border-color: #fcd9d6;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #667085;
+    flex-wrap: wrap;
+  }
+  .repo {
+    background: #eff8ff;
+    color: #175cd3;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .agent {
+    background: #f9f5ff;
+    color: #6941c6;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .id {
+    font-family: ui-monospace, monospace;
+    color: #98a2b3;
+    margin-left: auto;
+  }
+  .paths {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #344054;
+    background: #f9fafb;
+    border-radius: 4px;
+    padding: 6px 10px;
+  }
+  .paths li { padding: 1px 0; word-break: break-all; }
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #667085;
+  }
+  .dot { opacity: 0.5; }
+</style>

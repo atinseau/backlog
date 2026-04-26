@@ -12,6 +12,23 @@ export interface ClaimSummary {
   agent_id?: string | null;
 }
 
+export interface ClaimRecord {
+  id: string;
+  repo: string;
+  repo_path: string;
+  paths: string[];
+  mode: "exclusive" | "shared";
+  status: "active" | "archived";
+  topic: string;
+  created_at: string;
+  heartbeat_at: string;
+  expires_at: string;
+  finished_at?: string;
+  expected_duration_seconds?: number;
+  expected_finish_at?: string;
+  agent_id?: string;
+}
+
 export interface RunSummary {
   id: string;
   status: string;
