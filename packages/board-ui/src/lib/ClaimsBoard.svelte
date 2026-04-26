@@ -52,7 +52,11 @@
     return Number.isFinite(t) && t < timer.now;
   }
 
-  const inProgress = $derived(active.filter((c) => !isExpired(c)));
+  // Pending = active, not expired, no agent attached yet (manual claim that's
+  // locked the path but where no agent is formally on it). In progress = same
+  // but with an agent_id resolved (or where the run-launcher created it).
+  const pending = $derived(active.filter((c) => !isExpired(c) && !c.agent_id));
+  const inProgress = $derived(active.filter((c) => !isExpired(c) && Boolean(c.agent_id)));
   const expired = $derived(active.filter((c) => isExpired(c)));
 
   onMount(() => {
@@ -67,17 +71,24 @@
 <main class="claims-board">
   <section class="column">
     <header>
-      <h2>À faire</h2>
-      <span class="count">—</span>
+      <h2 title="Claim actif sans agent attribué — le verrou est posé mais aucun agent ne bosse formellement dessus">
+        En attente
+      </h2>
+      <span class="count">{pending.length}</span>
     </header>
-    <div class="cards placeholder">
-      <p>Les claims n'ont pas d'état "à faire". Crée-en un avec <code>backlog claim start</code>.</p>
+    <div class="cards">
+      {#each pending as claim (claim.id)}
+        <ClaimCard {claim} {onChanged} />
+      {/each}
+      {#if !loading && pending.length === 0}
+        <div class="empty">—</div>
+      {/if}
     </div>
   </section>
 
   <section class="column">
     <header>
-      <h2>En cours</h2>
+      <h2 title="Claim actif avec un agent attribué">En cours</h2>
       <span class="count">{inProgress.length}</span>
     </header>
     <div class="cards">
@@ -85,7 +96,7 @@
         <ClaimCard {claim} {onChanged} />
       {/each}
       {#if !loading && inProgress.length === 0}
-        <div class="empty">aucun claim actif</div>
+        <div class="empty">—</div>
       {/if}
     </div>
   </section>
