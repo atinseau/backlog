@@ -33,6 +33,32 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.mkdirSync(path.join(backlogDir, "worktrees"), { recursive: true });
   fs.mkdirSync(path.join(backlogDir, "cache"), { recursive: true });
 
+  // .gitignore inside .backlog/ — keep source-of-truth YAMLs (config, work
+  // items, tasks, projects, agents, sources) tracked, but ignore ephemeral
+  // operational state (claims, runs, worktrees, orchestrator runtime).
+  fs.writeFileSync(
+    path.join(backlogDir, ".gitignore"),
+    [
+      "# Managed by `backlog init`. Edit if you want to track more or less.",
+      "",
+      "# Ephemeral operational state — never commit.",
+      "claims/active/",
+      "claims/archive/",
+      "runs/active/",
+      "runs/archive/",
+      "worktrees/",
+      "orchestrator.json",
+      "durations-cache.json",
+      "cache/",
+      "*.tmp",
+      "",
+      "# Local shim used by the pre-commit hook.",
+      "bin/",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
   const config: WorkspaceConfig = {
     version: 1,
     workspace_name: options.workspaceName,
