@@ -43,39 +43,63 @@ the [multi-target roadmap](docs/ROADMAP.md).
 ## Quickstart
 
 ```bash
-corepack pnpm install
-corepack pnpm build
+npm install -g backlog
 
-node packages/cli/dist/bin.js init --name my-workspace
-node packages/cli/dist/bin.js doctor
+backlog init --name my-workspace
+backlog doctor
 ```
 
-Create a local work item, split it into tasks, and run the scheduler:
+Create a work item, split it into tasks, and run the scheduler:
 
 ```bash
-node packages/cli/dist/bin.js work add --title "Build the scheduler"
-node packages/cli/dist/bin.js work split WI-xxxx --repo backlog \
+backlog work add --title "Build the scheduler"
+backlog work split WI-xxxx --repo backlog \
   --scope backlog=packages/core/src/**
-node packages/cli/dist/bin.js task add \
+backlog task add \
   --work-item WI-xxxx \
   --title "Implement scheduler" \
   --repo backlog \
   --preferred-agent manual-default \
   --require-capability edit_code
-node packages/cli/dist/bin.js schedule simulate
-node packages/cli/dist/bin.js schedule explain --work-item WI-xxxx
-node packages/cli/dist/bin.js schedule run --approve
+backlog schedule simulate
+backlog schedule explain --work-item WI-xxxx
+backlog schedule run --approve
 ```
 
 Add a source and sync work items in:
 
 ```bash
-node packages/cli/dist/bin.js sources add markdown --id notes --path backlog.md
-node packages/cli/dist/bin.js sources sync
-node packages/cli/dist/bin.js work import
-node packages/cli/dist/bin.js sources conflicts
-node packages/cli/dist/bin.js sources resolve --work-item WI-xxxx --use local
+backlog sources add markdown --id notes --path backlog.md
+backlog sources sync
+backlog work import
+backlog sources conflicts
+backlog sources resolve --work-item WI-xxxx --use local
 ```
+
+## Run the kanban board
+
+```bash
+backlog serve
+```
+
+Opens a local Trello-like board in your browser at `http://127.0.0.1:7878`.
+Cards drag between **À faire / En cours / In Review / Done**, the
+**Orchestrator** side panel shows wave-bucketed parallel work plans, the
+**+ Claim** modal creates a file-scope claim with a per-tier retry-after
+hint on collision, and the **✂ Split** action on un-broken-down work
+items decomposes them into tasks — mechanically (one task per repo) or
+via Claude (`ANTHROPIC_API_KEY` required).
+
+The board is served from the same `backlog` binary — no extra install,
+no docker. Kill with Ctrl+C.
+
+```bash
+backlog serve --port 8080 --workspace ~/Dev/myproject --no-open
+backlog serve --host 0.0.0.0    # expose to LAN (no auth — be careful)
+```
+
+Live updates use SSE, so the UI reflects YAML edits, claim creation,
+and run status changes within ~200ms.
 
 ## CLI
 
@@ -84,12 +108,15 @@ backlog init                                          Initialize a workspace
 backlog doctor [--repo <id>] [--json]                 Inspect workspace health
 backlog status [--repo <id>]                          Workspace overview
 
+backlog serve    [--port 7878] [--host 127.0.0.1]
+                 [--workspace <path>] [--no-open]     Launch the kanban board
 backlog repos    list|show|add|update|remove          Manage tracked repos
 backlog work     add|list|show|move|update|remove
                  |plan|split|import                   Manage work items
 backlog task     add|list|show|move|update|remove
                  |block|unblock|plan                  Manage tasks
 backlog claim    start|check|finish|list|gc           Manage file-scope claims
+                 [--duration <s>] [--agent <id>]
 backlog hooks    status|install|uninstall [--all|--repo <id>]
                                                       Manage git hooks
 backlog schedule simulate|explain|run                 Schedule and run agents
@@ -199,11 +226,28 @@ supports:
 - `--include-disabled` to include disabled repos in the snapshot
 - `--output <path>` to write the snapshot to a file for export
 
+## Packages in this monorepo
+
+| Package | Purpose | License |
+|---|---|---|
+| `backlog` (`packages/cli`) | The CLI binary published on npm | Apache-2.0 |
+| `@backlog/core` | Scheduler, run launcher, task/work-item services | Apache-2.0 |
+| `@backlog/claims` | Claim store + overlap detection | Apache-2.0 |
+| `@backlog/schemas` | Zod schemas for the workspace state | Apache-2.0 |
+| `@backlog/server` | Local Hono server + REST/SSE API behind `backlog serve` | BUSL-1.1 |
+| `@backlog/board-ui` | Svelte 5 kanban frontend | Apache-2.0 |
+| `@backlog/git`, `@backlog/hooks`, `@backlog/config`, `@backlog/connectors` | Plumbing | Apache-2.0 |
+
+End users only ever install `backlog` — every workspace package is
+inlined into the published CLI tarball at build time. The split exists
+for development clarity and per-package licensing (the server is BSL
+1.1; everything else is Apache).
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the multi-target plan covering
-remote sources, remote repos, remote sandboxes, remote executors, deploy
-targets, and the upcoming UI.
+remote sources, remote repos, remote sandboxes, remote executors, and
+deploy targets.
 
 ## Development
 
