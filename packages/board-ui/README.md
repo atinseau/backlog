@@ -1,9 +1,23 @@
 # @backlog/board-ui
 
-Svelte 5 kanban frontend for the local Backlog server. Drag-droppable
-work-item cards across **À faire / En cours / In Review / Done**, with an
-orchestrator side panel, a claim-creation modal, and an AI-assisted
-splitter dialog.
+Svelte 5 Jira-like kanban frontend for the local Backlog server. Cards drag
+across **À faire / En cours / In Review / Done** *and* within a column to
+reorder priority. The topbar carries:
+
+- a **project selector** (with a CRUD modal)
+- an **Xcode-style ▶ Play / ⏸ Pause / ⏹ Stop** trio for the persistent
+  orchestrator + a state pill
+- a **📁 Repos** modal to add a local path or clone from GitHub / GitLab /
+  Bitbucket / arbitrary Git URLs
+- a **🔒 Permissions** modal (workspace autonomy, claims TTL, per-agent
+  sandbox / risk / repo restrictions)
+- a **⚙ Plan** side panel (wave breakdown, agents-max slider, auto toggle,
+  last tick / last error)
+- **+ Ticket** and **+ Claim** dialogs
+- a **total ETA pill** showing remaining work across visible columns
+
+Each task gets a 4 px progress bar and a live ETA badge that ticks every
+second client-side (no server round-trip).
 
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](../../LICENSE)
 
@@ -61,16 +75,24 @@ src/
 ├── main.ts                 # Svelte mount
 ├── app.css                 # 6-line global reset
 └── lib/
-    ├── Card.svelte           # Work-item card with priority pill, repo chips, RetryBadge
-    ├── Column.svelte         # One kanban column with svelte-dnd-action zone
-    ├── ClaimDialog.svelte    # Create-a-claim modal with conflict UI
-    ├── SplitDialog.svelte    # Manual + AI Suggest tabs
-    ├── OrchestratorPanel.svelte  # Side panel: waves + ▶ run button
-    ├── RetryBadge.svelte     # Per-second countdown to claim expiry
-    ├── api.ts                # Typed wrappers for /api/v1/*
-    ├── sse.ts                # EventSource → onEvent + onConnectionChange
-    ├── columns.ts            # status → { todo | doing | review | done } map
-    └── types.ts              # Shared TS types matching the server's wire shapes
+    ├── Card.svelte                # Card + per-task progress bar + ETA + add-task button
+    ├── Column.svelte              # Kanban column; intra-column drag rewrites rank
+    ├── ClaimDialog.svelte         # Create-a-claim modal with conflict UI
+    ├── CreateTicketDialog.svelte  # Create a work item (title, project, priority, repos)
+    ├── CreateTaskDialog.svelte    # Create a task on an existing work item
+    ├── OrchestratorControls.svelte  # Topbar ▶/⏸/⏹ trio + state pill (Xcode-style)
+    ├── OrchestratorPanel.svelte   # Side panel: waves + agents-max slider + auto toggle
+    ├── PermissionsView.svelte     # Workspace autonomy + claims TTL + per-agent matrix
+    ├── ProjectSelector.svelte     # Header dropdown
+    ├── ProjectsView.svelte        # CRUD modal for projects
+    ├── ReposView.svelte           # CRUD modal with "Local | Cloner Git" tabs
+    ├── RetryBadge.svelte          # Per-second countdown to claim expiry
+    ├── SplitDialog.svelte         # Manual + AI Suggest tabs
+    ├── timer.svelte.ts            # Reactive 1 Hz now() + format helpers
+    ├── api.ts                     # Typed wrappers for /api/v1/*
+    ├── sse.ts                     # EventSource → onEvent + onConnectionChange
+    ├── columns.ts                 # status → { todo | doing | review | done } map
+    └── types.ts                   # Shared TS types matching the server's wire shapes
 ```
 
 ## Replacing the UI

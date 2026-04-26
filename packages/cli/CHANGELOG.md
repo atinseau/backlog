@@ -4,6 +4,24 @@ All notable changes to the `backlog` CLI are documented here.
 
 ## [Unreleased]
 
+### Added — Jira-like board (projects, persistent orchestrator, ETA, progress, reorder, repos, permissions)
+
+- **Projects** — first-class entity that groups one or many repos. Each work item can carry a `project_id`; the kanban supports per-project filtering. Storage: `.backlog/projects.yaml`. CLI: `backlog project add|list|show|update|archive|remove`. UI: project dropdown + ⚙ "Projets" modal in the topbar.
+- **Persistent orchestrator** — start/pause/stop a background loop that re-builds the execution plan and dispatches runs every `tick_interval_ms` (default 5s). Pause is soft: active runs keep going, no new ones launch. Stop waits for actives to drain. Hydrates at server boot only when `last_tick_at < 60s` (no surprise auto-launches). Storage: `.backlog/orchestrator.json`. CLI: `backlog orchestrator start|pause|stop|status|config`. UI: Xcode-style ▶ ⏸ ⏹ trio in the topbar + state pill, plus a slider/auto toggle in the side panel.
+- **Live time estimates and progress bars** — every task gets `estimated_duration_seconds` (manual override or median of archived runs filtered by repo+lane, fallback 30 min) plus a derived `progress_percent` (agent-reported > `clamp(elapsed/estimate, 0..0.95)` while running > status-mapped fallback). Work-item progress is a duration-weighted mean. The `/board` payload now exposes `progress_percent`, `eta`, `elapsed_seconds`, `total_estimated_seconds`, `total_remaining_seconds`. UI shows a 4 px progress bar per task with an ETA badge that ticks every second client-side, plus a global ETA pill in the topbar.
+- **Drag-to-reorder inside columns** — dragging a card within the same status column rewrites a sparse `priority_score` (work items use a `rank` field). The kanban’s existing cross-column drag still triggers the status change.
+- **Repo management UI + API** — new `/api/v1/repos` (GET / POST / PATCH / DELETE) wraps `@backlog/core`'s repo-service so the kanban can list, add, rename, enable, disable, and force-delete repos without dropping to the CLI. Topbar 📁 Repos modal.
+- **GitHub / GitLab / Bitbucket / arbitrary Git URL clone** — repos can be added by URL. `RepoConfig` gains optional `git_url` and `provider` (local | github | gitlab | bitbucket | other). `cloneAndAddRepo()` clones into `<workspace>/repos/<id>` by default. Auth follows the user’s local git config (HTTPS token, SSH key). CLI: `backlog repos add --url https://github.com/foo/bar.git`. UI: ⬇ Cloner Git tab in the Repos modal.
+- **Permissions screen** — new 🔒 Permissions modal (and `/api/v1/agents` PATCH + `/api/v1/workspace`) lets you toggle the workspace autonomy mode (observe / assist / delegate / autopilot) as a 4-card chooser, edit per-claim TTL and `enforce_on_commit`, and configure each agent (enable, sandbox mode, success mode, concurrence, allowed risks, allowed repos).
+- **Ticket and task creation forms** — `+ Ticket` modal in the topbar (title, project, priority, repos, optional manual estimate) and `+` button on each card to add a task without leaving the board.
+
+### Changed
+
+- `/board` now embeds estimates, ETA, progress, and the active project/rank metadata.
+- `event-bus` watches `projects.yaml`, `orchestrator.json`, and `config.toml` and emits `project.changed`, `orchestrator.changed`, and `repo.changed` SSE events.
+- Schemas: `WorkItem` gets optional `project_id`, `rank`, `estimated_duration_seconds`. `Task` gets optional `estimated_duration_seconds`, `estimate_source`, `progress_percent`. `RepoConfig` gets optional `git_url`, `provider`. All additive — existing YAML continues to parse.
+- Tests: 49 → 79 (estimator, progress, project-service, orchestrator-state, orchestrator-loop, reorder).
+
 ### Notes
 
 - The repo is a pnpm monorepo. The `backlog` CLI lives in `packages/cli/`. Backlog Cloud (the hosted backend) is a private project and not part of this repo.

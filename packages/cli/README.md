@@ -32,13 +32,17 @@ the [multi-target roadmap](docs/ROADMAP.md).
 | Layer | What it does |
 |-------|--------------|
 | **Sources** | Ingest work items from Markdown, CSV, Jira (and more — see roadmap) |
+| **Projects** | Group one or many repos under a single banner; tickets can be filtered per-project |
+| **Repos** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
 | **Work items** | High-level units of intent imported from sources |
 | **Tasks** | Repo-scoped executable units split out from work items |
 | **Claims** | Lock file/path scopes so concurrent runs cannot conflict |
 | **Worktrees** | Each run executes in its own isolated git worktree |
 | **Scheduler** | Picks eligible tasks, assigns agents, respects claim conflicts |
-| **Runs** | Track agent execution with summary, log, and changed-files artifacts |
+| **Orchestrator** | Persistent ▶/⏸/⏹ loop that re-runs the scheduler on a tick and dispatches runs |
+| **Runs** | Track agent execution with summary, log, changed files, ETA, and live progress |
 | **Review** | Approve, request changes, complete, fail, or handoff each run |
+| **Permissions** | Workspace autonomy mode + per-agent sandbox / risk / repo restrictions |
 
 ## Quickstart
 
@@ -82,13 +86,24 @@ backlog sources resolve --work-item WI-xxxx --use local
 backlog serve
 ```
 
-Opens a local Trello-like board in your browser at `http://127.0.0.1:7878`.
-Cards drag between **À faire / En cours / In Review / Done**, the
-**Orchestrator** side panel shows wave-bucketed parallel work plans, the
-**+ Claim** modal creates a file-scope claim with a per-tier retry-after
-hint on collision, and the **✂ Split** action on un-broken-down work
-items decomposes them into tasks — mechanically (one task per repo) or
-via Claude (`ANTHROPIC_API_KEY` required).
+Opens a local Jira-like board in your browser at `http://127.0.0.1:7878`.
+The topbar carries:
+
+- **Project selector** + ⚙ Projets modal (CRUD)
+- **▶ Play / ⏸ Pause / ⏹ Stop** trio for the persistent orchestrator (Xcode-style)
+- 📁 **Repos** modal (add a local path *or* clone from a Git URL)
+- 🔒 **Permissions** modal (workspace autonomy + per-agent restrictions)
+- ⚙ **Plan** side panel (wave breakdown, agents-max slider, auto toggle, last tick + last error)
+- **+ Ticket** / **+ Claim** quick-create dialogs
+- **Total ETA pill** showing remaining work across the visible columns
+
+Cards drag between **À faire / En cours / In Review / Done**, *and* within a
+column to reorder by priority (sparse `priority_score` rewrite). Each task
+shows a 4 px progress bar (agent-reported > elapsed/estimate > status
+fallback) with an ETA that ticks every second client-side. The **+ Claim**
+modal creates a file-scope claim with a per-tier retry-after hint on
+collision, and the **✂ Split** action decomposes a work item into tasks
+mechanically or via Claude (`ANTHROPIC_API_KEY` required).
 
 The board is served from the same `backlog` binary — no extra install,
 no docker. Kill with Ctrl+C.
@@ -99,7 +114,7 @@ backlog serve --host 0.0.0.0    # expose to LAN (no auth — be careful)
 ```
 
 Live updates use SSE, so the UI reflects YAML edits, claim creation,
-and run status changes within ~200ms.
+orchestrator state, project changes, and run status changes within ~200ms.
 
 ## CLI
 
@@ -110,15 +125,21 @@ backlog status [--repo <id>]                          Workspace overview
 
 backlog serve    [--port 7878] [--host 127.0.0.1]
                  [--workspace <path>] [--no-open]     Launch the kanban board
+backlog project  add|list|show|update|archive|remove  Manage projects (groups of repos)
 backlog repos    list|show|add|update|remove          Manage tracked repos
+                 [--url <git-url>] [--clone-into]     ...or clone from GitHub / GitLab / etc.
 backlog work     add|list|show|move|update|remove
-                 |plan|split|import                   Manage work items
+                 |plan|split|import|assign-project
+                 |estimate                            Manage work items
 backlog task     add|list|show|move|update|remove
-                 |block|unblock|plan                  Manage tasks
+                 |block|unblock|plan|estimate
+                 |progress                            Manage tasks
 backlog claim    start|check|finish|list|gc           Manage file-scope claims
                  [--duration <s>] [--agent <id>]
 backlog hooks    status|install|uninstall [--all|--repo <id>]
                                                       Manage git hooks
+backlog orchestrator start|pause|stop|status|config   Persistent run dispatcher
+                 [--max-agents N] [--auto] [--project <slug>]
 backlog schedule simulate|explain|run                 Schedule and run agents
 backlog runs     list|show|gc|interrupt|resume
                  |review|approve|request-changes
@@ -131,6 +152,23 @@ backlog sources  add|list|enable|disable|update|remove
 backlog release  snapshot [--repo <id>] [--include-disabled] [--output <path>]
                                                       Export a release report
 backlog worktree list|gc                              Inspect tracked worktrees
+```
+
+### Common multi-project flow
+
+```bash
+# Add repos either by local path or by Git URL.
+backlog repos add --path /Users/me/Dev/web                       # local
+backlog repos add --url https://github.com/me/api.git            # cloned to <ws>/repos/api
+
+# Group them under a project — works with one or many repos.
+backlog project add --slug shipping --name "Shipping" --repo web --repo api
+
+# Create a ticket scoped to the project, split it, and let the orchestrator run.
+backlog work add --title "Stripe integration" --priority P1
+backlog work assign-project WI-xxxx shipping
+backlog work split WI-xxxx --repo web --repo api
+backlog orchestrator start --auto --project shipping
 ```
 
 Most `list` commands support practical filters, for example:
@@ -149,19 +187,22 @@ Backlog stores workspace state in `.backlog/`:
 
 ```
 .backlog/
-├── config.toml
-├── work-items.yaml
-├── tasks.yaml
+├── config.toml          # workspace + repos + autonomy_mode + claims TTL
+├── work-items.yaml      # tickets (incl. project_id, rank, estimate)
+├── tasks.yaml           # tasks (incl. estimate, progress, priority)
+├── projects.yaml        # projects → repos
+├── orchestrator.json    # persistent ▶/⏸/⏹ state
 ├── sources.yaml
-├── agents.yaml
-├── claims/        # active and archived
-├── runs/          # active and archived
-└── worktrees/     # tracked run worktrees
+├── agents.yaml          # provider, sandbox, allowed_repos, allowed_risk, ...
+├── claims/              # active and archived
+├── runs/                # active and archived (incl. events.ndjson per run)
+└── worktrees/           # tracked run worktrees
 ```
 
-You can edit YAML by hand, but `backlog repos`, `backlog work`, `backlog task`,
-`backlog agents`, and `backlog sources` are designed to keep state consistent
-without manual edits.
+You can edit YAML by hand, but `backlog repos`, `backlog project`,
+`backlog work`, `backlog task`, `backlog orchestrator`, `backlog agents`,
+and `backlog sources` are designed to keep state consistent without manual
+edits.
 
 ## Agents
 

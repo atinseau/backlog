@@ -50,24 +50,56 @@ which serves Vite on `:5173` with `/api` proxied to the server.
 
 All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 
+### Board, claims, runs
+
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | Workspace path + server version |
-| `GET` | `/board` | Work items grouped by status into 4 columns, with embedded tasks, claims, and runs |
-| `GET` | `/agents` | Configured agents with active-run counts |
+| `GET` | `/board?project=...&repo=...` | Work items grouped into 4 columns. Cards now embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`. Top-level `total_estimated_seconds` + `total_remaining_seconds`. |
 | `GET` | `/runs?status=...` | Active runs |
 | `GET` | `/orchestrate?work_item=...&task=...` | Wave-bucketed execution plan (read-only — no runs are started) |
-| `GET` | `/events` | Server-Sent Events stream: `claim.changed` / `task.changed` / `work_item.changed` / `run.changed`, debounced 200ms |
+| `GET` | `/events` | SSE: `claim.changed` / `task.changed` / `work_item.changed` / `run.changed` / `project.changed` / `orchestrator.changed` / `repo.changed`, debounced 200ms |
 | `GET` | `/claims` | Active non-expired claims |
 | `GET` | `/claims/check?repo=…&path=…` | Is this path free? Returns `retry_after_seconds` if not |
 | `POST` | `/claims` | Create a claim. Returns 409 with retry envelope on overlap |
 | `DELETE` | `/claims/:id` | Archive a claim |
+| `POST` | `/runs` | Launch runs via the existing scheduler/run-launcher pipeline |
+
+### Work items, tasks
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/work-items` | Create from the kanban (title, project, priority, repos, optional estimate) |
 | `POST` | `/work-items/:id/move` | Drag-drop status change |
-| `POST` | `/tasks/:id/move` | Same for tasks |
+| `POST` | `/work-items/:id/reorder` | Intra-column reorder (sparse `rank` rewrite) |
+| `PATCH` | `/work-items/:id/project` | Attach/detach project |
+| `PATCH` | `/work-items/:id/estimate` | Override / clear the manual estimate |
 | `POST` | `/work-items/:id/split` | Mechanical split (one task per repo) |
 | `POST` | `/work-items/:id/suggest-split` | AI proposal via Claude (needs `ANTHROPIC_API_KEY`) |
 | `POST` | `/work-items/:id/apply-split` | Apply an edited proposal — creates the tasks |
-| `POST` | `/runs` | Launch runs via the existing scheduler/run-launcher pipeline |
+| `POST` | `/tasks` | Create a task on an existing work item |
+| `POST` | `/tasks/:id/move` | Drag-drop status change |
+| `POST` | `/tasks/:id/reorder` | Intra-column reorder (sparse `priority_score` rewrite) |
+| `PATCH` | `/tasks/:id/estimate` | Set or clear the manual estimate |
+| `PATCH` | `/tasks/:id/progress` | Agent-reported progress 0..100 |
+
+### Projects, repos, orchestrator, permissions
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` `POST` `PATCH` `DELETE` | `/projects[/:idOrSlug]` | CRUD for projects (groups of repo ids) |
+| `POST` | `/projects/:idOrSlug/archive` | Soft-archive shortcut |
+| `GET` `POST` `PATCH` `DELETE` | `/repos[/:id]` | CRUD for tracked repos. POST accepts `{ git_url, clone_into? }` to clone first |
+| `GET` | `/orchestrator/state` | Current loop mode + last tick + last error |
+| `POST` | `/orchestrator/start` | Body: `{ max_agents?, auto_pick_agents?, tick_interval_ms?, project_id? }` |
+| `POST` | `/orchestrator/pause` | Soft pause: stop dispatching, active runs continue |
+| `POST` | `/orchestrator/stop` | Wait for active runs to drain, then idle |
+| `PATCH` | `/orchestrator/config` | Edit max/auto/tick without changing mode |
+| `GET` | `/agents` | Configured agents with active-run counts and full permission fields |
+| `PATCH` | `/agents/:id` | Toggle enable, sandbox/success modes, allowed risks/repos, concurrence, model/profile |
+| `GET` | `/workspace` | Workspace info: name, default branch, autonomy mode, claims policy |
+| `PATCH` | `/workspace/autonomy` | Set autonomy mode (observe / assist / delegate / autopilot) |
+| `PATCH` | `/workspace/claims` | Edit `ttl_minutes` and/or `enforce_on_commit` |
 
 ### Claim collision (the interesting one)
 
