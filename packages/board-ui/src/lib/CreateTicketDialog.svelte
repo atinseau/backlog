@@ -17,7 +17,6 @@
   let priority = $state<"P0" | "P1" | "P2" | "P3">("P2");
   let projectId = $state(selectedProjectId ?? "");
   let repoTargets = $state<string[]>([]);
-  let estimatedMinutes = $state<number | null>(null);
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
@@ -37,7 +36,6 @@
       if (description.trim()) input.description = description.trim();
       if (projectId) input.project_id = projectId;
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
-      if (estimatedMinutes && estimatedMinutes > 0) input.estimated_duration_seconds = Math.round(estimatedMinutes * 60);
       await createWorkItem(input);
       onCreated?.();
       onClose();
@@ -89,10 +87,6 @@
               <option value={project.id}>{project.name}</option>
             {/each}
           </select>
-        </label>
-        <label>
-          Estimation (min)
-          <input type="number" min="1" bind:value={estimatedMinutes} placeholder="auto" />
         </label>
       </div>
 
@@ -170,7 +164,7 @@
   textarea { resize: vertical; }
   .row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   .repos {
