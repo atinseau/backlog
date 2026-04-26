@@ -588,9 +588,10 @@ export async function splitWorkItem(id: string, input: SplitInput): Promise<Spli
   return (await response.json()) as SplitResult;
 }
 
-export async function fetchAllClaims(repo?: string): Promise<ClaimRecord[]> {
+export async function fetchAllClaims(opts: { repo?: string; archived?: boolean } = {}): Promise<ClaimRecord[]> {
   const url = new URL(`${BASE}/claims`, window.location.origin);
-  if (repo) url.searchParams.set("repo", repo);
+  if (opts.repo) url.searchParams.set("repo", opts.repo);
+  if (opts.archived) url.searchParams.set("archived", "1");
   const response = await fetch(url.toString());
   if (!response.ok) throw new Error(`Claims fetch failed: ${response.status}`);
   const json = (await response.json()) as { claims: ClaimRecord[] };

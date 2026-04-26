@@ -89,6 +89,18 @@ export function loadActiveClaim(backlogDir: string, claimId: string): ClaimRecor
   return readClaimFile(claimFilePath(activeClaimsDir(backlogDir), claimId));
 }
 
+export function listArchivedClaims(backlogDir: string): ClaimRecord[] {
+  const directory = archiveClaimsDir(backlogDir);
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+  return fs
+    .readdirSync(directory)
+    .filter((entry) => entry.endsWith(".json"))
+    .map((entry) => readClaimFile(path.join(directory, entry)))
+    .sort((a, b) => Date.parse(b.finished_at ?? b.expires_at) - Date.parse(a.finished_at ?? a.expires_at));
+}
+
 export function findOverlappingClaims(
   backlogDir: string,
   claim: Pick<ClaimRecord, "id" | "repo" | "repo_path" | "paths" | "mode">,

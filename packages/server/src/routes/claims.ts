@@ -3,6 +3,7 @@ import {
   createClaim,
   findOverlappingClaims,
   listActiveClaims,
+  listArchivedClaims,
 } from "@backlog/claims";
 import type { ClaimRecord } from "@backlog/schemas";
 import { Hono } from "hono";
@@ -41,12 +42,17 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
   const app = new Hono();
 
   app.get("/claims", (c) => {
-    const claims = listActiveClaims(workspace.backlogDir);
+    const archivedFlag = c.req.query("archived");
+    const archivedOnly = archivedFlag === "1" || archivedFlag === "true";
+    const claims = archivedOnly
+      ? listArchivedClaims(workspace.backlogDir)
+      : listActiveClaims(workspace.backlogDir);
     const repo = c.req.query("repo");
     const filtered = repo ? claims.filter((claim) => claim.repo === repo) : claims;
     return c.json({
       generated_at: new Date().toISOString(),
       count: filtered.length,
+      archived: archivedOnly,
       claims: filtered,
     });
   });

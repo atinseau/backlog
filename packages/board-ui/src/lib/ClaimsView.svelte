@@ -18,17 +18,24 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let archiving = $state<string | null>(null);
+  let tab = $state<"active" | "archived">("active");
 
   async function load() {
     loading = true;
     try {
-      claims = await fetchAllClaims();
+      claims = await fetchAllClaims({ archived: tab === "archived" });
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
     }
+  }
+
+  function switchTab(next: "active" | "archived") {
+    if (tab === next) return;
+    tab = next;
+    load();
   }
 
   async function handleArchive(claim: ClaimRecord) {
@@ -61,7 +68,17 @@
 <div class="backdrop" onclick={onClose} role="presentation">
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
     <header>
-      <h2>Claims actifs <span class="size">({claims.length})</span></h2>
+      <div class="title-block">
+        <h2>Claims</h2>
+        <div class="tabs">
+          <button class="tab" class:active={tab === "active"} onclick={() => switchTab("active")}>
+            Actifs {tab === "active" ? `(${claims.length})` : ""}
+          </button>
+          <button class="tab" class:active={tab === "archived"} onclick={() => switchTab("archived")}>
+            Archivés {tab === "archived" ? `(${claims.length})` : ""}
+          </button>
+        </div>
+      </div>
       <div class="header-actions">
         <button class="refresh" onclick={load} title="Rafraîchir">↻</button>
         <button class="close" onclick={onClose}>✕</button>
@@ -76,26 +93,33 @@
       <div class="loading">chargement…</div>
     {:else if claims.length === 0}
       <div class="empty">
-        Aucun claim actif. Crée-en un avec <code>backlog claim start</code> ou via le bouton <strong>+ Claim</strong>.
+        {#if tab === "active"}
+          Aucun claim actif. Crée-en un avec <code>backlog claim start</code> ou via le bouton <strong>+ Claim</strong>.
+        {:else}
+          Aucun claim archivé.
+        {/if}
       </div>
     {:else}
       <ul class="claims">
         {#each claims as claim (claim.id)}
-          <li class:expired={isExpired(claim)}>
+          <li class:expired={tab === "active" && isExpired(claim)} class:archived={tab === "archived"}>
             <header class="claim-header">
               <div class="title-line">
                 <strong>{claim.topic}</strong>
                 <span class="mode mode-{claim.mode}">{claim.mode}</span>
-                {#if isExpired(claim)}<span class="expired-tag">expiré</span>{/if}
+                {#if tab === "active" && isExpired(claim)}<span class="expired-tag">expiré</span>{/if}
+                {#if tab === "archived"}<span class="archived-tag">archivé</span>{/if}
               </div>
-              <button
-                class="finish"
-                onclick={() => handleArchive(claim)}
-                disabled={archiving === claim.id}
-                title="Finir / archiver le claim"
-              >
-                {archiving === claim.id ? "…" : "Finir"}
-              </button>
+              {#if tab === "active"}
+                <button
+                  class="finish"
+                  onclick={() => handleArchive(claim)}
+                  disabled={archiving === claim.id}
+                  title="Finir / archiver le claim"
+                >
+                  {archiving === claim.id ? "…" : "Finir"}
+                </button>
+              {/if}
             </header>
 
             <div class="row">
@@ -115,16 +139,24 @@
             <div class="meta">
               <span>créé il y a {formatDuration(ageSeconds(claim))}</span>
               <span class="dot">·</span>
-              <span>
-                {#if isExpired(claim)}
-                  expiré
-                {:else}
-                  expire dans {formatRemaining(claim.expires_at, timer.now) ?? "?"}
+              {#if tab === "active"}
+                <span>
+                  {#if isExpired(claim)}
+                    expiré
+                  {:else}
+                    expire dans {formatRemaining(claim.expires_at, timer.now) ?? "moins d'une seconde"}
+                  {/if}
+                </span>
+                {#if claim.expected_finish_at}
+                  <span class="dot">·</span>
+                  <span>fin estimée : {formatRemaining(claim.expected_finish_at, timer.now) ?? "dépassée"}</span>
                 {/if}
-              </span>
-              {#if claim.expected_finish_at}
-                <span class="dot">·</span>
-                <span>fin estimée : {formatRemaining(claim.expected_finish_at, timer.now) ?? "?"}</span>
+              {:else}
+                {#if claim.finished_at}
+                  <span>terminé il y a {formatDuration(Math.max(0, Math.round((timer.now - Date.parse(claim.finished_at)) / 1000)))}</span>
+                {:else}
+                  <span>archivé après expiration</span>
+                {/if}
               {/if}
             </div>
           </li>
@@ -161,9 +193,37 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+  }
+  .title-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
   }
   h2 { margin: 0; font-size: 16px; }
-  .size { color: #98a2b3; font-weight: 400; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: #f2f4f7;
+    border-radius: 6px;
+    padding: 2px;
+  }
+  .tab {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #475467;
+    border-radius: 4px;
+  }
+  .tab:hover { color: #1d2939; }
+  .tab.active {
+    background: white;
+    color: #1d2939;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  }
   .header-actions { display: flex; gap: 4px; }
   .refresh, .close {
     background: transparent;
@@ -205,6 +265,7 @@
     gap: 6px;
   }
   .claims > li.expired { background: #fef9f3; opacity: 0.7; }
+  .claims > li.archived { opacity: 0.85; }
   .claim-header {
     display: flex;
     align-items: center;
@@ -228,12 +289,16 @@
   }
   .mode-exclusive { background: #fee4e2; color: #b42318; }
   .mode-shared { background: #d1fadf; color: #027a48; }
-  .expired-tag {
+  .expired-tag, .archived-tag {
     font-size: 10px;
     background: #f2f4f7;
     color: #475467;
     padding: 1px 6px;
     border-radius: 3px;
+  }
+  .archived-tag {
+    background: #f4ebff;
+    color: #6941c6;
   }
   .finish {
     background: #f2f4f7;
