@@ -164,7 +164,7 @@
   <div class="meta">
     {#if board}
       {#if board.total_remaining_seconds > 0}
-        <span class="eta-pill">⏱ {formatDuration(board.total_remaining_seconds)} restantes</span>
+        <span class="eta-pill">⏱ il reste {formatDuration(board.total_remaining_seconds)}</span>
         <span class="dot">·</span>
       {/if}
       <span>{board.active_runs_count} runs ·

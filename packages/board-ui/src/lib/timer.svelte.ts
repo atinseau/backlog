@@ -51,6 +51,6 @@ export function formatRemaining(etaIso: string | null, now: number): string | nu
   const etaMs = Date.parse(etaIso);
   if (!Number.isFinite(etaMs)) return null;
   const remainingSec = Math.round((etaMs - now) / 1000);
-  if (remainingSec <= 0) return "fin imminente";
-  return `${formatDuration(remainingSec)} restantes`;
+  if (remainingSec <= 0) return null;
+  return formatDuration(remainingSec);
 }

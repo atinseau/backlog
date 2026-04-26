@@ -117,7 +117,7 @@
       <div class="card-stats">
         <span>{card.progress_percent}%</span>
         <span class="dot">·</span>
-        <span>{formatDuration(card.remaining_seconds)} restantes</span>
+        <span>il reste {formatDuration(card.remaining_seconds)}</span>
         {#if runningCount > 0}<span class="dot">·</span><span class="badge running">▶ {runningCount}</span>{/if}
         {#if blockedCount > 0}<span class="dot">·</span><span class="badge blocked">⚠ {blockedCount}</span>{/if}
       </div>
