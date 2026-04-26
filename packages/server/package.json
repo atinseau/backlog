@@ -21,6 +21,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@backlog/claims": "workspace:*",
     "@backlog/config": "workspace:*",
     "@backlog/core": "workspace:*",

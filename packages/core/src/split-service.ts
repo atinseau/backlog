@@ -60,6 +60,77 @@ export function resolveSplitRepos(config: WorkspaceConfig, workItem: WorkItem, r
   return deduped;
 }
 
+export interface ProposalTaskInput {
+  title: string;
+  repo: string;
+  scopes: string[];
+  risk: "low" | "medium" | "high";
+  dependsOnIndices: number[];
+}
+
+export interface ApplySplitProposalInput {
+  workItemId: string;
+  tasks: ProposalTaskInput[];
+  force?: boolean;
+}
+
+export function applySplitProposal(
+  backlogDir: string,
+  input: ApplySplitProposalInput,
+): SplitWorkItemResult {
+  const workItem = getWorkItem(backlogDir, input.workItemId);
+  if (!workItem) {
+    throw new Error(`Unknown work item: ${input.workItemId}`);
+  }
+  if (input.tasks.length === 0) {
+    throw new Error("Proposal must contain at least one task");
+  }
+
+  const existingTasks = listTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
+  if (existingTasks.length > 0 && !input.force) {
+    throw new Error(
+      `Work item ${input.workItemId} already has ${existingTasks.length} task(s). Pass force=true to append.`,
+    );
+  }
+
+  const createdTasks: Task[] = [];
+  const indexToId = new Map<number, string>();
+
+  for (let index = 0; index < input.tasks.length; index++) {
+    const proposed = input.tasks[index]!;
+    const dependsOn = proposed.dependsOnIndices
+      .map((depIndex) => indexToId.get(depIndex))
+      .filter((id): id is string => Boolean(id));
+    const created = createTask(backlogDir, {
+      workItemId: input.workItemId,
+      title: proposed.title,
+      repo: proposed.repo,
+      scopes: proposed.scopes,
+      dependsOn,
+      risk: proposed.risk,
+      priorityScore: priorityScoreForWorkItem(workItem),
+      completionCriteria: workItem.acceptance_criteria,
+      plannerOrigin: "split",
+      lane: proposed.repo,
+    });
+    createdTasks.push(created);
+    indexToId.set(index, created.id);
+  }
+
+  updateWorkItemPlanning(backlogDir, input.workItemId, {
+    split_status: "done",
+    ...(input.tasks[0] ? { preferred_lane: input.tasks[0].repo } : {}),
+  });
+  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
+
+  const hasDependencies = createdTasks.some((task) => task.depends_on.length > 0);
+  return {
+    workItem: getWorkItem(backlogDir, input.workItemId)!,
+    createdTasks,
+    mode: hasDependencies ? "serial" : "parallel",
+  };
+}
+
 export function splitWorkItem(backlogDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
   const workItem = getWorkItem(backlogDir, input.workItemId);
   if (!workItem) {
