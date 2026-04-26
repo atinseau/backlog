@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import ClaimDialog from "./lib/ClaimDialog.svelte";
   import Column from "./lib/Column.svelte";
+  import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import { fetchBoard, moveWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { COLUMN_ORDER, type BoardResponse, type ColumnKey } from "./lib/types.js";
@@ -12,6 +13,7 @@
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
   let dialogOpen = $state(false);
+  let panelOpen = $state(false);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,6 +108,7 @@
         <span class="moving">↻ déplacement…</span>
       {/if}
     {/if}
+    <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
     <button class="primary" onclick={() => (dialogOpen = true)}>+ Claim</button>
     <button onclick={refresh}>↻</button>
   </div>
@@ -129,6 +132,10 @@
       if (!connected) refresh();
     }}
   />
+{/if}
+
+{#if panelOpen}
+  <OrchestratorPanel onClose={() => (panelOpen = false)} />
 {/if}
 
 <style>

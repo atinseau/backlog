@@ -56,6 +56,46 @@ export type ClaimCreateResult =
   | { ok: true; claim: unknown }
   | { ok: false; conflict: ClaimConflict };
 
+export type DecisionAction = "run" | "wait" | "block" | "skip";
+
+export interface EnrichedDecision {
+  task_id: string;
+  work_item_id: string;
+  task_title: string | null;
+  work_item_title: string | null;
+  repo: string | null;
+  scopes: string[];
+  action: DecisionAction;
+  score: number;
+  reasons: string[];
+  assigned_agent_id: string | null;
+  candidate_agent_ids: string[];
+}
+
+export interface ExecutionWave {
+  wave: number;
+  decisions: EnrichedDecision[];
+}
+
+export interface OrchestratePlan {
+  generated_at: string;
+  workspace: string;
+  max_agents: number;
+  runnable_count: number;
+  waves: ExecutionWave[];
+  waiting: EnrichedDecision[];
+  blocked: EnrichedDecision[];
+  skipped: EnrichedDecision[];
+}
+
+export async function fetchOrchestratePlan(): Promise<OrchestratePlan> {
+  const response = await fetch(`${BASE}/orchestrate`);
+  if (!response.ok) {
+    throw new Error(`Orchestrate failed: ${response.status}`);
+  }
+  return (await response.json()) as OrchestratePlan;
+}
+
 export async function createClaim(input: ClaimCreateInput): Promise<ClaimCreateResult> {
   const response = await fetch(`${BASE}/claims`, {
     method: "POST",

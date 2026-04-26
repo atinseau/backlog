@@ -1,0 +1,275 @@
+<script lang="ts">
+  import { fetchOrchestratePlan, type EnrichedDecision, type OrchestratePlan } from "./api.js";
+
+  interface Props {
+    onClose: () => void;
+  }
+
+  let { onClose }: Props = $props();
+
+  let plan = $state<OrchestratePlan | null>(null);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
+
+  async function load() {
+    loading = true;
+    error = null;
+    try {
+      plan = await fetchOrchestratePlan();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  $effect(() => {
+    load();
+  });
+
+  function actionClass(action: EnrichedDecision["action"]): string {
+    return `chip act-${action}`;
+  }
+
+  function reasonsLine(d: EnrichedDecision): string {
+    if (d.reasons.length === 0) return "";
+    return d.reasons.slice(0, 3).join(" · ");
+  }
+</script>
+
+<aside class="panel" role="complementary" aria-label="Orchestrator plan">
+  <header>
+    <div>
+      <h2>Orchestrator</h2>
+      {#if plan}
+        <p class="meta">
+          {plan.runnable_count} runnable now · max {plan.max_agents}
+          parallel agent{plan.max_agents > 1 ? "s" : ""}
+        </p>
+      {/if}
+    </div>
+    <div class="actions">
+      <button onclick={load} disabled={loading} aria-label="Refresh plan">↻</button>
+      <button onclick={onClose} aria-label="Close panel">×</button>
+    </div>
+  </header>
+
+  {#if error}
+    <div class="error">{error}</div>
+  {/if}
+
+  {#if loading && !plan}
+    <div class="placeholder">Computing plan…</div>
+  {:else if plan}
+    <section class="waves">
+      {#if plan.waves.length === 0}
+        <div class="placeholder small">No tasks ready to schedule.</div>
+      {/if}
+      {#each plan.waves as wave (wave.wave)}
+        <article class="wave">
+          <h3>Wave {wave.wave} <span class="size">({wave.decisions.length} parallel)</span></h3>
+          <ul>
+            {#each wave.decisions as d (d.task_id)}
+              <li>
+                <div class="row">
+                  <span class={actionClass(d.action)}>{d.action}</span>
+                  <span class="title">{d.task_title ?? d.task_id}</span>
+                  <span class="score">{d.score}</span>
+                </div>
+                <div class="row sub">
+                  {#if d.work_item_title}
+                    <span class="parent">{d.work_item_title}</span>
+                  {/if}
+                  {#if d.repo}
+                    <span class="repo">{d.repo}</span>
+                  {/if}
+                  {#if d.assigned_agent_id}
+                    <span class="agent">→ {d.assigned_agent_id}</span>
+                  {:else if d.candidate_agent_ids.length > 0}
+                    <span class="agent muted">candidates: {d.candidate_agent_ids.join(", ")}</span>
+                  {:else}
+                    <span class="agent muted">no agent</span>
+                  {/if}
+                </div>
+                {#if reasonsLine(d)}
+                  <div class="reasons">{reasonsLine(d)}</div>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </article>
+      {/each}
+    </section>
+
+    {#if plan.blocked.length > 0}
+      <section class="other">
+        <h3>Blocked <span class="size">({plan.blocked.length})</span></h3>
+        <ul>
+          {#each plan.blocked as d (d.task_id)}
+            <li>
+              <span class="title">{d.task_title ?? d.task_id}</span>
+              <span class="reasons">{reasonsLine(d)}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
+    {#if plan.skipped.length > 0}
+      <section class="other muted">
+        <h3>Skipped <span class="size">({plan.skipped.length})</span></h3>
+        <ul>
+          {#each plan.skipped as d (d.task_id)}
+            <li>
+              <span class="title">{d.task_title ?? d.task_id}</span>
+              <span class="reasons">{reasonsLine(d)}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+  {/if}
+</aside>
+
+<style>
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: min(420px, 90vw);
+    background: white;
+    border-left: 1px solid #e4e7ec;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    z-index: 40;
+    overflow-y: auto;
+    padding: 0;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e4e7ec;
+    position: sticky;
+    top: 0;
+    background: white;
+  }
+  h2 {
+    margin: 0;
+    font-size: 16px;
+  }
+  .meta {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #667085;
+  }
+  .actions {
+    display: flex;
+    gap: 4px;
+  }
+  .actions button {
+    background: #f2f4f7;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .error {
+    margin: 12px 16px;
+    padding: 8px 10px;
+    background: #fee4e2;
+    color: #b42318;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+  .placeholder {
+    padding: 32px 16px;
+    text-align: center;
+    color: #98a2b3;
+    font-size: 14px;
+  }
+  .placeholder.small {
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+  .waves, .other {
+    padding: 8px 16px 4px;
+  }
+  .wave, .other {
+    margin-bottom: 12px;
+  }
+  h3 {
+    margin: 12px 0 6px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475467;
+  }
+  .size {
+    color: #98a2b3;
+    text-transform: none;
+    font-weight: 400;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  li {
+    padding: 8px;
+    border: 1px solid #e4e7ec;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .row.sub {
+    color: #667085;
+    margin-top: 4px;
+    font-size: 11px;
+    flex-wrap: wrap;
+  }
+  .title {
+    flex: 1;
+    font-weight: 500;
+    color: #1d2939;
+  }
+  .score {
+    color: #667085;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+  .chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: white;
+    text-transform: uppercase;
+  }
+  .act-run    { background: #027a48; }
+  .act-wait   { background: #b54708; }
+  .act-block  { background: #b42318; }
+  .act-skip   { background: #98a2b3; }
+  .repo, .parent, .agent {
+    background: #f2f4f7;
+    color: #344054;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .agent.muted { color: #98a2b3; background: transparent; padding-left: 0; }
+  .reasons {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #98a2b3;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .other.muted { opacity: 0.7; }
+  .other li { display: flex; gap: 8px; align-items: center; }
+</style>
