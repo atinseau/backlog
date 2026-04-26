@@ -8,6 +8,7 @@
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
+  import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import { fetchBoard, fetchProjects, moveWorkItem, reorderWorkItem } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
@@ -31,6 +32,7 @@
   let connected = $state(false);
   let claimDialogOpen = $state(false);
   let projectsViewOpen = $state(false);
+  let reposViewOpen = $state(false);
   let createTicketOpen = $state(false);
   let createTaskTarget = $state<WorkItemCard | null>(null);
   let panelOpen = $state(false);
@@ -175,6 +177,7 @@
         <span class="moving">↻ déplacement…</span>
       {/if}
     {/if}
+    <button onclick={() => (reposViewOpen = true)}>📁 Repos</button>
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
     <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
     <button onclick={() => (claimDialogOpen = true)}>+ Claim</button>
@@ -215,6 +218,15 @@
     onClose={() => (projectsViewOpen = false)}
     onChanged={() => {
       refreshProjects();
+    }}
+  />
+{/if}
+
+{#if reposViewOpen}
+  <ReposView
+    onClose={() => (reposViewOpen = false)}
+    onChanged={() => {
+      if (!connected) refresh();
     }}
   />
 {/if}

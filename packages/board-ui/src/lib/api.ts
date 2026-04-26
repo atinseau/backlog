@@ -1,4 +1,4 @@
-import type { BoardResponse, OrchestratorState, Project } from "./types.js";
+import type { BoardResponse, OrchestratorState, Project, Repo } from "./types.js";
 
 const BASE = "/api/v1";
 
@@ -76,6 +76,69 @@ export async function deleteProject(idOrSlug: string): Promise<void> {
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Delete project failed (${response.status}): ${detail}`);
+  }
+}
+
+// Repos ---------------------------------------------------------------------
+
+export async function fetchRepos(): Promise<Repo[]> {
+  const response = await fetch(`${BASE}/repos`);
+  if (!response.ok) throw new Error(`Repos fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repos: Repo[] };
+  return json.repos;
+}
+
+export interface CreateRepoInput {
+  id: string;
+  path: string;
+  default_branch: string;
+  role?: string;
+  enabled?: boolean;
+}
+
+export async function createRepo(input: CreateRepoInput): Promise<Repo> {
+  const response = await fetch(`${BASE}/repos`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create repo failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { repo: Repo };
+  return json.repo;
+}
+
+export interface UpdateRepoInput {
+  id?: string;
+  path?: string;
+  default_branch?: string;
+  role?: string | null;
+  enabled?: boolean;
+}
+
+export async function updateRepo(id: string, input: UpdateRepoInput): Promise<Repo> {
+  const response = await fetch(`${BASE}/repos/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Update repo failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { repo: Repo };
+  return json.repo;
+}
+
+export async function deleteRepo(id: string, options: { force?: boolean } = {}): Promise<void> {
+  const url = new URL(`${BASE}/repos/${encodeURIComponent(id)}`, window.location.origin);
+  if (options.force) url.searchParams.set("force", "1");
+  const response = await fetch(url.toString(), { method: "DELETE" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Delete repo failed (${response.status}): ${detail}`);
   }
 }
 

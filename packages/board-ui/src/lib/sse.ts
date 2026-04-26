@@ -7,6 +7,7 @@ export type BoardEventType =
   | "run.changed"
   | "project.changed"
   | "orchestrator.changed"
+  | "repo.changed"
   | "board.refresh";
 
 export interface BoardSseClient {
@@ -27,6 +28,7 @@ export function subscribeToBoard(
     "run.changed",
     "project.changed",
     "orchestrator.changed",
+    "repo.changed",
     "board.refresh",
   ];
 

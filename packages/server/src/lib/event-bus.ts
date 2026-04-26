@@ -9,6 +9,7 @@ export type BoardEventType =
   | "run.changed"
   | "project.changed"
   | "orchestrator.changed"
+  | "repo.changed"
   | "board.refresh";
 
 export interface BoardEvent {
@@ -29,6 +30,7 @@ const WATCH_TARGETS: WatchSpec[] = [
   { relative: "work-items.yaml", type: "work_item.changed" },
   { relative: "projects.yaml", type: "project.changed" },
   { relative: "orchestrator.json", type: "orchestrator.changed" },
+  { relative: "config.toml", type: "repo.changed" },
 ];
 
 const DEBOUNCE_MS = 200;

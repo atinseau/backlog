@@ -76,6 +76,14 @@ export interface Project {
   updated_at: string;
 }
 
+export interface Repo {
+  id: string;
+  path: string;
+  default_branch: string;
+  role?: string;
+  enabled: boolean;
+}
+
 export interface OrchestratorState {
   version: 1;
   mode: OrchestratorMode;

@@ -12,6 +12,7 @@ import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
 import { projectsRoutes } from "./routes/projects.js";
+import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
@@ -86,6 +87,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", orchestrateRoutes(options.workspace));
   app.route("/api/v1", orchestratorRoutes(options.workspace));
   app.route("/api/v1", projectsRoutes(options.workspace));
+  app.route("/api/v1", reposRoutes(options.workspace));
   app.route("/api/v1", runsRoutes(options.workspace));
   app.route("/api/v1", eventsRoutes(bus));
 
