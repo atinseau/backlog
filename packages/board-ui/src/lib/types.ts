@@ -78,6 +78,37 @@ export interface Project {
 
 export type RepoProvider = "local" | "github" | "gitlab" | "bitbucket" | "other";
 
+export type AutonomyMode = "observe" | "assist" | "delegate" | "autopilot";
+
+export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
+
+export interface AgentSummary {
+  id: string;
+  provider: string;
+  enabled: boolean;
+  max_concurrent_runs: number;
+  active_runs: number;
+  capabilities: string[];
+  allowed_repos: string[];
+  allowed_risk: Array<"low" | "medium" | "high">;
+  sandbox_mode: SandboxMode | null;
+  success_mode: "review" | "complete" | null;
+  model: string | null;
+  profile: string | null;
+}
+
+export interface WorkspaceInfo {
+  name: string;
+  mode: "embedded" | "control_plane";
+  default_branch: string;
+  autonomy_mode: AutonomyMode;
+  max_agents: number;
+  claims: {
+    ttl_minutes: number;
+    enforce_on_commit: boolean;
+  };
+}
+
 export interface Repo {
   id: string;
   path: string;

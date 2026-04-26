@@ -1,4 +1,11 @@
-import type { BoardResponse, OrchestratorState, Project, Repo } from "./types.js";
+import type {
+  AgentSummary,
+  BoardResponse,
+  OrchestratorState,
+  Project,
+  Repo,
+  WorkspaceInfo,
+} from "./types.js";
 
 const BASE = "/api/v1";
 
@@ -76,6 +83,74 @@ export async function deleteProject(idOrSlug: string): Promise<void> {
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Delete project failed (${response.status}): ${detail}`);
+  }
+}
+
+// Permissions / agents / workspace ------------------------------------------
+
+export async function fetchAgents(): Promise<AgentSummary[]> {
+  const response = await fetch(`${BASE}/agents`);
+  if (!response.ok) throw new Error(`Agents fetch failed: ${response.status}`);
+  const json = (await response.json()) as { agents: AgentSummary[] };
+  return json.agents;
+}
+
+export interface UpdateAgentInput {
+  enabled?: boolean;
+  max_concurrent_runs?: number;
+  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access" | null;
+  success_mode?: "review" | "complete" | null;
+  allowed_repos?: string[];
+  allowed_risk?: Array<"low" | "medium" | "high">;
+  capabilities?: string[];
+  model?: string | null;
+  profile?: string | null;
+}
+
+export async function patchAgent(id: string, input: UpdateAgentInput): Promise<unknown> {
+  const response = await fetch(`${BASE}/agents/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Update agent failed (${response.status}): ${detail}`);
+  }
+  return response.json();
+}
+
+export async function fetchWorkspace(): Promise<WorkspaceInfo> {
+  const response = await fetch(`${BASE}/workspace`);
+  if (!response.ok) throw new Error(`Workspace fetch failed: ${response.status}`);
+  const json = (await response.json()) as { workspace: WorkspaceInfo };
+  return json.workspace;
+}
+
+export async function setAutonomyMode(mode: WorkspaceInfo["autonomy_mode"]): Promise<void> {
+  const response = await fetch(`${BASE}/workspace/autonomy`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ autonomy_mode: mode }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Autonomy update failed (${response.status}): ${detail}`);
+  }
+}
+
+export async function setClaimsConfig(input: {
+  ttl_minutes?: number;
+  enforce_on_commit?: boolean;
+}): Promise<void> {
+  const response = await fetch(`${BASE}/workspace/claims`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Claims config update failed (${response.status}): ${detail}`);
   }
 }
 

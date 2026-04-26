@@ -6,6 +6,7 @@
   import CreateTicketDialog from "./lib/CreateTicketDialog.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
+  import PermissionsView from "./lib/PermissionsView.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
   import ReposView from "./lib/ReposView.svelte";
@@ -33,6 +34,7 @@
   let claimDialogOpen = $state(false);
   let projectsViewOpen = $state(false);
   let reposViewOpen = $state(false);
+  let permissionsViewOpen = $state(false);
   let createTicketOpen = $state(false);
   let createTaskTarget = $state<WorkItemCard | null>(null);
   let panelOpen = $state(false);
@@ -178,6 +180,7 @@
       {/if}
     {/if}
     <button onclick={() => (reposViewOpen = true)}>📁 Repos</button>
+    <button onclick={() => (permissionsViewOpen = true)}>🔒 Permissions</button>
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
     <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
     <button onclick={() => (claimDialogOpen = true)}>+ Claim</button>
@@ -225,6 +228,16 @@
 {#if reposViewOpen}
   <ReposView
     onClose={() => (reposViewOpen = false)}
+    onChanged={() => {
+      if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if permissionsViewOpen}
+  <PermissionsView
+    availableRepos={repos}
+    onClose={() => (permissionsViewOpen = false)}
     onChanged={() => {
       if (!connected) refresh();
     }}
