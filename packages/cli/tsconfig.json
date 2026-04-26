@@ -5,7 +5,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@backlog/connectors": ["../connectors/src/index.ts"]
+      "@backlog/connectors": ["../connectors/src/index.ts"],
+      "@backlog/server": ["../server/src/index.ts"]
     }
   },
   "include": ["src"],
@@ -16,6 +17,7 @@
     { "path": "../core" },
     { "path": "../git" },
     { "path": "../hooks" },
-    { "path": "../schemas" }
+    { "path": "../schemas" },
+    { "path": "../server" }
   ]
 }

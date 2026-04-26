@@ -23,9 +23,11 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.7",
     "@iarna/toml": "^2.2.5",
     "commander": "^13.1.0",
     "execa": "^9.6.0",
+    "hono": "^4.6.13",
     "picomatch": "^4.0.2",
     "yaml": "^2.8.0",
     "zod": "^3.24.4"
@@ -38,6 +40,7 @@
     "@backlog/git": "workspace:*",
     "@backlog/hooks": "workspace:*",
     "@backlog/schemas": "workspace:*",
+    "@backlog/server": "workspace:*",
     "tsup": "^8.4.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
