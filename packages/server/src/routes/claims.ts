@@ -5,11 +5,34 @@ import {
   listActiveClaims,
   listArchivedClaims,
 } from "@backlog/claims";
-import type { ClaimRecord } from "@backlog/schemas";
+import { listAgents } from "@backlog/core";
+import type { Agent, ClaimRecord } from "@backlog/schemas";
 import { Hono } from "hono";
 import { z } from "zod";
 import { computeRetryAfter } from "../lib/retry-after.js";
 import type { ServerWorkspace } from "../workspace-context.js";
+
+interface EnrichedClaim extends ClaimRecord {
+  agent?: {
+    id: string;
+    provider: string;
+    model?: string;
+    profile?: string;
+  };
+}
+
+function enrichClaim(claim: ClaimRecord, agentsById: Map<string, Agent>): EnrichedClaim {
+  if (!claim.agent_id) return claim;
+  const agent = agentsById.get(claim.agent_id);
+  if (!agent) return claim;
+  const summary: EnrichedClaim["agent"] = {
+    id: agent.id,
+    provider: agent.provider,
+  };
+  if (agent.model) summary.model = agent.model;
+  if (agent.profile) summary.profile = agent.profile;
+  return { ...claim, agent: summary };
+}
 
 const createClaimBodySchema = z.object({
   repo: z.string().min(1),
@@ -49,11 +72,12 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
       : listActiveClaims(workspace.backlogDir);
     const repo = c.req.query("repo");
     const filtered = repo ? claims.filter((claim) => claim.repo === repo) : claims;
+    const agentsById = new Map(listAgents(workspace.backlogDir).map((agent) => [agent.id, agent]));
     return c.json({
       generated_at: new Date().toISOString(),
       count: filtered.length,
       archived: archivedOnly,
-      claims: filtered,
+      claims: filtered.map((claim) => enrichClaim(claim, agentsById)),
     });
   });
 

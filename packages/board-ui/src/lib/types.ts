@@ -12,6 +12,13 @@ export interface ClaimSummary {
   agent_id?: string | null;
 }
 
+export interface ClaimAgentInfo {
+  id: string;
+  provider: string;
+  model?: string;
+  profile?: string;
+}
+
 export interface ClaimRecord {
   id: string;
   repo: string;
@@ -27,6 +34,7 @@ export interface ClaimRecord {
   expected_duration_seconds?: number;
   expected_finish_at?: string;
   agent_id?: string;
+  agent?: ClaimAgentInfo;
 }
 
 export interface RunSummary {

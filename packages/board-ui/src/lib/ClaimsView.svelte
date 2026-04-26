@@ -14,16 +14,24 @@
   const timer = useTimer();
   onDestroy(() => timer.release());
 
-  let claims = $state<ClaimRecord[]>([]);
+  let activeClaims = $state<ClaimRecord[]>([]);
+  let archivedClaims = $state<ClaimRecord[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let archiving = $state<string | null>(null);
   let tab = $state<"active" | "archived">("active");
 
+  const claims = $derived(tab === "active" ? activeClaims : archivedClaims);
+
   async function load() {
     loading = true;
     try {
-      claims = await fetchAllClaims({ archived: tab === "archived" });
+      const [a, ar] = await Promise.all([
+        fetchAllClaims({}),
+        fetchAllClaims({ archived: true }),
+      ]);
+      activeClaims = a;
+      archivedClaims = ar;
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -33,9 +41,18 @@
   }
 
   function switchTab(next: "active" | "archived") {
-    if (tab === next) return;
     tab = next;
-    load();
+  }
+
+  function agentLabel(claim: ClaimRecord): string {
+    if (claim.agent) {
+      const parts = [claim.agent.provider];
+      if (claim.agent.model) parts.push(claim.agent.model);
+      if (claim.agent.profile) parts.push(`(${claim.agent.profile})`);
+      return parts.join(" · ");
+    }
+    if (claim.agent_id) return claim.agent_id;
+    return "aucun agent attribué";
   }
 
   async function handleArchive(claim: ClaimRecord) {
@@ -72,10 +89,10 @@
         <h2>Claims</h2>
         <div class="tabs">
           <button class="tab" class:active={tab === "active"} onclick={() => switchTab("active")}>
-            Actifs {tab === "active" ? `(${claims.length})` : ""}
+            Actifs ({activeClaims.length})
           </button>
           <button class="tab" class:active={tab === "archived"} onclick={() => switchTab("archived")}>
-            Archivés {tab === "archived" ? `(${claims.length})` : ""}
+            Archivés ({archivedClaims.length})
           </button>
         </div>
       </div>
@@ -124,9 +141,7 @@
 
             <div class="row">
               <span class="repo">{claim.repo}</span>
-              {#if claim.agent_id}
-                <span class="agent">→ {claim.agent_id}</span>
-              {/if}
+              <span class="agent" class:unknown={!claim.agent_id}>→ {agentLabel(claim)}</span>
               <span class="id">{claim.id}</span>
             </div>
 
@@ -334,6 +349,12 @@
     color: #6941c6;
     padding: 1px 6px;
     border-radius: 3px;
+  }
+  .agent.unknown {
+    background: transparent;
+    color: #98a2b3;
+    padding-left: 0;
+    font-style: italic;
   }
   .id {
     font-family: ui-monospace, monospace;
