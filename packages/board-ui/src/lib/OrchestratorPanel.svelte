@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { fetchOrchestratePlan, type EnrichedDecision, type OrchestratePlan } from "./api.js";
+  import {
+    fetchOrchestratePlan,
+    startRun,
+    type EnrichedDecision,
+    type OrchestratePlan,
+  } from "./api.js";
 
   interface Props {
     onClose: () => void;
@@ -10,6 +15,8 @@
   let plan = $state<OrchestratePlan | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let starting = $state<string | null>(null);
+  let lastResult = $state<string | null>(null);
 
   async function load() {
     loading = true;
@@ -20,6 +27,29 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function startTask(taskId: string) {
+    starting = taskId;
+    error = null;
+    lastResult = null;
+    try {
+      const result = await startRun({ task_id: taskId, approve: true });
+      if (result.started.length > 0) {
+        const item = result.started[0]!;
+        lastResult = `Started run ${item.runId} (${item.agentId}) on ${item.branch}`;
+      } else if (result.skipped.length > 0) {
+        const item = result.skipped[0]!;
+        lastResult = `Skipped: ${item.reasons.join(", ")}`;
+      } else {
+        lastResult = "Nothing to start.";
+      }
+      await load();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      starting = null;
     }
   }
 
@@ -58,6 +88,10 @@
     <div class="error">{error}</div>
   {/if}
 
+  {#if lastResult}
+    <div class="info">{lastResult}</div>
+  {/if}
+
   {#if loading && !plan}
     <div class="placeholder">Computing plan…</div>
   {:else if plan}
@@ -74,6 +108,16 @@
                 <div class="row">
                   <span class={actionClass(d.action)}>{d.action}</span>
                   <span class="title">{d.task_title ?? d.task_id}</span>
+                  {#if d.action === "run"}
+                    <button
+                      class="start"
+                      onclick={() => startTask(d.task_id)}
+                      disabled={starting !== null}
+                      title="Launch this run"
+                    >
+                      {starting === d.task_id ? "…" : "▶"}
+                    </button>
+                  {/if}
                   <span class="score">{d.score}</span>
                 </div>
                 <div class="row sub">
@@ -184,6 +228,26 @@
     font-size: 12px;
     border-radius: 4px;
   }
+  .info {
+    margin: 12px 16px;
+    padding: 8px 10px;
+    background: #d1fadf;
+    color: #027a48;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+  .start {
+    background: #027a48;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .start:hover { background: #036a3e; }
+  .start:disabled { background: #98a2b3; cursor: wait; }
   .placeholder {
     padding: 32px 16px;
     text-align: center;

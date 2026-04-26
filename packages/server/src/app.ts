@@ -9,6 +9,7 @@ import { claimsRoutes } from "./routes/claims.js";
 import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
+import { runsRoutes } from "./routes/runs.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
@@ -80,6 +81,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", workItemsRoutes(options.workspace));
   app.route("/api/v1", tasksRoutes(options.workspace));
   app.route("/api/v1", orchestrateRoutes(options.workspace));
+  app.route("/api/v1", runsRoutes(options.workspace));
   app.route("/api/v1", eventsRoutes(bus));
 
   const uiDir = options.uiDistDir ?? defaultUiDistDir();

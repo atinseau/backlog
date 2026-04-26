@@ -110,6 +110,50 @@ export interface SplitResult {
   mode: "parallel" | "serial";
 }
 
+export interface StartRunInput {
+  task_id?: string;
+  work_item_id?: string;
+  max_start?: number;
+  agent_id?: string;
+  approve?: boolean;
+}
+
+export interface StartedRun {
+  runId: string;
+  taskId: string;
+  agentId: string;
+  branch: string;
+  worktreePath: string;
+  claimIds: string[];
+}
+
+export interface SkippedRun {
+  taskId: string;
+  reasons: string[];
+}
+
+export interface StartRunResult {
+  started: StartedRun[];
+  skipped: SkippedRun[];
+  waiting: Array<{ task_id: string; reasons: string[] }>;
+  blocked: Array<{ task_id: string; reasons: string[] }>;
+}
+
+export async function startRun(input: StartRunInput): Promise<StartRunResult> {
+  const response = await fetch(`${BASE}/runs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok && response.status !== 202) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? `Run failed: ${(json as { detail: string }).detail}`
+      : `Run failed: ${response.status}`);
+  }
+  return json as StartRunResult;
+}
+
 export async function splitWorkItem(id: string, input: SplitInput): Promise<SplitResult> {
   const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/split`, {
     method: "POST",
