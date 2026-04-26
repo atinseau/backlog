@@ -3,6 +3,7 @@ import path from "node:path";
 import type { RepoConfig, WorkspaceConfig } from "@backlog/schemas";
 import { saveConfig } from "./save-config.js";
 import { writeLocalShim } from "./shim.js";
+import { generateWorkspaceId } from "./workspace-id.js";
 
 export interface InitLayoutOptions {
   root: string;
@@ -59,6 +60,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
 
   const config: WorkspaceConfig = {
     version: 1,
+    workspace_id: generateWorkspaceId(),
     workspace_name: options.workspaceName,
     workspace_mode: options.mode ?? "embedded",
     default_branch: options.defaultBranch ?? "main",

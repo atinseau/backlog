@@ -14,6 +14,7 @@ export const repoConfigSchema = z.object({
 
 export const workspaceConfigSchema = z.object({
   version: z.number().int().positive(),
+  workspace_id: z.string().min(1).optional(),
   workspace_name: z.string().min(1),
   workspace_mode: z.enum(["embedded", "control_plane"]),
   default_branch: z.string().min(1),
