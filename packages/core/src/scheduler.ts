@@ -1,8 +1,8 @@
 import { listActiveClaims, scopesOverlap } from "@backlog/claims";
-import type { SubTask, WorkItem, ProjectConfig } from "@backlog/schemas";
+import type { SubTask, Task, ProjectConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { listActiveRuns } from "./run-store.js";
-import { listSubTasks, listWorkItems } from "./state-files.js";
+import { listSubTasks, listTasks } from "./state-files.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
@@ -34,7 +34,7 @@ function isTerminal(status: SubTask["status"]): boolean {
   return status === "completed" || status === "canceled";
 }
 
-function taskPriorityWeight(workItem: WorkItem): number {
+function taskPriorityWeight(workItem: Task): number {
   switch (workItem.priority) {
     case "P0":
       return 100;
@@ -100,7 +100,7 @@ function policyReasons(task: SubTask, config: ProjectConfig): string[] {
   return reasons;
 }
 
-function scoreTask(task: SubTask, workItem: WorkItem): number {
+function scoreTask(task: SubTask, workItem: Task): number {
   return (
     taskPriorityWeight(workItem) +
     riskWeight(task) +
@@ -117,7 +117,7 @@ export function buildExecutionPlan(
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
   const tasks = listSubTasks(backlogDir).filter((task) => !isTerminal(task.status));
-  const workItems = listWorkItems(backlogDir);
+  const workItems = listTasks(backlogDir);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));
   const claims = listActiveClaims(backlogDir);
@@ -349,14 +349,14 @@ export function buildExecutionPlan(
 }
 
 export interface WorkExecutionOutline {
-  workItem: WorkItem;
+  workItem: Task;
   tasks: SubTask[];
   maxSafeParallelism: number;
   recommendedNextTaskId: string | null;
 }
 
-export function buildWorkExecutionOutline(backlogDir: string, config: ProjectConfig, workItemId: string): WorkExecutionOutline {
-  const workItem = listWorkItems(backlogDir).find((item) => item.id === workItemId);
+export function buildTaskExecutionOutline(backlogDir: string, config: ProjectConfig, workItemId: string): WorkExecutionOutline {
+  const workItem = listTasks(backlogDir).find((item) => item.id === workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${workItemId}`);
   }

@@ -20,7 +20,7 @@
     fetchRepos,
     fetchProjectsList,
     moveWorkItem,
-    reorderWorkItem,
+    reorderTask,
     setCurrentProjectId,
   } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
@@ -30,7 +30,7 @@
     type BoardResponse,
     type ColumnKey,
     type Repo,
-    type WorkItemCard,
+    type TaskCard,
     type ProjectEntry,
   } from "./lib/types.js";
 
@@ -56,9 +56,9 @@
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
   let createTicketOpen = $state(false);
-  let createTaskTarget = $state<WorkItemCard | null>(null);
+  let createTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
-  let splitTarget = $state<WorkItemCard | null>(null);
+  let splitTarget = $state<TaskCard | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -235,7 +235,7 @@
       const input: { before_id?: string; after_id?: string } = {};
       if (beforeId) input.before_id = beforeId;
       if (afterId) input.after_id = afterId;
-      await reorderWorkItem(workItemId, input);
+      await reorderTask(workItemId, input);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

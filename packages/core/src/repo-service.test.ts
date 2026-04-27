@@ -7,7 +7,7 @@ import { git } from "@backlog/git";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "./repo-service.js";
 import { createSubTask, getSubTask } from "./subtask-service.js";
-import { createWorkItem, getWorkItem } from "./work-service.js";
+import { createTask, getTask } from "./task-service.js";
 
 async function createGitRepo(root: string, name: string): Promise<string> {
   const repoRoot = path.join(root, name);
@@ -51,7 +51,7 @@ describe("repo-service", () => {
       defaultBranch: "main",
       role: "docs",
     });
-    const item = createWorkItem(backlogDir, {
+    const item = createTask(backlogDir, {
       title: "Docs pipeline",
       repoTargets: ["docs"],
     });
@@ -81,7 +81,7 @@ describe("repo-service", () => {
     expect(getRepo(backlogDir, "docs")).toBeNull();
     expect(getRepo(backlogDir, "docs-site")?.path).toBe(docsRoot);
     expect(getSubTask(backlogDir, task.id)?.repo).toBe("docs-site");
-    expect(getWorkItem(backlogDir, item.id)?.repo_targets).toEqual(["docs-site"]);
+    expect(getTask(backlogDir, item.id)?.repo_targets).toEqual(["docs-site"]);
     expect(readAgentsFile(backlogDir).agents[0]?.allowed_repos).toEqual(["docs-site"]);
   });
 
@@ -91,7 +91,7 @@ describe("repo-service", () => {
       path: "./docs",
       defaultBranch: "main",
     });
-    const item = createWorkItem(backlogDir, {
+    const item = createTask(backlogDir, {
       title: "Docs refresh",
       repoTargets: ["docs"],
     });
@@ -111,7 +111,7 @@ describe("repo-service", () => {
       defaultBranch: "main",
     });
 
-    const item = createWorkItem(backlogDir, {
+    const item = createTask(backlogDir, {
       title: "Docs refresh",
       repoTargets: ["docs", "backlog"],
     });
@@ -137,7 +137,7 @@ describe("repo-service", () => {
     expect(getRepo(backlogDir, "docs")).toBeNull();
     expect(getSubTask(backlogDir, removedTask.id)).toBeNull();
     expect(getSubTask(backlogDir, dependentTask.id)?.depends_on).toEqual([]);
-    expect(getWorkItem(backlogDir, item.id)?.repo_targets).toEqual(["backlog"]);
+    expect(getTask(backlogDir, item.id)?.repo_targets).toEqual(["backlog"]);
     expect(readAgentsFile(backlogDir).agents[0]?.allowed_repos).toEqual(["backlog"]);
   });
 });

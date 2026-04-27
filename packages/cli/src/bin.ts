@@ -15,7 +15,7 @@ import { registerServeCommand } from "./commands/serve.js";
 import { registerSourceCommand } from "./commands/source.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerSubTaskCommand } from "./commands/subtask.js";
-import { registerWorkCommand } from "./commands/work.js";
+import { registerTaskCommand } from "./commands/task.js";
 import { registerProjectCommand } from "./commands/project.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
 
@@ -46,7 +46,7 @@ registerStatusCommand(program);
 registerSubTaskCommand(program);
 registerRunCommand(program);
 registerSourceCommand(program);
-registerWorkCommand(program);
+registerTaskCommand(program);
 registerProjectCommand(program);
 registerWorktreeCommand(program);
 

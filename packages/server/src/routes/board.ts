@@ -1,19 +1,19 @@
 import { listActiveClaims } from "@backlog/claims";
 import {
   computeSubTaskProgress,
-  computeWorkItemProgress,
+  computeTaskProgress,
   elapsedSeconds,
   estimateSubTask,
   etaIso,
   listActiveRuns,
   listSubTasks,
-  listWorkItems,
+  listTasks,
 } from "@backlog/core";
 import type {
   ClaimRecord,
   Run,
   SubTask,
-  WorkItem,
+  Task,
 } from "@backlog/schemas";
 import { Hono } from "hono";
 import { COLUMN_KEYS, type ColumnKey, statusToColumn } from "../lib/columns.js";
@@ -48,11 +48,11 @@ interface SubTaskCard {
   eta: string | null;
 }
 
-interface WorkItemCard {
+interface TaskCard {
   id: string;
   title: string;
-  priority: WorkItem["priority"];
-  status: WorkItem["status"];
+  priority: Task["priority"];
+  status: Task["status"];
   labels: string[];
   repo_targets: string[];
   rank: number | null;
@@ -66,7 +66,7 @@ interface WorkItemCard {
 interface BoardResponse {
   generated_at: string;
   workspace: string;
-  columns: Record<ColumnKey, WorkItemCard[]>;
+  columns: Record<ColumnKey, TaskCard[]>;
   active_claims_count: number;
   active_runs_count: number;
   total_estimated_seconds: number;
@@ -107,7 +107,7 @@ interface BoardFilters {
 }
 
 function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardResponse {
-  const workItems = listWorkItems(workspace.backlogDir);
+  const workItems = listTasks(workspace.backlogDir);
   const tasks = listSubTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);
   const runs = listActiveRuns(workspace.backlogDir);
@@ -116,7 +116,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
   const archivedRunsCtx = { tasksById };
   const now = Date.now();
 
-  const columns: Record<ColumnKey, WorkItemCard[]> = {
+  const columns: Record<ColumnKey, TaskCard[]> = {
     todo: [],
     doing: [],
     review: [],
@@ -196,7 +196,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
       )
       .map((claim) => summarizeClaim(claim, true));
 
-    const itemProgress = computeWorkItemProgress({
+    const itemProgress = computeTaskProgress({
       taskProgresses: taskCards.map((tc) => ({
         percent: tc.progress_percent,
         estimateSeconds: tc.estimated_duration_seconds,
@@ -205,7 +205,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
 
     const itemEstimate = workItem.estimated_duration_seconds ?? cardEstimateSeconds;
 
-    const card: WorkItemCard = {
+    const card: TaskCard = {
       id: workItem.id,
       title: workItem.title,
       priority: workItem.priority,
@@ -247,7 +247,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
   };
 }
 
-function priorityOrder(priority: WorkItem["priority"]): number {
+function priorityOrder(priority: Task["priority"]): number {
   switch (priority) {
     case "P0":
       return 0;

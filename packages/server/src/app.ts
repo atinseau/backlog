@@ -16,7 +16,7 @@ import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { subtasksRoutes } from "./routes/subtasks.js";
-import { workItemsRoutes } from "./routes/work-items.js";
+import { workItemsRoutes } from "./routes/tasks.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerProject } from "./project-context.js";
 import { type AppEnv, ProjectResolver } from "./project-resolver.js";

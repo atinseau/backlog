@@ -7,11 +7,11 @@ import {
   createSubTask,
   getSubTask,
   listSubTasks,
-  removeTask,
+  removeSubTask,
   setSubTaskEstimate,
   setSubTaskProgress,
   unblockTask,
-  updateTask,
+  updateSubTask,
   updateSubTaskStatus,
 } from "@backlog/core";
 import { loadConfig } from "@backlog/config";
@@ -117,7 +117,7 @@ export function registerSubTaskCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
-      const updated = updateTask(workspace.backlogDir, taskId, {
+      const updated = updateSubTask(workspace.backlogDir, taskId, {
         ...(options.title !== undefined ? { title: options.title } : {}),
         ...(options.repo !== undefined ? { repo: options.repo } : {}),
         ...(options.scope.length > 0 ? { scopes: options.scope } : {}),
@@ -182,7 +182,7 @@ export function registerSubTaskCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const task = removeTask(workspace.backlogDir, taskId);
+      const task = removeSubTask(workspace.backlogDir, taskId);
       console.log(`Removed ${task.id}`);
     });
 

@@ -1,7 +1,7 @@
-import { workStatusSchema, type WorkItem, type WorkStatus } from "@backlog/schemas";
+import { taskStatusSchema, type Task, type TaskStatus } from "@backlog/schemas";
 import { makeId } from "./id.js";
-import { readSubTasksFile, readWorkItemsFile, writeSubTasksFile, writeWorkItemsFile } from "./state-files.js";
-import { removeSyncConflictsForWorkItem } from "./sync-conflicts.js";
+import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
+import { removeSyncConflictsForTask } from "./sync-conflicts.js";
 
 export interface CreateWorkItemInput {
   title: string;
@@ -27,10 +27,10 @@ export interface UpdateWorkItemInput {
   splitStatus?: "pending" | "done";
 }
 
-export function createWorkItem(backlogDir: string, input: CreateWorkItemInput): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
+export function createTask(backlogDir: string, input: CreateWorkItemInput): Task {
+  const file = readTasksFile(backlogDir);
   const now = new Date().toISOString();
-  const item: WorkItem = {
+  const item: Task = {
     id: makeId("WI"),
     title: input.title,
     ...(input.description ? { description: input.description } : {}),
@@ -53,18 +53,18 @@ export function createWorkItem(backlogDir: string, input: CreateWorkItemInput): 
     created_at: now,
     updated_at: now,
   };
-  file.items.push(item);
-  writeWorkItemsFile(backlogDir, file);
+  file.tasks.push(item);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
-export function getWorkItem(backlogDir: string, id: string): WorkItem | null {
-  return readWorkItemsFile(backlogDir).items.find((item) => item.id === id) ?? null;
+export function getTask(backlogDir: string, id: string): Task | null {
+  return readTasksFile(backlogDir).tasks.find((item) => item.id === id) ?? null;
 }
 
-export function updateWorkItem(backlogDir: string, id: string, input: UpdateWorkItemInput): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === id);
+export function updateTask(backlogDir: string, id: string, input: UpdateWorkItemInput): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
   }
@@ -107,30 +107,30 @@ export function updateWorkItem(backlogDir: string, id: string, input: UpdateWork
   }
 
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
-export function updateWorkItemStatus(backlogDir: string, id: string, status: WorkStatus): WorkItem {
-  const parsedStatus = workStatusSchema.parse(status);
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === id);
+export function updateTaskStatus(backlogDir: string, id: string, status: TaskStatus): Task {
+  const parsedStatus = taskStatusSchema.parse(status);
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
   }
   item.status = parsedStatus;
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
-export function updateWorkItemPlanning(
+export function updateTaskPlanning(
   backlogDir: string,
   id: string,
-  planning: Partial<WorkItem["planning"]>,
-): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === id);
+  planning: Partial<Task["planning"]>,
+): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown work item: ${id}`);
   }
@@ -139,13 +139,13 @@ export function updateWorkItemPlanning(
     ...planning,
   };
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
-export function setWorkItemEstimate(backlogDir: string, id: string, seconds: number | null): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === id);
+export function setTaskEstimate(backlogDir: string, id: string, seconds: number | null): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) throw new Error(`Unknown work item: ${id}`);
   if (seconds === null) {
     delete item.estimated_duration_seconds;
@@ -156,7 +156,7 @@ export function setWorkItemEstimate(backlogDir: string, id: string, seconds: num
     item.estimated_duration_seconds = seconds;
   }
   item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
@@ -166,12 +166,12 @@ export interface ReorderWorkItemInput {
   afterId?: string;
 }
 
-export function reorderWorkItem(backlogDir: string, input: ReorderWorkItemInput): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === input.workItemId);
+export function reorderTask(backlogDir: string, input: ReorderWorkItemInput): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === input.workItemId);
   if (!item) throw new Error(`Unknown work item: ${input.workItemId}`);
 
-  const samePriority = file.items
+  const samePriority = file.tasks
     .filter((candidate) => candidate.priority === item.priority)
     .sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0));
 
@@ -199,11 +199,11 @@ export function reorderWorkItem(backlogDir: string, input: ReorderWorkItemInput)
       entry.updated_at = now;
     }
   });
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return item;
 }
 
-export function workItemsSummary(backlogDir: string): Record<WorkStatus, number> {
+export function tasksSummary(backlogDir: string): Record<TaskStatus, number> {
   const summary = {
     backlog: 0,
     ready: 0,
@@ -213,15 +213,15 @@ export function workItemsSummary(backlogDir: string): Record<WorkStatus, number>
     released: 0,
     done: 0,
     blocked: 0,
-  } satisfies Record<WorkStatus, number>;
+  } satisfies Record<TaskStatus, number>;
 
-  for (const item of readWorkItemsFile(backlogDir).items) {
+  for (const item of readTasksFile(backlogDir).tasks) {
     summary[item.status] += 1;
   }
   return summary;
 }
 
-export function deriveWorkStatusFromTasks(backlogDir: string, workItemId: string): WorkStatus | null {
+export function deriveTaskStatusFromSubTasks(backlogDir: string, workItemId: string): TaskStatus | null {
   const tasks = readSubTasksFile(backlogDir).subtasks.filter((task) => task.work_item_id === workItemId);
   if (tasks.length === 0) {
     return null;
@@ -247,9 +247,9 @@ export function deriveWorkStatusFromTasks(backlogDir: string, workItemId: string
   return null;
 }
 
-export function removeWorkItem(backlogDir: string, id: string, options?: { cascadeTasks?: boolean }): WorkItem {
-  const workFile = readWorkItemsFile(backlogDir);
-  const itemIndex = workFile.items.findIndex((candidate) => candidate.id === id);
+export function removeTask(backlogDir: string, id: string, options?: { cascadeTasks?: boolean }): Task {
+  const workFile = readTasksFile(backlogDir);
+  const itemIndex = workFile.tasks.findIndex((candidate) => candidate.id === id);
   if (itemIndex < 0) {
     throw new Error(`Unknown work item: ${id}`);
   }
@@ -278,11 +278,11 @@ export function removeWorkItem(backlogDir: string, id: string, options?: { casca
     writeSubTasksFile(backlogDir, taskFile);
   }
 
-  const [removed] = workFile.items.splice(itemIndex, 1);
+  const [removed] = workFile.tasks.splice(itemIndex, 1);
   if (!removed) {
     throw new Error(`Unknown work item: ${id}`);
   }
-  writeWorkItemsFile(backlogDir, workFile);
-  removeSyncConflictsForWorkItem(backlogDir, id);
+  writeTasksFile(backlogDir, workFile);
+  removeSyncConflictsForTask(backlogDir, id);
   return removed;
 }

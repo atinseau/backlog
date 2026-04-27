@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { sourcesFileSchema, type SourceConfig, type SourcesFile, type WorkItem } from "@backlog/schemas";
-import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
+import { sourcesFileSchema, type SourceConfig, type SourcesFile, type Task } from "@backlog/schemas";
+import { readTasksFile, writeTasksFile } from "./state-files.js";
 import { recordStatusConflict } from "./sync-conflicts.js";
 
 function sourcesPath(backlogDir: string): string {
@@ -98,18 +98,18 @@ export function removeSource(backlogDir: string, id: string, options?: { force?:
     throw new Error(`Unknown source: ${id}`);
   }
 
-  const workItems = readWorkItemsFile(backlogDir);
-  const linkedWorkItems = workItems.items.filter((item) => item.source_links.some((link) => link.source_ref === id));
+  const workItems = readTasksFile(backlogDir);
+  const linkedWorkItems = workItems.tasks.filter((item) => item.source_links.some((link) => link.source_ref === id));
   if (linkedWorkItems.length > 0 && !options?.force) {
     throw new Error(`Source ${id} is still linked from ${linkedWorkItems.length} work item(s). Re-run with --force.`);
   }
 
   if (linkedWorkItems.length > 0) {
-    for (const item of workItems.items) {
+    for (const item of workItems.tasks) {
       item.source_links = item.source_links.filter((link) => link.source_ref !== id);
       item.updated_at = new Date().toISOString();
     }
-    writeWorkItemsFile(backlogDir, workItems);
+    writeTasksFile(backlogDir, workItems);
   }
 
   const [removed] = file.sources.splice(index, 1);
@@ -120,11 +120,11 @@ export function removeSource(backlogDir: string, id: string, options?: { force?:
   return removed;
 }
 
-export function primarySourceLink(item: WorkItem) {
+export function primarySourceLink(item: Task) {
   return item.source_links[0] ?? null;
 }
 
-function sourceKey(item: WorkItem): string | null {
+function sourceKey(item: Task): string | null {
   const source = item.source_links[0];
   if (!source) {
     return null;
@@ -136,28 +136,28 @@ function importedKey(sourceKind: string, sourceRef: string, externalId: string):
   return `${sourceKind}:${sourceRef}:${externalId}`;
 }
 
-export function upsertImportedWorkItems(backlogDir: string, importedItems: WorkItem[]): WorkItem[] {
-  const file = readWorkItemsFile(backlogDir);
-  const index = new Map<string, WorkItem>();
-  for (const item of file.items) {
+export function upsertImportedTasks(backlogDir: string, importedItems: Task[]): Task[] {
+  const file = readTasksFile(backlogDir);
+  const index = new Map<string, Task>();
+  for (const item of file.tasks) {
     const key = sourceKey(item);
     if (key) {
       index.set(key, item);
     }
   }
 
-  const touched: WorkItem[] = [];
+  const touched: Task[] = [];
   for (const imported of importedItems) {
     const source = imported.source_links[0];
     if (!source) {
-      file.items.push(imported);
+      file.tasks.push(imported);
       touched.push(imported);
       continue;
     }
     const key = importedKey(source.kind, source.source_ref ?? "default", source.external_id);
     const existing = index.get(key);
     if (!existing) {
-      file.items.push(imported);
+      file.tasks.push(imported);
       touched.push(imported);
       index.set(key, imported);
       continue;
@@ -182,6 +182,6 @@ export function upsertImportedWorkItems(backlogDir: string, importedItems: WorkI
     touched.push(existing);
   }
 
-  writeWorkItemsFile(backlogDir, file);
+  writeTasksFile(backlogDir, file);
   return touched;
 }

@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { createSubTask, reorderSubTask } from "./subtask-service.js";
-import { createWorkItem, reorderWorkItem } from "./work-service.js";
-import { listSubTasks, listWorkItems } from "./state-files.js";
+import { createTask, reorderTask } from "./task-service.js";
+import { listSubTasks, listTasks } from "./state-files.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-reorder-"));
@@ -26,7 +26,7 @@ describe("reorderSubTask", () => {
   });
 
   it("moves a task to top via beforeId", () => {
-    const wi = createWorkItem(backlogDir, { title: "Parent" });
+    const wi = createTask(backlogDir, { title: "Parent" });
     const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
     const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
     const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
@@ -38,7 +38,7 @@ describe("reorderSubTask", () => {
   });
 
   it("moves a task after another via afterId", () => {
-    const wi = createWorkItem(backlogDir, { title: "Parent" });
+    const wi = createTask(backlogDir, { title: "Parent" });
     const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
     const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
     const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
@@ -50,7 +50,7 @@ describe("reorderSubTask", () => {
   });
 
   it("uses sparse priority_scores 1000, 990, 980", () => {
-    const wi = createWorkItem(backlogDir, { title: "Parent" });
+    const wi = createTask(backlogDir, { title: "Parent" });
     const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
     const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
     reorderSubTask(backlogDir, { taskId: t2.id, beforeId: t1.id });
@@ -62,7 +62,7 @@ describe("reorderSubTask", () => {
   });
 });
 
-describe("reorderWorkItem", () => {
+describe("reorderTask", () => {
   let backlogDir: string;
 
   beforeEach(async () => {
@@ -70,22 +70,22 @@ describe("reorderWorkItem", () => {
   });
 
   it("reorders within the same priority bucket", () => {
-    const wi1 = createWorkItem(backlogDir, { title: "A", priority: "P1" });
-    const wi2 = createWorkItem(backlogDir, { title: "B", priority: "P1" });
-    const wi3 = createWorkItem(backlogDir, { title: "C", priority: "P1" });
+    const wi1 = createTask(backlogDir, { title: "A", priority: "P1" });
+    const wi2 = createTask(backlogDir, { title: "B", priority: "P1" });
+    const wi3 = createTask(backlogDir, { title: "C", priority: "P1" });
 
-    reorderWorkItem(backlogDir, { workItemId: wi3.id, beforeId: wi1.id });
-    const items = listWorkItems(backlogDir).filter((wi) => wi.priority === "P1");
+    reorderTask(backlogDir, { workItemId: wi3.id, beforeId: wi1.id });
+    const items = listTasks(backlogDir).filter((wi) => wi.priority === "P1");
     const ordered = items.sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0)).map((wi) => wi.id);
     expect(ordered).toEqual([wi3.id, wi1.id, wi2.id]);
   });
 
   it("does not affect items in different priority buckets", () => {
-    const wi1 = createWorkItem(backlogDir, { title: "A", priority: "P0" });
-    const wi2 = createWorkItem(backlogDir, { title: "B", priority: "P1" });
+    const wi1 = createTask(backlogDir, { title: "A", priority: "P0" });
+    const wi2 = createTask(backlogDir, { title: "B", priority: "P1" });
 
-    reorderWorkItem(backlogDir, { workItemId: wi2.id });
-    const wi1Reloaded = listWorkItems(backlogDir).find((wi) => wi.id === wi1.id);
+    reorderTask(backlogDir, { workItemId: wi2.id });
+    const wi1Reloaded = listTasks(backlogDir).find((wi) => wi.id === wi1.id);
     expect(wi1Reloaded?.rank).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
-import type { SubTask, WorkItem, ProjectConfig } from "@backlog/schemas";
+import type { SubTask, Task, ProjectConfig } from "@backlog/schemas";
 import { createSubTask } from "./subtask-service.js";
 import { listSubTasks } from "./state-files.js";
-import { getWorkItem, updateWorkItemPlanning, updateWorkItemStatus } from "./work-service.js";
+import { getTask, updateTaskPlanning, updateTaskStatus } from "./task-service.js";
 
 export interface SplitWorkItemInput {
   workItemId: string;
@@ -13,12 +13,12 @@ export interface SplitWorkItemInput {
 }
 
 export interface SplitWorkItemResult {
-  workItem: WorkItem;
+  workItem: Task;
   createdTasks: SubTask[];
   mode: "parallel" | "serial";
 }
 
-function priorityScoreForWorkItem(workItem: WorkItem): number {
+function priorityScoreForWorkItem(workItem: Task): number {
   switch (workItem.priority) {
     case "P0":
       return 100;
@@ -31,14 +31,14 @@ function priorityScoreForWorkItem(workItem: WorkItem): number {
   }
 }
 
-function buildTaskTitle(workItem: WorkItem, repo: string, repos: string[]): string {
+function buildTaskTitle(workItem: Task, repo: string, repos: string[]): string {
   if (repos.length === 1) {
     return workItem.title;
   }
   return `${workItem.title} (${repo})`;
 }
 
-export function resolveSplitRepos(config: ProjectConfig, workItem: WorkItem, requestedRepos?: string[]): string[] {
+export function resolveSplitRepos(config: ProjectConfig, workItem: Task, requestedRepos?: string[]): string[] {
   const repoIds = requestedRepos && requestedRepos.length > 0
     ? requestedRepos
     : workItem.repo_targets.length > 0
@@ -78,7 +78,7 @@ export function applySplitProposal(
   backlogDir: string,
   input: ApplySplitProposalInput,
 ): SplitWorkItemResult {
-  const workItem = getWorkItem(backlogDir, input.workItemId);
+  const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
@@ -117,22 +117,22 @@ export function applySplitProposal(
     indexToId.set(index, created.id);
   }
 
-  updateWorkItemPlanning(backlogDir, input.workItemId, {
+  updateTaskPlanning(backlogDir, input.workItemId, {
     split_status: "done",
     ...(input.tasks[0] ? { preferred_lane: input.tasks[0].repo } : {}),
   });
-  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
+  updateTaskStatus(backlogDir, input.workItemId, "ready");
 
   const hasDependencies = createdTasks.some((task) => task.depends_on.length > 0);
   return {
-    workItem: getWorkItem(backlogDir, input.workItemId)!,
+    workItem: getTask(backlogDir, input.workItemId)!,
     createdTasks,
     mode: hasDependencies ? "serial" : "parallel",
   };
 }
 
-export function splitWorkItem(backlogDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
-  const workItem = getWorkItem(backlogDir, input.workItemId);
+export function splitTask(backlogDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
+  const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
@@ -162,14 +162,14 @@ export function splitWorkItem(backlogDir: string, input: SplitWorkItemInput): Sp
     previousTaskId = created.id;
   }
 
-  updateWorkItemPlanning(backlogDir, input.workItemId, {
+  updateTaskPlanning(backlogDir, input.workItemId, {
     split_status: "done",
     ...(input.repos[0] ? { preferred_lane: input.repos[0] } : {}),
   });
-  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
+  updateTaskStatus(backlogDir, input.workItemId, "ready");
 
   return {
-    workItem: getWorkItem(backlogDir, input.workItemId)!,
+    workItem: getTask(backlogDir, input.workItemId)!,
     createdTasks,
     mode: input.mode,
   };

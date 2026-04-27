@@ -4,18 +4,18 @@ import { createConnector } from "@backlog/connectors";
 import {
   addSource,
   getSource,
-  getWorkItem,
+  getTask,
   hasPendingSyncConflictsForWorkItem,
   listPendingSyncConflicts,
   listSources,
-  listWorkItems,
+  listTasks,
   primarySourceLink,
   removeSource,
   resolveSyncConflict,
   resolveSyncConflictsForWorkItem,
   setSourceEnabled,
   updateSource,
-  upsertImportedWorkItems,
+  upsertImportedTasks,
 } from "@backlog/core";
 import type { SourceConfig, SourceKind } from "@backlog/schemas";
 
@@ -291,7 +291,7 @@ export function registerSourceCommand(program: Command): void {
         const connector = createConnector(source!, workspace.root);
         const items = await connector.pull();
         if (!options?.dryRun) {
-          upsertImportedWorkItems(workspace.backlogDir, items);
+          upsertImportedTasks(workspace.backlogDir, items);
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "synced"}`);
       }
@@ -317,8 +317,8 @@ export function registerSourceCommand(program: Command): void {
       }
 
       const items = options.all
-        ? listWorkItems(workspace.backlogDir).filter((item) => primarySourceLink(item)?.source_ref)
-        : [getWorkItem(workspace.backlogDir, workItemId!)].filter(Boolean);
+        ? listTasks(workspace.backlogDir).filter((item) => primarySourceLink(item)?.source_ref)
+        : [getTask(workspace.backlogDir, workItemId!)].filter(Boolean);
 
       if (items.length === 0) {
         throw new Error(options.all ? "No source-linked work items to push." : `Unknown work item: ${workItemId}`);

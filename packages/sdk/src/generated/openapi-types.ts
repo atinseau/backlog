@@ -366,7 +366,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            work_items?: components["schemas"]["WorkItem"][];
+                            work_items?: components["schemas"]["Task"][];
                         };
                     };
                 };
@@ -404,7 +404,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            work_item?: components["schemas"]["WorkItem"];
+                            work_item?: components["schemas"]["Task"];
                         };
                     };
                 };
@@ -1077,7 +1077,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
-        WorkItem: {
+        Task: {
             /** Format: int64 */
             id: number;
             /** Format: int64 */

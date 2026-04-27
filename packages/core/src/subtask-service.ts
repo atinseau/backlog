@@ -4,7 +4,7 @@ import {
   type SubTaskStatus,
 } from "@backlog/schemas";
 import { makeId } from "./id.js";
-import { getWorkItem, updateWorkItemStatus, deriveWorkStatusFromTasks } from "./work-service.js";
+import { getTask, updateTaskStatus, deriveTaskStatusFromSubTasks } from "./task-service.js";
 import { readSubTasksFile, writeSubTasksFile } from "./state-files.js";
 
 export interface CreateTaskInput {
@@ -43,7 +43,7 @@ export interface UpdateTaskInput {
 }
 
 export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTask {
-  const workItem = getWorkItem(backlogDir, input.workItemId);
+  const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
@@ -81,7 +81,7 @@ export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTa
   };
   file.subtasks.push(task);
   writeSubTasksFile(backlogDir, file);
-  updateWorkItemStatus(backlogDir, input.workItemId, "ready");
+  updateTaskStatus(backlogDir, input.workItemId, "ready");
   return task;
 }
 
@@ -89,7 +89,7 @@ export function getSubTask(backlogDir: string, id: string): SubTask | null {
   return readSubTasksFile(backlogDir).subtasks.find((task) => task.id === id) ?? null;
 }
 
-export function updateTask(backlogDir: string, id: string, input: UpdateTaskInput): SubTask {
+export function updateSubTask(backlogDir: string, id: string, input: UpdateTaskInput): SubTask {
   const file = readSubTasksFile(backlogDir);
   const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) {
@@ -155,9 +155,9 @@ export function updateSubTaskStatus(backlogDir: string, id: string, status: SubT
   task.updated_at = new Date().toISOString();
   writeSubTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, task.work_item_id);
+  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, task.work_item_id);
   if (derivedWorkStatus) {
-    updateWorkItemStatus(backlogDir, task.work_item_id, derivedWorkStatus);
+    updateTaskStatus(backlogDir, task.work_item_id, derivedWorkStatus);
   }
 
   return task;
@@ -170,7 +170,7 @@ export function blockTask(backlogDir: string, id: string, reasons: string[]): Su
   }
 
   const blockers = Array.from(new Set([...task.blockers, ...reasons]));
-  updateTask(backlogDir, id, { blockers });
+  updateSubTask(backlogDir, id, { blockers });
   return updateSubTaskStatus(backlogDir, id, "blocked");
 }
 
@@ -184,7 +184,7 @@ export function unblockTask(backlogDir: string, id: string, reasons?: string[]):
     ? task.blockers.filter((blocker) => !reasons.includes(blocker))
     : [];
 
-  updateTask(backlogDir, id, { blockers });
+  updateSubTask(backlogDir, id, { blockers });
   return updateSubTaskStatus(backlogDir, id, blockers.length > 0 ? "blocked" : "planned");
 }
 
@@ -273,7 +273,7 @@ export function reorderSubTask(backlogDir: string, input: ReorderTaskInput): Sub
   return task;
 }
 
-export function removeTask(backlogDir: string, id: string): SubTask {
+export function removeSubTask(backlogDir: string, id: string): SubTask {
   const file = readSubTasksFile(backlogDir);
   const index = file.subtasks.findIndex((candidate) => candidate.id === id);
   if (index < 0) {
@@ -292,11 +292,11 @@ export function removeTask(backlogDir: string, id: string): SubTask {
   }
   writeSubTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, removed.work_item_id);
+  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, removed.work_item_id);
   if (derivedWorkStatus) {
-    updateWorkItemStatus(backlogDir, removed.work_item_id, derivedWorkStatus);
+    updateTaskStatus(backlogDir, removed.work_item_id, derivedWorkStatus);
   } else {
-    updateWorkItemStatus(backlogDir, removed.work_item_id, "backlog");
+    updateTaskStatus(backlogDir, removed.work_item_id, "backlog");
   }
 
   return removed;

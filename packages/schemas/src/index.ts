@@ -6,5 +6,5 @@ export * from "./run.js";
 export * from "./source.js";
 export * from "./sync-conflict.js";
 export * from "./subtask.js";
-export * from "./work-item.js";
+export * from "./task.js";
 export * from "./project-registry.js";

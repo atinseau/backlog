@@ -1,4 +1,4 @@
-import type { WorkStatus } from "@backlog/schemas";
+import type { TaskStatus } from "@backlog/schemas";
 
 export type ColumnKey = "todo" | "doing" | "review" | "done";
 
@@ -11,7 +11,7 @@ export const COLUMN_LABELS_FR: Record<ColumnKey, string> = {
 
 export const COLUMN_KEYS: ColumnKey[] = ["todo", "doing", "review", "done"];
 
-export function statusToColumn(status: WorkStatus): ColumnKey | null {
+export function statusToColumn(status: TaskStatus): ColumnKey | null {
   switch (status) {
     case "backlog":
     case "ready":
@@ -30,7 +30,7 @@ export function statusToColumn(status: WorkStatus): ColumnKey | null {
   }
 }
 
-export function columnToDefaultStatus(column: ColumnKey): WorkStatus {
+export function columnToDefaultStatus(column: ColumnKey): TaskStatus {
   switch (column) {
     case "todo":
       return "ready";

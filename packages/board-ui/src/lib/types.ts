@@ -63,7 +63,7 @@ export interface SubTaskCard {
   eta: string | null;
 }
 
-export interface WorkItemCard {
+export interface TaskCard {
   id: string;
   title: string;
   priority: Priority;
@@ -81,7 +81,7 @@ export interface WorkItemCard {
 export interface BoardResponse {
   generated_at: string;
   workspace: string;
-  columns: Record<ColumnKey, WorkItemCard[]>;
+  columns: Record<ColumnKey, TaskCard[]>;
   active_claims_count: number;
   active_runs_count: number;
   total_estimated_seconds: number;

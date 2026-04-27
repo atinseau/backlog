@@ -1,16 +1,16 @@
 <script lang="ts">
   import {
     applySplitProposal,
-    splitWorkItem,
+    splitTask,
     suggestSplit,
     type ProposedTask,
     type SplitInput,
     type SplitResult,
   } from "./api.js";
-  import type { WorkItemCard } from "./types.js";
+  import type { TaskCard } from "./types.js";
 
   interface Props {
-    workItem: WorkItemCard;
+    workItem: TaskCard;
     availableRepos: string[];
     onClose: () => void;
     onSplit: (result: SplitResult) => void;
@@ -93,7 +93,7 @@
         force,
       };
       if (Object.keys(scope_by_repo).length > 0) input.scope_by_repo = scope_by_repo;
-      const result = await splitWorkItem(workItem.id, input);
+      const result = await splitTask(workItem.id, input);
       onSplit(result);
       onClose();
     } catch (err) {

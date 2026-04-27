@@ -1,17 +1,17 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { SourceConfig, WorkItem } from "@backlog/schemas";
+import type { SourceConfig, Task } from "@backlog/schemas";
 
 export interface SourceConnector {
   validate(): Promise<{ ok: boolean; details: string[] }>;
-  pull(): Promise<WorkItem[]>;
+  pull(): Promise<Task[]>;
   push?(update: ExternalUpdate): Promise<void>;
 }
 
 export interface ExternalUpdate {
   externalId: string;
-  status?: WorkItem["status"];
+  status?: Task["status"];
   comment?: string;
 }
 
@@ -23,7 +23,7 @@ function makeImportedId(): string {
   return `WI-${crypto.randomBytes(4).toString("hex")}`;
 }
 
-function parsePriority(value: string | undefined): WorkItem["priority"] {
+function parsePriority(value: string | undefined): Task["priority"] {
   switch ((value ?? "").trim().toUpperCase()) {
     case "P0":
     case "CRITICAL":
@@ -40,7 +40,7 @@ function parsePriority(value: string | undefined): WorkItem["priority"] {
   }
 }
 
-function parseStatus(value: string | undefined): WorkItem["status"] {
+function parseStatus(value: string | undefined): Task["status"] {
   switch ((value ?? "").trim().toLowerCase()) {
     case "ready":
       return "ready";
@@ -62,7 +62,7 @@ function parseStatus(value: string | undefined): WorkItem["status"] {
   }
 }
 
-function baseImportedWorkItem(source: SourceConfig, externalId: string, title: string): WorkItem {
+function baseImportedWorkItem(source: SourceConfig, externalId: string, title: string): Task {
   const now = nowIso();
   return {
     id: makeImportedId(),
@@ -105,10 +105,10 @@ class MarkdownConnector implements SourceConnector {
     };
   }
 
-  async pull(): Promise<WorkItem[]> {
+  async pull(): Promise<Task[]> {
     const filePath = this.resolvePath();
     const lines = fs.readFileSync(filePath, "utf8").split("\n");
-    const items: WorkItem[] = [];
+    const items: Task[] = [];
 
     for (const [index, line] of lines.entries()) {
       const match = line.match(/^\s*[-*]\s+(?:\[[ xX]\]\s+)?(.+?)\s*$/);
@@ -139,14 +139,14 @@ class CsvConnector implements SourceConnector {
     };
   }
 
-  async pull(): Promise<WorkItem[]> {
+  async pull(): Promise<Task[]> {
     const filePath = this.resolvePath();
     const [headerLine, ...rows] = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean);
     if (!headerLine) {
       return [];
     }
     const headers = headerLine.split(",").map((value) => value.trim());
-    const items: WorkItem[] = [];
+    const items: Task[] = [];
 
     for (const [index, row] of rows.entries()) {
       const values = row.split(",").map((value) => value.trim());
@@ -191,7 +191,7 @@ class JiraConnector implements SourceConnector {
     };
   }
 
-  async pull(): Promise<WorkItem[]> {
+  async pull(): Promise<Task[]> {
     const baseUrl = String(this.source.config.base_url ?? "");
     const jql = String(this.source.config.jql ?? "order by updated desc");
     const pageSize = Number(this.source.config.page_size ?? 50);
@@ -316,7 +316,7 @@ class JiraConnector implements SourceConnector {
   }
 }
 
-function mapBacklogStatusToJiraStatus(status: WorkItem["status"]): string | null {
+function mapBacklogStatusToJiraStatus(status: Task["status"]): string | null {
   switch (status) {
     case "backlog":
       return "To Do";

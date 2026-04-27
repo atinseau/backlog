@@ -7,7 +7,7 @@ import { git } from "@backlog/git";
 import { getAgent } from "./agents.js";
 import { archiveRun, createRun } from "./run-store.js";
 import { createSubTask } from "./subtask-service.js";
-import { createWorkItem } from "./work-service.js";
+import { createTask } from "./task-service.js";
 import { buildReleaseSnapshot } from "./release-snapshot.js";
 import { garbageCollectWorktrees, listKnownWorktrees } from "./worktrees.js";
 
@@ -28,7 +28,7 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string; re
 describe("release and worktree operators", () => {
   it("captures dirty state and run counts in the release snapshot", async () => {
     const { root, backlogDir, repoId } = await createWorkspace();
-    const workItem = createWorkItem(backlogDir, { title: "release snapshot", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "release snapshot", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "task",
@@ -114,7 +114,7 @@ describe("release and worktree operators", () => {
 
   it("lists known worktrees and supports dry-run garbage collection", async () => {
     const { backlogDir, repoId } = await createWorkspace();
-    const workItem = createWorkItem(backlogDir, { title: "worktree snapshot", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "worktree snapshot", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "task",

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const workStatusSchema = z.enum([
+export const taskStatusSchema = z.enum([
   "backlog",
   "ready",
   "in_progress",
@@ -30,12 +30,12 @@ export const sourceLinkSchema = z.object({
   url: z.string().optional(),
 });
 
-export const workItemSchema = z.object({
+export const taskSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),
   source_links: z.array(sourceLinkSchema).default([]),
-  status: workStatusSchema,
+  status: taskStatusSchema,
   priority: workPrioritySchema,
   labels: z.array(z.string()).default([]),
   repo_targets: z.array(z.string()).default([]),
@@ -61,12 +61,12 @@ export const workItemSchema = z.object({
   updated_at: z.string().min(1),
 });
 
-export const workItemsFileSchema = z.object({
+export const tasksFileSchema = z.object({
   version: z.literal(1),
-  items: z.array(workItemSchema).default([]),
+  tasks: z.array(taskSchema).default([]),
 });
 
 export type SourceLink = z.infer<typeof sourceLinkSchema>;
-export type WorkItem = z.infer<typeof workItemSchema>;
-export type WorkItemsFile = z.infer<typeof workItemsFileSchema>;
-export type WorkStatus = z.infer<typeof workStatusSchema>;
+export type Task = z.infer<typeof taskSchema>;
+export type TasksFile = z.infer<typeof tasksFileSchema>;
+export type TaskStatus = z.infer<typeof taskStatusSchema>;

@@ -290,8 +290,8 @@ export interface CreateWorkItemInput {
   estimated_duration_seconds?: number;
 }
 
-export async function createWorkItem(input: CreateWorkItemInput): Promise<unknown> {
-  const response = await fetch(apiUrl("/work-items"), {
+export async function createTask(input: CreateWorkItemInput): Promise<unknown> {
+  const response = await fetch(apiUrl("/tasks"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -303,11 +303,11 @@ export async function createWorkItem(input: CreateWorkItemInput): Promise<unknow
   return (await response.json()) as unknown;
 }
 
-export async function reorderWorkItem(
+export async function reorderTask(
   id: string,
   input: { before_id?: string; after_id?: string },
 ): Promise<void> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/reorder`), {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/reorder`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -372,7 +372,7 @@ export async function fetchHealth(): Promise<{ ok: boolean; workspace: string; v
 }
 
 export async function moveWorkItem(id: string, to: string): Promise<void> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/move`), {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/move`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ to }),
@@ -527,7 +527,7 @@ export type SuggestSplitResult =
   | { ok: false; error: "ai_unavailable" | "suggest_failed" | "no_repos"; detail: string };
 
 export async function suggestSplit(workItemId: string): Promise<SuggestSplitResult> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(workItemId)}/suggest-split`), {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(workItemId)}/suggest-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}",
@@ -549,7 +549,7 @@ export async function applySplitProposal(
   tasks: ProposedTask[],
   force = false,
 ): Promise<SplitResult> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(workItemId)}/apply-split`), {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(workItemId)}/apply-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ tasks, force }),
@@ -561,8 +561,8 @@ export async function applySplitProposal(
   return (await response.json()) as SplitResult;
 }
 
-export async function splitWorkItem(id: string, input: SplitInput): Promise<SplitResult> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/split`), {
+export async function splitTask(id: string, input: SplitInput): Promise<SplitResult> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),

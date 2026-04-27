@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { WorkItem } from "@backlog/schemas";
+import type { Task } from "@backlog/schemas";
 
 export interface ProposedTask {
   title: string;
@@ -73,7 +73,7 @@ const PROPOSAL_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-function buildUserPrompt(workItem: WorkItem, repos: string[]): string {
+function buildUserPrompt(workItem: Task, repos: string[]): string {
   const lines: string[] = [];
   lines.push(`Work item id: ${workItem.id}`);
   lines.push(`Title: ${workItem.title}`);
@@ -96,7 +96,7 @@ function buildUserPrompt(workItem: WorkItem, repos: string[]): string {
 }
 
 export async function suggestSplit(
-  workItem: WorkItem,
+  workItem: Task,
   repos: string[],
   options: { apiKey?: string; model?: string } = {},
 ): Promise<SplitProposal> {

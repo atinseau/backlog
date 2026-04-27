@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createWorkItem } from "./api.js";
+  import { createTask } from "./api.js";
 
   interface Props {
     availableRepos: string[];
@@ -25,13 +25,13 @@
     submitting = true;
     error = null;
     try {
-      const input: Parameters<typeof createWorkItem>[0] = {
+      const input: Parameters<typeof createTask>[0] = {
         title: title.trim(),
         priority,
       };
       if (description.trim()) input.description = description.trim();
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
-      await createWorkItem(input);
+      await createTask(input);
       onCreated?.();
       onClose();
     } catch (err) {

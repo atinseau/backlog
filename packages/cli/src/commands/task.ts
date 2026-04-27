@@ -1,19 +1,19 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
-  buildWorkExecutionOutline,
-  createWorkItem,
+  buildTaskExecutionOutline,
+  createTask,
   getSource,
-  getWorkItem,
+  getTask,
   listSources,
-  listWorkItems,
-  removeWorkItem,
+  listTasks,
+  removeTask,
   resolveSplitRepos,
-  setWorkItemEstimate,
-  splitWorkItem,
-  updateWorkItem,
-  upsertImportedWorkItems,
-  updateWorkItemStatus,
+  setTaskEstimate,
+  splitTask,
+  updateTask,
+  upsertImportedTasks,
+  updateTaskStatus,
 } from "@backlog/core";
 import { loadConfig } from "@backlog/config";
 import { createConnector } from "@backlog/connectors";
@@ -36,10 +36,10 @@ function parseScopeAssignments(assignments: string[] | undefined): Record<string
   return mapping;
 }
 
-export function registerWorkCommand(program: Command): void {
-  const work = program.command("work").description("Manage normalized work items");
+export function registerTaskCommand(program: Command): void {
+  const task = program.command("task").description("Manage tasks (kanban cards)");
 
-  work
+  task
     .command("add")
     .description("Create a local work item")
     .requiredOption("--title <title>", "Work item title")
@@ -60,7 +60,7 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const item = createWorkItem(workspace.backlogDir, {
+      const item = createTask(workspace.backlogDir, {
         title: options.title,
         ...(options.description ? { description: options.description } : {}),
         ...(options.priority ? { priority: options.priority } : {}),
@@ -71,7 +71,7 @@ export function registerWorkCommand(program: Command): void {
       console.log(`Created work item ${item.id}`);
     });
 
-  work
+  task
     .command("update")
     .description("Update work item metadata without editing YAML by hand")
     .argument("<work-item-id>", "Work item id")
@@ -105,7 +105,7 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const item = updateWorkItem(workspace.backlogDir, workItemId, {
+      const item = updateTask(workspace.backlogDir, workItemId, {
         ...(options.title !== undefined ? { title: options.title } : {}),
         ...(options.description !== undefined ? { description: options.description } : {}),
         ...(options.clearDescription ? { clearDescription: true } : {}),
@@ -122,7 +122,7 @@ export function registerWorkCommand(program: Command): void {
       console.log(`Updated ${item.id}`);
     });
 
-  work
+  task
     .command("list")
     .description("List known work items")
     .option("--status <status>", "Only show work items in one status")
@@ -135,7 +135,7 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const items = listWorkItems(workspace.backlogDir).filter((item) => {
+      const items = listTasks(workspace.backlogDir).filter((item) => {
         if (options.status && item.status !== options.status) {
           return false;
         }
@@ -163,7 +163,7 @@ export function registerWorkCommand(program: Command): void {
       }
     });
 
-  work
+  task
     .command("show")
     .description("Show one work item")
     .argument("<work-item-id>", "Work item id")
@@ -173,7 +173,7 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const item = getWorkItem(workspace.backlogDir, workItemId);
+      const item = getTask(workspace.backlogDir, workItemId);
       if (!item) {
         throw new Error(`Unknown work item: ${workItemId}`);
       }
@@ -193,7 +193,7 @@ export function registerWorkCommand(program: Command): void {
       }
     });
 
-  work
+  task
     .command("remove")
     .description("Remove a work item, optionally cascading its tasks")
     .argument("<work-item-id>", "Work item id")
@@ -203,13 +203,13 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const item = removeWorkItem(workspace.backlogDir, workItemId, {
+      const item = removeTask(workspace.backlogDir, workItemId, {
         ...(options.cascade ? { cascadeTasks: true } : {}),
       });
       console.log(`Removed ${item.id}`);
     });
 
-  work
+  task
     .command("move")
     .description("Move a work item to a new status")
     .argument("<work-item-id>", "Work item id")
@@ -219,11 +219,11 @@ export function registerWorkCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const item = updateWorkItemStatus(workspace.backlogDir, workItemId, status);
+      const item = updateTaskStatus(workspace.backlogDir, workItemId, status);
       console.log(`Moved ${item.id} to ${item.status}`);
     });
 
-  work
+  task
     .command("plan")
     .description("Explain how a work item would execute")
     .argument("<work-item-id>", "Work item id")
@@ -234,7 +234,7 @@ export function registerWorkCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
-      const outline = buildWorkExecutionOutline(workspace.backlogDir, config, workItemId);
+      const outline = buildTaskExecutionOutline(workspace.backlogDir, config, workItemId);
 
       if (options.json) {
         console.log(JSON.stringify(outline, null, 2));
@@ -258,7 +258,7 @@ export function registerWorkCommand(program: Command): void {
       }
     });
 
-  work
+  task
     .command("split")
     .description("Split one work item into executable repo-scoped tasks")
     .argument("<work-item-id>", "Work item id")
@@ -281,13 +281,13 @@ export function registerWorkCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
-      const item = getWorkItem(workspace.backlogDir, workItemId);
+      const item = getTask(workspace.backlogDir, workItemId);
       if (!item) {
         throw new Error(`Unknown work item: ${workItemId}`);
       }
 
       const repos = resolveSplitRepos(config, item, options.repo);
-      const result = splitWorkItem(workspace.backlogDir, {
+      const result = splitTask(workspace.backlogDir, {
         workItemId,
         repos,
         mode: options.mode === "serial" ? "serial" : "parallel",
@@ -309,7 +309,7 @@ export function registerWorkCommand(program: Command): void {
       }
     });
 
-  work
+  task
     .command("import")
     .description("Import work from one source or all enabled sources")
     .argument("[source-id]", "Optional source id")
@@ -330,13 +330,13 @@ export function registerWorkCommand(program: Command): void {
         const connector = createConnector(source!, workspace.root);
         const items = await connector.pull();
         if (!options?.dryRun) {
-          upsertImportedWorkItems(workspace.backlogDir, items);
+          upsertImportedTasks(workspace.backlogDir, items);
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "imported"}`);
       }
     });
 
-  work
+  task
     .command("estimate")
     .description("Set or clear the work item override estimate (in seconds)")
     .argument("<work-item-id>", "Work item id")
@@ -348,7 +348,7 @@ export function registerWorkCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.clear) {
-        setWorkItemEstimate(workspace.backlogDir, workItemId, null);
+        setTaskEstimate(workspace.backlogDir, workItemId, null);
         console.log(`Cleared estimate on ${workItemId}`);
         return;
       }
@@ -359,7 +359,7 @@ export function registerWorkCommand(program: Command): void {
       if (!Number.isInteger(seconds) || seconds <= 0) {
         throw new Error("seconds must be a positive integer");
       }
-      const updated = setWorkItemEstimate(workspace.backlogDir, workItemId, seconds);
+      const updated = setTaskEstimate(workspace.backlogDir, workItemId, seconds);
       console.log(`Set estimate to ${updated.estimated_duration_seconds}s on ${updated.id}`);
     });
 }

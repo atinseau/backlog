@@ -1,7 +1,7 @@
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { updateWorkItemStatus } from "./work-service.js";
+import { updateTaskStatus } from "./task-service.js";
 import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 
 function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
@@ -11,16 +11,16 @@ function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "rev
   }
   if (status === "review") {
     updateSubTaskStatus(backlogDir, taskId, "review");
-    updateWorkItemStatus(backlogDir, task.work_item_id, "review");
+    updateTaskStatus(backlogDir, task.work_item_id, "review");
     return;
   }
   if (status === "completed") {
     updateSubTaskStatus(backlogDir, taskId, "completed");
-    updateWorkItemStatus(backlogDir, task.work_item_id, "done");
+    updateTaskStatus(backlogDir, task.work_item_id, "done");
     return;
   }
   updateSubTaskStatus(backlogDir, taskId, "blocked");
-  updateWorkItemStatus(backlogDir, task.work_item_id, "blocked");
+  updateTaskStatus(backlogDir, task.work_item_id, "blocked");
 }
 
 async function releaseRunClaims(backlogDir: string, runId: string): Promise<void> {

@@ -3,9 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
-import type { WorkItem } from "@backlog/schemas";
-import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
-import { addSource, getSource, removeSource, setSourceEnabled, updateSource, upsertImportedWorkItems } from "./source-state.js";
+import type { Task } from "@backlog/schemas";
+import { readTasksFile, writeTasksFile } from "./state-files.js";
+import { addSource, getSource, removeSource, setSourceEnabled, updateSource, upsertImportedTasks } from "./source-state.js";
 import {
   hasPendingSyncConflictsForWorkItem,
   listPendingSyncConflicts,
@@ -24,7 +24,7 @@ function createWorkspace(): string {
   return path.join(root, ".backlog");
 }
 
-function importedItem(title: string): WorkItem {
+function importedItem(title: string): Task {
   const now = new Date().toISOString();
   return {
     id: `WI-${title}`,
@@ -43,7 +43,7 @@ function importedItem(title: string): WorkItem {
   };
 }
 
-describe("upsertImportedWorkItems", () => {
+describe("upsertImportedTasks", () => {
   it("can enable, disable, and update configured sources", () => {
     const backlogDir = createWorkspace();
 
@@ -118,55 +118,55 @@ describe("upsertImportedWorkItems", () => {
         source_of_truth: "external",
       },
     });
-    upsertImportedWorkItems(backlogDir, [importedItem("row-remove")]);
+    upsertImportedTasks(backlogDir, [importedItem("row-remove")]);
 
     expect(() => removeSource(backlogDir, "sheet")).toThrow(/still linked/);
     const removed = removeSource(backlogDir, "sheet", { force: true });
 
     expect(removed.id).toBe("sheet");
     expect(getSource(backlogDir, "sheet")).toBeNull();
-    expect(readWorkItemsFile(backlogDir).items[0]?.source_links).toEqual([]);
+    expect(readTasksFile(backlogDir).tasks[0]?.source_links).toEqual([]);
   });
 
   it("creates and updates imported work items by source identity", () => {
     const backlogDir = createWorkspace();
-    upsertImportedWorkItems(backlogDir, [importedItem("row-1")]);
-    upsertImportedWorkItems(backlogDir, [{ ...importedItem("row-1"), title: "updated-title" }]);
+    upsertImportedTasks(backlogDir, [importedItem("row-1")]);
+    upsertImportedTasks(backlogDir, [{ ...importedItem("row-1"), title: "updated-title" }]);
 
-    const file = readWorkItemsFile(backlogDir);
-    expect(file.items).toHaveLength(1);
-    expect(file.items[0]?.title).toBe("updated-title");
+    const file = readTasksFile(backlogDir);
+    expect(file.tasks).toHaveLength(1);
+    expect(file.tasks[0]?.title).toBe("updated-title");
   });
 
   it("records a sync conflict when external status differs from local status", () => {
     const backlogDir = createWorkspace();
     const base = importedItem("row-2");
-    upsertImportedWorkItems(backlogDir, [base]);
-    const file = readWorkItemsFile(backlogDir);
-    file.items[0]!.status = "in_progress";
-    writeWorkItemsFile(backlogDir, file);
+    upsertImportedTasks(backlogDir, [base]);
+    const file = readTasksFile(backlogDir);
+    file.tasks[0]!.status = "in_progress";
+    writeTasksFile(backlogDir, file);
 
-    upsertImportedWorkItems(backlogDir, [{ ...base, status: "backlog" }]);
+    upsertImportedTasks(backlogDir, [{ ...base, status: "backlog" }]);
     const conflicts = listPendingSyncConflicts(backlogDir);
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]?.local_value).toBe("in_progress");
     expect(conflicts[0]?.external_value).toBe("backlog");
 
     resolveSyncConflict(backlogDir, conflicts[0]!.id, "external");
-    const updated = readWorkItemsFile(backlogDir);
-    expect(updated.items[0]?.status).toBe("backlog");
+    const updated = readTasksFile(backlogDir);
+    expect(updated.tasks[0]?.status).toBe("backlog");
   });
 
   it("can list and resolve all pending conflicts for one work item", () => {
     const backlogDir = createWorkspace();
     const base = importedItem("row-3");
-    upsertImportedWorkItems(backlogDir, [base]);
+    upsertImportedTasks(backlogDir, [base]);
 
-    const file = readWorkItemsFile(backlogDir);
-    file.items[0]!.status = "review";
-    writeWorkItemsFile(backlogDir, file);
+    const file = readTasksFile(backlogDir);
+    file.tasks[0]!.status = "review";
+    writeTasksFile(backlogDir, file);
 
-    upsertImportedWorkItems(backlogDir, [{ ...base, status: "backlog" }]);
+    upsertImportedTasks(backlogDir, [{ ...base, status: "backlog" }]);
 
     expect(hasPendingSyncConflictsForWorkItem(backlogDir, base.id)).toBe(true);
     expect(listPendingSyncConflictsForWorkItem(backlogDir, base.id)).toHaveLength(1);

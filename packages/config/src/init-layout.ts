@@ -74,7 +74,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   };
 
   const configPath = saveConfig(backlogDir, config);
-  fs.writeFileSync(path.join(backlogDir, "work-items.yaml"), "version: 1\nitems: []\n", "utf8");
+  fs.writeFileSync(path.join(backlogDir, "tasks.yaml"), "version: 1\nitems: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "subtasks.yaml"), "version: 1\ntasks: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sources.yaml"), "version: 1\nsources: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sync-conflicts.json"), JSON.stringify({ version: 1, conflicts: [] }, null, 2) + "\n", "utf8");

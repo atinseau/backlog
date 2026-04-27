@@ -8,9 +8,9 @@ import {
   subTasksFileSchema,
   type SubTask,
   type SubTasksFile,
-  type WorkItem,
-  workItemsFileSchema,
-  type WorkItemsFile,
+  type Task,
+  tasksFileSchema,
+  type TasksFile,
 } from "@backlog/schemas";
 
 function readYaml<T>(filePath: string, parser: (value: unknown) => T): T {
@@ -22,8 +22,8 @@ function writeYaml(filePath: string, value: object): void {
   fs.writeFileSync(filePath, YAML.stringify(value), "utf8");
 }
 
-export function workItemsPath(backlogDir: string): string {
-  return path.join(backlogDir, "work-items.yaml");
+export function tasksPath(backlogDir: string): string {
+  return path.join(backlogDir, "tasks.yaml");
 }
 
 export function subTasksPath(backlogDir: string): string {
@@ -31,10 +31,11 @@ export function subTasksPath(backlogDir: string): string {
 }
 
 const LEGACY_SUBTASKS_FILE = "tasks.yaml";
+const LEGACY_TASKS_FILE = "work-items.yaml";
 
-// Legacy state used .backlog/tasks.yaml with inner key `tasks: []`. The new
-// shape lives at subtasks.yaml with inner key `subtasks: []`. Migrate on
-// first read so older workspaces stay loadable without a manual step.
+// Legacy state used .backlog/tasks.yaml with inner key `tasks: []` for the
+// per-repo execution units. The new shape lives at subtasks.yaml with inner
+// key `subtasks: []`. Migrate on first read.
 function migrateLegacySubTasksFile(backlogDir: string): void {
   const newPath = subTasksPath(backlogDir);
   const oldPath = path.join(backlogDir, LEGACY_SUBTASKS_FILE);
@@ -48,12 +49,32 @@ function migrateLegacySubTasksFile(backlogDir: string): void {
   fs.unlinkSync(oldPath);
 }
 
-export function readWorkItemsFile(backlogDir: string): WorkItemsFile {
-  return readYaml(workItemsPath(backlogDir), (value) => workItemsFileSchema.parse(value));
+// Legacy state used .backlog/work-items.yaml with inner key `items: []` for
+// the kanban cards. The new shape is .backlog/tasks.yaml with inner key
+// `tasks: []`. Migrate on first read.
+function migrateLegacyTasksFile(backlogDir: string): void {
+  // Run sub-tasks migration first so the destination tasks.yaml in the legacy
+  // tree is moved out of the way before we use that filename for kanban cards.
+  migrateLegacySubTasksFile(backlogDir);
+  const newPath = tasksPath(backlogDir);
+  const oldPath = path.join(backlogDir, LEGACY_TASKS_FILE);
+  if (!fs.existsSync(oldPath) || fs.existsSync(newPath)) return;
+  const raw = YAML.parse(fs.readFileSync(oldPath, "utf8")) as Record<string, unknown>;
+  if ("items" in raw && !("tasks" in raw)) {
+    raw.tasks = raw.items;
+    delete raw.items;
+  }
+  fs.writeFileSync(newPath, YAML.stringify(raw), "utf8");
+  fs.unlinkSync(oldPath);
 }
 
-export function writeWorkItemsFile(backlogDir: string, file: WorkItemsFile): void {
-  writeYaml(workItemsPath(backlogDir), file);
+export function readTasksFile(backlogDir: string): TasksFile {
+  migrateLegacyTasksFile(backlogDir);
+  return readYaml(tasksPath(backlogDir), (value) => tasksFileSchema.parse(value));
+}
+
+export function writeTasksFile(backlogDir: string, file: TasksFile): void {
+  writeYaml(tasksPath(backlogDir), file);
 }
 
 export function readSubTasksFile(backlogDir: string): SubTasksFile {
@@ -65,8 +86,8 @@ export function writeSubTasksFile(backlogDir: string, file: SubTasksFile): void 
   writeYaml(subTasksPath(backlogDir), file);
 }
 
-export function listWorkItems(backlogDir: string): WorkItem[] {
-  return readWorkItemsFile(backlogDir).items;
+export function listTasks(backlogDir: string): Task[] {
+  return readTasksFile(backlogDir).tasks;
 }
 
 export function listSubTasks(backlogDir: string): SubTask[] {

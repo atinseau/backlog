@@ -5,33 +5,33 @@
     COLUMN_DEFAULT_STATUS,
     COLUMN_LABELS,
     type ColumnKey,
-    type WorkItemCard,
+    type TaskCard,
   } from "./types.js";
 
   interface Props {
     columnKey: ColumnKey;
-    cards: WorkItemCard[];
+    cards: TaskCard[];
     onMove: (workItemId: string, toStatus: string, toColumn: ColumnKey) => void;
     onReorder?: (workItemId: string, beforeId: string | null, afterId: string | null) => void;
-    onSplit?: (card: WorkItemCard) => void;
-    onAddTask?: (card: WorkItemCard) => void;
+    onSplit?: (card: TaskCard) => void;
+    onAddTask?: (card: TaskCard) => void;
   }
 
   let { columnKey, cards, onMove, onReorder, onSplit, onAddTask }: Props = $props();
 
   const FLIP_MS = 180;
 
-  let localCards = $state<WorkItemCard[]>(cards);
+  let localCards = $state<TaskCard[]>(cards);
 
   $effect(() => {
     localCards = cards;
   });
 
-  function handleConsider(event: CustomEvent<{ items: WorkItemCard[] }>) {
+  function handleConsider(event: CustomEvent<{ items: TaskCard[] }>) {
     localCards = event.detail.items;
   }
 
-  function handleFinalize(event: CustomEvent<{ items: WorkItemCard[]; info: { id: string; trigger: string } }>) {
+  function handleFinalize(event: CustomEvent<{ items: TaskCard[]; info: { id: string; trigger: string } }>) {
     const nextItems = event.detail.items;
     const trigger = event.detail.info.trigger;
     if (trigger !== "droppedIntoZone") {

@@ -4,8 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initLayout, loadConfig } from "@backlog/config";
 import { readSubTasksFile } from "./state-files.js";
-import { resolveSplitRepos, splitWorkItem } from "./split-service.js";
-import { createWorkItem, getWorkItem } from "./work-service.js";
+import { resolveSplitRepos, splitTask } from "./split-service.js";
+import { createTask, getTask } from "./task-service.js";
 
 function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-split-"));
@@ -20,19 +20,19 @@ function createWorkspace(): string {
   return root;
 }
 
-describe("splitWorkItem", () => {
+describe("splitTask", () => {
   it("creates one serial task per repo and marks the work item as split", () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
-    const workItem = createWorkItem(backlogDir, {
+    const workItem = createTask(backlogDir, {
       title: "Ship orchestrator",
       repoTargets: ["backend", "app"],
       acceptanceCriteria: ["Tests pass", "Status is explainable"],
     });
 
-    const repos = resolveSplitRepos(config, getWorkItem(backlogDir, workItem.id)!, []);
-    const result = splitWorkItem(backlogDir, {
+    const repos = resolveSplitRepos(config, getTask(backlogDir, workItem.id)!, []);
+    const result = splitTask(backlogDir, {
       workItemId: workItem.id,
       repos,
       mode: "serial",
@@ -48,6 +48,6 @@ describe("splitWorkItem", () => {
 
     const tasksFile = readSubTasksFile(backlogDir);
     expect(tasksFile.subtasks).toHaveLength(2);
-    expect(getWorkItem(backlogDir, workItem.id)?.planning.split_status).toBe("done");
+    expect(getTask(backlogDir, workItem.id)?.planning.split_status).toBe("done");
   });
 });

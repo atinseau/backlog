@@ -6,7 +6,7 @@ import { executeAgentRun, supportsAgentExecution } from "./executor.js";
 import { addRunArtifact, createRun, listActiveRuns, nextRunId, updateRunStatus } from "./run-store.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { getWorkItem } from "./work-service.js";
+import { getTask } from "./task-service.js";
 import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./worktrees.js";
 
 export interface StartedRun {
@@ -77,7 +77,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
       continue;
     }
-    const workItem = getWorkItem(backlogDir, task.work_item_id);
+    const workItem = getTask(backlogDir, task.work_item_id);
     if (!workItem) {
       skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
       continue;

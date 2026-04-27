@@ -9,7 +9,7 @@ import { detectGitDir, git } from "@backlog/git";
 import { createRun, getRunHandoffPath, loadRun } from "./run-store.js";
 import { completeRun, requestRunChanges, sendRunToReview } from "./run-service.js";
 import { createSubTask, getSubTask } from "./subtask-service.js";
-import { createWorkItem, getWorkItem } from "./work-service.js";
+import { createTask, getTask } from "./task-service.js";
 import { getAgent } from "./agents.js";
 
 async function createWorkspace(): Promise<string> {
@@ -34,7 +34,7 @@ describe("completeRun", () => {
     const config = loadConfig(backlogDir);
     const repoId = config.repos[0]!.id;
 
-    const workItem = createWorkItem(backlogDir, { title: "Finish a run", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "Finish a run", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Run core work",
@@ -84,7 +84,7 @@ describe("completeRun", () => {
     const config = loadConfig(backlogDir);
     const repoId = config.repos[0]!.id;
 
-    const workItem = createWorkItem(backlogDir, { title: "Review a run", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "Review a run", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Review task",
@@ -134,7 +134,7 @@ describe("completeRun", () => {
     const config = loadConfig(backlogDir);
     const repoId = config.repos[0]!.id;
 
-    const workItem = createWorkItem(backlogDir, { title: "Need another pass", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "Need another pass", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Retry task",
@@ -164,7 +164,7 @@ describe("completeRun", () => {
 
     expect(loadRun(backlogDir, "RUN-changes")?.status).toBe("blocked");
     expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
-    expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("in_progress");
+    expect(getTask(backlogDir, workItem.id)?.status).toBe("in_progress");
     expect(getRunHandoffPath(backlogDir, "RUN-changes")).toBe(handoffPath);
     expect(fs.existsSync(handoffPath)).toBe(true);
     expect(fs.readFileSync(handoffPath, "utf8")).toContain("Please tighten the scope and rerun tests");

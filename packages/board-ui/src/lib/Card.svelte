@@ -1,13 +1,13 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
-  import type { SubTaskCard, WorkItemCard } from "./types.js";
+  import type { SubTaskCard, TaskCard } from "./types.js";
   import { onDestroy } from "svelte";
 
   interface Props {
-    card: WorkItemCard;
-    onSplit?: (card: WorkItemCard) => void;
-    onAddTask?: (card: WorkItemCard) => void;
+    card: TaskCard;
+    onSplit?: (card: TaskCard) => void;
+    onAddTask?: (card: TaskCard) => void;
   }
 
   let { card, onSplit, onAddTask }: Props = $props();

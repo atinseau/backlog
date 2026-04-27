@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initLayout, loadConfig } from "@backlog/config";
 import { createSubTask } from "./subtask-service.js";
-import { createWorkItem } from "./work-service.js";
+import { createTask } from "./task-service.js";
 import { buildExecutionPlan } from "./scheduler.js";
 
 function createWorkspace(): string {
@@ -27,7 +27,7 @@ describe("buildExecutionPlan", () => {
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(backlogDir, { title: "Ship feature", repoTargets: [path.basename(root)] });
+    const work = createTask(backlogDir, { title: "Ship feature", repoTargets: [path.basename(root)] });
     const first = createSubTask(backlogDir, {
       workItemId: work.id,
       title: "First task",
@@ -52,7 +52,7 @@ describe("buildExecutionPlan", () => {
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(backlogDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
+    const work = createTask(backlogDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
     const first = createSubTask(backlogDir, {
       workItemId: work.id,
       title: "Core planner",
@@ -104,7 +104,7 @@ describe("buildExecutionPlan", () => {
       ].join("\n"),
     );
 
-    const work = createWorkItem(backlogDir, { title: "Preferred agent", repoTargets: [path.basename(root)] });
+    const work = createTask(backlogDir, { title: "Preferred agent", repoTargets: [path.basename(root)] });
     createSubTask(backlogDir, {
       workItemId: work.id,
       title: "Agent sensitive task",
@@ -124,7 +124,7 @@ describe("buildExecutionPlan", () => {
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
 
-    const work = createWorkItem(backlogDir, { title: "Capability mismatch", repoTargets: [path.basename(root)] });
+    const work = createTask(backlogDir, { title: "Capability mismatch", repoTargets: [path.basename(root)] });
     const task = createSubTask(backlogDir, {
       workItemId: work.id,
       title: "Needs tests",

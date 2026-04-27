@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
 import { createSubTask } from "./subtask-service.js";
-import { createWorkItem } from "./work-service.js";
+import { createTask } from "./task-service.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-agents-"));
@@ -87,7 +87,7 @@ describe("agents", () => {
   });
 
   it("explains why a forced agent is unavailable for one task", () => {
-    const workItem = createWorkItem(backlogDir, { title: "Agent targeting", repoTargets: ["backlog"] });
+    const workItem = createTask(backlogDir, { title: "Agent targeting", repoTargets: ["backlog"] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Run with codex",

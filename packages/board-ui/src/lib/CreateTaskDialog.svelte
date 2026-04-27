@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createSubTask } from "./api.js";
-  import type { WorkItemCard } from "./types.js";
+  import type { TaskCard } from "./types.js";
 
   interface Props {
-    workItem: WorkItemCard;
+    workItem: TaskCard;
     availableRepos: string[];
     onClose: () => void;
     onCreated?: () => void;

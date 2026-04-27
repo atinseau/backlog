@@ -2,7 +2,7 @@ import createClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./generated/openapi-types.js";
 
 export type Workspace = components["schemas"]["Workspace"];
-export type WorkItem = components["schemas"]["WorkItem"];
+export type Task = components["schemas"]["Task"];
 export type SubTask = components["schemas"]["Task"];
 export type Run = components["schemas"]["Run"];
 export type User = components["schemas"]["User"];
@@ -113,7 +113,7 @@ export class BacklogClient {
 
   // ── Work items ───────────────────────────────────────────────────────
 
-  async listWorkItems(workspaceId: number): Promise<WorkItem[]> {
+  async listTasks(workspaceId: number): Promise<Task[]> {
     const { data, error } = await this.client.GET("/projects/{id}/work-items", {
       params: { path: { id: workspaceId } },
     });
@@ -121,7 +121,7 @@ export class BacklogClient {
     return data.work_items ?? [];
   }
 
-  async createWorkItem(
+  async createTask(
     workspaceId: number,
     input: {
       external_id: string;
@@ -130,7 +130,7 @@ export class BacklogClient {
       priority?: string;
       payload?: Record<string, unknown>;
     },
-  ): Promise<WorkItem> {
+  ): Promise<Task> {
     const { data, error } = await this.client.POST("/projects/{id}/work-items", {
       params: { path: { id: workspaceId } },
       body: input,

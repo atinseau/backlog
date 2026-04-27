@@ -6,8 +6,8 @@ import { cloneRepo, detectGitProvider, repoIdFromGitUrl } from "@backlog/git";
 import type { RepoConfig, RepoProvider } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
-import { deriveWorkStatusFromTasks } from "./work-service.js";
-import { readSubTasksFile, readWorkItemsFile, writeSubTasksFile, writeWorkItemsFile } from "./state-files.js";
+import { deriveTaskStatusFromSubTasks } from "./task-service.js";
+import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
 
 export interface AddRepoInput {
   id: string;
@@ -167,9 +167,9 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
       writeSubTasksFile(backlogDir, tasksFile);
     }
 
-    const workItemsFile = readWorkItemsFile(backlogDir);
+    const workItemsFile = readTasksFile(backlogDir);
     let workItemsChanged = false;
-    for (const item of workItemsFile.items) {
+    for (const item of workItemsFile.tasks) {
       let changed = false;
       if (item.repo_targets.includes(repoId)) {
         item.repo_targets = item.repo_targets.map((candidate) => candidate === repoId ? nextId : candidate);
@@ -185,7 +185,7 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
       }
     }
     if (workItemsChanged) {
-      writeWorkItemsFile(backlogDir, workItemsFile);
+      writeTasksFile(backlogDir, workItemsFile);
     }
 
     const agentsFile = readAgentsFile(backlogDir);
@@ -254,8 +254,8 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
 
   const tasksFile = readSubTasksFile(backlogDir);
   const linkedTasks = tasksFile.subtasks.filter((task) => task.repo === repoId);
-  const workItemsFile = readWorkItemsFile(backlogDir);
-  const linkedWorkItems = workItemsFile.items.filter((item) => item.repo_targets.includes(repoId) || item.planning.preferred_lane === repoId);
+  const workItemsFile = readTasksFile(backlogDir);
+  const linkedWorkItems = workItemsFile.tasks.filter((item) => item.repo_targets.includes(repoId) || item.planning.preferred_lane === repoId);
   const agentsFile = readAgentsFile(backlogDir);
   const linkedAgents = agentsFile.agents.filter((agent) => agent.allowed_repos.includes(repoId));
 
@@ -286,7 +286,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
 
     let workItemsChanged = false;
     const affectedWorkItems = new Set(linkedTasks.map((task) => task.work_item_id));
-    for (const item of workItemsFile.items) {
+    for (const item of workItemsFile.tasks) {
       let changed = false;
       if (item.repo_targets.includes(repoId)) {
         item.repo_targets = item.repo_targets.filter((candidate) => candidate !== repoId);
@@ -297,7 +297,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
         changed = true;
       }
       if (affectedWorkItems.has(item.id)) {
-        item.status = deriveWorkStatusFromTasks(backlogDir, item.id) ?? "backlog";
+        item.status = deriveTaskStatusFromSubTasks(backlogDir, item.id) ?? "backlog";
         changed = true;
       }
       if (changed) {
@@ -306,7 +306,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
       }
     }
     if (workItemsChanged) {
-      writeWorkItemsFile(backlogDir, workItemsFile);
+      writeTasksFile(backlogDir, workItemsFile);
     }
 
     let agentsChanged = false;

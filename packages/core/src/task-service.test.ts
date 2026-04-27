@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { createWorkItem, removeWorkItem, updateWorkItem } from "./work-service.js";
+import { createTask, removeTask, updateTask } from "./task-service.js";
 import { createSubTask, getSubTask } from "./subtask-service.js";
 import { listPendingSyncConflicts, recordStatusConflict } from "./sync-conflicts.js";
 
@@ -26,7 +26,7 @@ describe("work-service", () => {
   });
 
   it("updates editable work item fields and planning metadata", () => {
-    const item = createWorkItem(backlogDir, {
+    const item = createTask(backlogDir, {
       title: "Initial work item",
       description: "old description",
       repoTargets: ["backlog"],
@@ -34,7 +34,7 @@ describe("work-service", () => {
       acceptanceCriteria: ["one"],
     });
 
-    const updated = updateWorkItem(backlogDir, item.id, {
+    const updated = updateTask(backlogDir, item.id, {
       title: "Updated work item",
       clearDescription: true,
       priority: "P0",
@@ -60,7 +60,7 @@ describe("work-service", () => {
   });
 
   it("removes a work item and cascades linked tasks when requested", () => {
-    const item = createWorkItem(backlogDir, {
+    const item = createTask(backlogDir, {
       title: "Removable work item",
       repoTargets: ["backlog"],
     });
@@ -77,10 +77,10 @@ describe("work-service", () => {
       externalValue: "backlog",
     });
 
-    const removed = removeWorkItem(backlogDir, item.id, { cascadeTasks: true });
+    const removed = removeTask(backlogDir, item.id, { cascadeTasks: true });
 
     expect(removed.id).toBe(item.id);
-    expect(removeWorkItem.bind(null, backlogDir, item.id)).toThrowError;
+    expect(removeTask.bind(null, backlogDir, item.id)).toThrowError;
     expect(getSubTask(backlogDir, task.id)).toBeNull();
     expect(listPendingSyncConflicts(backlogDir)).toHaveLength(0);
   });

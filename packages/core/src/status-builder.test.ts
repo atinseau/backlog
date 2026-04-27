@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { createSubTask } from "./subtask-service.js";
-import { createWorkItem, updateWorkItemStatus } from "./work-service.js";
+import { createTask, updateTaskStatus } from "./task-service.js";
 import { buildWorkspaceStatus } from "./status-builder.js";
 import { createRun } from "./run-store.js";
 import { getAgent } from "./agents.js";
@@ -51,15 +51,15 @@ describe("buildWorkspaceStatus", () => {
 
   it("builds repo summaries across the workspace", () => {
     const config = loadConfig(backlogDir);
-    const appItem = createWorkItem(backlogDir, {
+    const appItem = createTask(backlogDir, {
       title: "App task",
       repoTargets: ["backlog"],
     });
-    const docsItem = createWorkItem(backlogDir, {
+    const docsItem = createTask(backlogDir, {
       title: "Docs task",
       repoTargets: ["docs"],
     });
-    updateWorkItemStatus(backlogDir, docsItem.id, "blocked");
+    updateTaskStatus(backlogDir, docsItem.id, "blocked");
     createSubTask(backlogDir, {
       workItemId: appItem.id,
       title: "Ship app",
@@ -115,11 +115,11 @@ describe("buildWorkspaceStatus", () => {
 
   it("can focus status on one repo", () => {
     const config = loadConfig(backlogDir);
-    const appItem = createWorkItem(backlogDir, {
+    const appItem = createTask(backlogDir, {
       title: "App task",
       repoTargets: ["backlog"],
     });
-    const docsItem = createWorkItem(backlogDir, {
+    const docsItem = createTask(backlogDir, {
       title: "Docs task",
       repoTargets: ["docs"],
     });

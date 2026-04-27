@@ -75,7 +75,7 @@ export interface WorkItemProgressInput {
   taskProgresses: Array<{ percent: number; estimateSeconds: number }>;
 }
 
-export function computeWorkItemProgress(input: WorkItemProgressInput): number {
+export function computeTaskProgress(input: WorkItemProgressInput): number {
   const { taskProgresses } = input;
   if (taskProgresses.length === 0) return 0;
   const totalDuration = taskProgresses.reduce((sum, t) => sum + Math.max(0, t.estimateSeconds), 0);

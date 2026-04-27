@@ -1,13 +1,13 @@
 import { loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
-  createWorkItem,
-  listWorkItems,
-  reorderWorkItem,
+  createTask,
+  listTasks,
+  reorderTask,
   resolveSplitRepos,
-  setWorkItemEstimate,
-  splitWorkItem,
-  updateWorkItemStatus,
+  setTaskEstimate,
+  splitTask,
+  updateTaskStatus,
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -75,7 +75,7 @@ const applySplitBodySchema = z.object({
 export function workItemsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
-  app.post("/work-items", async (c) => {
+  app.post("/tasks", async (c) => {
     const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
@@ -83,7 +83,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const input: Parameters<typeof createWorkItem>[1] = {
+      const input: Parameters<typeof createTask>[1] = {
         title: parsed.data.title,
       };
       if (parsed.data.description !== undefined) input.description = parsed.data.description;
@@ -91,9 +91,9 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.acceptance_criteria !== undefined) input.acceptanceCriteria = parsed.data.acceptance_criteria;
-      let workItem = createWorkItem(workspace.backlogDir, input);
+      let workItem = createTask(workspace.backlogDir, input);
       if (parsed.data.estimated_duration_seconds) {
-        workItem = setWorkItemEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
+        workItem = setTaskEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
       }
       return c.json({ work_item: workItem }, 201);
     } catch (error) {
@@ -102,7 +102,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/work-items/:id/move", async (c) => {
+  app.post("/tasks/:id/move", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -111,7 +111,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const updated = updateWorkItemStatus(workspace.backlogDir, id, parsed.data.to);
+      const updated = updateTaskStatus(workspace.backlogDir, id, parsed.data.to);
       return c.json({ work_item: updated });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -119,7 +119,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/work-items/:id/split", async (c) => {
+  app.post("/tasks/:id/split", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -129,12 +129,12 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
     try {
       const config = loadConfig(workspace.backlogDir);
-      const workItem = listWorkItems(workspace.backlogDir).find((item) => item.id === id);
+      const workItem = listTasks(workspace.backlogDir).find((item) => item.id === id);
       if (!workItem) {
         return c.json({ error: "unknown_work_item", id }, 404);
       }
       const repos = resolveSplitRepos(config, workItem, parsed.data.repos);
-      const input: Parameters<typeof splitWorkItem>[1] = {
+      const input: Parameters<typeof splitTask>[1] = {
         workItemId: id,
         repos,
         mode: parsed.data.mode,
@@ -142,7 +142,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.scope_by_repo !== undefined) input.scopeByRepo = parsed.data.scope_by_repo;
       if (parsed.data.risk !== undefined) input.risk = parsed.data.risk;
       if (parsed.data.force !== undefined) input.force = parsed.data.force;
-      const result = splitWorkItem(workspace.backlogDir, input);
+      const result = splitTask(workspace.backlogDir, input);
       return c.json({
         work_item: result.workItem,
         created_tasks: result.createdTasks,
@@ -155,12 +155,12 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/work-items/:id/suggest-split", async (c) => {
+  app.post("/tasks/:id/suggest-split", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     try {
       const config = loadConfig(workspace.backlogDir);
-      const workItem = listWorkItems(workspace.backlogDir).find((item) => item.id === id);
+      const workItem = listTasks(workspace.backlogDir).find((item) => item.id === id);
       if (!workItem) {
         return c.json({ error: "unknown_work_item", id }, 404);
       }
@@ -193,7 +193,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/work-items/:id/apply-split", async (c) => {
+  app.post("/tasks/:id/apply-split", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -228,7 +228,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/work-items/:id/reorder", async (c) => {
+  app.post("/tasks/:id/reorder", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => ({}));
@@ -237,10 +237,10 @@ export function workItemsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const input: Parameters<typeof reorderWorkItem>[1] = { workItemId: id };
+      const input: Parameters<typeof reorderTask>[1] = { workItemId: id };
       if (parsed.data.before_id !== undefined) input.beforeId = parsed.data.before_id;
       if (parsed.data.after_id !== undefined) input.afterId = parsed.data.after_id;
-      const workItem = reorderWorkItem(workspace.backlogDir, input);
+      const workItem = reorderTask(workspace.backlogDir, input);
       return c.json({ work_item: workItem });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -248,7 +248,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.patch("/work-items/:id/estimate", async (c) => {
+  app.patch("/tasks/:id/estimate", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -257,7 +257,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const workItem = setWorkItemEstimate(workspace.backlogDir, id, parsed.data.seconds);
+      const workItem = setTaskEstimate(workspace.backlogDir, id, parsed.data.seconds);
       return c.json({ work_item: workItem });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { syncConflictsFileSchema, type SyncConflict, type SyncConflictsFile, type WorkItem } from "@backlog/schemas";
+import { syncConflictsFileSchema, type SyncConflict, type SyncConflictsFile, type Task } from "@backlog/schemas";
 import { makeId } from "./id.js";
-import { readWorkItemsFile, writeWorkItemsFile } from "./state-files.js";
+import { readTasksFile, writeTasksFile } from "./state-files.js";
 
 function conflictsPath(backlogDir: string): string {
   return path.join(backlogDir, "sync-conflicts.json");
@@ -85,12 +85,12 @@ export function resolveSyncConflict(backlogDir: string, conflictId: string, reso
   conflict.resolved_at = new Date().toISOString();
 
   if (resolution === "external") {
-    const workItems = readWorkItemsFile(backlogDir);
-    const workItem = workItems.items.find((item) => item.id === conflict.work_item_id);
+    const workItems = readTasksFile(backlogDir);
+    const workItem = workItems.tasks.find((item) => item.id === conflict.work_item_id);
     if (workItem) {
-      workItem.status = conflict.external_value as WorkItem["status"];
+      workItem.status = conflict.external_value as Task["status"];
       workItem.updated_at = new Date().toISOString();
-      writeWorkItemsFile(backlogDir, workItems);
+      writeTasksFile(backlogDir, workItems);
     }
   }
 
@@ -107,7 +107,7 @@ export function resolveSyncConflictsForWorkItem(
   return pending.map((conflict) => resolveSyncConflict(backlogDir, conflict.id, resolution));
 }
 
-export function removeSyncConflictsForWorkItem(backlogDir: string, workItemId: string): number {
+export function removeSyncConflictsForTask(backlogDir: string, workItemId: string): number {
   const file = readSyncConflictsFile(backlogDir);
   const before = file.conflicts.length;
   file.conflicts = file.conflicts.filter((conflict) => conflict.work_item_id !== workItemId);

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, SubTask, WorkItem } from "@backlog/schemas";
+import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
@@ -10,7 +10,7 @@ export async function executeCodexAgentRun(params: {
   backlogDir: string;
   run: Run;
   task: SubTask;
-  workItem: WorkItem;
+  workItem: Task;
   agent: Agent;
 }): Promise<void> {
   const executable = params.agent.command || "codex";

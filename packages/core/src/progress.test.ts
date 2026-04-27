@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Run, SubTask } from "@backlog/schemas";
-import { computeSubTaskProgress, computeWorkItemProgress, elapsedSeconds, etaIso } from "./progress.js";
+import { computeSubTaskProgress, computeTaskProgress, elapsedSeconds, etaIso } from "./progress.js";
 
 function makeTask(overrides: Partial<SubTask> = {}): SubTask {
   return {
@@ -132,13 +132,13 @@ describe("etaIso", () => {
   });
 });
 
-describe("computeWorkItemProgress", () => {
+describe("computeTaskProgress", () => {
   it("returns 0 for empty list", () => {
-    expect(computeWorkItemProgress({ taskProgresses: [] })).toBe(0);
+    expect(computeTaskProgress({ taskProgresses: [] })).toBe(0);
   });
 
   it("weighs by duration", () => {
-    const result = computeWorkItemProgress({
+    const result = computeTaskProgress({
       taskProgresses: [
         { percent: 100, estimateSeconds: 600 },
         { percent: 0, estimateSeconds: 600 },
@@ -148,7 +148,7 @@ describe("computeWorkItemProgress", () => {
   });
 
   it("weights longer tasks more", () => {
-    const result = computeWorkItemProgress({
+    const result = computeTaskProgress({
       taskProgresses: [
         { percent: 100, estimateSeconds: 100 },
         { percent: 0, estimateSeconds: 900 },

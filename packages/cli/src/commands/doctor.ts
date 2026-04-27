@@ -19,7 +19,7 @@ export function registerDoctorCommand(program: Command): void {
 
       const requiredPaths = [
         path.join(workspace.backlogDir, "config.toml"),
-        path.join(workspace.backlogDir, "work-items.yaml"),
+        path.join(workspace.backlogDir, "tasks.yaml"),
         path.join(workspace.backlogDir, "subtasks.yaml"),
         path.join(workspace.backlogDir, "sources.yaml"),
         path.join(workspace.backlogDir, "sync-conflicts.json"),

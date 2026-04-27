@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runSchema, type Artifact, type Run, type SubTask, type WorkItem } from "@backlog/schemas";
+import { runSchema, type Artifact, type Run, type SubTask, type Task } from "@backlog/schemas";
 import type { Agent } from "@backlog/schemas";
 import { makeId } from "./id.js";
 
@@ -24,7 +24,7 @@ export function createRun(params: {
   backlogDir: string;
   runId: string;
   task: SubTask;
-  workItem: WorkItem;
+  workItem: Task;
   agent: Agent;
   branch: string;
   worktreePath: string;

@@ -21,4 +21,4 @@ export * from "./sync-conflicts.js";
 export * from "./subtask-service.js";
 export * from "./split-service.js";
 export * from "./worktrees.js";
-export * from "./work-service.js";
+export * from "./task-service.js";

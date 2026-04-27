@@ -7,7 +7,7 @@ import type { Agent } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { createRun, loadRun } from "./run-store.js";
 import { createSubTask } from "./subtask-service.js";
-import { createWorkItem } from "./work-service.js";
+import { createTask } from "./task-service.js";
 
 function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-claude-"));
@@ -41,7 +41,7 @@ describe("executeClaudeAgentRun", () => {
     const repoId = path.basename(root);
     const fakeClaudePath = writeFakeClaudeBinary(root);
 
-    const workItem = createWorkItem(backlogDir, { title: "Claude run", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "Claude run", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Implement with claude",
