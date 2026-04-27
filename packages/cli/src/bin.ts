@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { registerAgentCommand } from "./commands/agent.js";
 import { registerClaimCommand } from "./commands/claim.js";
+import { registerDaemonCommand } from "./commands/daemon.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerHooksCommand } from "./commands/hooks.js";
 import { registerInitCommand } from "./commands/init.js";
@@ -35,6 +36,7 @@ registerInitCommand(program);
 registerDoctorCommand(program);
 registerAgentCommand(program);
 registerClaimCommand(program);
+registerDaemonCommand(program);
 registerHooksCommand(program);
 registerOrchestratorCommand(program);
 registerProjectCommand(program);
