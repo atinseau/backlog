@@ -7,7 +7,7 @@
     onSelect: (id: string) => void;
   }
 
-  let { workspaces, selectedId, onSelect }: Props = $props();
+  let { projects, selectedId, onSelect }: Props = $props();
 
   function handleChange(event: Event) {
     const target = event.currentTarget as HTMLSelectElement;
@@ -16,13 +16,13 @@
 
   // If only one workspace is registered we still show the selector so the
   // user knows where they are, but disable it — there's nowhere else to go.
-  const disabled = $derived(workspaces.length <= 1);
+  const disabled = $derived(projects.length <= 1);
 </script>
 
 <div class="workspace-selector" class:single={disabled}>
   <span class="label">⌂</span>
   <select value={selectedId ?? ""} onchange={handleChange} {disabled}>
-    {#each workspaces as workspace (workspace.id)}
+    {#each projects as workspace (workspace.id)}
       <option value={workspace.id}>{workspace.name}</option>
     {/each}
   </select>

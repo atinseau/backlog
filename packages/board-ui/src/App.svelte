@@ -245,7 +245,7 @@
     <h1>Backlog</h1>
     {#if workspaces.length > 0 && selectedWorkspaceId}
       <ProjectSelector
-        {workspaces}
+        projects={workspaces}
         selectedId={selectedWorkspaceId}
         onSelect={applyWorkspace}
       />
