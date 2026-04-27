@@ -6,7 +6,11 @@
     clearGithubPat,
     clearJiraOauthClient,
     cloneGithubRepo,
+    cloudLogin,
+    cloudLogout,
+    cloudSignup,
     deleteSource,
+    fetchCloudStatus,
     fetchGithubOauthConfig,
     fetchGithubStatus,
     fetchJiraOauthConfig,
@@ -21,6 +25,7 @@
     startJiraOauth,
     syncSource,
     testJira,
+    type CloudStatus,
     type GithubDeviceStart,
     type GithubOauthConfig,
     type GithubRepoSummary,
@@ -38,7 +43,70 @@
 
   let { onClose, onChanged }: Props = $props();
 
-  let tab = $state<"github" | "jira" | "sources">("github");
+  let tab = $state<"account" | "github" | "jira" | "sources">("account");
+
+  // Cloud account state
+  let cloudStatus = $state<CloudStatus | null>(null);
+  let cloudMode = $state<"signin" | "signup">("signin");
+  let cloudEmail = $state("");
+  let cloudPassword = $state("");
+  let cloudBusy = $state(false);
+  let cloudError = $state<string | null>(null);
+
+  async function loadCloudStatus() {
+    try {
+      cloudStatus = await fetchCloudStatus();
+      if (cloudStatus.signed_in && tab === "account") {
+        // Stay on account tab so user sees the connected state.
+      } else if (!cloudStatus.signed_in) {
+        tab = "account";
+      }
+    } catch {
+      // Ignore — local server might just be starting.
+    }
+  }
+
+  function mapCloudError(error: string | undefined): string {
+    if (!error) return "";
+    if (error === "invalid_credentials") return t("account.error.invalid_credentials");
+    if (error === "invalid_input") return t("account.error.invalid_input");
+    if (error === "cloud_unreachable") return t("account.error.cloud_unreachable");
+    return error;
+  }
+
+  async function submitCloudAuth() {
+    cloudBusy = true;
+    cloudError = null;
+    try {
+      const fn = cloudMode === "signup" ? cloudSignup : cloudLogin;
+      const result = await fn({ email: cloudEmail.trim(), password: cloudPassword });
+      if (!result.ok) {
+        if (result.error === "invalid_input" && cloudMode === "signup") {
+          // Devise validation error — usually email taken
+          cloudError = t("account.error.email_taken");
+        } else {
+          cloudError = mapCloudError(result.error);
+        }
+        return;
+      }
+      cloudPassword = "";
+      await loadCloudStatus();
+      // Cloud sign-in unlocks GitHub/Jira; reload their configs too.
+      await loadGhStatus();
+      await loadJiraOauthConfig();
+    } catch (err) {
+      cloudError = err instanceof Error ? err.message : String(err);
+    } finally {
+      cloudBusy = false;
+    }
+  }
+
+  async function handleCloudLogout() {
+    await cloudLogout();
+    await loadCloudStatus();
+    await loadGhStatus();
+    await loadJiraOauthConfig();
+  }
 
   // GitHub state
   let ghStatus = $state<GithubStatus | null>(null);
@@ -400,6 +468,7 @@
 
   loadGhStatus();
   loadJiraOauthConfig();
+  loadCloudStatus();
   loadSources();
 </script>
 
@@ -409,6 +478,9 @@
       <div class="title-block">
         <h2>{t("integrations.title")}</h2>
         <div class="tabs">
+          <button class="tab" class:active={tab === "account"} onclick={() => (tab = "account")}>
+            {t("account.tab")}{cloudStatus?.signed_in ? " ✓" : ""}
+          </button>
           <button class="tab" class:active={tab === "github"} onclick={() => (tab = "github")}>
             {t("integrations.tab.github")}
           </button>
@@ -424,8 +496,86 @@
     </header>
 
     <div class="content">
-      {#if tab === "github"}
+      {#if tab === "account"}
         <section class="panel">
+          {#if cloudStatus?.signed_in && cloudStatus.user}
+            <div class="status ok">
+              {t("account.signed_in_as", { email: cloudStatus.user.email })}
+            </div>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">{t("account.plan")}</span>
+                <span class="plan-pill plan-{cloudStatus.user.plan}">
+                  {t(`account.plan.${cloudStatus.user.plan}`)}
+                </span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">GitHub</span>
+                {#if cloudStatus.user.repos_limit === null}
+                  <span>{t("account.repos_unlimited")}</span>
+                {:else}
+                  <span
+                    class:over={cloudStatus.user.repos_used >= cloudStatus.user.repos_limit}
+                  >{t("account.repos_quota", {
+                    used: cloudStatus.user.repos_used,
+                    limit: cloudStatus.user.repos_limit,
+                  })}</span>
+                {/if}
+              </div>
+            </div>
+            <div class="row">
+              {#if cloudStatus.user.plan === "free"}
+                <button class="primary" onclick={() => openInNewTab("https://backlog.so/pricing")}>
+                  {t("account.button.upgrade")}
+                </button>
+              {/if}
+              <button onclick={handleCloudLogout}>{t("account.button.logout")}</button>
+            </div>
+          {:else}
+            <div class="status">{t("account.signed_out")}</div>
+            <label class="field">
+              <span class="label">{t("account.email")}</span>
+              <input type="email" bind:value={cloudEmail} autocomplete="email" />
+            </label>
+            <label class="field">
+              <span class="label">{t("account.password")}</span>
+              <input type="password" bind:value={cloudPassword} autocomplete={cloudMode === "signup" ? "new-password" : "current-password"} />
+            </label>
+            {#if cloudError}<div class="msg err">{cloudError}</div>{/if}
+            <div class="row connect-actions">
+              <button
+                class="primary"
+                onclick={submitCloudAuth}
+                disabled={cloudBusy || !cloudEmail || cloudPassword.length < 8}
+              >
+                {#if cloudMode === "signup"}
+                  {cloudBusy ? t("account.button.signing_up") : t("account.button.signup")}
+                {:else}
+                  {cloudBusy ? t("account.button.signing_in") : t("account.button.signin")}
+                {/if}
+              </button>
+              <button
+                class="link"
+                onclick={() => {
+                  cloudMode = cloudMode === "signup" ? "signin" : "signup";
+                  cloudError = null;
+                }}
+              >
+                {cloudMode === "signup" ? t("account.toggle_signin") : t("account.toggle_signup")}
+              </button>
+            </div>
+          {/if}
+        </section>
+      {:else if tab === "github"}
+        <section class="panel">
+          {#if !cloudStatus?.signed_in}
+            <div class="signin-banner">
+              <p>{t("account.signin_required")}</p>
+              <button class="primary" onclick={() => (tab = "account")}>
+                {t("account.button.signin")}
+              </button>
+            </div>
+          {/if}
           {#if ghStatus?.connected}
             <div class="status ok">
               {t("integrations.github.connected", { login: ghStatus.token_hint ?? "?" })}
@@ -573,6 +723,14 @@
         </section>
       {:else if tab === "jira"}
         <section class="panel">
+          {#if !cloudStatus?.signed_in}
+            <div class="signin-banner">
+              <p>{t("account.signin_required")}</p>
+              <button class="primary" onclick={() => (tab = "account")}>
+                {t("account.button.signin")}
+              </button>
+            </div>
+          {/if}
           {#if jiraOauthConfig?.connected}
             <div class="status ok">
               ✓ Connecté à {jiraOauthConfig.site_url ?? "Jira"}
@@ -900,4 +1058,37 @@
     gap: 10px;
   }
   .muted.small { font-size: 11px; }
+  .signin-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: #fef0c7;
+    color: #b54708;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .signin-banner p { margin: 0; }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 8px 0;
+  }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .meta-label { font-size: 11px; color: #98a2b3; text-transform: uppercase; letter-spacing: 0.04em; }
+  .plan-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 12px;
+    width: fit-content;
+  }
+  .plan-pill.plan-free { background: #f2f4f7; color: #475467; }
+  .plan-pill.plan-pro { background: #d1fadf; color: #027a48; }
+  .plan-pill.plan-enterprise { background: #f4ebff; color: #6941c6; }
+  .over { color: #b42318; font-weight: 600; }
 </style>

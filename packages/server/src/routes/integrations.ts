@@ -29,30 +29,49 @@ const JIRA_ACCESS_TOKEN_KEY = "jira.oauth.access_token";
 const JIRA_REFRESH_TOKEN_KEY = "jira.oauth.refresh_token";
 const JIRA_CLOUD_ID_KEY = "jira.oauth.cloud_id";
 const JIRA_SITE_URL_KEY = "jira.oauth.site_url";
+const CLOUD_JWT_KEY = "cloud.jwt";
+
+function cloudAuthHeaders(backlogDir: string, json = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (json) headers["content-type"] = "application/json";
+  const jwt = getSecret(backlogDir, CLOUD_JWT_KEY);
+  if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+  return headers;
+}
 
 // Public OAuth proxy hosted by backlog-cloud. Holds the GitHub and Jira
 // OAuth secrets so the CLI doesn't have to ship them. Override with
 // BACKLOG_CLOUD_URL when developing against a local Rails instance.
 const BACKLOG_CLOUD_URL = process.env.BACKLOG_CLOUD_URL ?? "https://backlog.so";
 
-// Cache the official GitHub client_id we fetch from backlog-cloud, so we
-// don't hammer the proxy on every request.
-let cloudGithubClientId: string | null | undefined = undefined;
-async function fetchCloudGithubClientId(): Promise<string | null> {
-  if (cloudGithubClientId !== undefined) return cloudGithubClientId;
+// Cache the official GitHub client_id keyed by JWT presence so we
+// re-fetch after login/logout but don't hammer the proxy otherwise.
+const cloudGithubClientIdCache = new Map<string, string | null>();
+async function fetchCloudGithubClientId(backlogDir: string): Promise<string | null> {
+  const jwt = getSecret(backlogDir, CLOUD_JWT_KEY) ?? "";
+  const cacheKey = `${BACKLOG_CLOUD_URL}::${jwt}`;
+  if (cloudGithubClientIdCache.has(cacheKey)) {
+    return cloudGithubClientIdCache.get(cacheKey) ?? null;
+  }
   try {
-    const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/oauth/github/client_id`);
+    const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/oauth/github/client_id`, {
+      headers: cloudAuthHeaders(backlogDir),
+    });
     if (!response.ok) {
-      cloudGithubClientId = null;
+      cloudGithubClientIdCache.set(cacheKey, null);
       return null;
     }
     const json = (await response.json()) as { client_id?: string };
-    cloudGithubClientId = json.client_id ?? null;
-    return cloudGithubClientId;
+    const value = json.client_id ?? null;
+    cloudGithubClientIdCache.set(cacheKey, value);
+    return value;
   } catch {
-    cloudGithubClientId = null;
+    cloudGithubClientIdCache.set(cacheKey, null);
     return null;
   }
+}
+function invalidateCloudCaches(): void {
+  cloudGithubClientIdCache.clear();
 }
 
 // In-memory pending Jira OAuth flows keyed by state. Holds the verifier we'll
@@ -220,7 +239,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
     }
     const stored = getSecret(backlogDir, GITHUB_CLIENT_ID_KEY);
     if (stored) return { id: stored, source: "user" };
-    const cloud = await fetchCloudGithubClientId();
+    const cloud = await fetchCloudGithubClientId(backlogDir);
     if (cloud) return { id: cloud, source: "cloud" };
     return { id: null, source: null };
   }
@@ -378,6 +397,40 @@ export function integrationsRoutes(): Hono<AppEnv> {
     const cloneUrl = parsed.data.use_ssh
       ? cleanUrl
       : `https://x-access-token:${token}@github.com/${fullName}.git`;
+
+    // Pre-register with the cloud so quota is enforced before we even clone.
+    // Skipped silently when the user isn't signed in (BYO / OSS path).
+    const cloudJwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
+    if (cloudJwt) {
+      try {
+        const reg = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repos`, {
+          method: "POST",
+          headers: cloudAuthHeaders(project.backlogDir, true),
+          body: JSON.stringify({
+            provider: "github",
+            external_ref: fullName,
+            display_name: fullName,
+          }),
+        });
+        if (reg.status === 402) {
+          const json = await reg.json().catch(() => ({}));
+          return c.json(
+            {
+              error: "quota_exceeded",
+              detail:
+                "Free tier limited to 10 GitHub repos. Upgrade to Pro for unlimited.",
+              upgrade_url: (json as { upgrade_url?: string }).upgrade_url ?? null,
+              limit: (json as { limit?: number }).limit ?? 10,
+            },
+            402,
+          );
+        }
+        // Other non-success codes are non-fatal — we still clone but log.
+      } catch {
+        // best-effort: cloud unreachable shouldn't block local clone
+      }
+    }
+
     try {
       const cloneInput: Parameters<typeof cloneAndAddRepo>[1] = { url: cloneUrl };
       if (parsed.data.id) cloneInput.id = parsed.data.id;
@@ -519,9 +572,18 @@ export function integrationsRoutes(): Hono<AppEnv> {
     try {
       const proxyResponse = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/oauth/jira/start`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: cloudAuthHeaders(project.backlogDir, true),
         body: JSON.stringify({ local_callback: localCallback }),
       });
+      if (proxyResponse.status === 401) {
+        return c.json(
+          {
+            error: "cloud_signin_required",
+            detail: "Sign in to Backlog Cloud to use the Jira proxy.",
+          },
+          401,
+        );
+      }
       if (!proxyResponse.ok) {
         const detail = await proxyResponse.text().catch(() => "");
         return c.json(
@@ -797,6 +859,120 @@ export function integrationsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "sync_failed", detail: message }, 502);
+    }
+  });
+
+  // Cloud account session ----------------------------------------------
+  // Thin wrappers around backlog-cloud /auth/* endpoints. The CLI never
+  // sees the user's password directly — we forward it over HTTPS and only
+  // keep the JWT in secrets.json (mode 0600).
+
+  const credentialsSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function forwardCloudAuth(c: any, path: "/auth/signup" | "/auth/login") {
+    const project = c.get("workspace");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = credentialsSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(parsed.data),
+      });
+      const json = (await response.json()) as {
+        token?: string;
+        user?: Record<string, unknown>;
+        error?: string;
+        details?: unknown;
+      };
+      if (!response.ok || !json.token) {
+        return c.json(
+          { error: json.error ?? "cloud_auth_failed", details: json.details ?? null },
+          response.status === 401 || response.status === 422 ? response.status : 502,
+        );
+      }
+      setSecret(project.backlogDir, CLOUD_JWT_KEY, json.token);
+      invalidateCloudCaches();
+      return c.json({ ok: true, user: json.user });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cloud_unreachable", detail: message }, 502);
+    }
+  }
+
+  app.post("/cloud/signup", (c) => forwardCloudAuth(c, "/auth/signup"));
+  app.post("/cloud/login", (c) => forwardCloudAuth(c, "/auth/login"));
+
+  app.post("/cloud/logout", (c) => {
+    const project = c.get("workspace");
+    deleteSecret(project.backlogDir, CLOUD_JWT_KEY);
+    invalidateCloudCaches();
+    return c.json({ ok: true });
+  });
+
+  app.get("/cloud/me", async (c) => {
+    const project = c.get("workspace");
+    const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
+    if (!jwt) {
+      return c.json({ signed_in: false });
+    }
+    try {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/auth/me`, {
+        headers: cloudAuthHeaders(project.backlogDir),
+      });
+      if (response.status === 401) {
+        // Stale token — wipe so the UI shows the signed-out state.
+        deleteSecret(project.backlogDir, CLOUD_JWT_KEY);
+        invalidateCloudCaches();
+        return c.json({ signed_in: false, expired: true });
+      }
+      if (!response.ok) {
+        return c.json({ signed_in: true, error: `HTTP ${response.status}` }, 502);
+      }
+      const json = (await response.json()) as { user?: Record<string, unknown> };
+      return c.json({ signed_in: true, user: json.user });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ signed_in: true, error: message }, 502);
+    }
+  });
+
+  // Register a connected resource so the cloud can enforce quotas.
+  app.post("/cloud/repos", async (c) => {
+    const project = c.get("workspace");
+    const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
+    if (!jwt) {
+      return c.json({ error: "cloud_signin_required" }, 401);
+    }
+    const raw = await c.req.json().catch(() => null);
+    const parsed = z
+      .object({
+        provider: z.enum(["github", "jira"]),
+        external_ref: z.string().min(1),
+        display_name: z.string().optional(),
+      })
+      .safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body" }, 400);
+    }
+    try {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repos`, {
+        method: "POST",
+        headers: cloudAuthHeaders(project.backlogDir, true),
+        body: JSON.stringify(parsed.data),
+      });
+      const json = await response.json();
+      return c.json(json, response.status as 200 | 201 | 400 | 401 | 402);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cloud_unreachable", detail: message }, 502);
     }
   });
 

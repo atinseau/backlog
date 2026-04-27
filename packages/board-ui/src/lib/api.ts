@@ -771,6 +771,71 @@ export async function pollJiraOauthStatus(state: string): Promise<JiraOauthStatu
   return (await response.json()) as JiraOauthStatus;
 }
 
+// Cloud account ------------------------------------------------------------
+
+export interface CloudUser {
+  id: number;
+  email: string;
+  plan: "free" | "pro" | "enterprise";
+  repos_used: number;
+  repos_limit: number | null;
+  can_connect_repo: boolean;
+}
+
+export interface CloudStatus {
+  signed_in: boolean;
+  user?: CloudUser;
+  expired?: boolean;
+  error?: string;
+}
+
+export async function fetchCloudStatus(): Promise<CloudStatus> {
+  const response = await fetch(apiUrl("/cloud/me"));
+  return (await response.json()) as CloudStatus;
+}
+
+export interface CloudCredentials {
+  email: string;
+  password: string;
+}
+
+export interface CloudAuthResult {
+  ok: boolean;
+  user?: CloudUser;
+  error?: string;
+  details?: unknown;
+}
+
+export async function cloudSignup(input: CloudCredentials): Promise<CloudAuthResult> {
+  const response = await fetch(apiUrl("/cloud/signup"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    return { ok: false, error: (json as { error?: string }).error ?? `HTTP ${response.status}`, details: (json as { details?: unknown }).details };
+  }
+  return json as CloudAuthResult;
+}
+
+export async function cloudLogin(input: CloudCredentials): Promise<CloudAuthResult> {
+  const response = await fetch(apiUrl("/cloud/login"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    return { ok: false, error: (json as { error?: string }).error ?? `HTTP ${response.status}`, details: (json as { details?: unknown }).details };
+  }
+  return json as CloudAuthResult;
+}
+
+export async function cloudLogout(): Promise<void> {
+  await fetch(apiUrl("/cloud/logout"), { method: "POST" });
+}
+
 export async function fetchGithubOauthConfig(): Promise<GithubOauthConfig> {
   const response = await fetch(apiUrl("/integrations/github/oauth/config"));
   if (!response.ok) throw new Error(`GitHub OAuth config failed: ${response.status}`);
