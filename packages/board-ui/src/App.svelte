@@ -9,9 +9,11 @@
   import PermissionsView from "./lib/PermissionsView.svelte";
   import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
+  import LocaleToggle from "./lib/LocaleToggle.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
+  import { t } from "./lib/i18n.svelte.js";
   import {
     fetchBoard,
     fetchCurrentProject,
@@ -258,28 +260,29 @@
   <div class="meta">
     {#if board}
       {#if board.total_remaining_seconds > 0}
-        <span class="eta-pill">⏱ il reste {formatDuration(board.total_remaining_seconds)}</span>
+        <span class="eta-pill">{t("topbar.remaining", { duration: formatDuration(board.total_remaining_seconds) })}</span>
         <span class="dot">·</span>
       {/if}
-      <span>{board.active_runs_count} runs</span>
+      <span>{t("topbar.runs", { count: board.active_runs_count })}</span>
       <span class="dot">·</span>
       <span class:on={connected} class:off={!connected} class="conn">
-        {connected ? "● live" : "○ polling"}
+        {connected ? t("topbar.live") : t("topbar.polling")}
       </span>
       {#if lastUpdated}
         <span class="dot">·</span>
-        <span>maj {lastUpdated}</span>
+        <span>{t("topbar.last_update", { time: lastUpdated })}</span>
       {/if}
       {#if inFlightMove}
         <span class="dot">·</span>
-        <span class="moving">↻ déplacement…</span>
+        <span class="moving">{t("topbar.moving")}</span>
       {/if}
     {/if}
-    <button onclick={() => (claimsViewOpen = true)} title="Activité (claims, runs)">📋 Activité</button>
-    <button onclick={() => (permissionsViewOpen = true)}>🔒 Permissions</button>
-    <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
-    <button class="primary" onclick={() => (createTaskOpen = true)}>+ Tâche</button>
-    <button onclick={refresh}>↻</button>
+    <LocaleToggle />
+    <button onclick={() => (claimsViewOpen = true)} title={t("topbar.activity")}>📋 {t("topbar.activity")}</button>
+    <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
+    <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
+    <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+    <button onclick={refresh} aria-label={t("topbar.refresh")}>{t("topbar.refresh")}</button>
   </div>
 </header>
 
@@ -295,7 +298,7 @@
       onMove={handleMove}
       onReorder={handleReorder}
       onSplit={(card) => (splitTarget = card)}
-      onAddTask={(card) => (createTaskTarget = card)}
+      onAddTask={(card) => (createSubTaskTarget = card)}
     />
   {/each}
 </main>

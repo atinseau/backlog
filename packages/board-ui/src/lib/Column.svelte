@@ -1,12 +1,19 @@
 <script lang="ts">
   import { dndzone } from "svelte-dnd-action";
   import Card from "./Card.svelte";
+  import { t } from "./i18n.svelte.js";
   import {
     COLUMN_DEFAULT_STATUS,
-    COLUMN_LABELS,
     type ColumnKey,
     type TaskCard,
   } from "./types.js";
+
+  const COLUMN_KEY_TO_T: Record<ColumnKey, string> = {
+    todo: "column.todo",
+    doing: "column.doing",
+    review: "column.review",
+    done: "column.done",
+  };
 
   interface Props {
     columnKey: ColumnKey;
@@ -77,7 +84,7 @@
 
 <section class="column">
   <header>
-    <h2>{COLUMN_LABELS[columnKey]}</h2>
+    <h2>{t(COLUMN_KEY_TO_T[columnKey])}</h2>
     <span class="count">{localCards.length}</span>
   </header>
   <div

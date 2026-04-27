@@ -1,5 +1,6 @@
 <script lang="ts">
   import { startOrchestrator } from "./api.js";
+  import { t } from "./i18n.svelte.js";
 
   interface Props {
     taskId: string;
@@ -31,30 +32,27 @@
 <div class="backdrop" onclick={onClose} role="presentation">
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
     <header>
-      <h2>Démarrer maintenant ?</h2>
+      <h2>{t("start_prompt.title")}</h2>
     </header>
     <div class="body">
-      <p>
-        Tâche <code>{taskId}</code> créée
-        {#if subTasksCreated > 0}
-          avec <strong>{subTasksCreated}</strong> sous-tâche{subTasksCreated > 1 ? "s" : ""} prête{subTasksCreated > 1 ? "s" : ""}.
-        {:else}
-          (sans sous-tâche pour l'instant).
-        {/if}
-      </p>
-      {#if subTasksCreated > 0}
-        <p class="muted">L'orchestrateur va lancer les sous-tâches assignables sur leurs agents.</p>
+      {#if subTasksCreated === 0}
+        <p>{@html t("start_prompt.body.no_subtasks", { taskId: `<code>${taskId}</code>` })}</p>
+        <p class="muted">{t("start_prompt.help.empty")}</p>
+      {:else if subTasksCreated === 1}
+        <p>{@html t("start_prompt.body.with_subtasks_one", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
+        <p class="muted">{t("start_prompt.help.ready")}</p>
       {:else}
-        <p class="muted">Sans sous-tâche, l'orchestrateur n'a rien à exécuter — vous pouvez quand même le démarrer mais il restera en attente.</p>
+        <p>{@html t("start_prompt.body.with_subtasks_many", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
+        <p class="muted">{t("start_prompt.help.ready")}</p>
       {/if}
       {#if error}
         <div class="error">{error}</div>
       {/if}
     </div>
     <footer>
-      <button type="button" onclick={onClose} disabled={busy}>Plus tard</button>
+      <button type="button" onclick={onClose} disabled={busy}>{t("start_prompt.button.later")}</button>
       <button type="button" class="primary" onclick={startNow} disabled={busy}>
-        {busy ? "Démarrage…" : "Démarrer ▶"}
+        {busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}
       </button>
     </footer>
   </div>

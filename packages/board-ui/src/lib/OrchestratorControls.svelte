@@ -7,6 +7,7 @@
     startOrchestrator,
     stopOrchestrator,
   } from "./api.js";
+  import { t } from "./i18n.svelte.js";
   import type { OrchestratorState } from "./types.js";
 
   interface Props {
@@ -87,11 +88,12 @@
   const nothingToRun = $derived(runnableCount !== null && runnableCount === 0);
   const playTitle = $derived(
     isRunning
-      ? "Orchestrateur déjà en cours"
+      ? t("orchestrator.play.running")
       : nothingToRun
-        ? "Rien à exécuter — créez une tâche d'abord"
-        : "Démarrer l'orchestrateur",
+        ? t("orchestrator.play.nothing")
+        : t("orchestrator.play.start"),
   );
+  const modeLabel = $derived(t(`orchestrator.mode.${mode}`));
 </script>
 
 <div class="controls" role="toolbar" aria-label="Orchestrator controls">
@@ -110,7 +112,7 @@
     class:active={isPaused}
     onclick={handlePause}
     disabled={busy || !isRunning}
-    title="Pause (les runs actifs continuent)"
+    title={t("orchestrator.pause.title")}
     aria-label="Pause"
   >
     ⏸
@@ -120,14 +122,14 @@
     class:active={isStopping}
     onclick={handleStop}
     disabled={busy || mode === "idle"}
-    title="Stop (attend la fin des runs actifs)"
+    title={t("orchestrator.stop.title")}
     aria-label="Stop"
   >
     ⏹
   </button>
-  <span class="state state-{mode}">{mode}</span>
+  <span class="state state-{mode}">{modeLabel}</span>
   {#if runnableCount !== null && runnableCount > 0 && !isRunning}
-    <span class="ready" title="Sous-tâches prêtes à être exécutées">{runnableCount} prêt{runnableCount > 1 ? "es" : "e"}</span>
+    <span class="ready">{t(runnableCount === 1 ? "topbar.ready_count_one" : "topbar.ready_count_many", { count: runnableCount })}</span>
   {/if}
   {#if state?.last_started_count !== undefined && state.last_started_count > 0}
     <span class="count">+{state.last_started_count}</span>

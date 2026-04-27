@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import type { Repo } from "./types.js";
 
   interface Props {
@@ -16,11 +17,7 @@
     onSelect(target.value || null);
   }
 
-  const allLabel = $derived(
-    projectScoped
-      ? `Repos du projet (${repos.length})`
-      : `Tous les repos (${repos.length})`,
-  );
+  const allLabel = $derived(t("selector.all_repos", { count: repos.length }));
 </script>
 
 <div class="repo-selector">
@@ -28,11 +25,11 @@
     <option value="">{allLabel}</option>
     {#each repos as repo (repo.id)}
       <option value={repo.id} disabled={!repo.enabled}>
-        {repo.id}{repo.enabled ? "" : " (désactivé)"}
+        {repo.id}
       </option>
     {/each}
   </select>
-  <button class="manage" onclick={onManage} title="Gérer les repos">📁</button>
+  <button class="manage" onclick={onManage} title={t("selector.manage")}>📁</button>
 </div>
 
 <style>

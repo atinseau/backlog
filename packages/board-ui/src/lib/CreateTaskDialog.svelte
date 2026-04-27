@@ -6,6 +6,7 @@
     type CreatedTask,
     type ProposedTask,
   } from "./api.js";
+  import { t } from "./i18n.svelte.js";
 
   interface Props {
     availableRepos: string[];
@@ -111,15 +112,15 @@
     <header>
       <h2>
         {#if phase === "input" || phase === "creating"}
-          Nouvelle tâche
+          {t("create_task.title.input")}
         {:else if phase === "splitting"}
-          Découpage IA…
+          {t("create_task.title.splitting")}
         {:else if phase === "proposal"}
-          Sous-tâches proposées
+          {t("create_task.title.proposal")}
         {:else if phase === "applying"}
-          Application…
+          {t("create_task.title.applying")}
         {:else}
-          Tâche créée
+          {t("create_task.title.applied")}
         {/if}
       </h2>
       <button type="button" class="close" onclick={onClose}>✕</button>
@@ -132,28 +133,28 @@
     {#if phase === "input" || phase === "creating"}
       <form class="body" onsubmit={handleSubmit}>
         <label>
-          Titre
+          {t("create_task.field.title")}
           <input type="text" bind:value={title} required autofocus />
         </label>
 
         <label>
-          Description
-          <textarea bind:value={description} rows="3" placeholder="Optionnelle. Plus c'est précis, mieux le découpage IA fera son travail."></textarea>
+          {t("create_task.field.description")}
+          <textarea bind:value={description} rows="3" placeholder={t("create_task.field.description_help")}></textarea>
         </label>
 
         <label>
-          Priorité
+          {t("create_task.field.priority")}
           <select bind:value={priority}>
-            <option value="P0">P0 — bloquant</option>
-            <option value="P1">P1 — haut</option>
-            <option value="P2">P2 — normal</option>
-            <option value="P3">P3 — bas</option>
+            <option value="P0">{t("create_task.field.priority.p0")}</option>
+            <option value="P1">{t("create_task.field.priority.p1")}</option>
+            <option value="P2">{t("create_task.field.priority.p2")}</option>
+            <option value="P3">{t("create_task.field.priority.p3")}</option>
           </select>
         </label>
 
         {#if availableRepos.length > 0}
           <div class="repos">
-            <span class="label">Repos cibles :</span>
+            <span class="label">{t("create_task.field.repos")}</span>
             {#each availableRepos as repo (repo)}
               <label class="chip">
                 <input type="checkbox" checked={repoTargets.includes(repo)} onchange={() => toggleRepo(repo)} />
@@ -164,23 +165,23 @@
         {/if}
 
         <footer>
-          <button type="button" onclick={onClose}>Annuler</button>
+          <button type="button" onclick={onClose}>{t("create_task.button.cancel")}</button>
           <button type="submit" class="primary" disabled={phase === "creating" || !title.trim()}>
-            {phase === "creating" ? "Création…" : "Créer + découper"}
+            {phase === "creating" ? t("create_task.button.submitting") : t("create_task.button.submit")}
           </button>
         </footer>
       </form>
     {:else if phase === "splitting"}
       <div class="body centered">
         <div class="spinner" aria-hidden="true">⟳</div>
-        <p>Découpage IA en cours…</p>
-        <p class="muted">L'agent analyse votre tâche et propose des sous-tâches par repo.</p>
+        <p>{t("create_task.splitting.body")}</p>
+        <p class="muted">{t("create_task.splitting.help")}</p>
       </div>
     {:else if phase === "proposal"}
       <div class="body">
-        <p class="rationale"><strong>Plan IA</strong> ({proposalModel}) — {proposalRationale}</p>
+        <p class="rationale"><strong>{t("create_task.proposal.rationale")}</strong> ({proposalModel}) — {proposalRationale}</p>
         {#if proposalTasks.length === 0}
-          <p class="muted">L'IA n'a proposé aucune sous-tâche. Vous pouvez ignorer.</p>
+          <p class="muted">{t("create_task.proposal.empty")}</p>
         {:else}
           <ul class="proposed">
             {#each proposalTasks as task, i (i)}
@@ -190,7 +191,7 @@
                     class="proposed-title"
                     type="text"
                     bind:value={task.title}
-                    placeholder="Titre"
+                    placeholder={t("create_task.field.title")}
                   />
                   <select bind:value={task.repo}>
                     {#each availableRepos as repo (repo)}
@@ -202,7 +203,7 @@
                     <option value="medium">medium</option>
                     <option value="high">high</option>
                   </select>
-                  <button type="button" class="remove" onclick={() => removeProposalTask(i)} title="Retirer">✕</button>
+                  <button type="button" class="remove" onclick={() => removeProposalTask(i)} title={t("create_task.proposal.remove")}>✕</button>
                 </div>
                 {#if task.scopes.length > 0}
                   <div class="scopes">{task.scopes.join(" · ")}</div>
@@ -212,30 +213,30 @@
           </ul>
         {/if}
         <footer>
-          <button type="button" onclick={skipSplit}>Passer (pas de sous-tâches)</button>
+          <button type="button" onclick={skipSplit}>{t("create_task.proposal.button.skip")}</button>
           <button
             type="button"
             class="primary"
             onclick={applyProposal}
             disabled={proposalTasks.length === 0}
           >
-            Appliquer ({proposalTasks.length})
+            {t("create_task.proposal.button.apply", { count: proposalTasks.length })}
           </button>
         </footer>
       </div>
     {:else if phase === "applying"}
       <div class="body centered">
         <div class="spinner" aria-hidden="true">⟳</div>
-        <p>Création des sous-tâches…</p>
+        <p>{t("create_task.applying.body")}</p>
       </div>
     {:else if phase === "applied"}
       <div class="body centered">
-        <p class="success">✓ Tâche créée</p>
+        <p class="success">{t("create_task.applied.success")}</p>
         {#if aiUnavailable}
-          <p class="muted">IA indisponible : {aiUnavailableDetail}. Vous pouvez découper manuellement plus tard.</p>
+          <p class="muted">{t("create_task.applied.ai_unavailable", { detail: aiUnavailableDetail })}</p>
         {/if}
         <footer>
-          <button type="button" class="primary" onclick={onClose}>Fermer</button>
+          <button type="button" class="primary" onclick={onClose}>{t("create_task.applied.close")}</button>
         </footer>
       </div>
     {/if}
