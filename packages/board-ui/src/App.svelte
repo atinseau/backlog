@@ -10,6 +10,7 @@
   import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
+  import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import {
     fetchBoard,
@@ -50,6 +51,7 @@
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
   let splitTarget = $state<TaskCard | null>(null);
+  let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -331,7 +333,19 @@
   <CreateTaskDialog
     availableRepos={repos}
     onClose={() => (createTaskOpen = false)}
-    onCreated={() => {
+    onCreated={(result) => {
+      if (!connected) refresh();
+      startPrompt = result;
+    }}
+  />
+{/if}
+
+{#if startPrompt}
+  <StartPromptDialog
+    taskId={startPrompt.taskId}
+    subTasksCreated={startPrompt.subTasksCreated}
+    onClose={() => (startPrompt = null)}
+    onStarted={() => {
       if (!connected) refresh();
     }}
   />
