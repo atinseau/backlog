@@ -16,7 +16,7 @@
 
   let { onError }: Props = $props();
 
-  let state = $state<OrchestratorState | null>(null);
+  let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
   let busy = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -27,7 +27,7 @@
         fetchOrchestratorState(),
         fetchOrchestratePlan().catch(() => null),
       ]);
-      state = orchState;
+      orchestrator = orchState;
       runnableCount = plan?.runnable_count ?? null;
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
@@ -37,7 +37,7 @@
   async function handleStart() {
     busy = true;
     try {
-      state = await startOrchestrator({});
+      orchestrator = await startOrchestrator({});
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
@@ -48,7 +48,7 @@
   async function handlePause() {
     busy = true;
     try {
-      state = await pauseOrchestrator();
+      orchestrator = await pauseOrchestrator();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
@@ -59,7 +59,7 @@
   async function handleStop() {
     busy = true;
     try {
-      state = await stopOrchestrator();
+      orchestrator = await stopOrchestrator();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
@@ -81,7 +81,7 @@
     refresh();
   }
 
-  const mode = $derived(state?.mode ?? "idle");
+  const mode = $derived(orchestrator?.mode ?? "idle");
   const isRunning = $derived(mode === "running");
   const isPaused = $derived(mode === "paused");
   const isStopping = $derived(mode === "stopping");
@@ -131,8 +131,8 @@
   {#if runnableCount !== null && runnableCount > 0 && !isRunning}
     <span class="ready">{t(runnableCount === 1 ? "topbar.ready_count_one" : "topbar.ready_count_many", { count: runnableCount })}</span>
   {/if}
-  {#if state?.last_started_count !== undefined && state.last_started_count > 0}
-    <span class="count">+{state.last_started_count}</span>
+  {#if orchestrator?.last_started_count !== undefined && orchestrator.last_started_count > 0}
+    <span class="count">+{orchestrator.last_started_count}</span>
   {/if}
 </div>
 

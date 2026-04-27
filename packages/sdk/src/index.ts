@@ -3,7 +3,7 @@ import type { components, paths } from "./generated/openapi-types.js";
 
 export type Workspace = components["schemas"]["Workspace"];
 export type Task = components["schemas"]["Task"];
-export type SubTask = components["schemas"]["Task"];
+export type SubTask = components["schemas"]["SubTask"];
 export type Run = components["schemas"]["Run"];
 export type User = components["schemas"]["User"];
 export type AuthResponse = components["schemas"]["AuthResponse"];
@@ -92,7 +92,7 @@ export class BacklogClient {
   async listWorkspaces(): Promise<Workspace[]> {
     const { data, error } = await this.client.GET("/projects");
     if (error || !data) throw new BacklogApiError("list workspaces failed", error);
-    return data.projects ?? [];
+    return data.workspaces ?? [];
   }
 
   async createWorkspace(name: string): Promise<Workspace> {

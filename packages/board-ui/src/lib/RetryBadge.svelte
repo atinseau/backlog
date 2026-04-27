@@ -18,7 +18,9 @@
 
   const target = $derived(expectedFinishAt ?? expiresAt);
   const remainingMs = $derived(new Date(target).getTime() - now);
-  const overdue = $derived(remainingMs <= 0 || (Boolean(expectedFinishAt) && new Date(expectedFinishAt).getTime() < now));
+  const overdue = $derived(
+    remainingMs <= 0 || (expectedFinishAt !== null && new Date(expectedFinishAt).getTime() < now),
+  );
 
   function formatRemaining(ms: number): string {
     const seconds = Math.max(0, Math.ceil(ms / 1000));
