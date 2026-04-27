@@ -1,0 +1,208 @@
+<script lang="ts">
+  import { t } from "./i18n.svelte.js";
+  import { fetchCommits, type CommitEntry, type CommitLink } from "./api.js";
+
+  interface Props {
+    onClose: () => void;
+  }
+
+  let { onClose }: Props = $props();
+
+  let commits = $state<CommitEntry[]>([]);
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+
+  async function load() {
+    loading = true;
+    try {
+      commits = await fetchCommits(100);
+      error = null;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  function linkLabel(link: CommitLink): string {
+    if (link.kind === "task") return t("commits.task", { id: link.id });
+    if (link.kind === "subtask") return t("commits.subtask", { id: link.id });
+    return t("commits.claim", { id: link.id });
+  }
+
+  function formatDate(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString();
+  }
+
+  load();
+</script>
+
+<div class="backdrop" onclick={onClose} role="presentation">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <header>
+      <h2>{t("commits.title")}</h2>
+      <div class="header-actions">
+        <button class="refresh" onclick={load} title="↻">↻</button>
+        <button class="close" onclick={onClose}>✕</button>
+      </div>
+    </header>
+
+    {#if error}
+      <div class="error">{error}</div>
+    {/if}
+
+    {#if loading}
+      <div class="loading">…</div>
+    {:else if commits.length === 0}
+      <div class="empty">{t("commits.empty")}</div>
+    {:else}
+      <ul class="commits">
+        {#each commits as commit (commit.repo + ":" + commit.sha)}
+          <li>
+            <div class="row1">
+              <span class="repo">{commit.repo}</span>
+              <code class="sha">{commit.short_sha}</code>
+              <span class="subject">{commit.subject}</span>
+            </div>
+            <div class="row2">
+              <span class="author">{commit.author}</span>
+              <span class="dot">·</span>
+              <span class="date">{formatDate(commit.date)}</span>
+              {#if commit.links.length > 0}
+                <span class="dot">·</span>
+                <span class="linked-label">{t("commits.linked")}</span>
+                {#each commit.links as link (link.kind + ":" + link.id)}
+                  <span class="link link-{link.kind}">{linkLabel(link)}</span>
+                {/each}
+              {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 24, 40, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    max-width: 720px;
+    width: 92%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e4e7ec;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h2 { margin: 0; font-size: 16px; }
+  .header-actions { display: flex; gap: 4px; }
+  .refresh, .close {
+    background: transparent;
+    border: 1px solid #d0d5dd;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475467;
+  }
+  .close { border: none; font-size: 18px; }
+  .refresh:hover { background: #f2f4f7; }
+  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
+  .loading { padding: 32px; text-align: center; color: #667085; }
+  .empty {
+    padding: 32px 20px;
+    text-align: center;
+    color: #667085;
+    font-size: 13px;
+  }
+  .commits {
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .commits > li {
+    padding: 10px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .repo {
+    background: #eff8ff;
+    color: #175cd3;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .sha {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #475467;
+    background: #f2f4f7;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .subject {
+    color: #1d2939;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #667085;
+    flex-wrap: wrap;
+  }
+  .dot { opacity: 0.5; }
+  .linked-label { font-style: italic; }
+  .link {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+  }
+  .link-task {
+    background: #d1fadf;
+    color: #027a48;
+  }
+  .link-subtask {
+    background: #fef0c7;
+    color: #b54708;
+  }
+  .link-claim {
+    background: #f4ebff;
+    color: #6941c6;
+  }
+</style>

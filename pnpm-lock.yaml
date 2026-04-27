@@ -211,6 +211,9 @@ importers:
       '@backlog/core':
         specifier: workspace:*
         version: link:../core
+      '@backlog/git':
+        specifier: workspace:*
+        version: link:../git
       '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas

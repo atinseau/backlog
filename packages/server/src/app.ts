@@ -7,6 +7,7 @@ import { EventBusRegistry } from "./lib/event-bus-registry.js";
 import { agentsRoutes } from "./routes/agents.js";
 import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
+import { commitsRoutes } from "./routes/commits.js";
 import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
@@ -97,6 +98,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", projectRoutes());
   app.route("/api/v1", projectsRoutes(options.workspace));
+  app.route("/api/v1", commitsRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 
   void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {

@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
+  import CommitsView from "./lib/CommitsView.svelte";
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
@@ -47,6 +48,7 @@
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
   let claimsViewOpen = $state(false);
+  let commitsViewOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
   let createTaskOpen = $state(false);
@@ -279,6 +281,7 @@
     {/if}
     <LocaleToggle />
     <button onclick={() => (claimsViewOpen = true)} title={t("topbar.activity")}>📋 {t("topbar.activity")}</button>
+    <button onclick={() => (commitsViewOpen = true)} title={t("topbar.commits")}>{t("topbar.commits")}</button>
     <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
     <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
     <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
@@ -320,6 +323,10 @@
       if (!connected) refresh();
     }}
   />
+{/if}
+
+{#if commitsViewOpen}
+  <CommitsView onClose={() => (commitsViewOpen = false)} />
 {/if}
 
 {#if permissionsViewOpen}

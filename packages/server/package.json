@@ -25,6 +25,7 @@
     "@backlog/claims": "workspace:*",
     "@backlog/config": "workspace:*",
     "@backlog/core": "workspace:*",
+    "@backlog/git": "workspace:*",
     "@backlog/schemas": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "hono": "^4.6.13",

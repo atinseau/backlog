@@ -619,3 +619,27 @@ export async function createClaim(input: ClaimCreateInput): Promise<ClaimCreateR
   }
   throw new Error(`Claim create failed: ${response.status}`);
 }
+
+// Commits -------------------------------------------------------------------
+
+export interface CommitLink {
+  kind: "task" | "subtask" | "claim";
+  id: string;
+}
+
+export interface CommitEntry {
+  repo: string;
+  sha: string;
+  short_sha: string;
+  subject: string;
+  author: string;
+  date: string;
+  links: CommitLink[];
+}
+
+export async function fetchCommits(limit = 50): Promise<CommitEntry[]> {
+  const response = await fetch(apiUrl("/commits", { limit: String(limit) }));
+  if (!response.ok) throw new Error(`Commits fetch failed: ${response.status}`);
+  const json = (await response.json()) as { commits: CommitEntry[] };
+  return json.commits;
+}
