@@ -16,6 +16,7 @@
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
+  import OnboardingBanner from "./lib/OnboardingBanner.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import { t } from "./lib/i18n.svelte.js";
   import {
@@ -57,6 +58,15 @@
   let integrationsOpen = $state(false);
   let reposViewOpen = $state(false);
   let createProjectOpen = $state(false);
+  const ONBOARDING_STORAGE_KEY = "backlog.onboarding.dismissed";
+  let onboardingDismissed = $state(
+    typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1",
+  );
+
+  function dismissOnboarding() {
+    onboardingDismissed = true;
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+  }
   let cloudStatus = $state<CloudStatus | null>(null);
   let integrationsTab = $state<"account" | "github" | "jira" | "sources">("account");
 
@@ -338,6 +348,17 @@
 {#if error}
   <div class="error">{error}</div>
 {/if}
+
+<OnboardingBanner
+  workspaces={workspaces}
+  workspaceRepos={workspaceRepos}
+  board={board}
+  dismissed={onboardingDismissed}
+  onCreateProject={() => (createProjectOpen = true)}
+  onManageRepos={() => (reposViewOpen = true)}
+  onCreateTask={() => (createTaskOpen = true)}
+  onDismiss={dismissOnboarding}
+/>
 
 <main class="board">
   {#each COLUMN_ORDER as key (key)}
