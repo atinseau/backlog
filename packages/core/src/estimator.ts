@@ -90,7 +90,7 @@ export function estimateWorkItem(
   ctx?: EstimatorContext,
 ): { seconds: number; task_count: number } {
   const { tasksById } = loadContext(backlogDir, ctx);
-  const tasks = Array.from(tasksById.values()).filter((task) => task.work_item_id === workItemId);
+  const tasks = Array.from(tasksById.values()).filter((task) => task.task_id === workItemId);
   const open = tasks.filter((task) => task.status !== "completed" && task.status !== "canceled");
   let seconds = 0;
   for (const task of open) {

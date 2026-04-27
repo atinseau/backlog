@@ -26,7 +26,7 @@ function writeArchivedRun(backlogDir: string, run: Run): void {
 function makeTask(overrides: Partial<SubTask> = {}): SubTask {
   return {
     id: "TASK-1",
-    work_item_id: "WI-1",
+    task_id: "WI-1",
     title: "Test",
     repo: "myrepo",
     status: "queued",
@@ -54,8 +54,8 @@ function makeRun(overrides: Partial<Run> = {}): Run {
   return {
     version: 1,
     id: `RUN-${Math.random().toString(36).slice(2, 8)}`,
-    task_id: "TASK-archived",
-    work_item_id: "WI-1",
+    subtask_id: "TASK-archived",
+    task_id: "WI-1",
     repo: "myrepo",
     branch: "feat/x",
     agent_id: "agent-1",
@@ -123,7 +123,7 @@ describe("estimateSubTask", () => {
       path.join(backlogDir, "subtasks.yaml"),
       `version: 1\ntasks:\n${archivedTasks
         .map((t) =>
-          `  - id: ${t.id}\n    work_item_id: WI-1\n    title: ${t.title}\n    repo: ${t.repo}\n    status: completed\n    priority_score: 50\n    risk: medium\n    scopes: []\n    claim_mode: exclusive\n    depends_on: []\n    blockers: []\n    execution:\n      lane: frontend\n      preferred_agents: []\n      required_capabilities: []\n      manual_approval_required: false\n    completion:\n      done_when: []\n    planner:\n      origin: manual\n      locked: false\n    created_at: ${t.created_at}\n    updated_at: ${t.updated_at}`,
+          `  - id: ${t.id}\n    task_id: WI-1\n    title: ${t.title}\n    repo: ${t.repo}\n    status: completed\n    priority_score: 50\n    risk: medium\n    scopes: []\n    claim_mode: exclusive\n    depends_on: []\n    blockers: []\n    execution:\n      lane: frontend\n      preferred_agents: []\n      required_capabilities: []\n      manual_approval_required: false\n    completion:\n      done_when: []\n    planner:\n      origin: manual\n      locked: false\n    created_at: ${t.created_at}\n    updated_at: ${t.updated_at}`,
         )
         .join("\n")}\n`,
       "utf8",

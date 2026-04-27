@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const syncConflictSchema = z.object({
   id: z.string().min(1),
-  work_item_id: z.string().min(1),
+  task_id: z.string().min(1),
   source_ref: z.string().min(1),
   field: z.literal("status"),
   local_value: z.string().min(1),

@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
 const startBodySchema = z.object({
-  work_item_id: z.string().min(1).optional(),
+  subtask_id: z.string().min(1).optional(),
   task_id: z.string().min(1).optional(),
   max_start: z.number().int().positive().max(50).optional(),
   agent_id: z.string().min(1).optional(),
@@ -54,8 +54,8 @@ export function runsRoutes(): Hono<AppEnv> {
       }
 
       const planOpts: { workItemId?: string; taskId?: string } = {};
-      if (body.work_item_id) planOpts.workItemId = body.work_item_id;
-      if (body.task_id) planOpts.taskId = body.task_id;
+      if (body.task_id) planOpts.workItemId = body.task_id;
+      if (body.subtask_id) planOpts.taskId = body.subtask_id;
       const plan = buildExecutionPlan(workspace.backlogDir, config, planOpts);
 
       const launcherInput: Parameters<typeof startRunsForPlan>[0] = {
@@ -71,8 +71,8 @@ export function runsRoutes(): Hono<AppEnv> {
         {
           started: result.started,
           skipped: result.skipped,
-          waiting: plan.waiting.map((d) => ({ task_id: d.taskId, reasons: d.reasons })),
-          blocked: plan.blocked.map((d) => ({ task_id: d.taskId, reasons: d.reasons })),
+          waiting: plan.waiting.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
+          blocked: plan.blocked.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
         },
         result.started.length > 0 ? 201 : 202,
       );

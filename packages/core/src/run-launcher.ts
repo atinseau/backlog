@@ -77,7 +77,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
       continue;
     }
-    const workItem = getTask(backlogDir, task.work_item_id);
+    const workItem = getTask(backlogDir, task.task_id);
     if (!workItem) {
       skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
       continue;

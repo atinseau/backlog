@@ -12,10 +12,10 @@ import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 
 interface EnrichedDecision {
+  subtask_id: string;
   task_id: string;
-  work_item_id: string;
+  subtask_title: string | null;
   task_title: string | null;
-  work_item_title: string | null;
   repo: string | null;
   scopes: string[];
   action: SubTaskDecision["action"];
@@ -49,10 +49,10 @@ function enrich(
   const task = tasksById.get(decision.taskId) ?? null;
   const workItem = workItemsById.get(decision.workItemId) ?? null;
   return {
-    task_id: decision.taskId,
-    work_item_id: decision.workItemId,
-    task_title: task?.title ?? null,
-    work_item_title: workItem?.title ?? null,
+    subtask_id: decision.taskId,
+    task_id: decision.workItemId,
+    subtask_title: task?.title ?? null,
+    task_title: workItem?.title ?? null,
     repo: task?.repo ?? null,
     scopes: task?.scopes ?? [],
     action: decision.action,

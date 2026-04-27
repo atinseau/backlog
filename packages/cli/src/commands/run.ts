@@ -80,7 +80,7 @@ export function registerRunCommand(program: Command): void {
         if (options.task && run.task_id !== options.task) {
           return false;
         }
-        if (options.workItem && run.work_item_id !== options.workItem) {
+        if (options.workItem && run.task_id !== options.workItem) {
           return false;
         }
         if (options.agent && run.agent_id !== options.agent) {

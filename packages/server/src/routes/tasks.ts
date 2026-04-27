@@ -83,7 +83,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     if (!task) {
       return c.json({ error: "unknown_task", id }, 404);
     }
-    const subtasks = listSubTasks(workspace.backlogDir).filter((sub) => sub.work_item_id === id);
+    const subtasks = listSubTasks(workspace.backlogDir).filter((sub) => sub.task_id === id);
     return c.json({ task, subtasks });
   });
 
@@ -185,7 +185,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       }
       const proposal = await suggestSplit(workItem, repos, { provider: config.ai_provider });
       return c.json({
-        work_item_id: id,
+        task_id: id,
         model: proposal.model,
         rationale: proposal.rationale,
         tasks: proposal.tasks.map((task) => ({

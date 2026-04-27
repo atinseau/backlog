@@ -32,7 +32,7 @@ describe("reorderSubTask", () => {
     const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
 
     reorderSubTask(backlogDir, { taskId: t3.id, beforeId: t1.id });
-    const tasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
+    const tasks = listSubTasks(backlogDir).filter((task) => task.task_id === wi.id);
     const ordered = tasks.sort((a, b) => b.priority_score - a.priority_score).map((t) => t.id);
     expect(ordered).toEqual([t3.id, t1.id, t2.id]);
   });
@@ -44,7 +44,7 @@ describe("reorderSubTask", () => {
     const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
 
     reorderSubTask(backlogDir, { taskId: t1.id, afterId: t2.id });
-    const tasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
+    const tasks = listSubTasks(backlogDir).filter((task) => task.task_id === wi.id);
     const ordered = tasks.sort((a, b) => b.priority_score - a.priority_score).map((t) => t.id);
     expect(ordered).toEqual([t2.id, t1.id, t3.id]);
   });

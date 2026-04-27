@@ -131,7 +131,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
     if (!column) continue;
 
     const itemTasks = tasks.filter((task) => {
-      if (task.work_item_id !== workItem.id) return false;
+      if (task.task_id !== workItem.id) return false;
       if (filters.repo && task.repo !== filters.repo) return false;
       return true;
     });

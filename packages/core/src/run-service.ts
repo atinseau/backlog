@@ -11,16 +11,16 @@ function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "rev
   }
   if (status === "review") {
     updateSubTaskStatus(backlogDir, taskId, "review");
-    updateTaskStatus(backlogDir, task.work_item_id, "review");
+    updateTaskStatus(backlogDir, task.task_id, "review");
     return;
   }
   if (status === "completed") {
     updateSubTaskStatus(backlogDir, taskId, "completed");
-    updateTaskStatus(backlogDir, task.work_item_id, "done");
+    updateTaskStatus(backlogDir, task.task_id, "done");
     return;
   }
   updateSubTaskStatus(backlogDir, taskId, "blocked");
-  updateTaskStatus(backlogDir, task.work_item_id, "blocked");
+  updateTaskStatus(backlogDir, task.task_id, "blocked");
 }
 
 async function releaseRunClaims(backlogDir: string, runId: string): Promise<void> {
@@ -55,7 +55,7 @@ async function releaseRunClaims(backlogDir: string, runId: string): Promise<void
 
 export async function completeRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "succeeded", summary ?? "Completed by operator");
-  syncParentWorkAfterRun(backlogDir, run.task_id, "completed");
+  syncParentWorkAfterRun(backlogDir, run.subtask_id, "completed");
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
@@ -66,14 +66,14 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
 
 export async function failRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "failed", summary ?? "Failed by operator");
-  syncParentWorkAfterRun(backlogDir, run.task_id, "blocked");
+  syncParentWorkAfterRun(backlogDir, run.subtask_id, "blocked");
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
 
 export async function sendRunToReview(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "awaiting_review", summary ?? "Awaiting review");
-  syncParentWorkAfterRun(backlogDir, run.task_id, "review");
+  syncParentWorkAfterRun(backlogDir, run.subtask_id, "review");
   await releaseRunClaims(backlogDir, runId);
 }
 
@@ -92,7 +92,7 @@ export async function finalizeSuccessfulRun(
 
 export async function requestRunChanges(backlogDir: string, runId: string, reason: string): Promise<string> {
   const run = updateRunStatus(backlogDir, runId, "blocked", reason);
-  updateSubTaskStatus(backlogDir, run.task_id, "planned");
+  updateSubTaskStatus(backlogDir, run.subtask_id, "planned");
   createRunHandoff(backlogDir, runId, reason);
   archiveRun(backlogDir, runId);
   return getRunHandoffPath(backlogDir, runId) ?? writeRunHandoff(backlogDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
@@ -103,7 +103,7 @@ export function createRunHandoff(backlogDir: string, runId: string, reason: stri
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
-  const task = run ? getSubTask(backlogDir, run.task_id) : null;
+  const task = run ? getSubTask(backlogDir, run.subtask_id) : null;
   const handoff = [
     `# Run Handoff`,
     ``,

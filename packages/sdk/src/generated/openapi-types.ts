@@ -462,7 +462,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        work_item_id: number;
+                        task_id: number;
                         repo?: string;
                         scope?: string;
                         status?: string;
@@ -1098,7 +1098,7 @@ export interface components {
             /** Format: int64 */
             id: number;
             /** Format: int64 */
-            work_item_id: number;
+            task_id: number;
             repo?: string | null;
             scope?: string | null;
             /** @enum {string} */

@@ -155,7 +155,7 @@ export function registerSubTaskCommand(program: Command): void {
         if (options.status && item.status !== options.status) {
           return false;
         }
-        if (options.workItem && item.work_item_id !== options.workItem) {
+        if (options.workItem && item.task_id !== options.workItem) {
           return false;
         }
         return true;
@@ -208,7 +208,7 @@ export function registerSubTaskCommand(program: Command): void {
       console.log(`Title: ${task.title}`);
       console.log(`Repo: ${task.repo}`);
       console.log(`Status: ${task.status}`);
-      console.log(`Work item: ${task.work_item_id}`);
+      console.log(`Work item: ${task.task_id}`);
       if (task.scopes.length > 0) {
         console.log(`Scopes: ${task.scopes.join(", ")}`);
       }

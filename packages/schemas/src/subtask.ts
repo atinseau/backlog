@@ -13,7 +13,7 @@ export const subTaskStatusSchema = z.enum([
 
 export const subTaskSchema = z.object({
   id: z.string().min(1),
-  work_item_id: z.string().min(1),
+  task_id: z.string().min(1),
   title: z.string().min(1),
   repo: z.string().min(1),
   status: subTaskStatusSchema,

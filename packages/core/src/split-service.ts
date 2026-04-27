@@ -86,7 +86,7 @@ export function applySplitProposal(
     throw new Error("Proposal must contain at least one task");
   }
 
-  const existingTasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
+  const existingTasks = listSubTasks(backlogDir).filter((task) => task.task_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(
       `Work item ${input.workItemId} already has ${existingTasks.length} task(s). Pass force=true to append.`,
@@ -137,7 +137,7 @@ export function splitTask(backlogDir: string, input: SplitWorkItemInput): SplitW
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
 
-  const existingTasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
+  const existingTasks = listSubTasks(backlogDir).filter((task) => task.task_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(`Work item ${input.workItemId} already has ${existingTasks.length} task(s). Use --force to append more split tasks.`);
   }

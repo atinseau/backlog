@@ -36,8 +36,8 @@ export function createRun(params: {
   const run: Run = {
     version: 1,
     id: params.runId,
-    task_id: params.task.id,
-    work_item_id: params.workItem.id,
+    subtask_id: params.task.id,
+    task_id: params.workItem.id,
     repo: params.task.repo,
     branch: params.branch,
     agent_id: params.agent.id,

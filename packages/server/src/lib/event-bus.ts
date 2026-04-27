@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 export type BoardEventType =
   | "claim.changed"
+  | "subtask.changed"
   | "task.changed"
-  | "work_item.changed"
   | "run.changed"
   | "project.changed"
   | "orchestrator.changed"
@@ -26,8 +26,8 @@ interface WatchSpec {
 const WATCH_TARGETS: WatchSpec[] = [
   { relative: "claims/active", type: "claim.changed", recursive: true },
   { relative: "runs/active", type: "run.changed", recursive: true },
-  { relative: "subtasks.yaml", type: "task.changed" },
-  { relative: "tasks.yaml", type: "work_item.changed" },
+  { relative: "subtasks.yaml", type: "subtask.changed" },
+  { relative: "tasks.yaml", type: "task.changed" },
   { relative: "projects.yaml", type: "project.changed" },
   { relative: "orchestrator.json", type: "orchestrator.changed" },
   { relative: "config.toml", type: "repo.changed" },

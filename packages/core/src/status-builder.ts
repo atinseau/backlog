@@ -107,9 +107,9 @@ export function buildWorkspaceStatus(
   const workItemsById = new Map(allWorkItems.map((item) => [item.id, item]));
   const tasksByWorkItem = new Map<string, SubTask[]>();
   for (const task of allTasks) {
-    const existing = tasksByWorkItem.get(task.work_item_id) ?? [];
+    const existing = tasksByWorkItem.get(task.task_id) ?? [];
     existing.push(task);
-    tasksByWorkItem.set(task.work_item_id, existing);
+    tasksByWorkItem.set(task.task_id, existing);
   }
 
   const selectedRepoId = options?.repoId;
@@ -168,13 +168,13 @@ export function buildWorkspaceStatus(
         if (!selectedRepoId) {
           return true;
         }
-        const workItem = workItemsById.get(conflict.work_item_id);
+        const workItem = workItemsById.get(conflict.task_id);
         return workItem ? workItemTouchesRepo(workItem, selectedRepoId, tasksByWorkItem) : false;
       })
       .slice(0, 3)
       .map((conflict) => {
-        const workItem = workItemsById.get(conflict.work_item_id);
-        return `${conflict.work_item_id}${workItem ? ` (${workItem.title})` : ""}: external status conflict`;
+        const workItem = workItemsById.get(conflict.task_id);
+        return `${conflict.task_id}${workItem ? ` (${workItem.title})` : ""}: external status conflict`;
       }),
   ];
 
@@ -192,7 +192,7 @@ export function buildWorkspaceStatus(
       if (!selectedRepoId) {
         return true;
       }
-      const workItem = workItemsById.get(conflict.work_item_id);
+      const workItem = workItemsById.get(conflict.task_id);
       return workItem ? workItemTouchesRepo(workItem, selectedRepoId, tasksByWorkItem) : false;
     }).length,
     ...(selectedRepoId ? { selectedRepoId } : {}),

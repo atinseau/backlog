@@ -224,7 +224,7 @@ export function tasksSummary(backlogDir: string): Record<TaskStatus, number> {
 }
 
 export function deriveTaskStatusFromSubTasks(backlogDir: string, workItemId: string): TaskStatus | null {
-  const tasks = readSubTasksFile(backlogDir).subtasks.filter((task) => task.work_item_id === workItemId);
+  const tasks = readSubTasksFile(backlogDir).subtasks.filter((task) => task.task_id === workItemId);
   if (tasks.length === 0) {
     return null;
   }
@@ -257,7 +257,7 @@ export function removeTask(backlogDir: string, id: string, options?: { cascadeTa
   }
 
   const taskFile = readSubTasksFile(backlogDir);
-  const linkedTasks = taskFile.subtasks.filter((task) => task.work_item_id === id);
+  const linkedTasks = taskFile.subtasks.filter((task) => task.task_id === id);
   if (linkedTasks.length > 0 && !options?.cascadeTasks) {
     throw new Error(`Work item ${id} still has ${linkedTasks.length} task(s). Re-run with --cascade.`);
   }
@@ -265,7 +265,7 @@ export function removeTask(backlogDir: string, id: string, options?: { cascadeTa
   if (linkedTasks.length > 0) {
     const removedTaskIds = new Set(linkedTasks.map((task) => task.id));
     taskFile.subtasks = taskFile.subtasks
-      .filter((task) => task.work_item_id !== id)
+      .filter((task) => task.task_id !== id)
       .map((task) => {
         const nextDependsOn = task.depends_on.filter((dependencyId) => !removedTaskIds.has(dependencyId));
         if (nextDependsOn.length === task.depends_on.length) {

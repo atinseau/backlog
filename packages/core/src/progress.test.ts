@@ -5,7 +5,7 @@ import { computeSubTaskProgress, computeTaskProgress, elapsedSeconds, etaIso } f
 function makeTask(overrides: Partial<SubTask> = {}): SubTask {
   return {
     id: "TASK-1",
-    work_item_id: "WI-1",
+    task_id: "WI-1",
     title: "Test",
     repo: "myrepo",
     status: "queued",
@@ -32,8 +32,8 @@ function makeRun(overrides: Partial<Run> = {}): Run {
   return {
     version: 1,
     id: "RUN-1",
-    task_id: "TASK-1",
-    work_item_id: "WI-1",
+    subtask_id: "TASK-1",
+    task_id: "WI-1",
     repo: "myrepo",
     branch: "feat/x",
     agent_id: "agent-1",

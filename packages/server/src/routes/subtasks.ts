@@ -24,7 +24,7 @@ const moveBodySchema = z.object({
 });
 
 const createBodySchema = z.object({
-  work_item_id: z.string().min(1),
+  task_id: z.string().min(1),
   title: z.string().min(1),
   repo: z.string().min(1),
   scopes: z.array(z.string().min(1)).optional(),
@@ -72,7 +72,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
     }
     try {
       const input: Parameters<typeof createSubTask>[1] = {
-        workItemId: parsed.data.work_item_id,
+        workItemId: parsed.data.task_id,
         title: parsed.data.title,
         repo: parsed.data.repo,
       };

@@ -20,8 +20,8 @@ export const artifactSchema = z.object({
 export const runSchema = z.object({
   version: z.literal(1),
   id: z.string().min(1),
+  subtask_id: z.string().min(1),
   task_id: z.string().min(1),
-  work_item_id: z.string().min(1),
   repo: z.string().min(1),
   branch: z.string().min(1),
   agent_id: z.string().min(1),

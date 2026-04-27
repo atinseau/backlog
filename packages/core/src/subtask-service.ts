@@ -52,7 +52,7 @@ export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTa
   const now = new Date().toISOString();
   const task: SubTask = {
     id: makeId("TASK"),
-    work_item_id: input.workItemId,
+    task_id: input.workItemId,
     title: input.title,
     repo: input.repo,
     status: "queued",
@@ -155,9 +155,9 @@ export function updateSubTaskStatus(backlogDir: string, id: string, status: SubT
   task.updated_at = new Date().toISOString();
   writeSubTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, task.work_item_id);
+  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, task.task_id);
   if (derivedWorkStatus) {
-    updateTaskStatus(backlogDir, task.work_item_id, derivedWorkStatus);
+    updateTaskStatus(backlogDir, task.task_id, derivedWorkStatus);
   }
 
   return task;
@@ -242,7 +242,7 @@ export function reorderSubTask(backlogDir: string, input: ReorderTaskInput): Sub
   if (!task) throw new Error(`Unknown task: ${input.taskId}`);
 
   const sameWorkItem = file.subtasks
-    .filter((candidate) => candidate.work_item_id === task.work_item_id)
+    .filter((candidate) => candidate.task_id === task.task_id)
     .sort((a, b) => b.priority_score - a.priority_score);
 
   const without = sameWorkItem.filter((candidate) => candidate.id !== task.id);
@@ -292,11 +292,11 @@ export function removeSubTask(backlogDir: string, id: string): SubTask {
   }
   writeSubTasksFile(backlogDir, file);
 
-  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, removed.work_item_id);
+  const derivedWorkStatus = deriveTaskStatusFromSubTasks(backlogDir, removed.task_id);
   if (derivedWorkStatus) {
-    updateTaskStatus(backlogDir, removed.work_item_id, derivedWorkStatus);
+    updateTaskStatus(backlogDir, removed.task_id, derivedWorkStatus);
   } else {
-    updateTaskStatus(backlogDir, removed.work_item_id, "backlog");
+    updateTaskStatus(backlogDir, removed.task_id, "backlog");
   }
 
   return removed;

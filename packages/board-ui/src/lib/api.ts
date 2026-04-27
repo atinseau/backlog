@@ -349,7 +349,7 @@ export async function reorderTask(
 }
 
 export interface CreateSubTaskInput {
-  work_item_id: string;
+  task_id: string;
   title: string;
   repo: string;
   scopes?: string[];
@@ -443,7 +443,7 @@ export type DecisionAction = "run" | "wait" | "block" | "skip";
 
 export interface EnrichedDecision {
   task_id: string;
-  work_item_id: string;
+  task_id: string;
   task_title: string | null;
   work_item_title: string | null;
   repo: string | null;
@@ -495,7 +495,7 @@ export interface SplitResult {
 
 export interface StartRunInput {
   task_id?: string;
-  work_item_id?: string;
+  task_id?: string;
   max_start?: number;
   agent_id?: string;
   approve?: boolean;
@@ -546,7 +546,7 @@ export interface ProposedTask {
 }
 
 export interface SplitProposal {
-  work_item_id: string;
+  task_id: string;
   model: string;
   rationale: string;
   tasks: ProposedTask[];
@@ -677,7 +677,7 @@ export interface TaskDetail {
 
 export interface SubTaskDetail {
   id: string;
-  work_item_id: string;
+  task_id: string;
   title: string;
   repo: string;
   status: string;

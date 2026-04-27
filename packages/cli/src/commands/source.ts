@@ -378,7 +378,7 @@ export function registerSourceCommand(program: Command): void {
         return;
       }
       for (const conflict of conflicts) {
-        console.log(`${conflict.id} | ${conflict.work_item_id} | ${conflict.field} | local=${conflict.local_value} | external=${conflict.external_value}`);
+        console.log(`${conflict.id} | ${conflict.task_id} | ${conflict.field} | local=${conflict.local_value} | external=${conflict.external_value}`);
       }
     });
 

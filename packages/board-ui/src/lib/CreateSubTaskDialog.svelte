@@ -26,7 +26,7 @@
     error = null;
     try {
       const input: Parameters<typeof createSubTask>[0] = {
-        work_item_id: workItem.id,
+        task_id: workItem.id,
         title: title.trim(),
         repo,
         risk,

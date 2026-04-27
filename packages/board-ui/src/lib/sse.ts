@@ -4,8 +4,8 @@ export type BoardEventType =
   | "ready"
   | "ping"
   | "claim.changed"
+  | "subtask.changed"
   | "task.changed"
-  | "work_item.changed"
   | "run.changed"
   | "project.changed"
   | "orchestrator.changed"
@@ -29,8 +29,8 @@ export function subscribeToBoard(
     "ready",
     "ping",
     "claim.changed",
+    "subtask.changed",
     "task.changed",
-    "work_item.changed",
     "run.changed",
     "project.changed",
     "orchestrator.changed",

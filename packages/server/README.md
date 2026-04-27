@@ -58,7 +58,7 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | `GET` | `/board?project=...&repo=...` | Work items grouped into 4 columns. Cards now embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`. Top-level `total_estimated_seconds` + `total_remaining_seconds`. |
 | `GET` | `/runs?status=...` | Active runs |
 | `GET` | `/orchestrate?work_item=...&task=...` | Wave-bucketed execution plan (read-only — no runs are started) |
-| `GET` | `/events` | SSE: `claim.changed` / `task.changed` / `work_item.changed` / `run.changed` / `project.changed` / `orchestrator.changed` / `repo.changed`, debounced 200ms |
+| `GET` | `/events` | SSE: `claim.changed` / `subtask.changed` / `task.changed` / `run.changed` / `project.changed` / `orchestrator.changed` / `repo.changed`, debounced 200ms |
 | `GET` | `/claims` | Active non-expired claims |
 | `GET` | `/claims/check?repo=…&path=…` | Is this path free? Returns `retry_after_seconds` if not |
 | `POST` | `/claims` | Create a claim. Returns 409 with retry envelope on overlap |

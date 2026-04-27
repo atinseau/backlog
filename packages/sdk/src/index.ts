@@ -152,7 +152,7 @@ export class BacklogClient {
   async createSubTask(
     workspaceId: number,
     input: {
-      work_item_id: number;
+      task_id: number;
       repo?: string;
       scope?: string;
       status?: string;

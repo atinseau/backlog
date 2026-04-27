@@ -127,7 +127,7 @@ export function buildExecutionPlan(
       return task.id === options.taskId;
     }
     if (options?.workItemId) {
-      return task.work_item_id === options.workItemId;
+      return task.task_id === options.workItemId;
     }
     return true;
   });
@@ -142,11 +142,11 @@ export function buildExecutionPlan(
   const deferred: SubTaskDecision[] = [];
 
   const evaluated: EvaluatedDecision[] = candidates.map((task) => {
-    const workItem = workItemsById.get(task.work_item_id);
+    const workItem = workItemsById.get(task.task_id);
     if (!workItem) {
       return {
         taskId: task.id,
-        workItemId: task.work_item_id,
+        workItemId: task.task_id,
         action: "block" as const,
         score: -1000,
         reasons: ["missing_work_item"],
@@ -184,7 +184,7 @@ export function buildExecutionPlan(
     if (reasons.length === 0) {
       return {
         taskId: task.id,
-        workItemId: task.work_item_id,
+        workItemId: task.task_id,
         action: "run" as const,
         score,
         reasons: ["dependencies_clear", "scope_clear", "policy_clear"],
@@ -200,7 +200,7 @@ export function buildExecutionPlan(
 
     return {
       taskId: task.id,
-      workItemId: task.work_item_id,
+      workItemId: task.task_id,
       action,
       score,
       reasons,
@@ -361,7 +361,7 @@ export function buildTaskExecutionOutline(backlogDir: string, config: ProjectCon
     throw new Error(`Unknown work item: ${workItemId}`);
   }
   const tasks = listSubTasks(backlogDir)
-    .filter((task) => task.work_item_id === workItemId)
+    .filter((task) => task.task_id === workItemId)
     .sort((left, right) => left.depends_on.length - right.depends_on.length || left.created_at.localeCompare(right.created_at));
   const plan = buildExecutionPlan(backlogDir, config, { workItemId });
   return {

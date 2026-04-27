@@ -49,6 +49,30 @@ function migrateLegacySubTasksFile(backlogDir: string): void {
   fs.unlinkSync(oldPath);
 }
 
+// Per-row migration: the SubTask schema's parent FK was historically named
+// work_item_id (back when the parent was a WorkItem). It's now task_id.
+// We rewrite each row in-place on read so existing .backlog/subtasks.yaml
+// files keep working without manual editing.
+function migrateSubTaskRows(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const obj = raw as Record<string, unknown>;
+  const subtasks = obj.subtasks;
+  if (!Array.isArray(subtasks)) return obj;
+  let dirty = false;
+  for (const row of subtasks) {
+    if (row && typeof row === "object") {
+      const r = row as Record<string, unknown>;
+      if ("work_item_id" in r && !("task_id" in r)) {
+        r["task_id"] = r["work_item_id"];
+        delete r["work_item_id"];
+        dirty = true;
+      }
+    }
+  }
+  if (dirty) obj.subtasks = subtasks;
+  return obj;
+}
+
 // Legacy state used .backlog/work-items.yaml with inner key `items: []` for
 // the kanban cards. The new shape is .backlog/tasks.yaml with inner key
 // `tasks: []`. Migrate on first read.
@@ -79,7 +103,17 @@ export function writeTasksFile(backlogDir: string, file: TasksFile): void {
 
 export function readSubTasksFile(backlogDir: string): SubTasksFile {
   migrateLegacySubTasksFile(backlogDir);
-  return readYaml(subTasksPath(backlogDir), (value) => subTasksFileSchema.parse(value));
+  const filePath = subTasksPath(backlogDir);
+  const raw = YAML.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+  const before = JSON.stringify(raw);
+  const migrated = migrateSubTaskRows(raw);
+  const parsed = subTasksFileSchema.parse(migrated);
+  // If migration changed the on-disk shape, persist it once so we stop
+  // re-doing the work on every read.
+  if (JSON.stringify(migrated) !== before) {
+    fs.writeFileSync(filePath, YAML.stringify(parsed), "utf8");
+  }
+  return parsed;
 }
 
 export function writeSubTasksFile(backlogDir: string, file: SubTasksFile): void {

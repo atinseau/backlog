@@ -285,7 +285,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
     }
 
     let workItemsChanged = false;
-    const affectedWorkItems = new Set(linkedTasks.map((task) => task.work_item_id));
+    const affectedWorkItems = new Set(linkedTasks.map((task) => task.task_id));
     for (const item of workItemsFile.tasks) {
       let changed = false;
       if (item.repo_targets.includes(repoId)) {
