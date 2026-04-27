@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import YAML from "yaml";
-import { agentsFileSchema, type Agent, type AgentsFile, type Task } from "@backlog/schemas";
+import { agentsFileSchema, type Agent, type AgentsFile, type SubTask } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 
 function agentsPath(backlogDir: string): string {
@@ -195,7 +195,7 @@ export function healthForAgents(backlogDir: string): AgentHealth[] {
   });
 }
 
-export function canAgentRunTask(agent: Agent, task: Pick<Task, "repo" | "risk" | "execution">): boolean {
+export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">): boolean {
   if (!agent.enabled) {
     return false;
   }
@@ -208,7 +208,7 @@ export function canAgentRunTask(agent: Agent, task: Pick<Task, "repo" | "risk" |
   return task.execution.required_capabilities.every((capability) => agent.capabilities.includes(capability));
 }
 
-export function rankAgentsForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): AgentSelection[] {
+export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo" | "risk" | "execution">): AgentSelection[] {
   const activeRuns = listActiveRuns(backlogDir);
   const activeRunCounts = new Map<string, number>();
   for (const run of activeRuns) {
@@ -279,13 +279,13 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<Task, "repo" | 
 
 export function selectionForAgentTask(
   backlogDir: string,
-  task: Pick<Task, "repo" | "risk" | "execution">,
+  task: Pick<SubTask, "repo" | "risk" | "execution">,
   agentId: string,
 ): AgentSelection | null {
   return rankAgentsForTask(backlogDir, task).find((candidate) => candidate.agent.id === agentId) ?? null;
 }
 
-export function pickAgentForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent {
+export function pickAgentForTask(backlogDir: string, task: Pick<SubTask, "repo" | "risk" | "execution">): Agent {
   const agent = rankAgentsForTask(backlogDir, task).find((candidate) => candidate.available)?.agent;
   if (!agent) {
     throw new Error(`No enabled agent can run repo ${task.repo} at risk ${task.risk}.`);
@@ -293,7 +293,7 @@ export function pickAgentForTask(backlogDir: string, task: Pick<Task, "repo" | "
   return agent;
 }
 
-export function compatibleAgentsForTask(backlogDir: string, task: Pick<Task, "repo" | "risk" | "execution">): Agent[] {
+export function compatibleAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo" | "risk" | "execution">): Agent[] {
   return rankAgentsForTask(backlogDir, task)
     .filter((candidate) => candidate.available)
     .map((candidate) => candidate.agent);

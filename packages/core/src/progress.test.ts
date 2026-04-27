@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Run, Task } from "@backlog/schemas";
-import { computeTaskProgress, computeWorkItemProgress, elapsedSeconds, etaIso } from "./progress.js";
+import type { Run, SubTask } from "@backlog/schemas";
+import { computeSubTaskProgress, computeWorkItemProgress, elapsedSeconds, etaIso } from "./progress.js";
 
-function makeTask(overrides: Partial<Task> = {}): Task {
+function makeTask(overrides: Partial<SubTask> = {}): SubTask {
   return {
     id: "TASK-1",
     work_item_id: "WI-1",
@@ -48,11 +48,11 @@ function makeRun(overrides: Partial<Run> = {}): Run {
   };
 }
 
-describe("computeTaskProgress", () => {
+describe("computeSubTaskProgress", () => {
   it("uses agent-reported progress when present", () => {
     const task = makeTask({ progress_percent: 42, status: "running" });
     const run = makeRun();
-    const result = computeTaskProgress({ task, activeRun: run, estimateSeconds: 600, now: Date.now() });
+    const result = computeSubTaskProgress({ task, activeRun: run, estimateSeconds: 600, now: Date.now() });
     expect(result.percent).toBe(42);
     expect(result.source).toBe("agent");
   });
@@ -61,7 +61,7 @@ describe("computeTaskProgress", () => {
     const startedMs = Date.parse("2026-04-26T10:00:00.000Z");
     const task = makeTask({ status: "running" });
     const run = makeRun({ started_at: "2026-04-26T10:00:00.000Z" });
-    const result = computeTaskProgress({
+    const result = computeSubTaskProgress({
       task,
       activeRun: run,
       estimateSeconds: 600,
@@ -76,7 +76,7 @@ describe("computeTaskProgress", () => {
     const startedMs = Date.parse("2026-04-26T10:00:00.000Z");
     const task = makeTask({ status: "running" });
     const run = makeRun({ started_at: "2026-04-26T10:00:00.000Z" });
-    const result = computeTaskProgress({
+    const result = computeSubTaskProgress({
       task,
       activeRun: run,
       estimateSeconds: 60,
@@ -88,14 +88,14 @@ describe("computeTaskProgress", () => {
 
   it("uses status fallback when no run", () => {
     const task = makeTask({ status: "review" });
-    const result = computeTaskProgress({ task, activeRun: null, estimateSeconds: 600 });
+    const result = computeSubTaskProgress({ task, activeRun: null, estimateSeconds: 600 });
     expect(result.percent).toBe(90);
     expect(result.source).toBe("status");
   });
 
   it("returns 100 for completed", () => {
     const task = makeTask({ status: "completed" });
-    const result = computeTaskProgress({ task, activeRun: null, estimateSeconds: 600 });
+    const result = computeSubTaskProgress({ task, activeRun: null, estimateSeconds: 600 });
     expect(result.percent).toBe(100);
   });
 });

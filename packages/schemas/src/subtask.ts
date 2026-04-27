@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const taskStatusSchema = z.enum([
+export const subTaskStatusSchema = z.enum([
   "queued",
   "planned",
   "running",
@@ -11,12 +11,12 @@ export const taskStatusSchema = z.enum([
   "canceled",
 ]);
 
-export const taskSchema = z.object({
+export const subTaskSchema = z.object({
   id: z.string().min(1),
   work_item_id: z.string().min(1),
   title: z.string().min(1),
   repo: z.string().min(1),
-  status: taskStatusSchema,
+  status: subTaskStatusSchema,
   priority_score: z.number().int().default(50),
   risk: z.enum(["low", "medium", "high"]).default("medium"),
   scopes: z.array(z.string()).default([]),
@@ -53,11 +53,11 @@ export const taskSchema = z.object({
   updated_at: z.string().min(1),
 });
 
-export const tasksFileSchema = z.object({
+export const subTasksFileSchema = z.object({
   version: z.literal(1),
-  tasks: z.array(taskSchema).default([]),
+  subtasks: z.array(subTaskSchema).default([]),
 });
 
-export type Task = z.infer<typeof taskSchema>;
-export type TasksFile = z.infer<typeof tasksFileSchema>;
-export type TaskStatus = z.infer<typeof taskStatusSchema>;
+export type SubTask = z.infer<typeof subTaskSchema>;
+export type SubTasksFile = z.infer<typeof subTasksFileSchema>;
+export type SubTaskStatus = z.infer<typeof subTaskStatusSchema>;

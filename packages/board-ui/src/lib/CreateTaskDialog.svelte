@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createTask } from "./api.js";
+  import { createSubTask } from "./api.js";
   import type { WorkItemCard } from "./types.js";
 
   interface Props {
@@ -24,7 +24,7 @@
     submitting = true;
     error = null;
     try {
-      const input: Parameters<typeof createTask>[0] = {
+      const input: Parameters<typeof createSubTask>[0] = {
         work_item_id: workItem.id,
         title: title.trim(),
         repo,
@@ -36,7 +36,7 @@
         .filter(Boolean);
       if (trimmedScopes.length > 0) input.scopes = trimmedScopes;
       if (lane.trim()) input.lane = lane.trim();
-      await createTask(input);
+      await createSubTask(input);
       onCreated?.();
       onClose();
     } catch (err) {

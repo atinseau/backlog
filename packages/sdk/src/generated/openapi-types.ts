@@ -442,7 +442,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            tasks?: components["schemas"]["Task"][];
+                            tasks?: components["schemas"]["SubTask"][];
                         };
                     };
                 };
@@ -478,7 +478,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            task?: components["schemas"]["Task"];
+                            task?: components["schemas"]["SubTask"];
                         };
                     };
                 };
@@ -1094,7 +1094,7 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        Task: {
+        SubTask: {
             /** Format: int64 */
             id: number;
             /** Format: int64 */

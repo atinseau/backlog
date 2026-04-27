@@ -178,7 +178,7 @@
                 <input
                   type="text"
                   bind:value={aiTasks[index].title}
-                  placeholder="Task title"
+                  placeholder="SubTask title"
                 />
                 <select bind:value={aiTasks[index].risk} aria-label="risk">
                   <option value="low">low</option>

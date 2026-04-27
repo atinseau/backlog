@@ -1,11 +1,11 @@
 import {
-  taskStatusSchema,
-  type Task,
-  type TaskStatus,
+  subTaskStatusSchema,
+  type SubTask,
+  type SubTaskStatus,
 } from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { getWorkItem, updateWorkItemStatus, deriveWorkStatusFromTasks } from "./work-service.js";
-import { readTasksFile, writeTasksFile } from "./state-files.js";
+import { readSubTasksFile, writeSubTasksFile } from "./state-files.js";
 
 export interface CreateTaskInput {
   workItemId: string;
@@ -42,15 +42,15 @@ export interface UpdateTaskInput {
   plannerLocked?: boolean;
 }
 
-export function createTask(backlogDir: string, input: CreateTaskInput): Task {
+export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTask {
   const workItem = getWorkItem(backlogDir, input.workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
 
-  const file = readTasksFile(backlogDir);
+  const file = readSubTasksFile(backlogDir);
   const now = new Date().toISOString();
-  const task: Task = {
+  const task: SubTask = {
     id: makeId("TASK"),
     work_item_id: input.workItemId,
     title: input.title,
@@ -79,19 +79,19 @@ export function createTask(backlogDir: string, input: CreateTaskInput): Task {
     created_at: now,
     updated_at: now,
   };
-  file.tasks.push(task);
-  writeTasksFile(backlogDir, file);
+  file.subtasks.push(task);
+  writeSubTasksFile(backlogDir, file);
   updateWorkItemStatus(backlogDir, input.workItemId, "ready");
   return task;
 }
 
-export function getTask(backlogDir: string, id: string): Task | null {
-  return readTasksFile(backlogDir).tasks.find((task) => task.id === id) ?? null;
+export function getSubTask(backlogDir: string, id: string): SubTask | null {
+  return readSubTasksFile(backlogDir).subtasks.find((task) => task.id === id) ?? null;
 }
 
-export function updateTask(backlogDir: string, id: string, input: UpdateTaskInput): Task {
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === id);
+export function updateTask(backlogDir: string, id: string, input: UpdateTaskInput): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
@@ -140,20 +140,20 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
   }
 
   task.updated_at = new Date().toISOString();
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
   return task;
 }
 
-export function updateTaskStatus(backlogDir: string, id: string, status: TaskStatus): Task {
-  const parsedStatus = taskStatusSchema.parse(status);
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === id);
+export function updateSubTaskStatus(backlogDir: string, id: string, status: SubTaskStatus): SubTask {
+  const parsedStatus = subTaskStatusSchema.parse(status);
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
   task.status = parsedStatus;
   task.updated_at = new Date().toISOString();
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
 
   const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, task.work_item_id);
   if (derivedWorkStatus) {
@@ -163,19 +163,19 @@ export function updateTaskStatus(backlogDir: string, id: string, status: TaskSta
   return task;
 }
 
-export function blockTask(backlogDir: string, id: string, reasons: string[]): Task {
-  const task = getTask(backlogDir, id);
+export function blockTask(backlogDir: string, id: string, reasons: string[]): SubTask {
+  const task = getSubTask(backlogDir, id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
 
   const blockers = Array.from(new Set([...task.blockers, ...reasons]));
   updateTask(backlogDir, id, { blockers });
-  return updateTaskStatus(backlogDir, id, "blocked");
+  return updateSubTaskStatus(backlogDir, id, "blocked");
 }
 
-export function unblockTask(backlogDir: string, id: string, reasons?: string[]): Task {
-  const task = getTask(backlogDir, id);
+export function unblockTask(backlogDir: string, id: string, reasons?: string[]): SubTask {
+  const task = getSubTask(backlogDir, id);
   if (!task) {
     throw new Error(`Unknown task: ${id}`);
   }
@@ -185,48 +185,48 @@ export function unblockTask(backlogDir: string, id: string, reasons?: string[]):
     : [];
 
   updateTask(backlogDir, id, { blockers });
-  return updateTaskStatus(backlogDir, id, blockers.length > 0 ? "blocked" : "planned");
+  return updateSubTaskStatus(backlogDir, id, blockers.length > 0 ? "blocked" : "planned");
 }
 
-export function setTaskEstimate(
+export function setSubTaskEstimate(
   backlogDir: string,
   id: string,
   seconds: number,
   source: "manual" | "auto" = "manual",
-): Task {
+): SubTask {
   if (!Number.isInteger(seconds) || seconds <= 0) {
     throw new Error("estimate must be a positive integer (seconds)");
   }
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === id);
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) throw new Error(`Unknown task: ${id}`);
   task.estimated_duration_seconds = seconds;
   task.estimate_source = source;
   task.updated_at = new Date().toISOString();
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
   return task;
 }
 
-export function clearTaskEstimate(backlogDir: string, id: string): Task {
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === id);
+export function clearSubTaskEstimate(backlogDir: string, id: string): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) throw new Error(`Unknown task: ${id}`);
   delete task.estimated_duration_seconds;
   delete task.estimate_source;
   task.updated_at = new Date().toISOString();
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
   return task;
 }
 
-export function setTaskProgress(backlogDir: string, id: string, percent: number): Task {
+export function setSubTaskProgress(backlogDir: string, id: string, percent: number): SubTask {
   if (!Number.isFinite(percent)) throw new Error("progress must be a number");
   const value = Math.min(100, Math.max(0, Math.round(percent)));
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === id);
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) throw new Error(`Unknown task: ${id}`);
   task.progress_percent = value;
   task.updated_at = new Date().toISOString();
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
   return task;
 }
 
@@ -236,12 +236,12 @@ export interface ReorderTaskInput {
   afterId?: string;
 }
 
-export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
-  const file = readTasksFile(backlogDir);
-  const task = file.tasks.find((candidate) => candidate.id === input.taskId);
+export function reorderSubTask(backlogDir: string, input: ReorderTaskInput): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === input.taskId);
   if (!task) throw new Error(`Unknown task: ${input.taskId}`);
 
-  const sameWorkItem = file.tasks
+  const sameWorkItem = file.subtasks
     .filter((candidate) => candidate.work_item_id === task.work_item_id)
     .sort((a, b) => b.priority_score - a.priority_score);
 
@@ -269,28 +269,28 @@ export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
       entry.updated_at = now;
     }
   });
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
   return task;
 }
 
-export function removeTask(backlogDir: string, id: string): Task {
-  const file = readTasksFile(backlogDir);
-  const index = file.tasks.findIndex((candidate) => candidate.id === id);
+export function removeTask(backlogDir: string, id: string): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const index = file.subtasks.findIndex((candidate) => candidate.id === id);
   if (index < 0) {
     throw new Error(`Unknown task: ${id}`);
   }
 
-  const [removed] = file.tasks.splice(index, 1);
+  const [removed] = file.subtasks.splice(index, 1);
   if (!removed) {
     throw new Error(`Unknown task: ${id}`);
   }
-  for (const task of file.tasks) {
+  for (const task of file.subtasks) {
     if (task.depends_on.includes(id)) {
       task.depends_on = task.depends_on.filter((dependencyId) => dependencyId !== id);
       task.updated_at = new Date().toISOString();
     }
   }
-  writeTasksFile(backlogDir, file);
+  writeSubTasksFile(backlogDir, file);
 
   const derivedWorkStatus = deriveWorkStatusFromTasks(backlogDir, removed.work_item_id);
   if (derivedWorkStatus) {

@@ -8,7 +8,7 @@ import { createClaim, listActiveClaims } from "@backlog/claims";
 import { detectGitDir, git } from "@backlog/git";
 import { createRun, getRunHandoffPath, loadRun } from "./run-store.js";
 import { completeRun, requestRunChanges, sendRunToReview } from "./run-service.js";
-import { createTask, getTask } from "./task-service.js";
+import { createSubTask, getSubTask } from "./subtask-service.js";
 import { createWorkItem, getWorkItem } from "./work-service.js";
 import { getAgent } from "./agents.js";
 
@@ -35,7 +35,7 @@ describe("completeRun", () => {
     const repoId = config.repos[0]!.id;
 
     const workItem = createWorkItem(backlogDir, { title: "Finish a run", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Run core work",
       repo: repoId,
@@ -85,7 +85,7 @@ describe("completeRun", () => {
     const repoId = config.repos[0]!.id;
 
     const workItem = createWorkItem(backlogDir, { title: "Review a run", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Review task",
       repo: repoId,
@@ -135,7 +135,7 @@ describe("completeRun", () => {
     const repoId = config.repos[0]!.id;
 
     const workItem = createWorkItem(backlogDir, { title: "Need another pass", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Retry task",
       repo: repoId,
@@ -163,7 +163,7 @@ describe("completeRun", () => {
     const handoffPath = await requestRunChanges(backlogDir, "RUN-changes", "Please tighten the scope and rerun tests");
 
     expect(loadRun(backlogDir, "RUN-changes")?.status).toBe("blocked");
-    expect(getTask(backlogDir, task.id)?.status).toBe("planned");
+    expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
     expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("in_progress");
     expect(getRunHandoffPath(backlogDir, "RUN-changes")).toBe(handoffPath);
     expect(fs.existsSync(handoffPath)).toBe(true);

@@ -26,7 +26,7 @@ interface WatchSpec {
 const WATCH_TARGETS: WatchSpec[] = [
   { relative: "claims/active", type: "claim.changed", recursive: true },
   { relative: "runs/active", type: "run.changed", recursive: true },
-  { relative: "tasks.yaml", type: "task.changed" },
+  { relative: "subtasks.yaml", type: "task.changed" },
   { relative: "work-items.yaml", type: "work_item.changed" },
   { relative: "projects.yaml", type: "project.changed" },
   { relative: "orchestrator.json", type: "orchestrator.changed" },

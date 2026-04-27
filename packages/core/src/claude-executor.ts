@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, Task, WorkItem } from "@backlog/schemas";
+import type { Agent, Run, SubTask, WorkItem } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
@@ -9,7 +9,7 @@ import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, succes
 export async function executeClaudeAgentRun(params: {
   backlogDir: string;
   run: Run;
-  task: Task;
+  task: SubTask;
   workItem: WorkItem;
   agent: Agent;
 }): Promise<void> {

@@ -1,4 +1,4 @@
-import type { Agent, Run, Task, WorkItem } from "@backlog/schemas";
+import type { Agent, Run, SubTask, WorkItem } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { executeCustomAgentRun } from "./custom-executor.js";
@@ -16,7 +16,7 @@ export function supportsAgentExecution(agent: Agent): boolean {
 export async function executeAgentRun(params: {
   backlogDir: string;
   run: Run;
-  task: Task;
+  task: SubTask;
   workItem: WorkItem;
   agent: Agent;
 }): Promise<boolean> {

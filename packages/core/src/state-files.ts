@@ -5,9 +5,9 @@ import {
   defaultOrchestratorState,
   type OrchestratorState,
   orchestratorStateSchema,
-  tasksFileSchema,
-  type Task,
-  type TasksFile,
+  subTasksFileSchema,
+  type SubTask,
+  type SubTasksFile,
   type WorkItem,
   workItemsFileSchema,
   type WorkItemsFile,
@@ -26,8 +26,26 @@ export function workItemsPath(backlogDir: string): string {
   return path.join(backlogDir, "work-items.yaml");
 }
 
-export function tasksPath(backlogDir: string): string {
-  return path.join(backlogDir, "tasks.yaml");
+export function subTasksPath(backlogDir: string): string {
+  return path.join(backlogDir, "subtasks.yaml");
+}
+
+const LEGACY_SUBTASKS_FILE = "tasks.yaml";
+
+// Legacy state used .backlog/tasks.yaml with inner key `tasks: []`. The new
+// shape lives at subtasks.yaml with inner key `subtasks: []`. Migrate on
+// first read so older workspaces stay loadable without a manual step.
+function migrateLegacySubTasksFile(backlogDir: string): void {
+  const newPath = subTasksPath(backlogDir);
+  const oldPath = path.join(backlogDir, LEGACY_SUBTASKS_FILE);
+  if (!fs.existsSync(oldPath) || fs.existsSync(newPath)) return;
+  const raw = YAML.parse(fs.readFileSync(oldPath, "utf8")) as Record<string, unknown>;
+  if ("tasks" in raw && !("subtasks" in raw)) {
+    raw.subtasks = raw.tasks;
+    delete raw.tasks;
+  }
+  fs.writeFileSync(newPath, YAML.stringify(raw), "utf8");
+  fs.unlinkSync(oldPath);
 }
 
 export function readWorkItemsFile(backlogDir: string): WorkItemsFile {
@@ -38,20 +56,21 @@ export function writeWorkItemsFile(backlogDir: string, file: WorkItemsFile): voi
   writeYaml(workItemsPath(backlogDir), file);
 }
 
-export function readTasksFile(backlogDir: string): TasksFile {
-  return readYaml(tasksPath(backlogDir), (value) => tasksFileSchema.parse(value));
+export function readSubTasksFile(backlogDir: string): SubTasksFile {
+  migrateLegacySubTasksFile(backlogDir);
+  return readYaml(subTasksPath(backlogDir), (value) => subTasksFileSchema.parse(value));
 }
 
-export function writeTasksFile(backlogDir: string, file: TasksFile): void {
-  writeYaml(tasksPath(backlogDir), file);
+export function writeSubTasksFile(backlogDir: string, file: SubTasksFile): void {
+  writeYaml(subTasksPath(backlogDir), file);
 }
 
 export function listWorkItems(backlogDir: string): WorkItem[] {
   return readWorkItemsFile(backlogDir).items;
 }
 
-export function listTasks(backlogDir: string): Task[] {
-  return readTasksFile(backlogDir).tasks;
+export function listSubTasks(backlogDir: string): SubTask[] {
+  return readSubTasksFile(backlogDir).subtasks;
 }
 
 export function orchestratorStatePath(backlogDir: string): string {

@@ -1,12 +1,12 @@
 import { listActiveClaims, scopesOverlap } from "@backlog/claims";
-import type { Task, WorkItem, ProjectConfig } from "@backlog/schemas";
+import type { SubTask, WorkItem, ProjectConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { listActiveRuns } from "./run-store.js";
-import { listTasks, listWorkItems } from "./state-files.js";
+import { listSubTasks, listWorkItems } from "./state-files.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
-export interface TaskDecision {
+export interface SubTaskDecision {
   taskId: string;
   workItemId: string;
   action: DecisionAction;
@@ -19,18 +19,18 @@ export interface TaskDecision {
 export interface ExecutionPlan {
   generatedAt: string;
   maxAgents: number;
-  runnable: TaskDecision[];
-  waiting: TaskDecision[];
-  blocked: TaskDecision[];
-  skipped: TaskDecision[];
+  runnable: SubTaskDecision[];
+  waiting: SubTaskDecision[];
+  blocked: SubTaskDecision[];
+  skipped: SubTaskDecision[];
 }
 
-interface EvaluatedDecision extends TaskDecision {
-  task?: Task;
+interface EvaluatedDecision extends SubTaskDecision {
+  task?: SubTask;
   compatibleAgentIds?: string[];
 }
 
-function isTerminal(status: Task["status"]): boolean {
+function isTerminal(status: SubTask["status"]): boolean {
   return status === "completed" || status === "canceled";
 }
 
@@ -47,7 +47,7 @@ function taskPriorityWeight(workItem: WorkItem): number {
   }
 }
 
-function riskWeight(task: Task): number {
+function riskWeight(task: SubTask): number {
   switch (task.risk) {
     case "low":
       return 15;
@@ -58,7 +58,7 @@ function riskWeight(task: Task): number {
   }
 }
 
-function blastRadiusWeight(task: Task): number {
+function blastRadiusWeight(task: SubTask): number {
   if (task.scopes.length <= 2) {
     return 20;
   }
@@ -68,7 +68,7 @@ function blastRadiusWeight(task: Task): number {
   return -20;
 }
 
-function overlapWithClaim(task: Task, repoPath: string, claims: ReturnType<typeof listActiveClaims>) {
+function overlapWithClaim(task: SubTask, repoPath: string, claims: ReturnType<typeof listActiveClaims>) {
   return claims.find((claim) => {
     if (claim.repo !== task.repo && claim.repo_path !== repoPath) {
       return false;
@@ -80,13 +80,13 @@ function overlapWithClaim(task: Task, repoPath: string, claims: ReturnType<typeo
   });
 }
 
-function dependencyReasons(task: Task, tasksById: Map<string, Task>): string[] {
+function dependencyReasons(task: SubTask, tasksById: Map<string, SubTask>): string[] {
   return task.depends_on
     .filter((dependencyId) => tasksById.get(dependencyId)?.status !== "completed")
     .map((dependencyId) => `blocked_by_dependency:${dependencyId}`);
 }
 
-function policyReasons(task: Task, config: ProjectConfig): string[] {
+function policyReasons(task: SubTask, config: ProjectConfig): string[] {
   const reasons: string[] = [];
   if (config.autonomy_mode === "observe") {
     reasons.push("autonomy_mode_observe");
@@ -100,7 +100,7 @@ function policyReasons(task: Task, config: ProjectConfig): string[] {
   return reasons;
 }
 
-function scoreTask(task: Task, workItem: WorkItem): number {
+function scoreTask(task: SubTask, workItem: WorkItem): number {
   return (
     taskPriorityWeight(workItem) +
     riskWeight(task) +
@@ -116,7 +116,7 @@ export function buildExecutionPlan(
   config: ProjectConfig,
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
-  const tasks = listTasks(backlogDir).filter((task) => !isTerminal(task.status));
+  const tasks = listSubTasks(backlogDir).filter((task) => !isTerminal(task.status));
   const workItems = listWorkItems(backlogDir);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));
@@ -138,8 +138,8 @@ export function buildExecutionPlan(
     activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
   }
 
-  const preselected: TaskDecision[] = [];
-  const deferred: TaskDecision[] = [];
+  const preselected: SubTaskDecision[] = [];
+  const deferred: SubTaskDecision[] = [];
 
   const evaluated: EvaluatedDecision[] = candidates.map((task) => {
     const workItem = workItemsById.get(task.work_item_id);
@@ -308,7 +308,7 @@ export function buildExecutionPlan(
   }
 
   const runnable = preselected;
-  const waiting: TaskDecision[] = [
+  const waiting: SubTaskDecision[] = [
     ...evaluated.filter((decision) => decision.action === "wait").map((decision) => ({
       taskId: decision.taskId,
       workItemId: decision.workItemId,
@@ -319,7 +319,7 @@ export function buildExecutionPlan(
     })),
     ...deferred,
   ];
-  const blocked: TaskDecision[] = evaluated.filter((decision) => decision.action === "block").map((decision) => ({
+  const blocked: SubTaskDecision[] = evaluated.filter((decision) => decision.action === "block").map((decision) => ({
     taskId: decision.taskId,
     workItemId: decision.workItemId,
     action: "block" as const,
@@ -327,7 +327,7 @@ export function buildExecutionPlan(
     reasons: decision.reasons,
     ...(decision.candidateAgentIds ? { candidateAgentIds: decision.candidateAgentIds } : {}),
   }));
-  const skipped: TaskDecision[] = evaluated
+  const skipped: SubTaskDecision[] = evaluated
     .filter((decision) => decision.action === "skip")
     .map((decision) => ({
       taskId: decision.taskId,
@@ -350,7 +350,7 @@ export function buildExecutionPlan(
 
 export interface WorkExecutionOutline {
   workItem: WorkItem;
-  tasks: Task[];
+  tasks: SubTask[];
   maxSafeParallelism: number;
   recommendedNextTaskId: string | null;
 }
@@ -360,7 +360,7 @@ export function buildWorkExecutionOutline(backlogDir: string, config: ProjectCon
   if (!workItem) {
     throw new Error(`Unknown work item: ${workItemId}`);
   }
-  const tasks = listTasks(backlogDir)
+  const tasks = listSubTasks(backlogDir)
     .filter((task) => task.work_item_id === workItemId)
     .sort((left, right) => left.depends_on.length - right.depends_on.length || left.created_at.localeCompare(right.created_at));
   const plan = buildExecutionPlan(backlogDir, config, { workItemId });

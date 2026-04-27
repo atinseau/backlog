@@ -3,16 +3,16 @@ import { findProject } from "@backlog/config";
 import {
   blockTask,
   buildExecutionPlan,
-  clearTaskEstimate,
-  createTask,
-  getTask,
-  listTasks,
+  clearSubTaskEstimate,
+  createSubTask,
+  getSubTask,
+  listSubTasks,
   removeTask,
-  setTaskEstimate,
-  setTaskProgress,
+  setSubTaskEstimate,
+  setSubTaskProgress,
   unblockTask,
   updateTask,
-  updateTaskStatus,
+  updateSubTaskStatus,
 } from "@backlog/core";
 import { loadConfig } from "@backlog/config";
 
@@ -31,17 +31,17 @@ function parseBooleanFlag(value: string): boolean {
   throw new Error(`Expected a boolean value, received: ${value}`);
 }
 
-export function registerTaskCommand(program: Command): void {
-  const task = program.command("task").description("Manage executable tasks");
+export function registerSubTaskCommand(program: Command): void {
+  const task = program.command("subtask").description("Manage executable subtasks (per-repo execution units)");
 
   task
     .command("add")
     .description("Create a task for a work item")
     .requiredOption("--work-item <id>", "Parent work item id")
-    .requiredOption("--title <title>", "Task title")
+    .requiredOption("--title <title>", "SubTask title")
     .requiredOption("--repo <repo>", "Target repo id")
-    .option("--scope <scope...>", "Task scopes")
-    .option("--depends-on <task...>", "Task dependencies")
+    .option("--scope <scope...>", "SubTask scopes")
+    .option("--depends-on <task...>", "SubTask dependencies")
     .option("--blocker <reason...>", "Initial blockers")
     .option("--risk <risk>", "Risk level", "medium")
     .option("--preferred-agent <id...>", "Preferred agent ids")
@@ -63,7 +63,7 @@ export function registerTaskCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const created = createTask(workspace.backlogDir, {
+      const created = createSubTask(workspace.backlogDir, {
         workItemId: options.workItem,
         title: options.title,
         repo: options.repo,
@@ -81,8 +81,8 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("update")
     .description("Update task metadata without editing YAML by hand")
-    .argument("<task-id>", "Task id")
-    .option("--title <title>", "Task title")
+    .argument("<task-id>", "SubTask id")
+    .option("--title <title>", "SubTask title")
     .option("--repo <repo>", "Target repo id")
     .option("--scope <scope>", "Replace task scopes", collectValues, [])
     .option("--depends-on <task>", "Replace task dependencies", collectValues, [])
@@ -148,7 +148,7 @@ export function registerTaskCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const tasks = listTasks(workspace.backlogDir).filter((item) => {
+      const tasks = listSubTasks(workspace.backlogDir).filter((item) => {
         if (options.repo && item.repo !== options.repo) {
           return false;
         }
@@ -176,7 +176,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("remove")
     .description("Remove a task and drop dependency references to it")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .action((taskId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -189,14 +189,14 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("show")
     .description("Show one task")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const task = getTask(workspace.backlogDir, taskId);
+      const task = getSubTask(workspace.backlogDir, taskId);
       if (!task) {
         throw new Error(`Unknown task: ${taskId}`);
       }
@@ -204,7 +204,7 @@ export function registerTaskCommand(program: Command): void {
         console.log(JSON.stringify(task, null, 2));
         return;
       }
-      console.log(`Task: ${task.id}`);
+      console.log(`SubTask: ${task.id}`);
       console.log(`Title: ${task.title}`);
       console.log(`Repo: ${task.repo}`);
       console.log(`Status: ${task.status}`);
@@ -217,21 +217,21 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("move")
     .description("Move a task to a new status")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .argument("<status>", "Target task status")
     .action((taskId: string, status: "queued" | "planned" | "running" | "waiting" | "review" | "completed" | "blocked" | "canceled") => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const task = updateTaskStatus(workspace.backlogDir, taskId, status);
+      const task = updateSubTaskStatus(workspace.backlogDir, taskId, status);
       console.log(`Moved ${task.id} to ${task.status}`);
     });
 
   task
     .command("block")
     .description("Block a task with one or more reasons")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .requiredOption("--reason <text>", "Blocking reason", collectValues, [])
     .action((taskId: string, options: { reason: string[] }) => {
       const workspace = findProject();
@@ -245,7 +245,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("unblock")
     .description("Remove one or all blockers and return the task to planned when clear")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .option("--reason <text>", "Specific blocker to remove", collectValues, [])
     .option("--all", "Remove every blocker")
     .action((taskId: string, options: { reason: string[]; all?: boolean }) => {
@@ -260,7 +260,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("plan")
     .description("Explain one task's scheduling state")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -277,7 +277,7 @@ export function registerTaskCommand(program: Command): void {
         console.log(JSON.stringify(decision, null, 2));
         return;
       }
-      console.log(`Task: ${decision.taskId}`);
+      console.log(`SubTask: ${decision.taskId}`);
       console.log(`Action: ${decision.action}`);
       console.log(`Score: ${decision.score}`);
       if (decision.assignedAgentId) {
@@ -289,7 +289,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("estimate")
     .description("Set or clear a manual estimate (in seconds)")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .argument("[seconds]", "Duration in seconds (omit with --clear)")
     .option("--clear", "Remove the manual estimate")
     .action((taskId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
@@ -298,7 +298,7 @@ export function registerTaskCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.clear) {
-        clearTaskEstimate(workspace.backlogDir, taskId);
+        clearSubTaskEstimate(workspace.backlogDir, taskId);
         console.log(`Cleared estimate on ${taskId}`);
         return;
       }
@@ -309,14 +309,14 @@ export function registerTaskCommand(program: Command): void {
       if (!Number.isInteger(seconds) || seconds <= 0) {
         throw new Error("seconds must be a positive integer");
       }
-      const updated = setTaskEstimate(workspace.backlogDir, taskId, seconds, "manual");
+      const updated = setSubTaskEstimate(workspace.backlogDir, taskId, seconds, "manual");
       console.log(`Set estimate to ${updated.estimated_duration_seconds}s on ${updated.id}`);
     });
 
   task
     .command("progress")
     .description("Set the progress percent reported by the agent (0-100)")
-    .argument("<task-id>", "Task id")
+    .argument("<task-id>", "SubTask id")
     .argument("<percent>", "Progress percent")
     .action((taskId: string, percentArg: string) => {
       const workspace = findProject();
@@ -327,7 +327,7 @@ export function registerTaskCommand(program: Command): void {
       if (!Number.isFinite(percent)) {
         throw new Error("percent must be a number");
       }
-      const updated = setTaskProgress(workspace.backlogDir, taskId, percent);
+      const updated = setSubTaskProgress(workspace.backlogDir, taskId, percent);
       console.log(`Set progress to ${updated.progress_percent}% on ${updated.id}`);
     });
 }

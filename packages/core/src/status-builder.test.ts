@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { createTask } from "./task-service.js";
+import { createSubTask } from "./subtask-service.js";
 import { createWorkItem, updateWorkItemStatus } from "./work-service.js";
 import { buildWorkspaceStatus } from "./status-builder.js";
 import { createRun } from "./run-store.js";
@@ -60,12 +60,12 @@ describe("buildWorkspaceStatus", () => {
       repoTargets: ["docs"],
     });
     updateWorkItemStatus(backlogDir, docsItem.id, "blocked");
-    createTask(backlogDir, {
+    createSubTask(backlogDir, {
       workItemId: appItem.id,
       title: "Ship app",
       repo: "backlog",
     });
-    const docsTask = createTask(backlogDir, {
+    const docsTask = createSubTask(backlogDir, {
       workItemId: docsItem.id,
       title: "Write docs",
       repo: "docs",
@@ -123,12 +123,12 @@ describe("buildWorkspaceStatus", () => {
       title: "Docs task",
       repoTargets: ["docs"],
     });
-    createTask(backlogDir, {
+    createSubTask(backlogDir, {
       workItemId: appItem.id,
       title: "Ship app",
       repo: "backlog",
     });
-    createTask(backlogDir, {
+    createSubTask(backlogDir, {
       workItemId: docsItem.id,
       title: "Write docs",
       repo: "docs",

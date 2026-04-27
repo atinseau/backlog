@@ -6,15 +6,15 @@ import { listActiveClaims } from "@backlog/claims";
 import { buildExecutionPlan } from "./scheduler.js";
 import { listActiveRuns } from "./run-store.js";
 import { listPendingSyncConflicts } from "./sync-conflicts.js";
-import { listTasks, listWorkItems } from "./state-files.js";
-import type { Task, WorkItem, WorkStatus } from "@backlog/schemas";
+import { listSubTasks, listWorkItems, readSubTasksFile } from "./state-files.js";
+import type { SubTask, WorkItem, WorkStatus } from "@backlog/schemas";
 
 type WorkItemsFile = {
   version: number;
   items?: Array<{ status?: string }>;
 };
 
-type TasksFile = {
+type SubTasksFile = {
   version: number;
   tasks?: Array<{ status?: string }>;
 };
@@ -73,7 +73,7 @@ function summarizeWorkItems(items: WorkItem[]): Record<WorkStatus, number> {
   });
 }
 
-function taskCountsForTasks(tasks: Task[]): Record<string, number> {
+function subTaskCountsForSubTasks(tasks: SubTask[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const task of tasks) {
     const status = task.status ?? "unknown";
@@ -82,7 +82,7 @@ function taskCountsForTasks(tasks: Task[]): Record<string, number> {
   return counts;
 }
 
-function workItemTouchesRepo(item: WorkItem, repoId: string, tasksByWorkItem: Map<string, Task[]>): boolean {
+function workItemTouchesRepo(item: WorkItem, repoId: string, tasksByWorkItem: Map<string, SubTask[]>): boolean {
   if (item.repo_targets.includes(repoId)) {
     return true;
   }
@@ -99,13 +99,13 @@ export function buildWorkspaceStatus(
   options?: { repoId?: string },
 ): WorkspaceStatus {
   const workItems = readYamlFile<WorkItemsFile>(path.join(backlogDir, "work-items.yaml"));
-  const tasks = readYamlFile<TasksFile>(path.join(backlogDir, "tasks.yaml"));
+  const tasks = readSubTasksFile(backlogDir);
   const plan = buildExecutionPlan(backlogDir, config);
-  const allTasks = listTasks(backlogDir);
+  const allTasks = listSubTasks(backlogDir);
   const allWorkItems = listWorkItems(backlogDir);
   const tasksById = new Map(allTasks.map((task) => [task.id, task]));
   const workItemsById = new Map(allWorkItems.map((item) => [item.id, item]));
-  const tasksByWorkItem = new Map<string, Task[]>();
+  const tasksByWorkItem = new Map<string, SubTask[]>();
   for (const task of allTasks) {
     const existing = tasksByWorkItem.get(task.work_item_id) ?? [];
     existing.push(task);
@@ -149,7 +149,7 @@ export function buildWorkspaceStatus(
         enabled: repo.enabled,
         workItemCount: repoWorkItems.length,
         taskCount: repoTasks.length,
-        taskCounts: taskCountsForTasks(repoTasks),
+        taskCounts: subTaskCountsForSubTasks(repoTasks),
         activeRuns: activeRuns.filter((run) => run.repo === repo.id).length,
         activeClaims: activeClaims.filter((claim) => claim.repo === repo.id).length,
       };
@@ -187,7 +187,7 @@ export function buildWorkspaceStatus(
     activeRuns: selectedRepoId ? activeRuns.filter((run) => run.repo === selectedRepoId).length : activeRuns.length,
     workItemCount: filteredWorkItems.length ?? workItems.items?.length ?? 0,
     workItemCounts: summarizeWorkItems(filteredWorkItems),
-    taskCounts: taskCountsForTasks(filteredTasks),
+    taskCounts: subTaskCountsForSubTasks(filteredTasks),
     pendingSyncConflicts: listPendingSyncConflicts(backlogDir).filter((conflict) => {
       if (!selectedRepoId) {
         return true;

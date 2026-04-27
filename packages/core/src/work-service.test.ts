@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { createWorkItem, removeWorkItem, updateWorkItem } from "./work-service.js";
-import { createTask, getTask } from "./task-service.js";
+import { createSubTask, getSubTask } from "./subtask-service.js";
 import { listPendingSyncConflicts, recordStatusConflict } from "./sync-conflicts.js";
 
 async function createWorkspace(): Promise<string> {
@@ -64,7 +64,7 @@ describe("work-service", () => {
       title: "Removable work item",
       repoTargets: ["backlog"],
     });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: item.id,
       title: "Linked task",
       repo: "backlog",
@@ -81,7 +81,7 @@ describe("work-service", () => {
 
     expect(removed.id).toBe(item.id);
     expect(removeWorkItem.bind(null, backlogDir, item.id)).toThrowError;
-    expect(getTask(backlogDir, task.id)).toBeNull();
+    expect(getSubTask(backlogDir, task.id)).toBeNull();
     expect(listPendingSyncConflicts(backlogDir)).toHaveLength(0);
   });
 });

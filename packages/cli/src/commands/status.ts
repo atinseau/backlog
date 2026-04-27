@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import { buildExecutionPlan, buildWorkspaceStatus } from "@backlog/core";
-import { listTasks } from "@backlog/core";
+import { listSubTasks } from "@backlog/core";
 
 export function registerStatusCommand(program: Command): void {
   program
@@ -22,7 +22,7 @@ export function registerStatusCommand(program: Command): void {
       const status = buildWorkspaceStatus(workspace.root, workspace.backlogDir, config, {
         ...(options.repo ? { repoId: options.repo } : {}),
       });
-      const tasksById = new Map(listTasks(workspace.backlogDir).map((task) => [task.id, task]));
+      const tasksById = new Map(listSubTasks(workspace.backlogDir).map((task) => [task.id, task]));
       const fullPlan = buildExecutionPlan(workspace.backlogDir, config);
       const plan = options.repo
         ? {

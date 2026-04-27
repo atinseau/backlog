@@ -1,6 +1,6 @@
-import { type Run, type Task } from "@backlog/schemas";
+import { type Run, type SubTask } from "@backlog/schemas";
 import { listArchivedRuns } from "./run-store.js";
-import { listTasks } from "./state-files.js";
+import { listSubTasks } from "./state-files.js";
 
 export const FALLBACK_TASK_DURATION_SECONDS = 30 * 60;
 
@@ -32,18 +32,18 @@ function runDurationSeconds(run: Run): number | null {
 
 export interface EstimatorContext {
   archivedRuns?: Run[];
-  tasksById?: Map<string, Task>;
+  tasksById?: Map<string, SubTask>;
 }
 
 function loadContext(backlogDir: string, ctx?: EstimatorContext): Required<EstimatorContext> {
   const archivedRuns = ctx?.archivedRuns ?? listArchivedRuns(backlogDir);
-  const tasksById = ctx?.tasksById ?? new Map(listTasks(backlogDir).map((task) => [task.id, task]));
+  const tasksById = ctx?.tasksById ?? new Map(listSubTasks(backlogDir).map((task) => [task.id, task]));
   return { archivedRuns, tasksById };
 }
 
-export function estimateTask(
+export function estimateSubTask(
   backlogDir: string,
-  task: Task,
+  task: SubTask,
   ctx?: EstimatorContext,
 ): TaskEstimate {
   if (task.estimated_duration_seconds && task.estimate_source === "manual") {
@@ -94,7 +94,7 @@ export function estimateWorkItem(
   const open = tasks.filter((task) => task.status !== "completed" && task.status !== "canceled");
   let seconds = 0;
   for (const task of open) {
-    seconds += estimateTask(backlogDir, task, ctx).seconds;
+    seconds += estimateSubTask(backlogDir, task, ctx).seconds;
   }
   return { seconds, task_count: open.length };
 }

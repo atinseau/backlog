@@ -1,25 +1,25 @@
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
-import { getTask, updateTaskStatus } from "./task-service.js";
+import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { updateWorkItemStatus } from "./work-service.js";
 import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 
 function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
-  const task = getTask(backlogDir, taskId);
+  const task = getSubTask(backlogDir, taskId);
   if (!task) {
     return;
   }
   if (status === "review") {
-    updateTaskStatus(backlogDir, taskId, "review");
+    updateSubTaskStatus(backlogDir, taskId, "review");
     updateWorkItemStatus(backlogDir, task.work_item_id, "review");
     return;
   }
   if (status === "completed") {
-    updateTaskStatus(backlogDir, taskId, "completed");
+    updateSubTaskStatus(backlogDir, taskId, "completed");
     updateWorkItemStatus(backlogDir, task.work_item_id, "done");
     return;
   }
-  updateTaskStatus(backlogDir, taskId, "blocked");
+  updateSubTaskStatus(backlogDir, taskId, "blocked");
   updateWorkItemStatus(backlogDir, task.work_item_id, "blocked");
 }
 
@@ -92,7 +92,7 @@ export async function finalizeSuccessfulRun(
 
 export async function requestRunChanges(backlogDir: string, runId: string, reason: string): Promise<string> {
   const run = updateRunStatus(backlogDir, runId, "blocked", reason);
-  updateTaskStatus(backlogDir, run.task_id, "planned");
+  updateSubTaskStatus(backlogDir, run.task_id, "planned");
   createRunHandoff(backlogDir, runId, reason);
   archiveRun(backlogDir, runId);
   return getRunHandoffPath(backlogDir, runId) ?? writeRunHandoff(backlogDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
@@ -103,7 +103,7 @@ export function createRunHandoff(backlogDir: string, runId: string, reason: stri
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
-  const task = run ? getTask(backlogDir, run.task_id) : null;
+  const task = run ? getSubTask(backlogDir, run.task_id) : null;
   const handoff = [
     `# Run Handoff`,
     ``,

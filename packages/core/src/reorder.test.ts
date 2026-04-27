@@ -4,9 +4,9 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { createTask, reorderTask } from "./task-service.js";
+import { createSubTask, reorderSubTask } from "./subtask-service.js";
 import { createWorkItem, reorderWorkItem } from "./work-service.js";
-import { listTasks, listWorkItems } from "./state-files.js";
+import { listSubTasks, listWorkItems } from "./state-files.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-reorder-"));
@@ -18,7 +18,7 @@ async function createWorkspace(): Promise<string> {
   return path.join(root, ".backlog");
 }
 
-describe("reorderTask", () => {
+describe("reorderSubTask", () => {
   let backlogDir: string;
 
   beforeEach(async () => {
@@ -27,34 +27,34 @@ describe("reorderTask", () => {
 
   it("moves a task to top via beforeId", () => {
     const wi = createWorkItem(backlogDir, { title: "Parent" });
-    const t1 = createTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
-    const t2 = createTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
-    const t3 = createTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
+    const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
+    const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
+    const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
 
-    reorderTask(backlogDir, { taskId: t3.id, beforeId: t1.id });
-    const tasks = listTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
+    reorderSubTask(backlogDir, { taskId: t3.id, beforeId: t1.id });
+    const tasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
     const ordered = tasks.sort((a, b) => b.priority_score - a.priority_score).map((t) => t.id);
     expect(ordered).toEqual([t3.id, t1.id, t2.id]);
   });
 
   it("moves a task after another via afterId", () => {
     const wi = createWorkItem(backlogDir, { title: "Parent" });
-    const t1 = createTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
-    const t2 = createTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
-    const t3 = createTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
+    const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
+    const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
+    const t3 = createSubTask(backlogDir, { workItemId: wi.id, title: "T3", repo: "r" });
 
-    reorderTask(backlogDir, { taskId: t1.id, afterId: t2.id });
-    const tasks = listTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
+    reorderSubTask(backlogDir, { taskId: t1.id, afterId: t2.id });
+    const tasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === wi.id);
     const ordered = tasks.sort((a, b) => b.priority_score - a.priority_score).map((t) => t.id);
     expect(ordered).toEqual([t2.id, t1.id, t3.id]);
   });
 
   it("uses sparse priority_scores 1000, 990, 980", () => {
     const wi = createWorkItem(backlogDir, { title: "Parent" });
-    const t1 = createTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
-    const t2 = createTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
-    reorderTask(backlogDir, { taskId: t2.id, beforeId: t1.id });
-    const tasks = listTasks(backlogDir);
+    const t1 = createSubTask(backlogDir, { workItemId: wi.id, title: "T1", repo: "r" });
+    const t2 = createSubTask(backlogDir, { workItemId: wi.id, title: "T2", repo: "r" });
+    reorderSubTask(backlogDir, { taskId: t2.id, beforeId: t1.id });
+    const tasks = listSubTasks(backlogDir);
     const reloadedT1 = tasks.find((t) => t.id === t1.id);
     const reloadedT2 = tasks.find((t) => t.id === t2.id);
     expect(reloadedT2?.priority_score).toBe(1000);

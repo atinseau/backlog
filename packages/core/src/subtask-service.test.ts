@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout, loadConfig } from "@backlog/config";
 import { git } from "@backlog/git";
-import { blockTask, createTask, getTask, removeTask, unblockTask, updateTask } from "./task-service.js";
+import { blockTask, createSubTask, getSubTask, removeTask, unblockTask, updateTask } from "./subtask-service.js";
 import { createWorkItem, getWorkItem } from "./work-service.js";
 
 async function createWorkspace(): Promise<string> {
@@ -41,8 +41,8 @@ describe("task-service", () => {
   });
 
   it("updates task metadata without changing its identity", () => {
-    const workItem = createWorkItem(backlogDir, { title: "Task editing", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const workItem = createWorkItem(backlogDir, { title: "SubTask editing", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Initial task",
       repo: repoId,
@@ -71,10 +71,10 @@ describe("task-service", () => {
   });
 
   it("blocks and unblocks tasks while keeping work status in sync", () => {
-    const workItem = createWorkItem(backlogDir, { title: "Task blocking", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const workItem = createWorkItem(backlogDir, { title: "SubTask blocking", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
-      title: "Task to block",
+      title: "SubTask to block",
       repo: repoId,
       scopes: ["README.md"],
       risk: "low",
@@ -92,18 +92,18 @@ describe("task-service", () => {
     const reopened = unblockTask(backlogDir, task.id);
     expect(reopened.status).toBe("planned");
     expect(reopened.blockers).toEqual([]);
-    expect(getTask(backlogDir, task.id)?.status).toBe("planned");
+    expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
     expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("in_progress");
   });
 
   it("removes one task and cleans up dependencies that point to it", () => {
-    const workItem = createWorkItem(backlogDir, { title: "Task removal", repoTargets: [repoId] });
-    const first = createTask(backlogDir, {
+    const workItem = createWorkItem(backlogDir, { title: "SubTask removal", repoTargets: [repoId] });
+    const first = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "First",
       repo: repoId,
     });
-    const second = createTask(backlogDir, {
+    const second = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Second",
       repo: repoId,
@@ -113,8 +113,8 @@ describe("task-service", () => {
     const removed = removeTask(backlogDir, first.id);
 
     expect(removed.id).toBe(first.id);
-    expect(getTask(backlogDir, first.id)).toBeNull();
-    expect(getTask(backlogDir, second.id)?.depends_on).toEqual([]);
+    expect(getSubTask(backlogDir, first.id)).toBeNull();
+    expect(getSubTask(backlogDir, second.id)?.depends_on).toEqual([]);
     expect(getWorkItem(backlogDir, workItem.id)?.status).toBe("ready");
   });
 });

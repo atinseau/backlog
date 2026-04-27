@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import {
   buildExecutionPlan,
-  getTask,
+  getSubTask,
   rankAgentsForTask,
   startRunsForPlan,
 } from "@backlog/core";
@@ -80,7 +80,7 @@ export function registerScheduleCommand(program: Command): void {
       });
       const decisions = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped];
       const payload = decisions.map((decision) => {
-        const task = getTask(workspace.backlogDir, decision.taskId);
+        const task = getSubTask(workspace.backlogDir, decision.taskId);
         const rankedAgents = task ? rankAgentsForTask(workspace.backlogDir, task) : [];
         return {
           ...decision,
@@ -103,7 +103,7 @@ export function registerScheduleCommand(program: Command): void {
       }
 
       for (const decision of payload) {
-        console.log(`Task: ${decision.taskId}`);
+        console.log(`SubTask: ${decision.taskId}`);
         console.log(`Action: ${decision.action}`);
         console.log(`Score: ${decision.score}`);
         if (decision.assignedAgentId) {

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
-import { createTask } from "./task-service.js";
+import { createSubTask } from "./subtask-service.js";
 import { createWorkItem } from "./work-service.js";
 
 async function createWorkspace(): Promise<string> {
@@ -88,7 +88,7 @@ describe("agents", () => {
 
   it("explains why a forced agent is unavailable for one task", () => {
     const workItem = createWorkItem(backlogDir, { title: "Agent targeting", repoTargets: ["backlog"] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Run with codex",
       repo: "backlog",

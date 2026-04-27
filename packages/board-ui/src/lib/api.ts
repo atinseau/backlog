@@ -328,8 +328,8 @@ export interface CreateTaskInput {
   lane?: string;
 }
 
-export async function createTask(input: CreateTaskInput): Promise<unknown> {
-  const response = await fetch(apiUrl("/tasks"), {
+export async function createSubTask(input: CreateTaskInput): Promise<unknown> {
+  const response = await fetch(apiUrl("/subtasks"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -341,8 +341,8 @@ export async function createTask(input: CreateTaskInput): Promise<unknown> {
   return (await response.json()) as unknown;
 }
 
-export async function reorderTask(id: string, input: { before_id?: string; after_id?: string }): Promise<void> {
-  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/reorder`), {
+export async function reorderSubTask(id: string, input: { before_id?: string; after_id?: string }): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}/reorder`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -353,8 +353,8 @@ export async function reorderTask(id: string, input: { before_id?: string; after
   }
 }
 
-export async function setTaskEstimate(id: string, seconds: number | null): Promise<void> {
-  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/estimate`), {
+export async function setSubTaskEstimate(id: string, seconds: number | null): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}/estimate`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ seconds, source: seconds === null ? undefined : "manual" }),

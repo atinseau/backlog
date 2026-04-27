@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { addRepo, getRepo, listRepos, removeRepo, updateRepo } from "./repo-service.js";
-import { createTask, getTask } from "./task-service.js";
+import { createSubTask, getSubTask } from "./subtask-service.js";
 import { createWorkItem, getWorkItem } from "./work-service.js";
 
 async function createGitRepo(root: string, name: string): Promise<string> {
@@ -55,7 +55,7 @@ describe("repo-service", () => {
       title: "Docs pipeline",
       repoTargets: ["docs"],
     });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: item.id,
       title: "Publish docs",
       repo: "docs",
@@ -80,7 +80,7 @@ describe("repo-service", () => {
     expect(updated.enabled).toBe(false);
     expect(getRepo(backlogDir, "docs")).toBeNull();
     expect(getRepo(backlogDir, "docs-site")?.path).toBe(docsRoot);
-    expect(getTask(backlogDir, task.id)?.repo).toBe("docs-site");
+    expect(getSubTask(backlogDir, task.id)?.repo).toBe("docs-site");
     expect(getWorkItem(backlogDir, item.id)?.repo_targets).toEqual(["docs-site"]);
     expect(readAgentsFile(backlogDir).agents[0]?.allowed_repos).toEqual(["docs-site"]);
   });
@@ -95,7 +95,7 @@ describe("repo-service", () => {
       title: "Docs refresh",
       repoTargets: ["docs"],
     });
-    createTask(backlogDir, {
+    createSubTask(backlogDir, {
       workItemId: item.id,
       title: "Update docs task",
       repo: "docs",
@@ -115,12 +115,12 @@ describe("repo-service", () => {
       title: "Docs refresh",
       repoTargets: ["docs", "backlog"],
     });
-    const removedTask = createTask(backlogDir, {
+    const removedTask = createSubTask(backlogDir, {
       workItemId: item.id,
       title: "Write docs",
       repo: "docs",
     });
-    const dependentTask = createTask(backlogDir, {
+    const dependentTask = createSubTask(backlogDir, {
       workItemId: item.id,
       title: "Wire docs links",
       repo: "backlog",
@@ -135,8 +135,8 @@ describe("repo-service", () => {
 
     expect(removed.id).toBe("docs");
     expect(getRepo(backlogDir, "docs")).toBeNull();
-    expect(getTask(backlogDir, removedTask.id)).toBeNull();
-    expect(getTask(backlogDir, dependentTask.id)?.depends_on).toEqual([]);
+    expect(getSubTask(backlogDir, removedTask.id)).toBeNull();
+    expect(getSubTask(backlogDir, dependentTask.id)?.depends_on).toEqual([]);
     expect(getWorkItem(backlogDir, item.id)?.repo_targets).toEqual(["backlog"]);
     expect(readAgentsFile(backlogDir).agents[0]?.allowed_repos).toEqual(["backlog"]);
   });

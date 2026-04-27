@@ -1,6 +1,6 @@
-import type { Task, WorkItem, ProjectConfig } from "@backlog/schemas";
-import { createTask } from "./task-service.js";
-import { listTasks } from "./state-files.js";
+import type { SubTask, WorkItem, ProjectConfig } from "@backlog/schemas";
+import { createSubTask } from "./subtask-service.js";
+import { listSubTasks } from "./state-files.js";
 import { getWorkItem, updateWorkItemPlanning, updateWorkItemStatus } from "./work-service.js";
 
 export interface SplitWorkItemInput {
@@ -14,7 +14,7 @@ export interface SplitWorkItemInput {
 
 export interface SplitWorkItemResult {
   workItem: WorkItem;
-  createdTasks: Task[];
+  createdTasks: SubTask[];
   mode: "parallel" | "serial";
 }
 
@@ -86,14 +86,14 @@ export function applySplitProposal(
     throw new Error("Proposal must contain at least one task");
   }
 
-  const existingTasks = listTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
+  const existingTasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(
       `Work item ${input.workItemId} already has ${existingTasks.length} task(s). Pass force=true to append.`,
     );
   }
 
-  const createdTasks: Task[] = [];
+  const createdTasks: SubTask[] = [];
   const indexToId = new Map<number, string>();
 
   for (let index = 0; index < input.tasks.length; index++) {
@@ -101,7 +101,7 @@ export function applySplitProposal(
     const dependsOn = proposed.dependsOnIndices
       .map((depIndex) => indexToId.get(depIndex))
       .filter((id): id is string => Boolean(id));
-    const created = createTask(backlogDir, {
+    const created = createSubTask(backlogDir, {
       workItemId: input.workItemId,
       title: proposed.title,
       repo: proposed.repo,
@@ -137,16 +137,16 @@ export function splitWorkItem(backlogDir: string, input: SplitWorkItemInput): Sp
     throw new Error(`Unknown work item: ${input.workItemId}`);
   }
 
-  const existingTasks = listTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
+  const existingTasks = listSubTasks(backlogDir).filter((task) => task.work_item_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(`Work item ${input.workItemId} already has ${existingTasks.length} task(s). Use --force to append more split tasks.`);
   }
 
-  const createdTasks: Task[] = [];
+  const createdTasks: SubTask[] = [];
   let previousTaskId: string | undefined;
 
   for (const repo of input.repos) {
-    const created = createTask(backlogDir, {
+    const created = createSubTask(backlogDir, {
       workItemId: input.workItemId,
       title: buildTaskTitle(workItem, repo, input.repos),
       repo,

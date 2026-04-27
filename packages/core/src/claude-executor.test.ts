@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import type { Agent } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { createRun, loadRun } from "./run-store.js";
-import { createTask } from "./task-service.js";
+import { createSubTask } from "./subtask-service.js";
 import { createWorkItem } from "./work-service.js";
 
 function createWorkspace(): string {
@@ -42,7 +42,7 @@ describe("executeClaudeAgentRun", () => {
     const fakeClaudePath = writeFakeClaudeBinary(root);
 
     const workItem = createWorkItem(backlogDir, { title: "Claude run", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Implement with claude",
       repo: repoId,

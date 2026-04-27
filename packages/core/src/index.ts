@@ -18,7 +18,7 @@ export * from "./scheduler.js";
 export * from "./run-store.js";
 export * from "./source-state.js";
 export * from "./sync-conflicts.js";
-export * from "./task-service.js";
+export * from "./subtask-service.js";
 export * from "./split-service.js";
 export * from "./worktrees.js";
 export * from "./work-service.js";

@@ -1,18 +1,18 @@
 import { listActiveClaims } from "@backlog/claims";
 import {
-  computeTaskProgress,
+  computeSubTaskProgress,
   computeWorkItemProgress,
   elapsedSeconds,
-  estimateTask,
+  estimateSubTask,
   etaIso,
   listActiveRuns,
-  listTasks,
+  listSubTasks,
   listWorkItems,
 } from "@backlog/core";
 import type {
   ClaimRecord,
   Run,
-  Task,
+  SubTask,
   WorkItem,
 } from "@backlog/schemas";
 import { Hono } from "hono";
@@ -30,13 +30,13 @@ interface ClaimSummary {
   agent_id: string | null;
 }
 
-interface TaskCard {
+interface SubTaskCard {
   id: string;
   title: string;
   repo: string;
-  status: Task["status"];
+  status: SubTask["status"];
   scopes: string[];
-  risk: Task["risk"];
+  risk: SubTask["risk"];
   priority_score: number;
   active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at"> | null;
   active_claim: ClaimSummary | null;
@@ -56,7 +56,7 @@ interface WorkItemCard {
   labels: string[];
   repo_targets: string[];
   rank: number | null;
-  tasks: TaskCard[];
+  tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;
   remaining_seconds: number;
@@ -91,7 +91,7 @@ function findActiveRun(runs: Run[], taskId: string): Run | null {
 
 function findActiveClaimForTask(
   claims: ClaimRecord[],
-  task: Task,
+  task: SubTask,
   activeRunClaimIds: string[],
 ): ClaimRecord | null {
   for (const claim of claims) {
@@ -108,7 +108,7 @@ interface BoardFilters {
 
 function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardResponse {
   const workItems = listWorkItems(workspace.backlogDir);
-  const tasks = listTasks(workspace.backlogDir);
+  const tasks = listSubTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);
   const runs = listActiveRuns(workspace.backlogDir);
 
@@ -139,12 +139,12 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
     let cardEstimateSeconds = 0;
     let cardRemainingSeconds = 0;
 
-    const taskCards: TaskCard[] = itemTasks.map((task) => {
+    const taskCards: SubTaskCard[] = itemTasks.map((task) => {
       const activeRun = findActiveRun(runs, task.id);
       const claimIds = activeRun?.claim_ids ?? [];
       const activeClaim = findActiveClaimForTask(claims, task, claimIds);
-      const estimate = estimateTask(workspace.backlogDir, task, archivedRunsCtx);
-      const progress = computeTaskProgress({
+      const estimate = estimateSubTask(workspace.backlogDir, task, archivedRunsCtx);
+      const progress = computeSubTaskProgress({
         task,
         activeRun,
         estimateSeconds: estimate.seconds,

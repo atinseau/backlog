@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Agent, Artifact, Run, Task, WorkItem } from "@backlog/schemas";
+import type { Agent, Artifact, Run, SubTask, WorkItem } from "@backlog/schemas";
 import { execa } from "execa";
 
-export function buildProviderEnv(agent: Agent, run: Run, task: Task, workItem: WorkItem): NodeJS.ProcessEnv {
+export function buildProviderEnv(agent: Agent, run: Run, task: SubTask, workItem: WorkItem): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...agent.environment,
@@ -16,15 +16,15 @@ export function buildProviderEnv(agent: Agent, run: Run, task: Task, workItem: W
   };
 }
 
-export function buildProviderPrompt(task: Task, workItem: WorkItem): string {
+export function buildProviderPrompt(task: SubTask, workItem: WorkItem): string {
   const lines = [
     "You are executing one Backlog coding task in an isolated git worktree.",
     "Stay within the declared scope whenever possible.",
     "",
     `Work item: ${workItem.id}`,
     `Work item title: ${workItem.title}`,
-    `Task: ${task.id}`,
-    `Task title: ${task.title}`,
+    `SubTask: ${task.id}`,
+    `SubTask title: ${task.title}`,
     `Repo: ${task.repo}`,
     `Risk: ${task.risk}`,
     "",

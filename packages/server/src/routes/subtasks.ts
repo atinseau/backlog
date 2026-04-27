@@ -1,10 +1,10 @@
 import {
-  clearTaskEstimate,
-  createTask,
-  reorderTask,
-  setTaskEstimate,
-  setTaskProgress,
-  updateTaskStatus,
+  clearSubTaskEstimate,
+  createSubTask,
+  reorderSubTask,
+  setSubTaskEstimate,
+  setSubTaskProgress,
+  updateSubTaskStatus,
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -60,10 +60,10 @@ const progressBodySchema = z.object({
   percent: z.number().min(0).max(100),
 });
 
-export function tasksRoutes(): Hono<AppEnv> {
+export function subtasksRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
-  app.post("/tasks", async (c) => {
+  app.post("/subtasks", async (c) => {
     const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
@@ -71,7 +71,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const input: Parameters<typeof createTask>[1] = {
+      const input: Parameters<typeof createSubTask>[1] = {
         workItemId: parsed.data.work_item_id,
         title: parsed.data.title,
         repo: parsed.data.repo,
@@ -86,7 +86,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
       if (parsed.data.required_capabilities !== undefined) input.requiredCapabilities = parsed.data.required_capabilities;
       if (parsed.data.manual_approval_required !== undefined) input.manualApprovalRequired = parsed.data.manual_approval_required;
-      const task = createTask(workspace.backlogDir, input);
+      const task = createSubTask(workspace.backlogDir, input);
       return c.json({ task }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -95,7 +95,7 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/tasks/:id/move", async (c) => {
+  app.post("/subtasks/:id/move", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -104,7 +104,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const updated = updateTaskStatus(workspace.backlogDir, id, parsed.data.to);
+      const updated = updateSubTaskStatus(workspace.backlogDir, id, parsed.data.to);
       return c.json({ task: updated });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -112,7 +112,7 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.post("/tasks/:id/reorder", async (c) => {
+  app.post("/subtasks/:id/reorder", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => ({}));
@@ -121,10 +121,10 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const input: Parameters<typeof reorderTask>[1] = { taskId: id };
+      const input: Parameters<typeof reorderSubTask>[1] = { taskId: id };
       if (parsed.data.before_id !== undefined) input.beforeId = parsed.data.before_id;
       if (parsed.data.after_id !== undefined) input.afterId = parsed.data.after_id;
-      const task = reorderTask(workspace.backlogDir, input);
+      const task = reorderSubTask(workspace.backlogDir, input);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -132,7 +132,7 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.patch("/tasks/:id/estimate", async (c) => {
+  app.patch("/subtasks/:id/estimate", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -142,8 +142,8 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
     try {
       const task = parsed.data.seconds === null
-        ? clearTaskEstimate(workspace.backlogDir, id)
-        : setTaskEstimate(workspace.backlogDir, id, parsed.data.seconds, parsed.data.source ?? "manual");
+        ? clearSubTaskEstimate(workspace.backlogDir, id)
+        : setSubTaskEstimate(workspace.backlogDir, id, parsed.data.seconds, parsed.data.source ?? "manual");
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -151,7 +151,7 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
   });
 
-  app.patch("/tasks/:id/progress", async (c) => {
+  app.patch("/subtasks/:id/progress", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
@@ -160,7 +160,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const task = setTaskProgress(workspace.backlogDir, id, parsed.data.percent);
+      const task = setSubTaskProgress(workspace.backlogDir, id, parsed.data.percent);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

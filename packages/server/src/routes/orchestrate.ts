@@ -1,12 +1,12 @@
 import { loadConfig } from "@backlog/config";
 import {
   buildExecutionPlan,
-  listTasks,
+  listSubTasks,
   listWorkItems,
   type ExecutionPlan,
-  type TaskDecision,
+  type SubTaskDecision,
 } from "@backlog/core";
-import type { Task, WorkItem } from "@backlog/schemas";
+import type { SubTask, WorkItem } from "@backlog/schemas";
 import { Hono } from "hono";
 import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
@@ -18,7 +18,7 @@ interface EnrichedDecision {
   work_item_title: string | null;
   repo: string | null;
   scopes: string[];
-  action: TaskDecision["action"];
+  action: SubTaskDecision["action"];
   score: number;
   reasons: string[];
   assigned_agent_id: string | null;
@@ -42,8 +42,8 @@ interface OrchestratePlanResponse {
 }
 
 function enrich(
-  decision: TaskDecision,
-  tasksById: Map<string, Task>,
+  decision: SubTaskDecision,
+  tasksById: Map<string, SubTask>,
   workItemsById: Map<string, WorkItem>,
 ): EnrichedDecision {
   const task = tasksById.get(decision.taskId) ?? null;
@@ -107,7 +107,7 @@ function bucketIntoWaves(decisions: EnrichedDecision[], maxAgents: number): Exec
 }
 
 function buildResponse(workspace: ServerProject, plan: ExecutionPlan): OrchestratePlanResponse {
-  const tasksById = new Map(listTasks(workspace.backlogDir).map((t) => [t.id, t]));
+  const tasksById = new Map(listSubTasks(workspace.backlogDir).map((t) => [t.id, t]));
   const workItemsById = new Map(listWorkItems(workspace.backlogDir).map((w) => [w.id, w]));
 
   const enrichedRunnable = plan.runnable.map((d) => enrich(d, tasksById, workItemsById));

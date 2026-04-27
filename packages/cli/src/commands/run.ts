@@ -8,13 +8,13 @@ import {
   garbageCollectArchivedRuns,
   getRunEvents,
   getRunHandoffPath,
-  getTask,
+  getSubTask,
   listAllRuns,
   loadRun,
   requestRunChanges,
   sendRunToReview,
   updateRunStatus,
-  updateTaskStatus,
+  updateSubTaskStatus,
 } from "@backlog/core";
 
 export function registerRunCommand(program: Command): void {
@@ -165,7 +165,7 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not interruptible from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "interrupted", "Interrupted by operator");
-      updateTaskStatus(workspace.backlogDir, run.task_id, "planned");
+      updateSubTaskStatus(workspace.backlogDir, run.task_id, "planned");
       console.log(`Interrupted ${runId}`);
     });
 
@@ -186,9 +186,9 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not resumable from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "running", "Resumed by operator");
-      const task = getTask(workspace.backlogDir, run.task_id);
+      const task = getSubTask(workspace.backlogDir, run.task_id);
       if (task) {
-        updateTaskStatus(workspace.backlogDir, task.id, "running");
+        updateSubTaskStatus(workspace.backlogDir, task.id, "running");
       }
       console.log(`Resumed ${runId}`);
     });

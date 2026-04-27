@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import type { Agent } from "@backlog/schemas";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { createRun, loadRun } from "./run-store.js";
-import { createTask } from "./task-service.js";
+import { createSubTask } from "./subtask-service.js";
 import { createWorkItem } from "./work-service.js";
 
 function createWorkspace(): string {
@@ -52,7 +52,7 @@ describe("executeCodexAgentRun", () => {
     const fakeCodexPath = writeFakeCodexBinary(root);
 
     const workItem = createWorkItem(backlogDir, { title: "Codex run", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "Implement with codex",
       repo: repoId,

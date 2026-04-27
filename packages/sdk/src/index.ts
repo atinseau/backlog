@@ -3,7 +3,7 @@ import type { components, paths } from "./generated/openapi-types.js";
 
 export type Workspace = components["schemas"]["Workspace"];
 export type WorkItem = components["schemas"]["WorkItem"];
-export type Task = components["schemas"]["Task"];
+export type SubTask = components["schemas"]["Task"];
 export type Run = components["schemas"]["Run"];
 export type User = components["schemas"]["User"];
 export type AuthResponse = components["schemas"]["AuthResponse"];
@@ -141,7 +141,7 @@ export class BacklogClient {
 
   // ── Tasks ────────────────────────────────────────────────────────────
 
-  async listTasks(workspaceId: number): Promise<Task[]> {
+  async listSubTasks(workspaceId: number): Promise<SubTask[]> {
     const { data, error } = await this.client.GET("/projects/{project_id}/tasks", {
       params: { path: { project_id: workspaceId } },
     });
@@ -149,7 +149,7 @@ export class BacklogClient {
     return data.tasks ?? [];
   }
 
-  async createTask(
+  async createSubTask(
     workspaceId: number,
     input: {
       work_item_id: number;
@@ -158,7 +158,7 @@ export class BacklogClient {
       status?: string;
       assigned_agent?: string;
     },
-  ): Promise<Task> {
+  ): Promise<SubTask> {
     const { data, error } = await this.client.POST("/projects/{project_id}/tasks", {
       params: { path: { project_id: workspaceId } },
       body: input,

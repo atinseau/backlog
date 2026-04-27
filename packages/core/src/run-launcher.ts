@@ -1,11 +1,11 @@
 import { createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
-import type { Agent, Task, ProjectConfig } from "@backlog/schemas";
+import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
 import { addRunArtifact, createRun, listActiveRuns, nextRunId, updateRunStatus } from "./run-store.js";
 import type { ExecutionPlan } from "./scheduler.js";
-import { getTask, updateTaskStatus } from "./task-service.js";
+import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getWorkItem } from "./work-service.js";
 import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./worktrees.js";
 
@@ -39,7 +39,7 @@ export interface StartRunsForPlanInput {
 
 async function resolveAgent(
   backlogDir: string,
-  task: Task,
+  task: SubTask,
   decisionAgentId: string | undefined,
   forcedAgentId: string | undefined,
   skipped: SkippedRun[],
@@ -72,7 +72,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
   const skipped: SkippedRun[] = [];
 
   for (const decision of plan.runnable.slice(0, maxStart)) {
-    const task = getTask(backlogDir, decision.taskId);
+    const task = getSubTask(backlogDir, decision.taskId);
     if (!task) {
       skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
       continue;
@@ -142,7 +142,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     await writeWorktreeContext(worktreePath, run.id, claim.id);
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
     updateRunStatus(backlogDir, run.id, "running", "Execution workspace prepared");
-    updateTaskStatus(backlogDir, task.id, "running");
+    updateSubTaskStatus(backlogDir, task.id, "running");
 
     started.push({
       runId: run.id,
@@ -163,7 +163,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     if (!executed) {
       skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
       updateRunStatus(backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
-      updateTaskStatus(backlogDir, task.id, "blocked");
+      updateSubTaskStatus(backlogDir, task.id, "blocked");
     }
   }
 

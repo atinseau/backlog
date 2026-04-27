@@ -1,6 +1,6 @@
-import { type Run, type Task } from "@backlog/schemas";
+import { type Run, type SubTask } from "@backlog/schemas";
 
-const STATUS_PROGRESS_FALLBACK: Record<Task["status"], number> = {
+const STATUS_PROGRESS_FALLBACK: Record<SubTask["status"], number> = {
   queued: 0,
   planned: 5,
   running: 50,
@@ -12,7 +12,7 @@ const STATUS_PROGRESS_FALLBACK: Record<Task["status"], number> = {
 };
 
 export interface TaskProgressInput {
-  task: Task;
+  task: SubTask;
   activeRun: Run | null;
   estimateSeconds: number;
   now?: number;
@@ -24,7 +24,7 @@ export interface TaskProgress {
   source: "agent" | "elapsed" | "status";
 }
 
-export function computeTaskProgress(input: TaskProgressInput): TaskProgress {
+export function computeSubTaskProgress(input: TaskProgressInput): TaskProgress {
   const { task, activeRun, estimateSeconds } = input;
   const now = input.now ?? Date.now();
 

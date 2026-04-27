@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import { garbageCollectExpiredClaims } from "@backlog/claims";
 import { createClaim } from "@backlog/claims";
 import { createRun, archiveRun, garbageCollectArchivedRuns, loadRun } from "./run-store.js";
-import { createTask } from "./task-service.js";
+import { createSubTask } from "./subtask-service.js";
 import { createWorkItem } from "./work-service.js";
 import { getAgent } from "./agents.js";
 
@@ -42,7 +42,7 @@ describe("maintenance gc", () => {
     const backlogDir = createWorkspace();
     const repoId = path.basename(path.dirname(backlogDir));
     const workItem = createWorkItem(backlogDir, { title: "gc run", repoTargets: [repoId] });
-    const task = createTask(backlogDir, {
+    const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
       title: "gc task",
       repo: repoId,

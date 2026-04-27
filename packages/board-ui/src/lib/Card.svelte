@@ -1,7 +1,7 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
-  import type { TaskCard, WorkItemCard } from "./types.js";
+  import type { SubTaskCard, WorkItemCard } from "./types.js";
   import { onDestroy } from "svelte";
 
   interface Props {
@@ -29,7 +29,7 @@
     onAddTask?.(card);
   }
 
-  function progressBarColor(task: TaskCard): string {
+  function progressBarColor(task: SubTaskCard): string {
     if (task.status === "completed") return "#12b76a";
     if (task.status === "blocked") return "#f04438";
     if (task.status === "review") return "#9e77ed";

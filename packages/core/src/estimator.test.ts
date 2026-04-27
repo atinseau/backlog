@@ -4,8 +4,8 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import type { Run, Task } from "@backlog/schemas";
-import { estimateTask, FALLBACK_TASK_DURATION_SECONDS } from "./estimator.js";
+import type { Run, SubTask } from "@backlog/schemas";
+import { estimateSubTask, FALLBACK_TASK_DURATION_SECONDS } from "./estimator.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-est-"));
@@ -23,7 +23,7 @@ function writeArchivedRun(backlogDir: string, run: Run): void {
   fs.writeFileSync(path.join(dir, "run.json"), JSON.stringify(run, null, 2), "utf8");
 }
 
-function makeTask(overrides: Partial<Task> = {}): Task {
+function makeTask(overrides: Partial<SubTask> = {}): SubTask {
   return {
     id: "TASK-1",
     work_item_id: "WI-1",
@@ -71,7 +71,7 @@ function makeRun(overrides: Partial<Run> = {}): Run {
   };
 }
 
-describe("estimateTask", () => {
+describe("estimateSubTask", () => {
   let backlogDir: string;
 
   beforeEach(async () => {
@@ -80,21 +80,21 @@ describe("estimateTask", () => {
 
   it("returns manual estimate when set", () => {
     const task = makeTask({ estimated_duration_seconds: 1234, estimate_source: "manual" });
-    const result = estimateTask(backlogDir, task);
+    const result = estimateSubTask(backlogDir, task);
     expect(result.seconds).toBe(1234);
     expect(result.source).toBe("manual");
   });
 
   it("falls back to default when no archived runs and no manual estimate", () => {
     const task = makeTask();
-    const result = estimateTask(backlogDir, task);
+    const result = estimateSubTask(backlogDir, task);
     expect(result.seconds).toBe(FALLBACK_TASK_DURATION_SECONDS);
     expect(result.source).toBe("auto");
     expect(result.sample_size).toBe(0);
   });
 
   it("uses median of same-lane runs when >= 3 samples", () => {
-    const archivedTasks: Task[] = [];
+    const archivedTasks: SubTask[] = [];
     for (let i = 0; i < 4; i++) {
       const taskId = `TASK-arch-${i}`;
       archivedTasks.push(
@@ -120,7 +120,7 @@ describe("estimateTask", () => {
     }
     // tasks file
     fs.writeFileSync(
-      path.join(backlogDir, "tasks.yaml"),
+      path.join(backlogDir, "subtasks.yaml"),
       `version: 1\ntasks:\n${archivedTasks
         .map((t) =>
           `  - id: ${t.id}\n    work_item_id: WI-1\n    title: ${t.title}\n    repo: ${t.repo}\n    status: completed\n    priority_score: 50\n    risk: medium\n    scopes: []\n    claim_mode: exclusive\n    depends_on: []\n    blockers: []\n    execution:\n      lane: frontend\n      preferred_agents: []\n      required_capabilities: []\n      manual_approval_required: false\n    completion:\n      done_when: []\n    planner:\n      origin: manual\n      locked: false\n    created_at: ${t.created_at}\n    updated_at: ${t.updated_at}`,
@@ -137,7 +137,7 @@ describe("estimateTask", () => {
         manual_approval_required: false,
       },
     });
-    const result = estimateTask(backlogDir, target);
+    const result = estimateSubTask(backlogDir, target);
     expect(result.source).toBe("auto");
     // medians of [60, 120, 180, 240] = 150
     expect(result.seconds).toBe(150);
@@ -149,7 +149,7 @@ describe("estimateTask", () => {
       writeArchivedRun(backlogDir, makeRun({ id: `RUN-other-${i}`, repo: "other-repo" }));
     }
     const task = makeTask();
-    const result = estimateTask(backlogDir, task);
+    const result = estimateSubTask(backlogDir, task);
     expect(result.seconds).toBe(FALLBACK_TASK_DURATION_SECONDS);
   });
 
@@ -158,7 +158,7 @@ describe("estimateTask", () => {
       writeArchivedRun(backlogDir, makeRun({ id: `RUN-fail-${i}`, status: "failed" }));
     }
     const task = makeTask();
-    const result = estimateTask(backlogDir, task);
+    const result = estimateSubTask(backlogDir, task);
     expect(result.seconds).toBe(FALLBACK_TASK_DURATION_SECONDS);
   });
 });

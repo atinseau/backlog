@@ -15,7 +15,7 @@ import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
-import { tasksRoutes } from "./routes/tasks.js";
+import { subtasksRoutes } from "./routes/subtasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerProject } from "./project-context.js";
@@ -90,7 +90,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", claimsRoutes());
   app.route("/api/v1", agentsRoutes());
   app.route("/api/v1", workItemsRoutes());
-  app.route("/api/v1", tasksRoutes());
+  app.route("/api/v1", subtasksRoutes());
   app.route("/api/v1", orchestrateRoutes());
   app.route("/api/v1", orchestratorRoutes());
   app.route("/api/v1", reposRoutes());

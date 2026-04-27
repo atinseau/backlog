@@ -1,6 +1,6 @@
 import { workStatusSchema, type WorkItem, type WorkStatus } from "@backlog/schemas";
 import { makeId } from "./id.js";
-import { readTasksFile, readWorkItemsFile, writeTasksFile, writeWorkItemsFile } from "./state-files.js";
+import { readSubTasksFile, readWorkItemsFile, writeSubTasksFile, writeWorkItemsFile } from "./state-files.js";
 import { removeSyncConflictsForWorkItem } from "./sync-conflicts.js";
 
 export interface CreateWorkItemInput {
@@ -222,7 +222,7 @@ export function workItemsSummary(backlogDir: string): Record<WorkStatus, number>
 }
 
 export function deriveWorkStatusFromTasks(backlogDir: string, workItemId: string): WorkStatus | null {
-  const tasks = readTasksFile(backlogDir).tasks.filter((task) => task.work_item_id === workItemId);
+  const tasks = readSubTasksFile(backlogDir).subtasks.filter((task) => task.work_item_id === workItemId);
   if (tasks.length === 0) {
     return null;
   }
@@ -254,15 +254,15 @@ export function removeWorkItem(backlogDir: string, id: string, options?: { casca
     throw new Error(`Unknown work item: ${id}`);
   }
 
-  const taskFile = readTasksFile(backlogDir);
-  const linkedTasks = taskFile.tasks.filter((task) => task.work_item_id === id);
+  const taskFile = readSubTasksFile(backlogDir);
+  const linkedTasks = taskFile.subtasks.filter((task) => task.work_item_id === id);
   if (linkedTasks.length > 0 && !options?.cascadeTasks) {
     throw new Error(`Work item ${id} still has ${linkedTasks.length} task(s). Re-run with --cascade.`);
   }
 
   if (linkedTasks.length > 0) {
     const removedTaskIds = new Set(linkedTasks.map((task) => task.id));
-    taskFile.tasks = taskFile.tasks
+    taskFile.subtasks = taskFile.subtasks
       .filter((task) => task.work_item_id !== id)
       .map((task) => {
         const nextDependsOn = task.depends_on.filter((dependencyId) => !removedTaskIds.has(dependencyId));
@@ -275,7 +275,7 @@ export function removeWorkItem(backlogDir: string, id: string, options?: { casca
           updated_at: new Date().toISOString(),
         };
       });
-    writeTasksFile(backlogDir, taskFile);
+    writeSubTasksFile(backlogDir, taskFile);
   }
 
   const [removed] = workFile.items.splice(itemIndex, 1);

@@ -45,7 +45,7 @@ export interface RunSummary {
   started_at: string;
 }
 
-export interface TaskCard {
+export interface SubTaskCard {
   id: string;
   title: string;
   repo: string;
@@ -71,7 +71,7 @@ export interface WorkItemCard {
   labels: string[];
   repo_targets: string[];
   rank: number | null;
-  tasks: TaskCard[];
+  tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;
   remaining_seconds: number;
