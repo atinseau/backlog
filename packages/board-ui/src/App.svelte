@@ -15,6 +15,7 @@
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
+  import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import { t } from "./lib/i18n.svelte.js";
   import {
@@ -53,6 +54,7 @@
   let commitsViewOpen = $state(false);
   let integrationsOpen = $state(false);
   let reposViewOpen = $state(false);
+  let createProjectOpen = $state(false);
   let permissionsViewOpen = $state(false);
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
@@ -252,6 +254,9 @@
         onSelect={applyWorkspace}
       />
     {/if}
+    <button class="topbar-add-project" onclick={() => (createProjectOpen = true)} title={t("selector.new_project")}>
+      +
+    </button>
     <RepoSelector
       repos={repoOptions}
       selectedId={selectedRepoId}
@@ -311,6 +316,19 @@
     />
   {/each}
 </main>
+
+{#if createProjectOpen}
+  <CreateProjectDialog
+    onClose={() => (createProjectOpen = false)}
+    onCreated={(project, openRepos) => {
+      createProjectOpen = false;
+      refreshWorkspaces().then(() => {
+        applyWorkspace(project.id);
+        if (openRepos) reposViewOpen = true;
+      });
+    }}
+  />
+{/if}
 
 {#if reposViewOpen}
   <ReposView
@@ -491,6 +509,13 @@
     color: white;
     border-color: #1570ef;
   }
+  button.topbar-add-project {
+    padding: 2px 10px;
+    font-size: 16px;
+    line-height: 1;
+    color: #475467;
+  }
+  button.topbar-add-project:hover { color: #1570ef; }
   button.primary:hover { background: #155eef; }
   .error {
     background: #fef0c7;

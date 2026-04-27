@@ -70,6 +70,27 @@ export async function registerProjectByPath(absolutePath: string): Promise<Proje
   return json.project;
 }
 
+export interface InitProjectInput {
+  path: string;
+  name: string;
+  default_branch?: string;
+  force?: boolean;
+}
+
+export async function initProject(input: InitProjectInput): Promise<ProjectEntry> {
+  const response = await fetch(apiUrl("/projects/init"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const json = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
+    throw new Error(json.message ?? json.error ?? `HTTP ${response.status}`);
+  }
+  const json = (await response.json()) as { project: ProjectEntry };
+  return json.project;
+}
+
 export async function unregisterProjectById(id: string): Promise<void> {
   const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!response.ok) {

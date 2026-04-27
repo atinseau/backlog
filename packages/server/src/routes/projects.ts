@@ -1,5 +1,6 @@
 import {
   type RegistryOptions,
+  initLayout,
   listRegisteredProjects,
   registerProject,
   touchProject,
@@ -12,6 +13,15 @@ import type { ServerProject } from "../project-context.js";
 const registerBodySchema = z
   .object({
     path: z.string().min(1),
+  })
+  .strict();
+
+const initBodySchema = z
+  .object({
+    path: z.string().min(1),
+    name: z.string().min(1),
+    default_branch: z.string().min(1).optional(),
+    force: z.boolean().optional(),
   })
   .strict();
 
@@ -50,6 +60,31 @@ export function projectsRoutes(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "register_failed", message }, 400);
+    }
+  });
+
+  // Init a brand-new project: creates .backlog/ at the given path, then
+  // adds it to the user-level registry. Equivalent to `backlog init` from
+  // inside the directory, but driven from the board.
+  app.post("/projects/init", async (c) => {
+    const raw = await c.req.json().catch(() => null);
+    const parsed = initBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const initOptions: Parameters<typeof initLayout>[0] = {
+        root: parsed.data.path,
+        projectName: parsed.data.name,
+      };
+      if (parsed.data.default_branch) initOptions.defaultBranch = parsed.data.default_branch;
+      if (parsed.data.force) initOptions.force = parsed.data.force;
+      initLayout(initOptions);
+      const entry = registerProject({ projectRoot: parsed.data.path }, registry);
+      return c.json({ project: entry }, 201);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "init_failed", message }, 400);
     }
   });
 
