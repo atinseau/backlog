@@ -66,6 +66,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
     default_branch: options.defaultBranch ?? "main",
     autonomy_mode: "assist",
     max_agents: options.maxAgents ?? 2,
+    ai_provider: "anthropic",
     claims: {
       ttl_minutes: 30,
       enforce_on_commit: true,
