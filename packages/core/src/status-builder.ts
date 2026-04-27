@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import type { WorkspaceConfig } from "@backlog/schemas";
+import type { ProjectConfig } from "@backlog/schemas";
 import { listActiveClaims } from "@backlog/claims";
 import { buildExecutionPlan } from "./scheduler.js";
 import { listActiveRuns } from "./run-store.js";
@@ -20,7 +20,7 @@ type TasksFile = {
 };
 
 export interface WorkspaceStatus {
-  workspaceName: string;
+  projectName: string;
   repoCount: number;
   enabledRepoCount: number;
   disabledRepoCount: number;
@@ -95,7 +95,7 @@ function workItemTouchesRepo(item: WorkItem, repoId: string, tasksByWorkItem: Ma
 export function buildWorkspaceStatus(
   root: string,
   backlogDir: string,
-  config: WorkspaceConfig,
+  config: ProjectConfig,
   options?: { repoId?: string },
 ): WorkspaceStatus {
   const workItems = readYamlFile<WorkItemsFile>(path.join(backlogDir, "work-items.yaml"));
@@ -179,7 +179,7 @@ export function buildWorkspaceStatus(
   ];
 
   return {
-    workspaceName: config.workspace_name,
+    projectName: config.project_name,
     repoCount: config.repos.length,
     enabledRepoCount: config.repos.filter((repo) => repo.enabled).length,
     disabledRepoCount: config.repos.filter((repo) => !repo.enabled).length,

@@ -1,4 +1,4 @@
-import type { WorkspaceConfig } from "@backlog/schemas";
+import type { ProjectConfig } from "@backlog/schemas";
 import { repoCurrentBranch, repoCurrentTag, repoHeadSha, repoIsDirty } from "@backlog/git";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 
@@ -21,7 +21,7 @@ export interface BuildReleaseSnapshotOptions {
 
 export async function buildReleaseSnapshot(
   backlogDir: string,
-  config: WorkspaceConfig,
+  config: ProjectConfig,
   options?: BuildReleaseSnapshotOptions,
 ): Promise<RepoSnapshot[]> {
   const snapshots: RepoSnapshot[] = [];

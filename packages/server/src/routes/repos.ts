@@ -1,7 +1,7 @@
 import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 const createBodySchema = z.object({
   id: z.string().min(1).optional(),

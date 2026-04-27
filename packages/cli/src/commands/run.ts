@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import {
   approveRun,
   completeRun,
@@ -26,9 +26,9 @@ export function registerRunCommand(program: Command): void {
     .requiredOption("--all", "Confirm that every archived run should be removed")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { all?: boolean; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (!options.all) {
         throw new Error("runs gc requires --all.");
@@ -63,9 +63,9 @@ export function registerRunCommand(program: Command): void {
       workItem?: string;
       agent?: string;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const runs = listAllRuns(workspace.backlogDir).filter((run) => {
         if (options.review && run.status !== "awaiting_review") {
@@ -107,9 +107,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .option("--json", "Emit machine-readable JSON")
     .action((runId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
@@ -153,9 +153,9 @@ export function registerRunCommand(program: Command): void {
     .description("Interrupt an active run and return its task to planned")
     .argument("<run-id>", "Run id")
     .action((runId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
@@ -174,9 +174,9 @@ export function registerRunCommand(program: Command): void {
     .description("Resume an interrupted run")
     .argument("<run-id>", "Run id")
     .action((runId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const run = loadRun(workspace.backlogDir, runId);
       if (!run) {
@@ -199,9 +199,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Approval summary")
     .action(async (runId: string, options: { summary?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       await approveRun(workspace.backlogDir, runId, options.summary);
       console.log(`Approved ${runId}`);
@@ -213,9 +213,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Completion summary")
     .action(async (runId: string, options: { summary?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       await completeRun(workspace.backlogDir, runId, options.summary);
       console.log(`Completed ${runId}`);
@@ -227,9 +227,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Failure summary")
     .action(async (runId: string, options: { summary?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       await failRun(workspace.backlogDir, runId, options.summary);
       console.log(`Failed ${runId}`);
@@ -241,9 +241,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .option("--summary <text>", "Review summary")
     .action(async (runId: string, options: { summary?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       await sendRunToReview(workspace.backlogDir, runId, options.summary);
       console.log(`Sent ${runId} to review`);
@@ -255,9 +255,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .requiredOption("--reason <text>", "What should change before retrying")
     .action(async (runId: string, options: { reason: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const handoffPath = await requestRunChanges(workspace.backlogDir, runId, options.reason);
       console.log(`Requested changes for ${runId}`);
@@ -270,9 +270,9 @@ export function registerRunCommand(program: Command): void {
     .argument("<run-id>", "Run id")
     .requiredOption("--reason <text>", "Why the handoff is needed")
     .action((runId: string, options: { reason: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const handoffPath = createRunHandoff(workspace.backlogDir, runId, options.reason);
       console.log(`Wrote handoff to ${handoffPath}`);

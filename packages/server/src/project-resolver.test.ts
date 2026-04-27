@@ -1,49 +1,49 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ensureWorkspaceId, initLayout, registerWorkspace } from "@backlog/config";
+import { ensureProjectId, initLayout, registerProject } from "@backlog/config";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
-import type { ServerWorkspace } from "./workspace-context.js";
-import { type AppEnv, WorkspaceResolver } from "./workspace-resolver.js";
+import type { ServerProject } from "./project-context.js";
+import { type AppEnv, ProjectResolver } from "./project-resolver.js";
 
 function tmpDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
-function makeServerWorkspace(name = "demo"): { workspace: ServerWorkspace; root: string } {
+function makeServerWorkspace(name = "demo"): { workspace: ServerProject; root: string } {
   const root = tmpDir(`backlog-resolver-${name}-`);
-  initLayout({ root, workspaceName: name });
+  initLayout({ root, projectName: name });
   const backlogDir = path.join(root, ".backlog");
   return {
     root,
     workspace: {
       root,
       backlogDir,
-      workspace_id: ensureWorkspaceId(backlogDir),
+      project_id: ensureProjectId(backlogDir),
       resolvedFrom: root,
     },
   };
 }
 
-function harness(resolver: WorkspaceResolver) {
+function harness(resolver: ProjectResolver) {
   const app = new Hono<AppEnv>();
   app.use("*", resolver.middleware());
   app.get("/echo", (c) => {
     const workspace = c.get("workspace");
-    return c.json({ id: workspace.workspace_id, root: workspace.root });
+    return c.json({ id: workspace.project_id, root: workspace.root });
   });
   return app;
 }
 
-describe("WorkspaceResolver", () => {
+describe("ProjectResolver", () => {
   it("falls back to the default workspace when no override is sent", async () => {
     const { workspace } = makeServerWorkspace();
-    const resolver = new WorkspaceResolver(workspace, { dir: tmpDir("backlog-reg-") });
+    const resolver = new ProjectResolver(workspace, { dir: tmpDir("backlog-reg-") });
     const res = await harness(resolver).request("/echo");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { id: string; root: string };
-    expect(body.id).toBe(workspace.workspace_id);
+    expect(body.id).toBe(workspace.project_id);
     expect(body.root).toBe(workspace.root);
   });
 
@@ -51,54 +51,54 @@ describe("WorkspaceResolver", () => {
     const dir = tmpDir("backlog-reg-");
     const { workspace: defaultWs } = makeServerWorkspace("default");
     const { workspace: otherWs, root: otherRoot } = makeServerWorkspace("other");
-    registerWorkspace({ workspaceRoot: otherRoot }, { dir });
+    registerProject({ projectRoot: otherRoot }, { dir });
 
-    const resolver = new WorkspaceResolver(defaultWs, { dir });
-    const res = await harness(resolver).request(`/echo?workspace=${otherWs.workspace_id}`);
+    const resolver = new ProjectResolver(defaultWs, { dir });
+    const res = await harness(resolver).request(`/echo?workspace=${otherWs.project_id}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as { id: string; root: string };
-    expect(body.id).toBe(otherWs.workspace_id);
+    expect(body.id).toBe(otherWs.project_id);
     expect(body.root).toBe(otherWs.root);
   });
 
-  it("also accepts the X-Backlog-Workspace header", async () => {
+  it("also accepts the x-backlog-project header", async () => {
     const dir = tmpDir("backlog-reg-");
     const { workspace: defaultWs } = makeServerWorkspace("default");
     const { workspace: otherWs, root: otherRoot } = makeServerWorkspace("other");
-    registerWorkspace({ workspaceRoot: otherRoot }, { dir });
+    registerProject({ projectRoot: otherRoot }, { dir });
 
-    const resolver = new WorkspaceResolver(defaultWs, { dir });
+    const resolver = new ProjectResolver(defaultWs, { dir });
     const res = await harness(resolver).request("/echo", {
-      headers: { "x-backlog-workspace": otherWs.workspace_id },
+      headers: { "x-backlog-project": otherWs.project_id },
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { id: string };
-    expect(body.id).toBe(otherWs.workspace_id);
+    expect(body.id).toBe(otherWs.project_id);
   });
 
   it("returns the default workspace by id without consulting the registry", async () => {
     const { workspace } = makeServerWorkspace();
-    const resolver = new WorkspaceResolver(workspace, { dir: tmpDir("backlog-reg-") });
-    const res = await harness(resolver).request(`/echo?workspace=${workspace.workspace_id}`);
+    const resolver = new ProjectResolver(workspace, { dir: tmpDir("backlog-reg-") });
+    const res = await harness(resolver).request(`/echo?workspace=${workspace.project_id}`);
     expect(res.status).toBe(200);
   });
 
   it("404s when ?workspace= points at an unregistered id", async () => {
     const { workspace } = makeServerWorkspace();
-    const resolver = new WorkspaceResolver(workspace, { dir: tmpDir("backlog-reg-") });
+    const resolver = new ProjectResolver(workspace, { dir: tmpDir("backlog-reg-") });
     const res = await harness(resolver).request("/echo?workspace=WS-deadbeef");
     expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: string; workspace_id: string };
+    const body = (await res.json()) as { error: string; project_id: string };
     expect(body.error).toBe("workspace_not_found");
-    expect(body.workspace_id).toBe("WS-deadbeef");
+    expect(body.project_id).toBe("WS-deadbeef");
   });
 
   it("ignores empty query overrides", async () => {
     const { workspace } = makeServerWorkspace();
-    const resolver = new WorkspaceResolver(workspace, { dir: tmpDir("backlog-reg-") });
+    const resolver = new ProjectResolver(workspace, { dir: tmpDir("backlog-reg-") });
     const res = await harness(resolver).request("/echo?workspace=");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { id: string };
-    expect(body.id).toBe(workspace.workspace_id);
+    expect(body.id).toBe(workspace.project_id);
   });
 });

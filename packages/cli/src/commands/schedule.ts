@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import {
   buildExecutionPlan,
   getTask,
@@ -25,9 +25,9 @@ export function registerScheduleCommand(program: Command): void {
     .option("--task <id>", "Restrict to one task")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { workItem?: string; task?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const plan = buildExecutionPlan(workspace.backlogDir, config, {
@@ -65,9 +65,9 @@ export function registerScheduleCommand(program: Command): void {
     .option("--task <id>", "Restrict to one task")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { workItem?: string; task?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (!options.workItem && !options.task) {
         throw new Error("schedule explain requires --task or --work-item.");
@@ -130,9 +130,9 @@ export function registerScheduleCommand(program: Command): void {
     .option("--approve", "Required in assist mode")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       if (config.autonomy_mode === "observe") {

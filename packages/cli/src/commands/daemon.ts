@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 
 export interface DaemonPaths {
   unitPath: string;
@@ -13,7 +13,7 @@ export interface DaemonPaths {
 
 export interface DaemonRenderInput {
   binary: string;
-  workspaceRoot: string;
+  projectRoot: string;
   port: number;
   logDir: string;
   homeDir: string;
@@ -29,7 +29,7 @@ export function renderLaunchdPlist(input: DaemonRenderInput): string {
     input.binary,
     "serve",
     "--workspace",
-    input.workspaceRoot,
+    input.projectRoot,
     "--port",
     String(input.port),
     "--no-open",
@@ -48,7 +48,7 @@ export function renderLaunchdPlist(input: DaemonRenderInput): string {
 ${programArgs}
     </array>
     <key>WorkingDirectory</key>
-    <string>${escapeXml(input.workspaceRoot)}</string>
+    <string>${escapeXml(input.projectRoot)}</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -78,8 +78,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${input.workspaceRoot}
-ExecStart=${input.binary} serve --workspace ${input.workspaceRoot} --port ${input.port} --no-open
+WorkingDirectory=${input.projectRoot}
+ExecStart=${input.binary} serve --workspace ${input.projectRoot} --port ${input.port} --no-open
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:${path.join(input.logDir, "serve.log")}
@@ -142,10 +142,10 @@ function resolveBinary(): string {
 
 function resolveWorkspaceRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
-  const found = findWorkspace();
+  const found = findProject();
   if (!found) {
     throw new Error(
-      "No .backlog workspace found in the current directory. Pass --workspace <path> or run from a workspace.",
+      "No .backlog project found in the current directory. Pass --workspace <path> or run from a workspace.",
     );
   }
   return found.root;
@@ -173,10 +173,10 @@ export function registerDaemonCommand(program: Command): void {
       if (Number.isNaN(port) || port <= 0 || port > 65535) {
         throw new Error(`Invalid --port value: ${options.port}`);
       }
-      const workspaceRoot = resolveWorkspaceRoot(options.workspace);
+      const projectRoot = resolveWorkspaceRoot(options.workspace);
       const renderInput: DaemonRenderInput = {
         binary: resolveBinary(),
-        workspaceRoot,
+        projectRoot,
         port,
         logDir: paths.logsDir,
         homeDir: os.homedir(),

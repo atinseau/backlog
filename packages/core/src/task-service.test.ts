@@ -15,7 +15,7 @@ async function createWorkspace(): Promise<string> {
   await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], root);
   initLayout({
     root,
-    workspaceName: "task-test",
+    projectName: "task-test",
     mode: "embedded",
     repos: [
       {

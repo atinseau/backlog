@@ -1,6 +1,6 @@
 import { createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
-import type { Agent, Task, WorkspaceConfig } from "@backlog/schemas";
+import type { Agent, Task, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
 import { addRunArtifact, createRun, listActiveRuns, nextRunId, updateRunStatus } from "./run-store.js";
@@ -30,7 +30,7 @@ export interface StartRunsResult {
 
 export interface StartRunsForPlanInput {
   backlogDir: string;
-  config: WorkspaceConfig;
+  config: ProjectConfig;
   plan: ExecutionPlan;
   maxStart: number;
   /** Override agent for every started run (matches CLI --agent). */

@@ -10,7 +10,7 @@ import type { Agent, ClaimRecord } from "@backlog/schemas";
 import { Hono } from "hono";
 import { z } from "zod";
 import { computeRetryAfter } from "../lib/retry-after.js";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 interface EnrichedClaim extends ClaimRecord {
   agent?: {

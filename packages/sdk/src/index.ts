@@ -90,13 +90,13 @@ export class BacklogClient {
   // ── Workspaces ───────────────────────────────────────────────────────
 
   async listWorkspaces(): Promise<Workspace[]> {
-    const { data, error } = await this.client.GET("/workspaces");
+    const { data, error } = await this.client.GET("/projects");
     if (error || !data) throw new BacklogApiError("list workspaces failed", error);
-    return data.workspaces ?? [];
+    return data.projects ?? [];
   }
 
   async createWorkspace(name: string): Promise<Workspace> {
-    const { data, error } = await this.client.POST("/workspaces", {
+    const { data, error } = await this.client.POST("/projects", {
       body: { name },
     });
     if (error || !data?.workspace) throw new BacklogApiError("create workspace failed", error);
@@ -104,7 +104,7 @@ export class BacklogClient {
   }
 
   async getWorkspace(id: number): Promise<Workspace> {
-    const { data, error } = await this.client.GET("/workspaces/{id}", {
+    const { data, error } = await this.client.GET("/projects/{id}", {
       params: { path: { id } },
     });
     if (error || !data?.workspace) throw new BacklogApiError("get workspace failed", error);
@@ -114,7 +114,7 @@ export class BacklogClient {
   // ── Work items ───────────────────────────────────────────────────────
 
   async listWorkItems(workspaceId: number): Promise<WorkItem[]> {
-    const { data, error } = await this.client.GET("/workspaces/{id}/work-items", {
+    const { data, error } = await this.client.GET("/projects/{id}/work-items", {
       params: { path: { id: workspaceId } },
     });
     if (error || !data) throw new BacklogApiError("list work items failed", error);
@@ -131,7 +131,7 @@ export class BacklogClient {
       payload?: Record<string, unknown>;
     },
   ): Promise<WorkItem> {
-    const { data, error } = await this.client.POST("/workspaces/{id}/work-items", {
+    const { data, error } = await this.client.POST("/projects/{id}/work-items", {
       params: { path: { id: workspaceId } },
       body: input,
     });
@@ -142,8 +142,8 @@ export class BacklogClient {
   // ── Tasks ────────────────────────────────────────────────────────────
 
   async listTasks(workspaceId: number): Promise<Task[]> {
-    const { data, error } = await this.client.GET("/workspaces/{workspace_id}/tasks", {
-      params: { path: { workspace_id: workspaceId } },
+    const { data, error } = await this.client.GET("/projects/{project_id}/tasks", {
+      params: { path: { project_id: workspaceId } },
     });
     if (error || !data) throw new BacklogApiError("list tasks failed", error);
     return data.tasks ?? [];
@@ -159,8 +159,8 @@ export class BacklogClient {
       assigned_agent?: string;
     },
   ): Promise<Task> {
-    const { data, error } = await this.client.POST("/workspaces/{workspace_id}/tasks", {
-      params: { path: { workspace_id: workspaceId } },
+    const { data, error } = await this.client.POST("/projects/{project_id}/tasks", {
+      params: { path: { project_id: workspaceId } },
       body: input,
     });
     if (error || !data?.task) throw new BacklogApiError("create task failed", error);
@@ -170,9 +170,9 @@ export class BacklogClient {
   // ── Runs ─────────────────────────────────────────────────────────────
 
   async listRuns(workspaceId: number, status?: string): Promise<Run[]> {
-    const { data, error } = await this.client.GET("/workspaces/{workspace_id}/runs", {
+    const { data, error } = await this.client.GET("/projects/{project_id}/runs", {
       params: {
-        path: { workspace_id: workspaceId },
+        path: { project_id: workspaceId },
         query: status ? { status } : undefined,
       },
     });
@@ -189,8 +189,8 @@ export class BacklogClient {
       artifacts?: Record<string, unknown>;
     },
   ): Promise<Run> {
-    const { data, error } = await this.client.POST("/workspaces/{workspace_id}/runs", {
-      params: { path: { workspace_id: workspaceId } },
+    const { data, error } = await this.client.POST("/projects/{project_id}/runs", {
+      params: { path: { project_id: workspaceId } },
       body: input,
     });
     if (error || !data?.run) throw new BacklogApiError("create run failed", error);
@@ -208,8 +208,8 @@ export class BacklogClient {
 
   /** Current subscription for a workspace (auto-resyncs from Stripe if local state is stale). */
   async getBilling(workspaceId: number): Promise<Subscription> {
-    const { data, error } = await this.client.GET("/workspaces/{workspace_id}/billing", {
-      params: { path: { workspace_id: workspaceId } },
+    const { data, error } = await this.client.GET("/projects/{project_id}/billing", {
+      params: { path: { project_id: workspaceId } },
     });
     if (error || !data?.subscription) throw new BacklogApiError("get billing failed", error);
     return data.subscription;
@@ -226,9 +226,9 @@ export class BacklogClient {
     } = {},
   ): Promise<CheckoutSession> {
     const { data, error } = await this.client.POST(
-      "/workspaces/{workspace_id}/billing/checkout",
+      "/projects/{project_id}/billing/checkout",
       {
-        params: { path: { workspace_id: workspaceId } },
+        params: { path: { project_id: workspaceId } },
         body: input,
       },
     );
@@ -242,9 +242,9 @@ export class BacklogClient {
     input: { return_url?: string } = {},
   ): Promise<PortalSession> {
     const { data, error } = await this.client.POST(
-      "/workspaces/{workspace_id}/billing/portal",
+      "/projects/{project_id}/billing/portal",
       {
-        params: { path: { workspace_id: workspaceId } },
+        params: { path: { project_id: workspaceId } },
         body: input,
       },
     );
@@ -257,8 +257,8 @@ export class BacklogClient {
   /** Month-to-date token spend, AI calls, and remaining quota for a workspace. */
   async getUsage(workspaceId: number): Promise<UsageReport> {
     const { data, error } = await this.client.GET(
-      "/workspaces/{workspace_id}/usage",
-      { params: { path: { workspace_id: workspaceId } } },
+      "/projects/{project_id}/usage",
+      { params: { path: { project_id: workspaceId } } },
     );
     if (error || !data) throw new BacklogApiError("get usage failed", error);
     return data;
@@ -276,9 +276,9 @@ export class BacklogClient {
     input: AiMessageRequest,
   ): Promise<AiMessageResponse> {
     const { data, error } = await this.client.POST(
-      "/workspaces/{workspace_id}/ai/messages",
+      "/projects/{project_id}/ai/messages",
       {
-        params: { path: { workspace_id: workspaceId } },
+        params: { path: { project_id: workspaceId } },
         body: input,
       },
     );

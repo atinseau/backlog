@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Command } from "commander";
-import { initLayout, registerWorkspace } from "@backlog/config";
+import { initLayout, registerProject } from "@backlog/config";
 import { detectRepoRoot, detectGitDir, discoverRepoForWorkspace } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
 
@@ -17,12 +17,12 @@ export function registerInitCommand(program: Command): void {
     .option("--hooks", "Install the managed pre-commit hook immediately")
     .action(async (options: { name?: string; force?: boolean; hooks?: boolean }) => {
       const root = process.cwd();
-      const workspaceName = options.name ?? (slugifyWorkspaceName(path.basename(root)) || "backlog-workspace");
-      const repos = await discoverRepoForWorkspace(root, workspaceName);
+      const projectName = options.name ?? (slugifyWorkspaceName(path.basename(root)) || "backlog-workspace");
+      const repos = await discoverRepoForWorkspace(root, projectName);
 
       const result = initLayout({
         root,
-        workspaceName,
+        projectName,
         ...(options.force ? { force: true } : {}),
         repos,
       });
@@ -36,11 +36,11 @@ export function registerInitCommand(program: Command): void {
         installPreCommitHook({
           gitDir,
           backlogBin: path.join(result.backlogDir, "bin", "backlog"),
-          workspaceRoot: root,
+          projectRoot: root,
         });
       }
 
-      const registryEntry = registerWorkspace({ workspaceRoot: root });
+      const registryEntry = registerProject({ projectRoot: root });
 
       console.log(`Initialized Backlog in ${result.backlogDir}`);
       console.log(`Config: ${result.configPath}`);

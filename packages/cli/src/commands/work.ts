@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import {
   buildWorkExecutionOutline,
   createWorkItem,
@@ -56,9 +56,9 @@ export function registerWorkCommand(program: Command): void {
       label?: string[];
       acceptance?: string[];
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const item = createWorkItem(workspace.backlogDir, {
         title: options.title,
@@ -101,9 +101,9 @@ export function registerWorkCommand(program: Command): void {
       clearLane?: boolean;
       splitStatus?: "pending" | "done";
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const item = updateWorkItem(workspace.backlogDir, workItemId, {
         ...(options.title !== undefined ? { title: options.title } : {}),
@@ -131,9 +131,9 @@ export function registerWorkCommand(program: Command): void {
     .option("--label <label>", "Only show work items carrying one label")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const items = listWorkItems(workspace.backlogDir).filter((item) => {
         if (options.status && item.status !== options.status) {
@@ -169,9 +169,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("<work-item-id>", "Work item id")
     .option("--json", "Emit machine-readable JSON")
     .action((workItemId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const item = getWorkItem(workspace.backlogDir, workItemId);
       if (!item) {
@@ -199,9 +199,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("<work-item-id>", "Work item id")
     .option("--cascade", "Also remove tasks linked to this work item")
     .action((workItemId: string, options: { cascade?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const item = removeWorkItem(workspace.backlogDir, workItemId, {
         ...(options.cascade ? { cascadeTasks: true } : {}),
@@ -215,9 +215,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("<work-item-id>", "Work item id")
     .argument("<status>", "Target status")
     .action((workItemId: string, status: "backlog" | "ready" | "in_progress" | "review" | "test" | "released" | "done" | "blocked") => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const item = updateWorkItemStatus(workspace.backlogDir, workItemId, status);
       console.log(`Moved ${item.id} to ${item.status}`);
@@ -229,9 +229,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("<work-item-id>", "Work item id")
     .option("--json", "Emit machine-readable JSON")
     .action((workItemId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const outline = buildWorkExecutionOutline(workspace.backlogDir, config, workItemId);
@@ -276,9 +276,9 @@ export function registerWorkCommand(program: Command): void {
       force?: boolean;
       json?: boolean;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const item = getWorkItem(workspace.backlogDir, workItemId);
@@ -315,9 +315,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("[source-id]", "Optional source id")
     .option("--dry-run", "Fetch without writing work-items.yaml")
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const sourcesToSync = sourceId
         ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
@@ -343,9 +343,9 @@ export function registerWorkCommand(program: Command): void {
     .argument("[seconds]", "Duration in seconds (omit with --clear)")
     .option("--clear", "Remove the override; the estimate falls back to the sum of task estimates")
     .action((workItemId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.clear) {
         setWorkItemEstimate(workspace.backlogDir, workItemId, null);

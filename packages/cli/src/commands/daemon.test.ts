@@ -9,7 +9,7 @@ import {
 
 const baseInput: DaemonRenderInput = {
   binary: "/Users/jane/.npm-global/bin/backlog",
-  workspaceRoot: "/Users/jane/Dev/myproject",
+  projectRoot: "/Users/jane/Dev/myproject",
   port: 7878,
   logDir: "/Users/jane/Library/Logs/backlog",
   homeDir: "/Users/jane",
@@ -45,7 +45,7 @@ describe("renderLaunchdPlist", () => {
   it("escapes XML-unsafe characters in workspace paths", () => {
     const out = renderLaunchdPlist({
       ...baseInput,
-      workspaceRoot: "/Users/jane/Dev/<weird>&'\"path",
+      projectRoot: "/Users/jane/Dev/<weird>&'\"path",
     });
     expect(out).toContain("&lt;weird&gt;&amp;&apos;&quot;path");
     expect(out).not.toContain("<weird>");

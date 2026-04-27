@@ -12,7 +12,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { AiSplitterUnavailableError, suggestSplit } from "../lib/ai-splitter.js";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 const moveBodySchema = z.object({
   to: z.enum([

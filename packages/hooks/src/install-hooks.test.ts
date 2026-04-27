@@ -40,7 +40,7 @@ describe("inspectPreCommitHook", () => {
     installPreCommitHook({
       gitDir,
       backlogBin,
-      workspaceRoot: "/tmp/backlog",
+      projectRoot: "/tmp/backlog",
     });
 
     expect(inspectPreCommitHook(gitDir, backlogBin)).toMatchObject({
@@ -68,7 +68,7 @@ describe("inspectPreCommitHook", () => {
     installPreCommitHook({
       gitDir,
       backlogBin: "/tmp/backlog/bin/backlog",
-      workspaceRoot: "/tmp/backlog",
+      projectRoot: "/tmp/backlog",
     });
     const hookContents = fs.readFileSync(path.join(gitDir, "hooks", "pre-commit"), "utf8");
     expect(hookContents).toContain('BACKLOG_WORKSPACE="/tmp/backlog"');
@@ -85,7 +85,7 @@ describe("rendered hook template — escape hatches", () => {
     installPreCommitHook({
       gitDir,
       backlogBin: "/tmp/backlog/bin/backlog",
-      workspaceRoot: "/tmp/backlog",
+      projectRoot: "/tmp/backlog",
     });
     return fs.readFileSync(path.join(gitDir, "hooks", "pre-commit"), "utf8");
   }

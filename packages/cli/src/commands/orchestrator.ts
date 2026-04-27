@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import {
   getOrchestratorState,
   pauseOrchestrator,
@@ -8,10 +8,10 @@ import {
   stopOrchestrator,
 } from "@backlog/core";
 
-function workspaceDir(): string {
-  const workspace = findWorkspace();
+function projectDir(): string {
+  const workspace = findProject();
   if (!workspace) {
-    throw new Error("No .backlog workspace found. Run `backlog init` first.");
+    throw new Error("No .backlog project found. Run `backlog init` first.");
   }
   return workspace.backlogDir;
 }
@@ -33,7 +33,7 @@ export function registerOrchestratorCommand(program: Command): void {
       if (options.maxAgents !== undefined) input.max_agents = parseInt(options.maxAgents, 10);
       if (options.auto !== undefined) input.auto_pick_agents = options.auto;
       if (options.tickInterval !== undefined) input.tick_interval_ms = parseInt(options.tickInterval, 10);
-      const state = await startOrchestrator(workspaceDir(), input);
+      const state = await startOrchestrator(projectDir(), input);
       console.log(`Orchestrator running (max=${state.max_agents}, auto=${state.auto_pick_agents}).`);
     });
 
@@ -41,7 +41,7 @@ export function registerOrchestratorCommand(program: Command): void {
     .command("pause")
     .description("Stop dispatching new runs (active runs continue)")
     .action(() => {
-      const state = pauseOrchestrator(workspaceDir());
+      const state = pauseOrchestrator(projectDir());
       console.log(`Orchestrator paused at ${state.paused_at}.`);
     });
 
@@ -49,7 +49,7 @@ export function registerOrchestratorCommand(program: Command): void {
     .command("stop")
     .description("Stop and wait for active runs to finish, then return to idle")
     .action(async () => {
-      const state = await stopOrchestrator(workspaceDir());
+      const state = await stopOrchestrator(projectDir());
       console.log(`Orchestrator ${state.mode}.`);
     });
 
@@ -57,7 +57,7 @@ export function registerOrchestratorCommand(program: Command): void {
     .command("status")
     .description("Show the orchestrator state")
     .action(() => {
-      const state = getOrchestratorState(workspaceDir());
+      const state = getOrchestratorState(projectDir());
       console.log(JSON.stringify(state, null, 2));
     });
 
@@ -73,7 +73,7 @@ export function registerOrchestratorCommand(program: Command): void {
       if (options.maxAgents !== undefined) input.max_agents = parseInt(options.maxAgents, 10);
       if (options.auto !== undefined) input.auto_pick_agents = options.auto;
       if (options.tickInterval !== undefined) input.tick_interval_ms = parseInt(options.tickInterval, 10);
-      const state = setOrchestratorConfig(workspaceDir(), input);
+      const state = setOrchestratorConfig(projectDir(), input);
       console.log(`Updated. max=${state.max_agents}, auto=${state.auto_pick_agents}, tick=${state.tick_interval_ms}ms.`);
     });
 }

@@ -5,13 +5,13 @@ import { describe, expect, it } from "vitest";
 import { initLayout } from "./init-layout.js";
 import {
   getRegistryPath,
-  listRegisteredWorkspaces,
+  listRegisteredProjects,
   loadRegistry,
-  registerWorkspace,
+  registerProject,
   saveRegistry,
-  touchWorkspace,
-  unregisterWorkspace,
-} from "./workspace-registry.js";
+  touchProject,
+  unregisterProject,
+} from "./project-registry.js";
 
 function tmpRegistryDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "backlog-registry-"));
@@ -19,7 +19,7 @@ function tmpRegistryDir(): string {
 
 function makeWorkspace(name = "demo"): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `backlog-ws-${name}-`));
-  initLayout({ root, workspaceName: name });
+  initLayout({ root, projectName: name });
   return root;
 }
 
@@ -27,7 +27,7 @@ describe("loadRegistry / saveRegistry", () => {
   it("returns an empty registry when the file is missing", () => {
     const dir = tmpRegistryDir();
     const registry = loadRegistry({ dir });
-    expect(registry).toEqual({ version: 1, workspaces: [] });
+    expect(registry).toEqual({ version: 1, projects: [] });
   });
 
   it("round-trips a registry through save+load", () => {
@@ -35,7 +35,7 @@ describe("loadRegistry / saveRegistry", () => {
     saveRegistry(
       {
         version: 1,
-        workspaces: [
+        projects: [
           {
             id: "WS-aaaaaaaa",
             path: "/tmp/x",
@@ -47,22 +47,22 @@ describe("loadRegistry / saveRegistry", () => {
       { dir },
     );
     const reloaded = loadRegistry({ dir });
-    expect(reloaded.workspaces).toHaveLength(1);
-    expect(reloaded.workspaces[0]!.id).toBe("WS-aaaaaaaa");
+    expect(reloaded.projects).toHaveLength(1);
+    expect(reloaded.projects[0]!.id).toBe("WS-aaaaaaaa");
   });
 
   it("creates the registry directory if missing on save", () => {
     const dir = path.join(tmpRegistryDir(), "nested", "dir");
-    saveRegistry({ version: 1, workspaces: [] }, { dir });
+    saveRegistry({ version: 1, projects: [] }, { dir });
     expect(fs.existsSync(getRegistryPath({ dir }))).toBe(true);
   });
 });
 
-describe("registerWorkspace", () => {
+describe("registerProject", () => {
   it("registers a workspace with its id, name, and path", () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace("alpha");
-    const entry = registerWorkspace({ workspaceRoot: ws }, { dir });
+    const entry = registerProject({ projectRoot: ws }, { dir });
     expect(entry.id).toMatch(/^WS-[0-9a-f]{8}$/);
     expect(entry.name).toBe("alpha");
     expect(entry.path).toBe(ws);
@@ -72,10 +72,10 @@ describe("registerWorkspace", () => {
   it("dedupes by workspace id (re-register updates the entry)", () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace("alpha");
-    const first = registerWorkspace({ workspaceRoot: ws }, { dir });
-    const second = registerWorkspace({ workspaceRoot: ws }, { dir });
+    const first = registerProject({ projectRoot: ws }, { dir });
+    const second = registerProject({ projectRoot: ws }, { dir });
     expect(second.id).toBe(first.id);
-    const entries = listRegisteredWorkspaces({ dir });
+    const entries = listRegisteredProjects({ dir });
     expect(entries).toHaveLength(1);
     expect(entries[0]!.added_at).toBe(first.added_at);
   });
@@ -83,11 +83,11 @@ describe("registerWorkspace", () => {
   it("dedupes by path (re-init at the same path replaces the old entry)", () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace("alpha");
-    registerWorkspace({ workspaceRoot: ws }, { dir });
+    registerProject({ projectRoot: ws }, { dir });
     fs.rmSync(path.join(ws, ".backlog"), { recursive: true, force: true });
-    initLayout({ root: ws, workspaceName: "beta" });
-    const second = registerWorkspace({ workspaceRoot: ws }, { dir });
-    const entries = listRegisteredWorkspaces({ dir });
+    initLayout({ root: ws, projectName: "beta" });
+    const second = registerProject({ projectRoot: ws }, { dir });
+    const entries = listRegisteredProjects({ dir });
     expect(entries).toHaveLength(1);
     expect(entries[0]!.id).toBe(second.id);
     expect(entries[0]!.name).toBe("beta");
@@ -96,49 +96,49 @@ describe("registerWorkspace", () => {
   it("rejects a path without a .backlog directory", () => {
     const dir = tmpRegistryDir();
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-empty-"));
-    expect(() => registerWorkspace({ workspaceRoot: empty }, { dir })).toThrow(/No \.backlog/);
+    expect(() => registerProject({ projectRoot: empty }, { dir })).toThrow(/No \.backlog/);
   });
 });
 
-describe("unregisterWorkspace", () => {
+describe("unregisterProject", () => {
   it("removes by id", () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace();
-    const entry = registerWorkspace({ workspaceRoot: ws }, { dir });
-    expect(unregisterWorkspace(entry.id, { dir })?.id).toBe(entry.id);
-    expect(listRegisteredWorkspaces({ dir })).toHaveLength(0);
+    const entry = registerProject({ projectRoot: ws }, { dir });
+    expect(unregisterProject(entry.id, { dir })?.id).toBe(entry.id);
+    expect(listRegisteredProjects({ dir })).toHaveLength(0);
   });
 
   it("removes by path", () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace();
-    const entry = registerWorkspace({ workspaceRoot: ws }, { dir });
-    expect(unregisterWorkspace(ws, { dir })?.id).toBe(entry.id);
-    expect(listRegisteredWorkspaces({ dir })).toHaveLength(0);
+    const entry = registerProject({ projectRoot: ws }, { dir });
+    expect(unregisterProject(ws, { dir })?.id).toBe(entry.id);
+    expect(listRegisteredProjects({ dir })).toHaveLength(0);
   });
 
   it("returns null when nothing matches", () => {
     const dir = tmpRegistryDir();
-    expect(unregisterWorkspace("WS-deadbeef", { dir })).toBeNull();
+    expect(unregisterProject("WS-deadbeef", { dir })).toBeNull();
   });
 });
 
-describe("touchWorkspace", () => {
+describe("touchProject", () => {
   it("updates last_opened_at", async () => {
     const dir = tmpRegistryDir();
     const ws = makeWorkspace();
-    const entry = registerWorkspace({ workspaceRoot: ws }, { dir });
+    const entry = registerProject({ projectRoot: ws }, { dir });
     const original = entry.last_opened_at!;
     await new Promise((r) => setTimeout(r, 5));
-    touchWorkspace(entry.id, { dir });
-    const after = listRegisteredWorkspaces({ dir })[0]!;
+    touchProject(entry.id, { dir });
+    const after = listRegisteredProjects({ dir })[0]!;
     expect(after.last_opened_at).not.toBe(original);
     expect(new Date(after.last_opened_at!).getTime()).toBeGreaterThan(new Date(original).getTime());
   });
 
   it("is a no-op for an unknown id", () => {
     const dir = tmpRegistryDir();
-    expect(() => touchWorkspace("WS-unknownx", { dir })).not.toThrow();
-    expect(listRegisteredWorkspaces({ dir })).toHaveLength(0);
+    expect(() => touchProject("WS-unknownx", { dir })).not.toThrow();
+    expect(listRegisteredProjects({ dir })).toHaveLength(0);
   });
 });

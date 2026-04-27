@@ -21,7 +21,7 @@ async function createWorkspace(): Promise<string> {
 
   initLayout({
     root,
-    workspaceName: "test",
+    projectName: "test",
     repos: [{ id: path.basename(root), path: root, default_branch: "main", enabled: true }],
   });
   return root;

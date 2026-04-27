@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { WorkspaceEntry } from "./types.js";
+  import type { ProjectEntry } from "./types.js";
 
   interface Props {
-    workspaces: WorkspaceEntry[];
+    projects: ProjectEntry[];
     selectedId: string | null;
     onSelect: (id: string) => void;
   }

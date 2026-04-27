@@ -95,7 +95,7 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
 }
 
 class MarkdownConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig, private readonly workspaceRoot: string) {}
+  constructor(private readonly source: SourceConfig, private readonly projectRoot: string) {}
 
   async validate() {
     const filePath = this.resolvePath();
@@ -124,12 +124,12 @@ class MarkdownConnector implements SourceConnector {
 
   private resolvePath(): string {
     const rawPath = String(this.source.config.path ?? "");
-    return path.isAbsolute(rawPath) ? rawPath : path.join(this.workspaceRoot, rawPath);
+    return path.isAbsolute(rawPath) ? rawPath : path.join(this.projectRoot, rawPath);
   }
 }
 
 class CsvConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig, private readonly workspaceRoot: string) {}
+  constructor(private readonly source: SourceConfig, private readonly projectRoot: string) {}
 
   async validate() {
     const filePath = this.resolvePath();
@@ -173,7 +173,7 @@ class CsvConnector implements SourceConnector {
 
   private resolvePath(): string {
     const rawPath = String(this.source.config.path ?? "");
-    return path.isAbsolute(rawPath) ? rawPath : path.join(this.workspaceRoot, rawPath);
+    return path.isAbsolute(rawPath) ? rawPath : path.join(this.projectRoot, rawPath);
   }
 }
 
@@ -336,12 +336,12 @@ function mapBacklogStatusToJiraStatus(status: WorkItem["status"]): string | null
   }
 }
 
-export function createConnector(source: SourceConfig, workspaceRoot: string): SourceConnector {
+export function createConnector(source: SourceConfig, projectRoot: string): SourceConnector {
   switch (source.kind) {
     case "markdown":
-      return new MarkdownConnector(source, workspaceRoot);
+      return new MarkdownConnector(source, projectRoot);
     case "csv":
-      return new CsvConnector(source, workspaceRoot);
+      return new CsvConnector(source, projectRoot);
     case "jira":
       return new JiraConnector(source);
   }

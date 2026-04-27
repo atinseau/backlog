@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { buildReleaseSnapshot } from "@backlog/core";
 
 function renderText(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>): string {
@@ -40,9 +40,9 @@ export function registerReleaseCommand(program: Command): void {
       markdown?: boolean;
       output?: string;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.json && options.markdown) {
         throw new Error("Use either --json or --markdown, not both.");

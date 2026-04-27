@@ -13,20 +13,20 @@ import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
 import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
-import { workspaceRoutes } from "./routes/workspace.js";
-import { workspacesRoutes } from "./routes/workspaces.js";
+import { projectRoutes } from "./routes/project.js";
+import { projectsRoutes } from "./routes/projects.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
-import type { ServerWorkspace } from "./workspace-context.js";
-import { type AppEnv, WorkspaceResolver } from "./workspace-resolver.js";
+import type { ServerProject } from "./project-context.js";
+import { type AppEnv, ProjectResolver } from "./project-resolver.js";
 
 declare const __BACKLOG_SERVER_VERSION__: string;
 const VERSION =
   typeof __BACKLOG_SERVER_VERSION__ !== "undefined" ? __BACKLOG_SERVER_VERSION__ : "0.0.0-dev";
 
 export interface BuildAppOptions {
-  workspace: ServerWorkspace;
+  workspace: ServerProject;
   uiDistDir?: string;
 }
 
@@ -69,7 +69,7 @@ function defaultUiDistDir(): string {
 export function buildApp(options: BuildAppOptions): BuildAppResult {
   const app = new Hono<AppEnv>();
   const buses = new EventBusRegistry();
-  const resolver = new WorkspaceResolver(options.workspace);
+  const resolver = new ProjectResolver(options.workspace);
 
   app.use("*", async (c, next) => {
     const start = Date.now();
@@ -80,7 +80,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
     }
   });
 
-  // Resolves ?workspace=<wid> (or X-Backlog-Workspace header) on every API
+  // Resolves ?workspace=<wid> (or x-backlog-project header) on every API
   // request, falling back to the default workspace the server was launched
   // with. Replies 404 if the requested workspace isn't in the registry.
   app.use("/api/v1/*", resolver.middleware());
@@ -95,8 +95,8 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", orchestratorRoutes());
   app.route("/api/v1", reposRoutes());
   app.route("/api/v1", runsRoutes());
-  app.route("/api/v1", workspaceRoutes());
-  app.route("/api/v1", workspacesRoutes(options.workspace));
+  app.route("/api/v1", projectRoutes());
+  app.route("/api/v1", projectsRoutes(options.workspace));
   app.route("/api/v1", eventsRoutes(buses));
 
   void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {

@@ -8,8 +8,8 @@ import {
 } from "@backlog/core";
 import type { Task, WorkItem } from "@backlog/schemas";
 import { Hono } from "hono";
-import type { ServerWorkspace } from "../workspace-context.js";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { ServerProject } from "../project-context.js";
+import type { AppEnv } from "../project-resolver.js";
 
 interface EnrichedDecision {
   task_id: string;
@@ -106,7 +106,7 @@ function bucketIntoWaves(decisions: EnrichedDecision[], maxAgents: number): Exec
   return waves;
 }
 
-function buildResponse(workspace: ServerWorkspace, plan: ExecutionPlan): OrchestratePlanResponse {
+function buildResponse(workspace: ServerProject, plan: ExecutionPlan): OrchestratePlanResponse {
   const tasksById = new Map(listTasks(workspace.backlogDir).map((t) => [t.id, t]));
   const workItemsById = new Map(listWorkItems(workspace.backlogDir).map((w) => [w.id, w]));
 

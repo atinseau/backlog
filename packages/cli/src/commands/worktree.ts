@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { garbageCollectWorktrees, listKnownWorktrees } from "@backlog/core";
 
 export function registerWorktreeCommand(program: Command): void {
@@ -13,9 +13,9 @@ export function registerWorktreeCommand(program: Command): void {
     .option("--missing", "Only show worktrees whose path no longer exists")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { repo?: string; status?: string; missing?: boolean; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const worktrees = listKnownWorktrees(workspace.backlogDir).filter((entry) => {
         if (options.repo && entry.repo !== options.repo) {
@@ -48,9 +48,9 @@ export function registerWorktreeCommand(program: Command): void {
     .option("--dry-run", "Show which worktrees would be removed without deleting them")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { json?: boolean; dryRun?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const result = await garbageCollectWorktrees(workspace.backlogDir, config, {

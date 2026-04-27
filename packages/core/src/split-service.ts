@@ -1,4 +1,4 @@
-import type { Task, WorkItem, WorkspaceConfig } from "@backlog/schemas";
+import type { Task, WorkItem, ProjectConfig } from "@backlog/schemas";
 import { createTask } from "./task-service.js";
 import { listTasks } from "./state-files.js";
 import { getWorkItem, updateWorkItemPlanning, updateWorkItemStatus } from "./work-service.js";
@@ -38,7 +38,7 @@ function buildTaskTitle(workItem: WorkItem, repo: string, repos: string[]): stri
   return `${workItem.title} (${repo})`;
 }
 
-export function resolveSplitRepos(config: WorkspaceConfig, workItem: WorkItem, requestedRepos?: string[]): string[] {
+export function resolveSplitRepos(config: ProjectConfig, workItem: WorkItem, requestedRepos?: string[]): string[] {
   const repoIds = requestedRepos && requestedRepos.length > 0
     ? requestedRepos
     : workItem.repo_targets.length > 0

@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { buildExecutionPlan, buildWorkspaceStatus } from "@backlog/core";
 import { listTasks } from "@backlog/core";
 
@@ -10,9 +10,9 @@ export function registerStatusCommand(program: Command): void {
     .option("--repo <id>", "Focus status on one configured repo")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { repo?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const config = loadConfig(workspace.backlogDir);
@@ -39,7 +39,7 @@ export function registerStatusCommand(program: Command): void {
         return;
       }
 
-      console.log(`Workspace: ${status.workspaceName}`);
+      console.log(`Project: ${status.projectName}`);
       if (status.selectedRepoId) {
         console.log(`Repo focus: ${status.selectedRepoId}`);
       }

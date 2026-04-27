@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 export function healthRoutes(version: string): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
@@ -10,7 +10,7 @@ export function healthRoutes(version: string): Hono<AppEnv> {
       version,
       workspace: workspace.root,
       backlogDir: workspace.backlogDir,
-      workspace_id: workspace.workspace_id,
+      project_id: workspace.project_id,
     });
   });
   return app;

@@ -18,7 +18,7 @@ function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-source-"));
   initLayout({
     root,
-    workspaceName: "source-test",
+    projectName: "source-test",
     repos: [{ id: path.basename(root), path: root, default_branch: "main", enabled: true }],
   });
   return path.join(root, ".backlog");

@@ -7,4 +7,4 @@ export * from "./source.js";
 export * from "./sync-conflict.js";
 export * from "./task.js";
 export * from "./work-item.js";
-export * from "./workspace-registry.js";
+export * from "./project-registry.js";

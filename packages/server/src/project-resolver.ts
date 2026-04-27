@@ -1,15 +1,15 @@
 import path from "node:path";
 import {
   type RegistryOptions,
-  listRegisteredWorkspaces,
+  listRegisteredProjects,
 } from "@backlog/config";
 import type { Context, MiddlewareHandler } from "hono";
-import type { ServerWorkspace } from "./workspace-context.js";
+import type { ServerProject } from "./project-context.js";
 
-export type AppEnv = { Variables: { workspace: ServerWorkspace } };
+export type AppEnv = { Variables: { workspace: ServerProject } };
 
 const WORKSPACE_QUERY_PARAM = "workspace";
-const WORKSPACE_HEADER = "x-backlog-workspace";
+const WORKSPACE_HEADER = "x-backlog-project";
 
 function readWorkspaceIdFromRequest(c: Context): string | undefined {
   const fromQuery = c.req.query(WORKSPACE_QUERY_PARAM);
@@ -19,27 +19,27 @@ function readWorkspaceIdFromRequest(c: Context): string | undefined {
   return undefined;
 }
 
-export class WorkspaceResolver {
+export class ProjectResolver {
   constructor(
-    private readonly defaultWorkspace: ServerWorkspace,
+    private readonly defaultWorkspace: ServerProject,
     private readonly registryOptions: RegistryOptions = {},
   ) {}
 
   // The default workspace the server was started with. Returned when no
-  // ?workspace= query (or X-Backlog-Workspace header) is present.
-  get default(): ServerWorkspace {
+  // ?workspace= query (or x-backlog-project header) is present.
+  get default(): ServerProject {
     return this.defaultWorkspace;
   }
 
   // Look up a registered workspace by id. Returns null if not in the registry.
-  resolveById(workspaceId: string): ServerWorkspace | null {
-    if (workspaceId === this.defaultWorkspace.workspace_id) return this.defaultWorkspace;
-    const entries = listRegisteredWorkspaces(this.registryOptions);
+  resolveById(workspaceId: string): ServerProject | null {
+    if (workspaceId === this.defaultWorkspace.project_id) return this.defaultWorkspace;
+    const entries = listRegisteredProjects(this.registryOptions);
     const entry = entries.find((w) => w.id === workspaceId);
     if (!entry) return null;
     const root = path.resolve(entry.path);
     return {
-      workspace_id: entry.id,
+      project_id: entry.id,
       root,
       backlogDir: path.join(root, ".backlog"),
       resolvedFrom: this.defaultWorkspace.resolvedFrom,
@@ -58,7 +58,7 @@ export class WorkspaceResolver {
       }
       const resolved = this.resolveById(requested);
       if (!resolved) {
-        return c.json({ error: "workspace_not_found", workspace_id: requested }, 404);
+        return c.json({ error: "workspace_not_found", project_id: requested }, 404);
       }
       c.set("workspace", resolved);
       return next();

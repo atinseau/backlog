@@ -11,7 +11,7 @@ function createWorkspace(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-split-"));
   initLayout({
     root,
-    workspaceName: "test",
+    projectName: "test",
     repos: [
       { id: "backend", path: root, default_branch: "main", enabled: true },
       { id: "app", path: root, default_branch: "main", enabled: true },

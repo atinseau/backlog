@@ -16,7 +16,7 @@ import { registerSourceCommand } from "./commands/source.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerWorkCommand } from "./commands/work.js";
-import { registerWorkspaceCommand } from "./commands/workspace.js";
+import { registerProjectCommand } from "./commands/project.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
 
 declare const __BACKLOG_VERSION__: string;
@@ -47,7 +47,7 @@ registerTaskCommand(program);
 registerRunCommand(program);
 registerSourceCommand(program);
 registerWorkCommand(program);
-registerWorkspaceCommand(program);
+registerProjectCommand(program);
 registerWorktreeCommand(program);
 
 program.parseAsync(process.argv).catch((error: unknown) => {

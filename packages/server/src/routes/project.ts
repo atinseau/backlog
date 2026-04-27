@@ -1,7 +1,7 @@
 import { loadConfig, saveConfig } from "@backlog/config";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 const autonomyBodySchema = z.object({
   autonomy_mode: z.enum(["observe", "assist", "delegate", "autopilot"]),
@@ -14,7 +14,7 @@ const claimsBodySchema = z
   })
   .strict();
 
-export function workspaceRoutes(): Hono<AppEnv> {
+export function projectRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/workspace", (c) => {
@@ -22,9 +22,9 @@ export function workspaceRoutes(): Hono<AppEnv> {
     const config = loadConfig(workspace.backlogDir);
     return c.json({
       workspace: {
-        id: workspace.workspace_id,
-        name: config.workspace_name,
-        mode: config.workspace_mode,
+        id: workspace.project_id,
+        name: config.project_name,
+        mode: config.project_mode,
         default_branch: config.default_branch,
         autonomy_mode: config.autonomy_mode,
         max_agents: config.max_agents,

@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export interface WorkspacePaths {
+export interface ProjectPaths {
   root: string;
   backlogDir: string;
 }
 
-export function findWorkspace(startDir = process.cwd()): WorkspacePaths | null {
+export function findProject(startDir = process.cwd()): ProjectPaths | null {
   let current = path.resolve(startDir);
 
   while (true) {

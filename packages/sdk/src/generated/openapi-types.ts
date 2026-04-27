@@ -227,7 +227,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces": {
+    "/projects": {
         parameters: {
             query?: never;
             header?: never;
@@ -293,7 +293,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{id}": {
+    "/projects/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -340,7 +340,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{id}/work-items": {
+    "/projects/{id}/work-items": {
         parameters: {
             query?: never;
             header?: never;
@@ -416,7 +416,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/tasks": {
+    "/projects/{project_id}/tasks": {
         parameters: {
             query?: never;
             header?: never;
@@ -429,7 +429,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -455,7 +455,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -490,7 +490,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/runs": {
+    "/projects/{project_id}/runs": {
         parameters: {
             query?: never;
             header?: never;
@@ -505,7 +505,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -531,7 +531,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -603,7 +603,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/billing": {
+    "/projects/{project_id}/billing": {
         parameters: {
             query?: never;
             header?: never;
@@ -616,7 +616,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -650,7 +650,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/billing/checkout": {
+    "/projects/{project_id}/billing/checkout": {
         parameters: {
             query?: never;
             header?: never;
@@ -665,7 +665,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -735,7 +735,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/billing/portal": {
+    "/projects/{project_id}/billing/portal": {
         parameters: {
             query?: never;
             header?: never;
@@ -750,7 +750,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -808,7 +808,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/usage": {
+    "/projects/{project_id}/usage": {
         parameters: {
             query?: never;
             header?: never;
@@ -821,7 +821,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -853,7 +853,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/ai/messages": {
+    "/projects/{project_id}/ai/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -873,7 +873,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    workspace_id: number;
+                    project_id: number;
                 };
                 cookie?: never;
             };
@@ -1081,7 +1081,7 @@ export interface components {
             /** Format: int64 */
             id: number;
             /** Format: int64 */
-            workspace_id: number;
+            project_id: number;
             external_id: string;
             title: string;
             /** @enum {string} */

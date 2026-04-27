@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { detectGitDir, git } from "@backlog/git";
-import type { WorkspaceConfig } from "@backlog/schemas";
+import type { ProjectConfig } from "@backlog/schemas";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 
 function worktreesRoot(backlogDir: string): string {
@@ -83,7 +83,7 @@ export function listKnownWorktrees(backlogDir: string): KnownWorktree[] {
 
 export async function garbageCollectWorktrees(
   backlogDir: string,
-  config: WorkspaceConfig,
+  config: ProjectConfig,
   options?: { dryRun?: boolean },
 ): Promise<WorktreeGcResult> {
   const result: WorktreeGcResult = {

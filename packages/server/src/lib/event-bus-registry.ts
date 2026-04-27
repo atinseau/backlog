@@ -1,4 +1,4 @@
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { ServerProject } from "../project-context.js";
 import { EventBus } from "./event-bus.js";
 
 // Lazy per-workspace EventBus pool. The Hono multi-workspace server can be
@@ -8,12 +8,12 @@ import { EventBus } from "./event-bus.js";
 export class EventBusRegistry {
   private readonly buses = new Map<string, EventBus>();
 
-  get(workspace: ServerWorkspace): EventBus {
-    const existing = this.buses.get(workspace.workspace_id);
+  get(workspace: ServerProject): EventBus {
+    const existing = this.buses.get(workspace.project_id);
     if (existing) return existing;
     const bus = new EventBus();
     bus.start(workspace.backlogDir);
-    this.buses.set(workspace.workspace_id, bus);
+    this.buses.set(workspace.project_id, bus);
     return bus;
   }
 

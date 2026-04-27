@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { detectRepoRoot, repoCurrentBranch } from "@backlog/git";
 import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 
@@ -38,9 +38,9 @@ export function registerRepoCommand(program: Command): void {
     .option("--enabled <enabled>", "Only show enabled or disabled repos")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { enabled?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const repos = listRepos(workspace.backlogDir).filter((repo) => {
@@ -69,9 +69,9 @@ export function registerRepoCommand(program: Command): void {
     .argument("<repo-id>", "Repo id")
     .option("--json", "Emit machine-readable JSON")
     .action((repoId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const repo = getRepo(workspace.backlogDir, repoId);
       if (!repo) {
@@ -109,9 +109,9 @@ export function registerRepoCommand(program: Command): void {
       role?: string;
       disabled?: boolean;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (!options.path && !options.url) {
         throw new Error("Provide either --path <path> or --url <git-url>.");
@@ -166,9 +166,9 @@ export function registerRepoCommand(program: Command): void {
       enable?: boolean;
       disable?: boolean;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.enable && options.disable) {
         throw new Error("Use either --enable or --disable, not both.");
@@ -191,9 +191,9 @@ export function registerRepoCommand(program: Command): void {
     .argument("<repo-id>", "Repo id")
     .option("--force", "Also clean linked tasks, work items, and agent scopes")
     .action((repoId: string, options: { force?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const repo = removeRepo(workspace.backlogDir, repoId, {
         ...(options.force ? { force: true } : {}),

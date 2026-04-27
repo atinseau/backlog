@@ -98,10 +98,10 @@ export async function cloneAndAddRepo(
   if (config.repos.some((repo) => repo.id === id)) {
     throw new Error(`Repo id already exists: ${id}`);
   }
-  const workspaceRoot = workspaceRootFromBacklogDir(backlogDir);
+  const projectRoot = workspaceRootFromBacklogDir(backlogDir);
   const destDir = input.destDir
-    ? path.resolve(workspaceRoot, input.destDir)
-    : path.resolve(workspaceRoot, "repos", id);
+    ? path.resolve(projectRoot, input.destDir)
+    : path.resolve(projectRoot, "repos", id);
   if (config.repos.some((repo) => repo.path === destDir)) {
     throw new Error(`Repo path already exists in this workspace: ${destDir}`);
   }

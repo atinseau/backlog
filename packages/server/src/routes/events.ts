@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { EventBusRegistry } from "../lib/event-bus-registry.js";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { AppEnv } from "../project-resolver.js";
 
 const HEARTBEAT_MS = 25_000;
 
@@ -16,7 +16,7 @@ export function eventsRoutes(buses: EventBusRegistry): Hono<AppEnv> {
       await stream.writeSSE({
         event: "ready",
         id: String(id++),
-        data: JSON.stringify({ ts: new Date().toISOString(), workspace_id: workspace.workspace_id }),
+        data: JSON.stringify({ ts: new Date().toISOString(), project_id: workspace.project_id }),
       });
 
       const unsubscribe = bus.onBoard(async (event) => {

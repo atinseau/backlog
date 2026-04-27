@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import { createConnector } from "@backlog/connectors";
 import {
   addSource,
@@ -67,9 +67,9 @@ export function registerSourceCommand(program: Command): void {
       emailEnv?: string;
       tokenEnv?: string;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       let source: SourceConfig;
@@ -139,9 +139,9 @@ export function registerSourceCommand(program: Command): void {
     .description("Enable one configured source")
     .argument("<source-id>", "Source id")
     .action((sourceId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const source = setSourceEnabled(workspace.backlogDir, sourceId, true);
       console.log(`Enabled ${source.id}`);
@@ -152,9 +152,9 @@ export function registerSourceCommand(program: Command): void {
     .description("Disable one configured source")
     .argument("<source-id>", "Source id")
     .action((sourceId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const source = setSourceEnabled(workspace.backlogDir, sourceId, false);
       console.log(`Disabled ${source.id}`);
@@ -182,9 +182,9 @@ export function registerSourceCommand(program: Command): void {
       pushComments?: string;
       sourceOfTruth?: "external" | "backlog";
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const source = updateSource(workspace.backlogDir, sourceId, {
         ...(options.config.length > 0 ? { config: parseKeyValuePairs(options.config) } : {}),
@@ -206,9 +206,9 @@ export function registerSourceCommand(program: Command): void {
     .option("--enabled <enabled>", "Only show enabled or disabled sources")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean; kind?: string; enabled?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const sources = listSources(workspace.backlogDir).filter((source) => {
         if (options.kind && source.kind !== options.kind) {
@@ -238,9 +238,9 @@ export function registerSourceCommand(program: Command): void {
     .argument("<source-id>", "Source id")
     .option("--force", "Also unlink this source from existing work items")
     .action((sourceId: string, options: { force?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const source = removeSource(workspace.backlogDir, sourceId, {
         ...(options.force ? { force: true } : {}),
@@ -253,9 +253,9 @@ export function registerSourceCommand(program: Command): void {
     .description("Validate one source or all sources")
     .argument("[source-id]", "Optional source id")
     .action(async (sourceId?: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const sourcesToValidate = sourceId
         ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
@@ -276,9 +276,9 @@ export function registerSourceCommand(program: Command): void {
     .argument("[source-id]", "Optional source id")
     .option("--dry-run", "Fetch without writing work-items.yaml")
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const sourcesToSync = sourceId
         ? [getSource(workspace.backlogDir, sourceId)].filter(Boolean)
@@ -305,9 +305,9 @@ export function registerSourceCommand(program: Command): void {
     .option("--all", "Push every source-linked work item that supports push")
     .option("--allow-conflicts", "Allow push even when the work item still has pending sync conflicts")
     .action(async (workItemId: string | undefined, options: { comment?: string; all?: boolean; allowConflicts?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (!workItemId && !options.all) {
         throw new Error("sources push requires a <work-item-id> or --all.");
@@ -364,9 +364,9 @@ export function registerSourceCommand(program: Command): void {
     .description("List pending sync conflicts")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const conflicts = listPendingSyncConflicts(workspace.backlogDir);
       if (options.json) {
@@ -389,9 +389,9 @@ export function registerSourceCommand(program: Command): void {
     .option("--work-item <id>", "Resolve every pending conflict for one work item")
     .requiredOption("--use <resolution>", "external or local")
     .action((conflictId: string | undefined, options: { use: "external" | "local"; workItem?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.use !== "external" && options.use !== "local") {
         throw new Error("--use must be external or local");

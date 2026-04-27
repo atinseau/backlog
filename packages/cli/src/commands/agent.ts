@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import { getAgent, healthForAgents, listAgents, setAgentEnabled, updateAgent, validateAgents } from "@backlog/core";
 
 function collectValues(value: string, previous: string[]): string[] {
@@ -26,9 +26,9 @@ export function registerAgentCommand(program: Command): void {
     .description("List known agents")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const agents = listAgents(workspace.backlogDir);
       if (options.json) {
@@ -46,9 +46,9 @@ export function registerAgentCommand(program: Command): void {
     .argument("<agent-id>", "Agent id")
     .option("--json", "Emit machine-readable JSON")
     .action((agentId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const agent = getAgent(workspace.backlogDir, agentId);
       if (!agent) {
@@ -75,9 +75,9 @@ export function registerAgentCommand(program: Command): void {
     .description("Enable one configured agent")
     .argument("<agent-id>", "Agent id")
     .action((agentId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const agent = setAgentEnabled(workspace.backlogDir, agentId, true);
       console.log(`Enabled ${agent.id}`);
@@ -88,9 +88,9 @@ export function registerAgentCommand(program: Command): void {
     .description("Disable one configured agent")
     .argument("<agent-id>", "Agent id")
     .action((agentId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const agent = setAgentEnabled(workspace.backlogDir, agentId, false);
       console.log(`Disabled ${agent.id}`);
@@ -132,9 +132,9 @@ export function registerAgentCommand(program: Command): void {
       capability: string[];
       env: string[];
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const agent = updateAgent(workspace.backlogDir, agentId, {
         ...(options.model !== undefined ? { model: options.model } : {}),
@@ -160,9 +160,9 @@ export function registerAgentCommand(program: Command): void {
     .command("validate")
     .description("Validate configured agents")
     .action(() => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       for (const result of validateAgents(workspace.backlogDir)) {
         console.log(`${result.id}: ${result.ok ? "ok" : "invalid"}${result.reasons.length > 0 ? ` (${result.reasons.join(", ")})` : ""}`);
@@ -174,9 +174,9 @@ export function registerAgentCommand(program: Command): void {
     .description("Show runtime health for configured agents")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const health = healthForAgents(workspace.backlogDir);
       if (options.json) {

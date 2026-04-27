@@ -6,74 +6,74 @@ import { describe, expect, it } from "vitest";
 import { initLayout } from "./init-layout.js";
 import { loadConfig } from "./load-config.js";
 import { saveConfig } from "./save-config.js";
-import { ensureWorkspaceId, generateWorkspaceId } from "./workspace-id.js";
+import { ensureProjectId, generateProjectId } from "./project-id.js";
 
 function createWorkspaceRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "backlog-wsid-"));
 }
 
-describe("generateWorkspaceId", () => {
+describe("generateProjectId", () => {
   it("returns a WS-prefixed 8-hex id", () => {
-    expect(generateWorkspaceId()).toMatch(/^WS-[0-9a-f]{8}$/);
+    expect(generateProjectId()).toMatch(/^WS-[0-9a-f]{8}$/);
   });
 
   it("returns distinct ids on subsequent calls", () => {
-    const a = generateWorkspaceId();
-    const b = generateWorkspaceId();
+    const a = generateProjectId();
+    const b = generateProjectId();
     expect(a).not.toBe(b);
   });
 });
 
 describe("initLayout", () => {
-  it("writes a workspace_id into the new config.toml", () => {
+  it("writes a project_id into the new config.toml", () => {
     const root = createWorkspaceRoot();
-    initLayout({ root, workspaceName: "demo" });
+    initLayout({ root, projectName: "demo" });
     const config = loadConfig(path.join(root, ".backlog"));
-    expect(config.workspace_id).toMatch(/^WS-[0-9a-f]{8}$/);
+    expect(config.project_id).toMatch(/^WS-[0-9a-f]{8}$/);
   });
 });
 
-describe("ensureWorkspaceId", () => {
+describe("ensureProjectId", () => {
   it("returns the existing id without rewriting the file", () => {
     const root = createWorkspaceRoot();
-    initLayout({ root, workspaceName: "demo" });
+    initLayout({ root, projectName: "demo" });
     const backlogDir = path.join(root, ".backlog");
     const configPath = path.join(backlogDir, "config.toml");
 
-    const before = loadConfig(backlogDir).workspace_id!;
+    const before = loadConfig(backlogDir).project_id!;
     const mtimeBefore = fs.statSync(configPath).mtimeMs;
 
-    expect(ensureWorkspaceId(backlogDir)).toBe(before);
+    expect(ensureProjectId(backlogDir)).toBe(before);
     expect(fs.statSync(configPath).mtimeMs).toBe(mtimeBefore);
   });
 
-  it("backfills and persists when workspace_id is missing", () => {
+  it("backfills and persists when project_id is missing", () => {
     const root = createWorkspaceRoot();
-    initLayout({ root, workspaceName: "legacy" });
+    initLayout({ root, projectName: "legacy" });
     const backlogDir = path.join(root, ".backlog");
 
-    // Simulate a pre-workspace_id config by stripping the field.
+    // Simulate a pre-project_id config by stripping the field.
     const config = loadConfig(backlogDir);
-    delete config.workspace_id;
+    delete config.project_id;
     saveConfig(backlogDir, config);
-    expect(loadConfig(backlogDir).workspace_id).toBeUndefined();
+    expect(loadConfig(backlogDir).project_id).toBeUndefined();
 
-    const id = ensureWorkspaceId(backlogDir);
+    const id = ensureProjectId(backlogDir);
     expect(id).toMatch(/^WS-[0-9a-f]{8}$/);
-    expect(loadConfig(backlogDir).workspace_id).toBe(id);
+    expect(loadConfig(backlogDir).project_id).toBe(id);
   });
 
   it("is idempotent across repeated calls", () => {
     const root = createWorkspaceRoot();
-    initLayout({ root, workspaceName: "legacy" });
+    initLayout({ root, projectName: "legacy" });
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
-    delete config.workspace_id;
+    delete config.project_id;
     saveConfig(backlogDir, config);
 
-    const first = ensureWorkspaceId(backlogDir);
-    const second = ensureWorkspaceId(backlogDir);
-    const third = ensureWorkspaceId(backlogDir);
+    const first = ensureProjectId(backlogDir);
+    const second = ensureProjectId(backlogDir);
+    const third = ensureProjectId(backlogDir);
     expect(second).toBe(first);
     expect(third).toBe(first);
   });
@@ -82,7 +82,7 @@ describe("ensureWorkspaceId", () => {
     const root = createWorkspaceRoot();
     initLayout({
       root,
-      workspaceName: "demo",
+      projectName: "demo",
       mode: "control_plane",
       maxAgents: 5,
       defaultBranch: "trunk",
@@ -90,15 +90,15 @@ describe("ensureWorkspaceId", () => {
     const backlogDir = path.join(root, ".backlog");
     const configPath = path.join(backlogDir, "config.toml");
 
-    // Strip workspace_id by hand-editing the TOML.
+    // Strip project_id by hand-editing the TOML.
     const raw = TOML.parse(fs.readFileSync(configPath, "utf8")) as Record<string, unknown>;
-    delete raw.workspace_id;
+    delete raw.project_id;
     fs.writeFileSync(configPath, TOML.stringify(raw as TOML.JsonMap), "utf8");
 
-    ensureWorkspaceId(backlogDir);
+    ensureProjectId(backlogDir);
     const after = loadConfig(backlogDir);
-    expect(after.workspace_name).toBe("demo");
-    expect(after.workspace_mode).toBe("control_plane");
+    expect(after.project_name).toBe("demo");
+    expect(after.project_mode).toBe("control_plane");
     expect(after.max_agents).toBe(5);
     expect(after.default_branch).toBe("trunk");
   });

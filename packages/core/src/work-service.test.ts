@@ -14,7 +14,7 @@ async function createWorkspace(): Promise<string> {
   fs.writeFileSync(path.join(root, "README.md"), "# backlog\n", "utf8");
   await git(["add", "README.md"], root);
   await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], root);
-  initLayout({ root, workspaceName: "work-test", mode: "embedded" });
+  initLayout({ root, projectName: "work-test", mode: "embedded" });
   return root;
 }
 

@@ -6,7 +6,7 @@
     setAutonomyMode,
     setClaimsConfig,
   } from "./api.js";
-  import type { AgentSummary, AutonomyMode, SandboxMode, WorkspaceInfo } from "./types.js";
+  import type { AgentSummary, AutonomyMode, SandboxMode, ProjectInfo } from "./types.js";
 
   interface Props {
     availableRepos: string[];
@@ -16,7 +16,7 @@
 
   let { availableRepos, onClose, onChanged }: Props = $props();
 
-  let workspace = $state<WorkspaceInfo | null>(null);
+  let workspace = $state<ProjectInfo | null>(null);
   let agents = $state<AgentSummary[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);

@@ -12,11 +12,11 @@ export const repoConfigSchema = z.object({
   provider: repoProviderSchema.optional(),
 });
 
-export const workspaceConfigSchema = z.object({
+export const projectConfigSchema = z.object({
   version: z.number().int().positive(),
-  workspace_id: z.string().min(1).optional(),
-  workspace_name: z.string().min(1),
-  workspace_mode: z.enum(["embedded", "control_plane"]),
+  project_id: z.string().min(1).optional(),
+  project_name: z.string().min(1),
+  project_mode: z.enum(["embedded", "control_plane"]),
   default_branch: z.string().min(1),
   autonomy_mode: z.enum(["observe", "assist", "delegate", "autopilot"]),
   max_agents: z.number().int().positive(),
@@ -29,4 +29,4 @@ export const workspaceConfigSchema = z.object({
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
 export type RepoProvider = z.infer<typeof repoProviderSchema>;
-export type WorkspaceConfig = z.infer<typeof workspaceConfigSchema>;
+export type ProjectConfig = z.infer<typeof projectConfigSchema>;

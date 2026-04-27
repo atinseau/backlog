@@ -13,7 +13,7 @@ import {
   removeContextFile,
   writeContextFile,
 } from "@backlog/claims";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { detectGitDir, detectRepoRoot, stagedPaths } from "@backlog/git";
 import type { ClaimRecord, RepoConfig } from "@backlog/schemas";
 import { detectClaimSourceMetadata } from "./claim-source.js";
@@ -124,9 +124,9 @@ export function registerClaimCommand(program: Command): void {
       detectSource?: boolean;
       allowOverlap?: boolean;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const config = loadConfig(workspace.backlogDir);
@@ -185,9 +185,9 @@ export function registerClaimCommand(program: Command): void {
     .description("Archive expired active claims")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const result = garbageCollectExpiredClaims(workspace.backlogDir);
@@ -205,9 +205,9 @@ export function registerClaimCommand(program: Command): void {
     .command("list")
     .description("List active non-expired claims")
     .action(() => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const claims = listActiveClaims(workspace.backlogDir);
@@ -230,9 +230,9 @@ export function registerClaimCommand(program: Command): void {
     .option("--staged", "Check staged files in the repo")
     .option("--path <path...>", "Explicit repo-relative paths to validate")
     .action(async (options: { repoRoot?: string; staged?: boolean; path?: string[] }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
@@ -273,9 +273,9 @@ export function registerClaimCommand(program: Command): void {
     .description("Finish and archive the current repo-local claim")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .action(async (options: { repoRoot?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();

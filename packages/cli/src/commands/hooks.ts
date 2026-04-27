@@ -1,6 +1,6 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { detectGitDir, detectRepoRoot } from "@backlog/git";
 import {
   clearPause,
@@ -21,10 +21,10 @@ async function resolveHookTargets(options: {
   repo?: string;
   repoRoot?: string;
   all?: boolean;
-}): Promise<{ workspace: NonNullable<ReturnType<typeof findWorkspace>>; targets: HookTarget[] }> {
-  const workspace = findWorkspace();
+}): Promise<{ workspace: NonNullable<ReturnType<typeof findProject>>; targets: HookTarget[] }> {
+  const workspace = findProject();
   if (!workspace) {
-    throw new Error("No .backlog workspace found. Run `backlog init` first.");
+    throw new Error("No .backlog project found. Run `backlog init` first.");
   }
   const config = loadConfig(workspace.backlogDir);
 
@@ -121,7 +121,7 @@ export function registerHooksCommand(program: Command): void {
         const hookPath = installPreCommitHook({
           gitDir,
           backlogBin,
-          workspaceRoot: workspace.root,
+          projectRoot: workspace.root,
           ...(options.force ? { force: true } : {}),
         });
         console.log(`Installed pre-commit hook for ${target.id} at ${hookPath}`);
@@ -133,9 +133,9 @@ export function registerHooksCommand(program: Command): void {
     .description("Temporarily skip the pre-commit hook in this workspace (default 30 minutes)")
     .option("-m, --minutes <minutes>", "How long to pause the hook", "30")
     .action((options: { minutes: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const minutes = Number.parseInt(options.minutes, 10);
       if (Number.isNaN(minutes) || minutes <= 0) {
@@ -152,9 +152,9 @@ export function registerHooksCommand(program: Command): void {
     .command("resume")
     .description("Resume the pre-commit hook by clearing an active pause")
     .action(() => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const wasPaused = clearPause(workspace.backlogDir);
       if (wasPaused) {
@@ -168,9 +168,9 @@ export function registerHooksCommand(program: Command): void {
     .command("paused")
     .description("Print the current pause expiration, if any")
     .action(() => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const until = readPauseUntil(workspace.backlogDir);
       if (!until) {

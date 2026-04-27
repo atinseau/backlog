@@ -1,5 +1,5 @@
 import { listActiveClaims, scopesOverlap } from "@backlog/claims";
-import type { Task, WorkItem, WorkspaceConfig } from "@backlog/schemas";
+import type { Task, WorkItem, ProjectConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { listActiveRuns } from "./run-store.js";
 import { listTasks, listWorkItems } from "./state-files.js";
@@ -86,7 +86,7 @@ function dependencyReasons(task: Task, tasksById: Map<string, Task>): string[] {
     .map((dependencyId) => `blocked_by_dependency:${dependencyId}`);
 }
 
-function policyReasons(task: Task, config: WorkspaceConfig): string[] {
+function policyReasons(task: Task, config: ProjectConfig): string[] {
   const reasons: string[] = [];
   if (config.autonomy_mode === "observe") {
     reasons.push("autonomy_mode_observe");
@@ -113,7 +113,7 @@ function scoreTask(task: Task, workItem: WorkItem): number {
 
 export function buildExecutionPlan(
   backlogDir: string,
-  config: WorkspaceConfig,
+  config: ProjectConfig,
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
   const tasks = listTasks(backlogDir).filter((task) => !isTerminal(task.status));
@@ -355,7 +355,7 @@ export interface WorkExecutionOutline {
   recommendedNextTaskId: string | null;
 }
 
-export function buildWorkExecutionOutline(backlogDir: string, config: WorkspaceConfig, workItemId: string): WorkExecutionOutline {
+export function buildWorkExecutionOutline(backlogDir: string, config: ProjectConfig, workItemId: string): WorkExecutionOutline {
   const workItem = listWorkItems(backlogDir).find((item) => item.id === workItemId);
   if (!workItem) {
     throw new Error(`Unknown work item: ${workItemId}`);

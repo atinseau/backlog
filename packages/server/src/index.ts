@@ -1,6 +1,6 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { buildApp, VERSION } from "./app.js";
-import { resolveWorkspace, type ServerWorkspace } from "./workspace-context.js";
+import { resolveProject, type ServerProject } from "./project-context.js";
 
 export interface StartServerOptions {
   workspace?: string;
@@ -13,13 +13,13 @@ export interface RunningServer {
   url: string;
   port: number;
   host: string;
-  workspace: ServerWorkspace;
+  workspace: ServerProject;
   close: () => Promise<void>;
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
-  const workspace = resolveWorkspace(options.workspace);
-  const appOptions: { workspace: ServerWorkspace; uiDistDir?: string } = { workspace };
+  const workspace = resolveProject(options.workspace);
+  const appOptions: { workspace: ServerProject; uiDistDir?: string } = { workspace };
   if (options.uiDistDir) appOptions.uiDistDir = options.uiDistDir;
   const { app, buses } = buildApp(appOptions);
   const host = options.host ?? "127.0.0.1";
@@ -62,5 +62,5 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 }
 
 export { buildApp, VERSION };
-export type { ServerWorkspace } from "./workspace-context.js";
-export type { AppEnv } from "./workspace-resolver.js";
+export type { ServerProject } from "./project-context.js";
+export type { AppEnv } from "./project-resolver.js";

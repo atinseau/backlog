@@ -109,7 +109,7 @@ export interface AgentSummary {
   profile: string | null;
 }
 
-export interface WorkspaceInfo {
+export interface ProjectInfo {
   id?: string;
   name: string;
   mode: "embedded" | "control_plane";
@@ -122,7 +122,7 @@ export interface WorkspaceInfo {
   };
 }
 
-export interface WorkspaceEntry {
+export interface ProjectEntry {
   id: string;
   path: string;
   name: string;
@@ -130,7 +130,7 @@ export interface WorkspaceEntry {
   last_opened_at?: string;
 }
 
-export interface CurrentWorkspace {
+export interface CurrentProject {
   root: string;
   backlog_dir: string;
   resolved_from: string;

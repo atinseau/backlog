@@ -1,13 +1,13 @@
 import {
   type RegistryOptions,
-  listRegisteredWorkspaces,
-  registerWorkspace,
-  touchWorkspace,
-  unregisterWorkspace,
+  listRegisteredProjects,
+  registerProject,
+  touchProject,
+  unregisterProject,
 } from "@backlog/config";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { ServerProject } from "../project-context.js";
 
 const registerBodySchema = z
   .object({
@@ -15,22 +15,22 @@ const registerBodySchema = z
   })
   .strict();
 
-export interface WorkspacesRoutesOptions {
+export interface ProjectsRoutesOptions {
   registry?: RegistryOptions;
 }
 
-export function workspacesRoutes(
-  workspace: ServerWorkspace,
-  options: WorkspacesRoutesOptions = {},
+export function projectsRoutes(
+  workspace: ServerProject,
+  options: ProjectsRoutesOptions = {},
 ): Hono {
   const app = new Hono();
   const registry = options.registry;
 
-  app.get("/workspaces", (c) => {
-    return c.json({ workspaces: listRegisteredWorkspaces(registry) });
+  app.get("/projects", (c) => {
+    return c.json({ projects: listRegisteredProjects(registry) });
   });
 
-  app.get("/workspaces/current", (c) => {
+  app.get("/projects/current", (c) => {
     return c.json({
       root: workspace.root,
       backlog_dir: workspace.backlogDir,
@@ -38,33 +38,33 @@ export function workspacesRoutes(
     });
   });
 
-  app.post("/workspaces", async (c) => {
+  app.post("/projects", async (c) => {
     const raw = await c.req.json().catch(() => null);
     const parsed = registerBodySchema.safeParse(raw);
     if (!parsed.success) {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const entry = registerWorkspace({ workspaceRoot: parsed.data.path }, registry);
-      return c.json({ workspace: entry }, 201);
+      const entry = registerProject({ projectRoot: parsed.data.path }, registry);
+      return c.json({ project: entry }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "register_failed", message }, 400);
     }
   });
 
-  app.delete("/workspaces/:idOrPath", (c) => {
+  app.delete("/projects/:idOrPath", (c) => {
     const idOrPath = c.req.param("idOrPath");
-    const removed = unregisterWorkspace(idOrPath, registry);
+    const removed = unregisterProject(idOrPath, registry);
     if (!removed) {
       return c.json({ error: "not_found", id_or_path: idOrPath }, 404);
     }
-    return c.json({ workspace: removed });
+    return c.json({ project: removed });
   });
 
-  app.put("/workspaces/:id/touch", (c) => {
+  app.put("/projects/:id/touch", (c) => {
     const id = c.req.param("id");
-    touchWorkspace(id, registry);
+    touchProject(id, registry);
     return c.json({ ok: true });
   });
 

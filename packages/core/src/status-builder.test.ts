@@ -31,7 +31,7 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string }> 
   const docsRoot = await createGitRepo(root, "docs");
   initLayout({
     root,
-    workspaceName: "status-test",
+    projectName: "status-test",
     mode: "embedded",
     repos: [
       { id: "backlog", path: root, default_branch: "main", enabled: true },

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
-import { findWorkspace, loadConfig } from "@backlog/config";
+import { findProject, loadConfig } from "@backlog/config";
 import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@backlog/git";
 import { inspectPreCommitHook } from "@backlog/hooks";
 
@@ -12,9 +12,9 @@ export function registerDoctorCommand(program: Command): void {
     .option("--repo <id>", "Only inspect one configured repo")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const requiredPaths = [
@@ -109,8 +109,8 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       const payload = {
-        workspace: config.workspace_name,
-        mode: config.workspace_mode,
+        workspace: config.project_name,
+        mode: config.project_mode,
         repoCount: config.repos.length,
         shim: path.join(workspace.backlogDir, "bin", "backlog"),
         warnings,
@@ -123,8 +123,8 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       console.log("Backlog doctor");
-      console.log(`- workspace: ${config.workspace_name}`);
-      console.log(`- mode: ${config.workspace_mode}`);
+      console.log(`- workspace: ${config.project_name}`);
+      console.log(`- mode: ${config.project_mode}`);
       console.log(`- repos: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.backlogDir, "bin", "backlog")}`);
       for (const repo of repos) {

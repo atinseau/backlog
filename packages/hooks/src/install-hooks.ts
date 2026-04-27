@@ -99,7 +99,7 @@ export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCo
 export function installPreCommitHook(params: {
   gitDir: string;
   backlogBin: string;
-  workspaceRoot: string;
+  projectRoot: string;
   force?: boolean;
 }): string {
   const hookPath = path.join(params.gitDir, "hooks", "pre-commit");
@@ -112,7 +112,7 @@ export function installPreCommitHook(params: {
 
   const rendered = readTemplate()
     .replace("__BACKLOG_BIN__", params.backlogBin)
-    .replace("__BACKLOG_WORKSPACE__", params.workspaceRoot);
+    .replace("__BACKLOG_WORKSPACE__", params.projectRoot);
   fs.mkdirSync(path.dirname(hookPath), { recursive: true });
   fs.writeFileSync(hookPath, rendered, "utf8");
   fs.chmodSync(hookPath, 0o755);

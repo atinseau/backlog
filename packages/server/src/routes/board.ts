@@ -17,8 +17,8 @@ import type {
 } from "@backlog/schemas";
 import { Hono } from "hono";
 import { COLUMN_KEYS, type ColumnKey, statusToColumn } from "../lib/columns.js";
-import type { ServerWorkspace } from "../workspace-context.js";
-import type { AppEnv } from "../workspace-resolver.js";
+import type { ServerProject } from "../project-context.js";
+import type { AppEnv } from "../project-resolver.js";
 
 interface ClaimSummary {
   id: string;
@@ -106,7 +106,7 @@ interface BoardFilters {
   repo?: string | undefined;
 }
 
-function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardResponse {
+function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardResponse {
   const workItems = listWorkItems(workspace.backlogDir);
   const tasks = listTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);

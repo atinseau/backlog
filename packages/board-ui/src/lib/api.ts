@@ -2,11 +2,11 @@ import type {
   AgentSummary,
   BoardResponse,
   ClaimRecord,
-  CurrentWorkspace,
+  CurrentProject,
   OrchestratorState,
   Repo,
-  WorkspaceEntry,
-  WorkspaceInfo,
+  ProjectEntry,
+  ProjectInfo,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -16,11 +16,11 @@ const BASE = "/api/v1";
 // back to the workspace it was launched with.
 let currentWorkspaceId: string | null = null;
 
-export function setCurrentWorkspaceId(id: string | null): void {
+export function setCurrentProjectId(id: string | null): void {
   currentWorkspaceId = id;
 }
 
-export function getCurrentWorkspaceId(): string | null {
+export function getCurrentProjectId(): string | null {
   return currentWorkspaceId;
 }
 
@@ -43,21 +43,21 @@ export async function fetchBoard(opts: { repo?: string } = {}): Promise<BoardRes
 
 // Workspaces (registry) -----------------------------------------------------
 
-export async function fetchWorkspacesList(): Promise<WorkspaceEntry[]> {
-  const response = await fetch(apiUrl("/workspaces"));
+export async function fetchProjectsList(): Promise<ProjectEntry[]> {
+  const response = await fetch(apiUrl("/projects"));
   if (!response.ok) throw new Error(`Workspaces fetch failed: ${response.status}`);
-  const json = (await response.json()) as { workspaces: WorkspaceEntry[] };
-  return json.workspaces;
+  const json = (await response.json()) as { projects: ProjectEntry[] };
+  return json.projects;
 }
 
-export async function fetchCurrentWorkspace(): Promise<CurrentWorkspace> {
-  const response = await fetch(apiUrl("/workspaces/current"));
+export async function fetchCurrentProject(): Promise<CurrentProject> {
+  const response = await fetch(apiUrl("/projects/current"));
   if (!response.ok) throw new Error(`Current workspace fetch failed: ${response.status}`);
-  return (await response.json()) as CurrentWorkspace;
+  return (await response.json()) as CurrentProject;
 }
 
-export async function registerWorkspaceByPath(absolutePath: string): Promise<WorkspaceEntry> {
-  const response = await fetch(apiUrl("/workspaces"), {
+export async function registerProjectByPath(absolutePath: string): Promise<ProjectEntry> {
+  const response = await fetch(apiUrl("/projects"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path: absolutePath }),
@@ -66,20 +66,20 @@ export async function registerWorkspaceByPath(absolutePath: string): Promise<Wor
     const detail = await response.text().catch(() => "");
     throw new Error(`Register workspace failed (${response.status}): ${detail}`);
   }
-  const json = (await response.json()) as { workspace: WorkspaceEntry };
-  return json.workspace;
+  const json = (await response.json()) as { project: ProjectEntry };
+  return json.project;
 }
 
-export async function unregisterWorkspaceById(id: string): Promise<void> {
-  const response = await fetch(apiUrl(`/workspaces/${encodeURIComponent(id)}`), { method: "DELETE" });
+export async function unregisterProjectById(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Unregister workspace failed (${response.status}): ${detail}`);
   }
 }
 
-export async function touchWorkspaceById(id: string): Promise<void> {
-  const response = await fetch(apiUrl(`/workspaces/${encodeURIComponent(id)}/touch`), { method: "PUT" });
+export async function touchProjectById(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}/touch`), { method: "PUT" });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Touch workspace failed (${response.status}): ${detail}`);
@@ -120,14 +120,14 @@ export async function patchAgent(id: string, input: UpdateAgentInput): Promise<u
   return response.json();
 }
 
-export async function fetchWorkspace(): Promise<WorkspaceInfo> {
+export async function fetchWorkspace(): Promise<ProjectInfo> {
   const response = await fetch(apiUrl("/workspace"));
   if (!response.ok) throw new Error(`Workspace fetch failed: ${response.status}`);
-  const json = (await response.json()) as { workspace: WorkspaceInfo };
-  return json.workspace;
+  const json = (await response.json()) as { project: ProjectInfo };
+  return json.project;
 }
 
-export async function setAutonomyMode(mode: WorkspaceInfo["autonomy_mode"]): Promise<void> {
+export async function setAutonomyMode(mode: ProjectInfo["autonomy_mode"]): Promise<void> {
   const response = await fetch(apiUrl("/workspace/autonomy"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },

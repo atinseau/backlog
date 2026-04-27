@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { RepoConfig, WorkspaceConfig } from "@backlog/schemas";
+import type { RepoConfig, ProjectConfig } from "@backlog/schemas";
 import { saveConfig } from "./save-config.js";
 import { writeLocalShim } from "./shim.js";
-import { generateWorkspaceId } from "./workspace-id.js";
+import { generateProjectId } from "./project-id.js";
 
 export interface InitLayoutOptions {
   root: string;
-  workspaceName: string;
+  projectName: string;
   defaultBranch?: string;
   mode?: "embedded" | "control_plane";
   maxAgents?: number;
@@ -58,11 +58,11 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
     "utf8",
   );
 
-  const config: WorkspaceConfig = {
+  const config: ProjectConfig = {
     version: 1,
-    workspace_id: generateWorkspaceId(),
-    workspace_name: options.workspaceName,
-    workspace_mode: options.mode ?? "embedded",
+    project_id: generateProjectId(),
+    project_name: options.projectName,
+    project_mode: options.mode ?? "embedded",
     default_branch: options.defaultBranch ?? "main",
     autonomy_mode: "assist",
     max_agents: options.maxAgents ?? 2,

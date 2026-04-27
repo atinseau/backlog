@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { findWorkspace } from "@backlog/config";
+import { findProject } from "@backlog/config";
 import {
   blockTask,
   buildExecutionPlan,
@@ -59,9 +59,9 @@ export function registerTaskCommand(program: Command): void {
       requireCapability?: string[];
       manualApproval?: boolean;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const created = createTask(workspace.backlogDir, {
         workItemId: options.workItem,
@@ -112,9 +112,9 @@ export function registerTaskCommand(program: Command): void {
       manualApproval?: string;
       plannerLocked?: string;
     }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const updated = updateTask(workspace.backlogDir, taskId, {
@@ -144,9 +144,9 @@ export function registerTaskCommand(program: Command): void {
     .option("--work-item <id>", "Only show tasks for one work item")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean; repo?: string; status?: string; workItem?: string }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const tasks = listTasks(workspace.backlogDir).filter((item) => {
         if (options.repo && item.repo !== options.repo) {
@@ -178,9 +178,9 @@ export function registerTaskCommand(program: Command): void {
     .description("Remove a task and drop dependency references to it")
     .argument("<task-id>", "Task id")
     .action((taskId: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const task = removeTask(workspace.backlogDir, taskId);
       console.log(`Removed ${task.id}`);
@@ -192,9 +192,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("<task-id>", "Task id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const task = getTask(workspace.backlogDir, taskId);
       if (!task) {
@@ -220,9 +220,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("<task-id>", "Task id")
     .argument("<status>", "Target task status")
     .action((taskId: string, status: "queued" | "planned" | "running" | "waiting" | "review" | "completed" | "blocked" | "canceled") => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const task = updateTaskStatus(workspace.backlogDir, taskId, status);
       console.log(`Moved ${task.id} to ${task.status}`);
@@ -234,9 +234,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("<task-id>", "Task id")
     .requiredOption("--reason <text>", "Blocking reason", collectValues, [])
     .action((taskId: string, options: { reason: string[] }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const task = blockTask(workspace.backlogDir, taskId, options.reason);
       console.log(`Blocked ${task.id}`);
@@ -249,9 +249,9 @@ export function registerTaskCommand(program: Command): void {
     .option("--reason <text>", "Specific blocker to remove", collectValues, [])
     .option("--all", "Remove every blocker")
     .action((taskId: string, options: { reason: string[]; all?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const task = unblockTask(workspace.backlogDir, taskId, options.all ? undefined : options.reason);
       console.log(`Unblocked ${task.id}`);
@@ -263,9 +263,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("<task-id>", "Task id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const plan = buildExecutionPlan(workspace.backlogDir, config, { taskId });
@@ -293,9 +293,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("[seconds]", "Duration in seconds (omit with --clear)")
     .option("--clear", "Remove the manual estimate")
     .action((taskId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       if (options.clear) {
         clearTaskEstimate(workspace.backlogDir, taskId);
@@ -319,9 +319,9 @@ export function registerTaskCommand(program: Command): void {
     .argument("<task-id>", "Task id")
     .argument("<percent>", "Progress percent")
     .action((taskId: string, percentArg: string) => {
-      const workspace = findWorkspace();
+      const workspace = findProject();
       if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+        throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const percent = parseInt(percentArg, 10);
       if (!Number.isFinite(percent)) {

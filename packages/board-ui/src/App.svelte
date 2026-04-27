@@ -13,15 +13,15 @@
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import ViewToggle from "./lib/ViewToggle.svelte";
-  import WorkspaceSelector from "./lib/WorkspaceSelector.svelte";
+  import ProjectSelector from "./lib/ProjectSelector.svelte";
   import {
     fetchBoard,
-    fetchCurrentWorkspace,
+    fetchCurrentProject,
     fetchRepos,
-    fetchWorkspacesList,
+    fetchProjectsList,
     moveWorkItem,
     reorderWorkItem,
-    setCurrentWorkspaceId,
+    setCurrentProjectId,
   } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
@@ -31,18 +31,18 @@
     type ColumnKey,
     type Repo,
     type WorkItemCard,
-    type WorkspaceEntry,
+    type ProjectEntry,
   } from "./lib/types.js";
 
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const VIEW_STORAGE_KEY = "backlog.kanban_view";
-  const WORKSPACE_STORAGE_KEY = "backlog.selected_workspace_id";
+  const WORKSPACE_STORAGE_KEY = "backlog.selected_project_id";
 
   type KanbanView = "tickets" | "claims";
 
   let board = $state<BoardResponse | null>(null);
   let workspaceRepos = $state<Repo[]>([]);
-  let workspaces = $state<WorkspaceEntry[]>([]);
+  let workspaces = $state<ProjectEntry[]>([]);
   let selectedWorkspaceId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let view = $state<KanbanView>("tickets");
@@ -109,7 +109,7 @@
 
   async function refreshWorkspaces() {
     try {
-      workspaces = await fetchWorkspacesList();
+      workspaces = await fetchProjectsList();
     } catch (err) {
       console.warn("workspaces fetch failed", err);
     }
@@ -173,7 +173,7 @@
   function applyWorkspace(id: string) {
     if (id === selectedWorkspaceId) return;
     selectedWorkspaceId = id;
-    setCurrentWorkspaceId(id);
+    setCurrentProjectId(id);
     localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
     // Reset per-workspace selection — repo ids belong to the previous
     // workspace and almost certainly don't match the new one.
@@ -197,7 +197,7 @@
     }
     if (!preferred) {
       try {
-        const current = await fetchCurrentWorkspace();
+        const current = await fetchCurrentProject();
         // /workspaces/current returns paths; match against the registry to find the id.
         const match = workspaces.find((w) => w.path === current.root);
         preferred = match?.id ?? workspaces[0]?.id ?? null;
@@ -207,7 +207,7 @@
     }
     if (preferred) {
       selectedWorkspaceId = preferred;
-      setCurrentWorkspaceId(preferred);
+      setCurrentProjectId(preferred);
     }
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
     const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
@@ -257,7 +257,7 @@
   <div class="topbar-left">
     <h1>Backlog</h1>
     {#if workspaces.length > 0 && selectedWorkspaceId}
-      <WorkspaceSelector
+      <ProjectSelector
         {workspaces}
         selectedId={selectedWorkspaceId}
         onSelect={applyWorkspace}

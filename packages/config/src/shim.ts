@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-function renderShim(workspaceRoot: string): string {
+function renderShim(projectRoot: string): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
 
@@ -28,7 +28,7 @@ if [[ -n "\${BACKLOG_DEV_DIST:-}" && -f "$BACKLOG_DEV_DIST" ]]; then
   exec node "$BACKLOG_DEV_DIST" "$@"
 fi
 
-WORKSPACE_DIST="${workspaceRoot}/packages/cli/dist/bin.js"
+WORKSPACE_DIST="${projectRoot}/packages/cli/dist/bin.js"
 if [[ -f "$WORKSPACE_DIST" ]]; then
   exec node "$WORKSPACE_DIST" "$@"
 fi
@@ -47,11 +47,11 @@ exit 1
 `;
 }
 
-export function writeLocalShim(backlogDir: string, workspaceRoot: string): string {
+export function writeLocalShim(backlogDir: string, projectRoot: string): string {
   const binDir = path.join(backlogDir, "bin");
   fs.mkdirSync(binDir, { recursive: true });
   const shimPath = path.join(binDir, "backlog");
-  fs.writeFileSync(shimPath, renderShim(workspaceRoot), "utf8");
+  fs.writeFileSync(shimPath, renderShim(projectRoot), "utf8");
   fs.chmodSync(shimPath, 0o755);
   return shimPath;
 }
