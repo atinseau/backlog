@@ -216,6 +216,13 @@
   "split_dialog.button.split": "Découper",
   "split_dialog.button.splitting": "Découpage…",
   "split_dialog.ai.loading": "Génération du plan IA…",
+  "split_dialog.max_concurrency": "Max concurrency",
+  "split_dialog.agents_available": "{count} agents activés",
+  "split_dialog.plan_title": "Plan d'exécution",
+  "split_dialog.wave_label": "Vague {wave}",
+  "split_dialog.parallel": "parallèle",
+  "split_dialog.serial": "série",
+  "split_dialog.no_agent": "aucun agent disponible",
 
   "commits.title": "Commits récents",
   "commits.empty": "Aucun commit récent.",

@@ -216,6 +216,13 @@
   "split_dialog.button.split": "Split",
   "split_dialog.button.splitting": "Splitting…",
   "split_dialog.ai.loading": "Generating AI plan…",
+  "split_dialog.max_concurrency": "Max concurrency",
+  "split_dialog.agents_available": "{count} enabled agents",
+  "split_dialog.plan_title": "Execution plan",
+  "split_dialog.wave_label": "Wave {wave}",
+  "split_dialog.parallel": "parallel",
+  "split_dialog.serial": "serial",
+  "split_dialog.no_agent": "no agent available",
 
   "commits.title": "Recent commits",
   "commits.empty": "No recent commits.",
