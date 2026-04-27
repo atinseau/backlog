@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import ClaimDialog from "./lib/ClaimDialog.svelte";
-  import ClaimsBoard from "./lib/ClaimsBoard.svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
@@ -12,7 +10,6 @@
   import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
-  import ViewToggle from "./lib/ViewToggle.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import {
     fetchBoard,
@@ -35,23 +32,17 @@
   } from "./lib/types.js";
 
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
-  const VIEW_STORAGE_KEY = "backlog.kanban_view";
   const WORKSPACE_STORAGE_KEY = "backlog.selected_project_id";
-
-  type KanbanView = "tickets" | "claims";
 
   let board = $state<BoardResponse | null>(null);
   let workspaceRepos = $state<Repo[]>([]);
   let workspaces = $state<ProjectEntry[]>([]);
   let selectedWorkspaceId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
-  let view = $state<KanbanView>("tickets");
-  let claimsBoardSignal = $state(0);
   let error = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
-  let claimDialogOpen = $state(false);
   let claimsViewOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
@@ -130,15 +121,6 @@
     refresh();
   }
 
-  function persistView(next: KanbanView) {
-    view = next;
-    localStorage.setItem(VIEW_STORAGE_KEY, next);
-  }
-
-  function bumpClaimsBoard() {
-    claimsBoardSignal += 1;
-  }
-
   function teardownSse() {
     sse?.close();
     sse = null;
@@ -156,7 +138,6 @@
         if (type === "ping" || type === "ready") return;
         scheduleRefresh();
         if (type === "repo.changed") refreshRepos();
-        if (type === "claim.changed") bumpClaimsBoard();
       },
       (alive) => {
         connected = alive;
@@ -210,8 +191,6 @@
       setCurrentProjectId(preferred);
     }
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
-    const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (storedView === "tickets" || storedView === "claims") view = storedView;
     refresh();
     refreshRepos();
     connectSse();
@@ -273,7 +252,6 @@
     <OrchestratorControls
       onError={(message) => (error = message)}
     />
-    <ViewToggle value={view} onChange={persistView} />
   </div>
   <div class="meta">
     {#if board}
@@ -281,11 +259,7 @@
         <span class="eta-pill">⏱ il reste {formatDuration(board.total_remaining_seconds)}</span>
         <span class="dot">·</span>
       {/if}
-      <span>{board.active_runs_count} runs ·
-        <button class="claims-link" onclick={() => (claimsViewOpen = true)} title="Voir tous les claims">
-          {board.active_claims_count} claims
-        </button>
-      </span>
+      <span>{board.active_runs_count} runs</span>
       <span class="dot">·</span>
       <span class:on={connected} class:off={!connected} class="conn">
         {connected ? "● live" : "○ polling"}
@@ -299,10 +273,10 @@
         <span class="moving">↻ déplacement…</span>
       {/if}
     {/if}
+    <button onclick={() => (claimsViewOpen = true)} title="Activité (claims, runs)">📋 Activité</button>
     <button onclick={() => (permissionsViewOpen = true)}>🔒 Permissions</button>
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
     <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
-    <button onclick={() => (claimDialogOpen = true)}>+ Claim</button>
     <button onclick={refresh}>↻</button>
   </div>
 </header>
@@ -311,36 +285,18 @@
   <div class="error">{error}</div>
 {/if}
 
-{#if view === "tickets"}
-  <main class="board">
-    {#each COLUMN_ORDER as key (key)}
-      <Column
-        columnKey={key}
-        cards={board?.columns[key] ?? []}
-        onMove={handleMove}
-        onReorder={handleReorder}
-        onSplit={(card) => (splitTarget = card)}
-        onAddTask={(card) => (createTaskTarget = card)}
-      />
-    {/each}
-  </main>
-{:else}
-  <ClaimsBoard
-    repoFilter={selectedRepoId}
-    refreshSignal={claimsBoardSignal}
-    onChanged={bumpClaimsBoard}
-  />
-{/if}
-
-{#if claimDialogOpen}
-  <ClaimDialog
-    {repos}
-    onClose={() => (claimDialogOpen = false)}
-    onCreated={() => {
-      if (!connected) refresh();
-    }}
-  />
-{/if}
+<main class="board">
+  {#each COLUMN_ORDER as key (key)}
+    <Column
+      columnKey={key}
+      cards={board?.columns[key] ?? []}
+      onMove={handleMove}
+      onReorder={handleReorder}
+      onSplit={(card) => (splitTarget = card)}
+      onAddTask={(card) => (createTaskTarget = card)}
+    />
+  {/each}
+</main>
 
 {#if reposViewOpen}
   <ReposView
