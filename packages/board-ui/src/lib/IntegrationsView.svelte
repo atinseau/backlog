@@ -678,17 +678,47 @@
               </div>
             {/if}
             {#if ghShowOauthConfig}
-              <div class="config-panel">
-                <label class="field">
-                  <span class="label">{t("integrations.github.oauth.client_id_label")}</span>
-                  <input
-                    type="text"
-                    bind:value={ghClientIdInput}
-                    placeholder="Iv1.…  ou  Ov23li…"
-                    autocomplete="off"
-                  />
-                  <small>{t("integrations.github.oauth.client_id_help")}</small>
-                </label>
+              <div class="config-panel guide">
+                <div class="guide-header">
+                  <h4>{t("integrations.github.oauth.guide.title")}</h4>
+                  <p class="muted small">{t("integrations.github.oauth.guide.subtitle")}</p>
+                </div>
+                <ol class="steps">
+                  <li>
+                    <strong>{t("integrations.github.oauth.guide.step1.title")}</strong>
+                    <p>{t("integrations.github.oauth.guide.step1.body")}</p>
+                    <button
+                      class="primary"
+                      onclick={() => openInNewTab(ghOauthConfig?.register_url ?? "https://github.com/settings/applications/new")}
+                    >
+                      ↗ {t("integrations.github.oauth.guide.step1.cta")}
+                    </button>
+                  </li>
+                  <li>
+                    <strong>{t("integrations.github.oauth.guide.step2.title")}</strong>
+                    <ul class="hints">
+                      <li><code>Application name</code> — Backlog (or any name)</li>
+                      <li><code>Homepage URL</code> — http://localhost:7878 (or any URL)</li>
+                      <li><code>Authorization callback URL</code> — http://localhost:7878 (required by GitHub but unused for Device Flow)</li>
+                      <li><code>Enable Device Flow</code> — ☑️ <strong>{t("integrations.github.oauth.guide.must_check")}</strong></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>{t("integrations.github.oauth.guide.step3.title")}</strong>
+                    <p>{t("integrations.github.oauth.guide.step3.body")}</p>
+                  </li>
+                  <li>
+                    <strong>{t("integrations.github.oauth.guide.step4.title")}</strong>
+                    <label class="field">
+                      <input
+                        type="text"
+                        bind:value={ghClientIdInput}
+                        placeholder="Iv1.…  ou  Ov23li…"
+                        autocomplete="off"
+                      />
+                    </label>
+                  </li>
+                </ol>
                 <div class="row">
                   <button
                     class="primary"
@@ -701,7 +731,7 @@
                   </button>
                   {#if ghOauthConfig}
                     <button onclick={() => openInNewTab(ghOauthConfig!.register_url)}>
-                      {t("integrations.github.oauth.register_button")}
+                      ↗ {t("integrations.github.oauth.register_button")}
                     </button>
                   {/if}
                 </div>
@@ -811,22 +841,55 @@
           {/if}
           {#if jiraOauthMessage}<div class="msg ok">{jiraOauthMessage}</div>{/if}
           {#if jiraShowOauthConfig}
-            <div class="config-panel">
-              <label class="field">
-                <span class="label">{t("integrations.jira.oauth.client_id_label")}</span>
-                <input type="text" bind:value={jiraClientIdInput} autocomplete="off" />
-              </label>
-              <label class="field">
-                <span class="label">{t("integrations.jira.oauth.client_secret_label")}</span>
-                <input type="password" bind:value={jiraClientSecretInput} autocomplete="off" />
-              </label>
-              <small class="muted">
-                {t("integrations.jira.oauth.help", {
-                  redirect: typeof window !== "undefined"
+            <div class="config-panel guide">
+              <div class="guide-header">
+                <h4>{t("integrations.jira.oauth.guide.title")}</h4>
+                <p class="muted small">{t("integrations.jira.oauth.guide.subtitle")}</p>
+              </div>
+              <ol class="steps">
+                <li>
+                  <strong>{t("integrations.jira.oauth.guide.step1.title")}</strong>
+                  <p>{t("integrations.jira.oauth.guide.step1.body")}</p>
+                  <button
+                    class="primary"
+                    onclick={() => openInNewTab(jiraOauthConfig?.register_url ?? "https://developer.atlassian.com/console/myapps/")}
+                  >
+                    ↗ {t("integrations.jira.oauth.guide.step1.cta")}
+                  </button>
+                </li>
+                <li>
+                  <strong>{t("integrations.jira.oauth.guide.step2.title")}</strong>
+                  <p>{t("integrations.jira.oauth.guide.step2.body")}</p>
+                </li>
+                <li>
+                  <strong>{t("integrations.jira.oauth.guide.step3.title")}</strong>
+                  <p>{t("integrations.jira.oauth.guide.step3.body")}</p>
+                  <ul class="hints">
+                    <li><code>read:jira-work</code></li>
+                    <li><code>read:jira-user</code></li>
+                    <li><code>offline_access</code> ({t("integrations.jira.oauth.guide.optional")})</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>{t("integrations.jira.oauth.guide.step4.title")}</strong>
+                  <p>{t("integrations.jira.oauth.guide.step4.body")}</p>
+                  <code class="callback-url">{typeof window !== "undefined"
                     ? `${window.location.origin}/api/v1/integrations/jira/oauth/callback`
-                    : "/api/v1/integrations/jira/oauth/callback"
-                })}
-              </small>
+                    : "/api/v1/integrations/jira/oauth/callback"}</code>
+                </li>
+                <li>
+                  <strong>{t("integrations.jira.oauth.guide.step5.title")}</strong>
+                  <p>{t("integrations.jira.oauth.guide.step5.body")}</p>
+                  <label class="field">
+                    <span class="label">{t("integrations.jira.oauth.client_id_label")}</span>
+                    <input type="text" bind:value={jiraClientIdInput} autocomplete="off" />
+                  </label>
+                  <label class="field">
+                    <span class="label">{t("integrations.jira.oauth.client_secret_label")}</span>
+                    <input type="password" bind:value={jiraClientSecretInput} autocomplete="off" />
+                  </label>
+                </li>
+              </ol>
               <div class="row">
                 <button
                   class="primary"
@@ -1100,6 +1163,55 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+  .config-panel.guide { padding: 16px; gap: 14px; }
+  .guide-header h4 { margin: 0 0 4px; font-size: 14px; color: #1d2939; }
+  .guide-header .muted { margin: 0; }
+  .steps {
+    list-style: none;
+    counter-reset: step;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .steps > li {
+    padding: 10px 12px;
+    background: white;
+    border: 1px solid #e4e7ec;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .steps > li > strong { display: block; margin-bottom: 4px; color: #1d2939; }
+  .steps > li > p { margin: 0 0 8px; color: #475467; font-size: 12px; }
+  .steps > li > .field { margin-top: 8px; }
+  .steps > li button.primary { margin-top: 4px; }
+  .hints {
+    list-style: disc;
+    padding-left: 20px;
+    margin: 6px 0 0;
+    color: #475467;
+    font-size: 12px;
+  }
+  .hints code {
+    background: #f2f4f7;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+  }
+  .callback-url {
+    display: block;
+    padding: 8px 10px;
+    background: #f2f4f7;
+    border-radius: 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    word-break: break-all;
+    margin-top: 6px;
+    user-select: all;
   }
   .muted.small { font-size: 11px; }
   .signin-banner {
