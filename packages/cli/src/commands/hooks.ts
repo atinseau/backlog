@@ -2,7 +2,15 @@ import path from "node:path";
 import { Command } from "commander";
 import { findWorkspace, loadConfig } from "@backlog/config";
 import { detectGitDir, detectRepoRoot } from "@backlog/git";
-import { inspectPreCommitHook, installPreCommitHook, uninstallPreCommitHook } from "@backlog/hooks";
+import {
+  clearPause,
+  inspectPreCommitHook,
+  installPreCommitHook,
+  pauseFilePath,
+  readPauseUntil,
+  uninstallPreCommitHook,
+  writePauseUntil,
+} from "@backlog/hooks";
 
 interface HookTarget {
   id: string;
@@ -118,6 +126,59 @@ export function registerHooksCommand(program: Command): void {
         });
         console.log(`Installed pre-commit hook for ${target.id} at ${hookPath}`);
       }
+    });
+
+  hooks
+    .command("pause")
+    .description("Temporarily skip the pre-commit hook in this workspace (default 30 minutes)")
+    .option("-m, --minutes <minutes>", "How long to pause the hook", "30")
+    .action((options: { minutes: string }) => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      const minutes = Number.parseInt(options.minutes, 10);
+      if (Number.isNaN(minutes) || minutes <= 0) {
+        throw new Error(`Invalid --minutes value: ${options.minutes}`);
+      }
+      const until = new Date(Date.now() + minutes * 60_000).toISOString();
+      const pausePath = writePauseUntil(workspace.backlogDir, until);
+      console.log(`Pre-commit hook paused until ${until} (${minutes} min).`);
+      console.log(`Pause file: ${pausePath}`);
+      console.log("Run 'backlog hooks resume' to re-enable sooner.");
+    });
+
+  hooks
+    .command("resume")
+    .description("Resume the pre-commit hook by clearing an active pause")
+    .action(() => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      const wasPaused = clearPause(workspace.backlogDir);
+      if (wasPaused) {
+        console.log("Pre-commit hook resumed.");
+      } else {
+        console.log(`Pre-commit hook is not paused (no ${pauseFilePath(workspace.backlogDir)}).`);
+      }
+    });
+
+  hooks
+    .command("paused")
+    .description("Print the current pause expiration, if any")
+    .action(() => {
+      const workspace = findWorkspace();
+      if (!workspace) {
+        throw new Error("No .backlog workspace found. Run `backlog init` first.");
+      }
+      const until = readPauseUntil(workspace.backlogDir);
+      if (!until) {
+        console.log("Not paused.");
+        return;
+      }
+      const expired = Date.parse(until) <= Date.now();
+      console.log(`Paused until: ${until}${expired ? " (expired)" : ""}`);
     });
 
   hooks
