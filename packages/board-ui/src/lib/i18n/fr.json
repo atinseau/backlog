@@ -157,7 +157,7 @@
   "permissions.button.close": "Fermer",
   "permissions.success": "Permissions enregistrées",
 
-  "repos_view.title": "Repos du workspace",
+  "repos_view.title": "Repos du projet",
   "repos_view.empty": "Aucun repo configuré.",
   "repos_view.column.id": "ID",
   "repos_view.column.path": "Chemin",

@@ -157,7 +157,7 @@
   "permissions.button.close": "Close",
   "permissions.success": "Permissions saved",
 
-  "repos_view.title": "Workspace repos",
+  "repos_view.title": "Project repos",
   "repos_view.empty": "No repo configured.",
   "repos_view.column.id": "ID",
   "repos_view.column.path": "Path",

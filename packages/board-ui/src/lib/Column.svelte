@@ -90,7 +90,7 @@
   </header>
   <div
     class="cards"
-    use:dndzone={{ items: localCards, type: "work-item", flipDurationMs: FLIP_MS, dropTargetStyle: {} }}
+    use:dndzone={{ items: localCards, type: "task", flipDurationMs: FLIP_MS, dropTargetStyle: {} }}
     onconsider={handleConsider}
     onfinalize={handleFinalize}
   >

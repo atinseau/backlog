@@ -14,22 +14,22 @@
     if (target.value) onSelect(target.value);
   }
 
-  // If only one workspace is registered we still show the selector so the
+  // If only one project is registered we still show the selector so the
   // user knows where they are, but disable it — there's nowhere else to go.
   const disabled = $derived(projects.length <= 1);
 </script>
 
-<div class="workspace-selector" class:single={disabled}>
+<div class="project-selector" class:single={disabled}>
   <span class="label">⌂</span>
   <select value={selectedId ?? ""} onchange={handleChange} {disabled}>
-    {#each projects as workspace (workspace.id)}
-      <option value={workspace.id}>{workspace.name}</option>
+    {#each projects as project (project.id)}
+      <option value={project.id}>{project.name}</option>
     {/each}
   </select>
 </div>
 
 <style>
-  .workspace-selector {
+  .project-selector {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -38,7 +38,7 @@
     border: 1px solid #d0d5dd;
     border-radius: 4px;
   }
-  .workspace-selector.single {
+  .project-selector.single {
     background: transparent;
     border-color: transparent;
   }

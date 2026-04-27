@@ -85,7 +85,7 @@
 
   async function handleDelete(repo: Repo) {
     const force = confirm(
-      `Supprimer le repo "${repo.id}" ?\n\nOK = supprimer (avec --force pour cascader sur tasks/work-items/agents)\nAnnuler = abandonner.`,
+      `Supprimer le repo "${repo.id}" ?\n\nOK = supprimer (avec --force pour cascader sur tâches/sous-tâches/agents)\nAnnuler = abandonner.`,
     );
     if (!force) return;
     try {
