@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { deleteSecret, getSecret, setSecret } from "@backlog/config";
 import {
   addSource,
@@ -21,6 +22,43 @@ import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
 const GITHUB_TOKEN_KEY = "github.pat";
+const GITHUB_CLIENT_ID_KEY = "github.oauth.client_id";
+const JIRA_CLIENT_ID_KEY = "jira.oauth.client_id";
+const JIRA_CLIENT_SECRET_KEY = "jira.oauth.client_secret";
+
+// In-memory pending Jira OAuth flows keyed by state. Holds the verifier we'll
+// need for the callback exchange. Cleared on completion or after 10 minutes.
+interface PendingJiraFlow {
+  state: string;
+  redirect_uri: string;
+  created_at: number;
+  status: "pending" | "ok" | "failed";
+  detail?: string;
+  display_name?: string;
+  cloud_id?: string;
+  site_url?: string;
+}
+const pendingJiraFlows = new Map<string, PendingJiraFlow>();
+function gcPendingJiraFlows() {
+  const cutoff = Date.now() - 10 * 60_000;
+  for (const [k, v] of pendingJiraFlows.entries()) {
+    if (v.created_at < cutoff) pendingJiraFlows.delete(k);
+  }
+}
+
+function callbackHtml(kind: "ok" | "error", detail: string): string {
+  const safe = detail.replace(/[<>&]/g, "");
+  const title = kind === "ok" ? "✓ Connecté" : "Erreur";
+  const body = kind === "ok"
+    ? `Connecté à Jira (${safe}). Vous pouvez fermer cet onglet.`
+    : `Erreur : ${safe}`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8" /><title>${title}</title>
+  <style>body{font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f7f8fa;color:#1d2939;}
+  .box{background:white;padding:32px 40px;border-radius:8px;box-shadow:0 4px 12px rgba(16,24,40,0.08);max-width:420px;text-align:center;}
+  h1{margin:0 0 8px;font-size:18px;color:${kind === "ok" ? "#027a48" : "#b42318"};}p{margin:0;font-size:14px;color:#475467;}</style>
+  </head><body><div class="box"><h1>${title}</h1><p>${body}</p></div>
+  <script>setTimeout(()=>window.close(),3000)</script></body></html>`;
+}
 
 const githubPatSchema = z.object({ token: z.string().min(20) });
 const githubCloneSchema = z.object({
@@ -139,19 +177,47 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // public GitHub OAuth App / GitHub App client_id; we never need a secret
   // because Device Flow is designed for native apps.
 
+  function resolveGithubClientId(backlogDir: string): string | null {
+    return process.env.BACKLOG_GITHUB_CLIENT_ID ?? getSecret(backlogDir, GITHUB_CLIENT_ID_KEY);
+  }
+
   app.get("/integrations/github/oauth/config", (c) => {
-    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID ?? null;
+    const project = c.get("workspace");
+    const clientId = resolveGithubClientId(project.backlogDir);
     return c.json({
       device_flow_available: clientId !== null,
+      client_id_hint: clientId ? `${clientId.slice(0, 6)}…` : null,
       pat_url: "https://github.com/settings/tokens/new?scopes=repo,read:user&description=Backlog%20Local",
+      register_url: "https://github.com/settings/applications/new",
     });
   });
 
+  app.post("/integrations/github/oauth/client", async (c) => {
+    const project = c.get("workspace");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = z.object({ client_id: z.string().min(8) }).safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body" }, 400);
+    }
+    setSecret(project.backlogDir, GITHUB_CLIENT_ID_KEY, parsed.data.client_id.trim());
+    return c.json({ ok: true });
+  });
+
+  app.delete("/integrations/github/oauth/client", (c) => {
+    const project = c.get("workspace");
+    deleteSecret(project.backlogDir, GITHUB_CLIENT_ID_KEY);
+    return c.json({ ok: true });
+  });
+
   app.post("/integrations/github/oauth/start", async (c) => {
-    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID;
+    const project = c.get("workspace");
+    const clientId = resolveGithubClientId(project.backlogDir);
     if (!clientId) {
       return c.json(
-        { error: "device_flow_unavailable", detail: "Set BACKLOG_GITHUB_CLIENT_ID env to enable one-click GitHub auth." },
+        {
+          error: "device_flow_unavailable",
+          detail: "Configure a GitHub OAuth App client_id (env BACKLOG_GITHUB_CLIENT_ID or via the UI).",
+        },
         400,
       );
     }
@@ -181,7 +247,8 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/github/oauth/poll", async (c) => {
-    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID;
+    const project = c.get("workspace");
+    const clientId = resolveGithubClientId(project.backlogDir);
     if (!clientId) {
       return c.json({ error: "device_flow_unavailable" }, 400);
     }
@@ -205,7 +272,6 @@ export function integrationsRoutes(): Hono<AppEnv> {
       error_description?: string;
     };
     if (json.access_token) {
-      const project = c.get("workspace");
       try {
         const user = await testGithubToken(json.access_token);
         setSecret(project.backlogDir, GITHUB_TOKEN_KEY, json.access_token);
@@ -325,6 +391,175 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   // Jira ----------------------------------------------------------------
+
+  function resolveJiraClient(backlogDir: string): { id: string | null; secret: string | null } {
+    return {
+      id: process.env.BACKLOG_JIRA_CLIENT_ID ?? getSecret(backlogDir, JIRA_CLIENT_ID_KEY),
+      secret: process.env.BACKLOG_JIRA_CLIENT_SECRET ?? getSecret(backlogDir, JIRA_CLIENT_SECRET_KEY),
+    };
+  }
+
+  app.get("/integrations/jira/oauth/config", (c) => {
+    const project = c.get("workspace");
+    const { id, secret } = resolveJiraClient(project.backlogDir);
+    return c.json({
+      oauth_available: id !== null && secret !== null,
+      client_id_hint: id ? `${id.slice(0, 6)}…` : null,
+      register_url: "https://developer.atlassian.com/console/myapps/",
+      scopes: "read:jira-work read:jira-user offline_access",
+    });
+  });
+
+  app.post("/integrations/jira/oauth/client", async (c) => {
+    const project = c.get("workspace");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = z
+      .object({ client_id: z.string().min(8), client_secret: z.string().min(8) })
+      .safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body" }, 400);
+    }
+    setSecret(project.backlogDir, JIRA_CLIENT_ID_KEY, parsed.data.client_id.trim());
+    setSecret(project.backlogDir, JIRA_CLIENT_SECRET_KEY, parsed.data.client_secret.trim());
+    return c.json({ ok: true });
+  });
+
+  app.delete("/integrations/jira/oauth/client", (c) => {
+    const project = c.get("workspace");
+    deleteSecret(project.backlogDir, JIRA_CLIENT_ID_KEY);
+    deleteSecret(project.backlogDir, JIRA_CLIENT_SECRET_KEY);
+    return c.json({ ok: true });
+  });
+
+  app.post("/integrations/jira/oauth/start", async (c) => {
+    const project = c.get("workspace");
+    const { id: clientId } = resolveJiraClient(project.backlogDir);
+    if (!clientId) {
+      return c.json(
+        {
+          error: "oauth_unavailable",
+          detail: "Configure a Jira OAuth (3LO) app's client_id and secret first.",
+        },
+        400,
+      );
+    }
+    const requestUrl = new URL(c.req.url);
+    const redirectUri = `${requestUrl.origin}/api/v1/integrations/jira/oauth/callback`;
+    const state = randomUUID();
+    gcPendingJiraFlows();
+    pendingJiraFlows.set(state, {
+      state,
+      redirect_uri: redirectUri,
+      created_at: Date.now(),
+      status: "pending",
+    });
+    const authorizeUrl = new URL("https://auth.atlassian.com/authorize");
+    authorizeUrl.searchParams.set("audience", "api.atlassian.com");
+    authorizeUrl.searchParams.set("client_id", clientId);
+    authorizeUrl.searchParams.set("scope", "read:jira-work read:jira-user offline_access");
+    authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+    authorizeUrl.searchParams.set("state", state);
+    authorizeUrl.searchParams.set("response_type", "code");
+    authorizeUrl.searchParams.set("prompt", "consent");
+    return c.json({ authorize_url: authorizeUrl.toString(), state });
+  });
+
+  app.get("/integrations/jira/oauth/callback", async (c) => {
+    const code = c.req.query("code");
+    const state = c.req.query("state");
+    const errorParam = c.req.query("error");
+    if (!state) return c.html(callbackHtml("error", "missing_state"));
+    const flow = pendingJiraFlows.get(state);
+    if (!flow) return c.html(callbackHtml("error", "expired_state"));
+    if (errorParam || !code) {
+      flow.status = "failed";
+      flow.detail = errorParam ?? "missing_code";
+      return c.html(callbackHtml("error", flow.detail));
+    }
+    const project = c.get("workspace");
+    const { id: clientId, secret: clientSecret } = resolveJiraClient(project.backlogDir);
+    if (!clientId || !clientSecret) {
+      flow.status = "failed";
+      flow.detail = "client_credentials_missing";
+      return c.html(callbackHtml("error", flow.detail));
+    }
+    try {
+      const tokenResponse = await fetch("https://auth.atlassian.com/oauth/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: flow.redirect_uri,
+        }),
+      });
+      if (!tokenResponse.ok) {
+        const text = await tokenResponse.text().catch(() => "");
+        flow.status = "failed";
+        flow.detail = `token_exchange_failed: ${text.slice(0, 200)}`;
+        return c.html(callbackHtml("error", flow.detail));
+      }
+      const tokenJson = (await tokenResponse.json()) as {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
+      // Fetch accessible resources to learn the cloud_id and site URL.
+      const resResp = await fetch("https://api.atlassian.com/oauth/token/accessible-resources", {
+        headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+      });
+      const resources = (await resResp.json()) as Array<{
+        id: string;
+        url: string;
+        name: string;
+      }>;
+      const site = resources[0];
+      if (!site) {
+        flow.status = "failed";
+        flow.detail = "no_accessible_jira_site";
+        return c.html(callbackHtml("error", flow.detail));
+      }
+      // Persist token + cloud_id so the existing JiraConnector can use them.
+      setSecret(project.backlogDir, "jira.oauth.access_token", tokenJson.access_token);
+      if (tokenJson.refresh_token) {
+        setSecret(project.backlogDir, "jira.oauth.refresh_token", tokenJson.refresh_token);
+      }
+      setSecret(project.backlogDir, "jira.oauth.cloud_id", site.id);
+      setSecret(project.backlogDir, "jira.oauth.site_url", site.url);
+      flow.status = "ok";
+      flow.cloud_id = site.id;
+      flow.site_url = site.url;
+      flow.display_name = site.name;
+      return c.html(callbackHtml("ok", site.name));
+    } catch (error) {
+      flow.status = "failed";
+      flow.detail = error instanceof Error ? error.message : String(error);
+      return c.html(callbackHtml("error", flow.detail));
+    }
+  });
+
+  app.get("/integrations/jira/oauth/status", (c) => {
+    const state = c.req.query("state");
+    if (!state) return c.json({ status: "missing_state" }, 400);
+    const flow = pendingJiraFlows.get(state);
+    if (!flow) return c.json({ status: "expired" }, 404);
+    if (flow.status === "ok") {
+      pendingJiraFlows.delete(state);
+      return c.json({
+        status: "ok",
+        display_name: flow.display_name,
+        site_url: flow.site_url,
+        cloud_id: flow.cloud_id,
+      });
+    }
+    if (flow.status === "failed") {
+      pendingJiraFlows.delete(state);
+      return c.json({ status: "failed", detail: flow.detail });
+    }
+    return c.json({ status: "pending" });
+  });
 
   app.post("/integrations/jira/test", async (c) => {
     const raw = await c.req.json().catch(() => null);

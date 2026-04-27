@@ -699,7 +699,71 @@ export async function fetchGithubStatus(): Promise<GithubStatus> {
 
 export interface GithubOauthConfig {
   device_flow_available: boolean;
+  client_id_hint: string | null;
   pat_url: string;
+  register_url: string;
+}
+
+export async function saveGithubOauthClientId(clientId: string): Promise<void> {
+  const response = await fetch(apiUrl("/integrations/github/oauth/client"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ client_id: clientId }),
+  });
+  if (!response.ok) throw new Error(`Save client_id failed: ${response.status}`);
+}
+
+export async function clearGithubOauthClientId(): Promise<void> {
+  await fetch(apiUrl("/integrations/github/oauth/client"), { method: "DELETE" });
+}
+
+export interface JiraOauthConfig {
+  oauth_available: boolean;
+  client_id_hint: string | null;
+  register_url: string;
+  scopes: string;
+}
+
+export async function fetchJiraOauthConfig(): Promise<JiraOauthConfig> {
+  const response = await fetch(apiUrl("/integrations/jira/oauth/config"));
+  if (!response.ok) throw new Error(`Jira OAuth config failed: ${response.status}`);
+  return (await response.json()) as JiraOauthConfig;
+}
+
+export async function saveJiraOauthClient(input: { client_id: string; client_secret: string }): Promise<void> {
+  const response = await fetch(apiUrl("/integrations/jira/oauth/client"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Save Jira credentials failed: ${response.status}`);
+}
+
+export async function clearJiraOauthClient(): Promise<void> {
+  await fetch(apiUrl("/integrations/jira/oauth/client"), { method: "DELETE" });
+}
+
+export async function startJiraOauth(): Promise<{ authorize_url: string; state: string }> {
+  const response = await fetch(apiUrl("/integrations/jira/oauth/start"), { method: "POST" });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as { authorize_url: string; state: string };
+}
+
+export type JiraOauthStatus =
+  | { status: "ok"; display_name: string; site_url: string; cloud_id: string }
+  | { status: "pending" }
+  | { status: "failed"; detail?: string }
+  | { status: "expired" }
+  | { status: "missing_state" };
+
+export async function pollJiraOauthStatus(state: string): Promise<JiraOauthStatus> {
+  const response = await fetch(apiUrl(`/integrations/jira/oauth/status?state=${encodeURIComponent(state)}`));
+  return (await response.json()) as JiraOauthStatus;
 }
 
 export async function fetchGithubOauthConfig(): Promise<GithubOauthConfig> {

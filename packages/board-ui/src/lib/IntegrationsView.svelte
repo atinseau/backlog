@@ -4,21 +4,28 @@
     addJiraSource,
     addGithubSource,
     clearGithubPat,
+    clearJiraOauthClient,
     cloneGithubRepo,
     deleteSource,
     fetchGithubOauthConfig,
     fetchGithubStatus,
+    fetchJiraOauthConfig,
     listGithubRepos,
     listSources,
     pollGithubDeviceFlow,
+    pollJiraOauthStatus,
+    saveGithubOauthClientId,
+    saveJiraOauthClient,
     setGithubPat,
     startGithubDeviceFlow,
+    startJiraOauth,
     syncSource,
     testJira,
     type GithubDeviceStart,
     type GithubOauthConfig,
     type GithubRepoSummary,
     type GithubStatus,
+    type JiraOauthConfig,
     type SourceSummary,
     type SyncResult,
   } from "./api.js";
@@ -51,8 +58,14 @@
   let ghDevicePolling = $state(false);
   let ghDeviceTimer: ReturnType<typeof setInterval> | null = null;
 
+  // OAuth-config form state (paste client_id from GitHub OAuth App)
+  let ghShowOauthConfig = $state(false);
+  let ghClientIdInput = $state("");
+  let ghSavingClient = $state(false);
+
   onDestroy(() => {
     if (ghDeviceTimer) clearInterval(ghDeviceTimer);
+    if (jiraOauthTimer) clearInterval(jiraOauthTimer);
   });
 
   // Jira state
@@ -65,6 +78,16 @@
   let jiraAdding = $state(false);
   let jiraError = $state<string | null>(null);
   let jiraTestMessage = $state<string | null>(null);
+
+  // Jira OAuth state
+  let jiraOauthConfig = $state<JiraOauthConfig | null>(null);
+  let jiraShowOauthConfig = $state(false);
+  let jiraClientIdInput = $state("");
+  let jiraClientSecretInput = $state("");
+  let jiraSavingClient = $state(false);
+  let jiraOauthState = $state<string | null>(null);
+  let jiraOauthMessage = $state<string | null>(null);
+  let jiraOauthTimer: ReturnType<typeof setInterval> | null = null;
 
   // Sources state
   let sources = $state<SourceSummary[]>([]);
@@ -141,6 +164,92 @@
       await navigator.clipboard.writeText(ghDevice.user_code);
     } catch {
       // ignore
+    }
+  }
+
+  async function saveGhClientId() {
+    if (!ghClientIdInput.trim()) return;
+    ghSavingClient = true;
+    ghError = null;
+    try {
+      await saveGithubOauthClientId(ghClientIdInput.trim());
+      ghClientIdInput = "";
+      ghShowOauthConfig = false;
+      await loadGhStatus();
+    } catch (err) {
+      ghError = err instanceof Error ? err.message : String(err);
+    } finally {
+      ghSavingClient = false;
+    }
+  }
+
+  // Jira OAuth -------------------------------------------------------
+
+  async function loadJiraOauthConfig() {
+    try {
+      jiraOauthConfig = await fetchJiraOauthConfig();
+    } catch {
+      // ignore
+    }
+  }
+
+  async function saveJiraClient() {
+    if (!jiraClientIdInput.trim() || !jiraClientSecretInput.trim()) return;
+    jiraSavingClient = true;
+    jiraError = null;
+    try {
+      await saveJiraOauthClient({
+        client_id: jiraClientIdInput.trim(),
+        client_secret: jiraClientSecretInput.trim(),
+      });
+      jiraClientIdInput = "";
+      jiraClientSecretInput = "";
+      jiraShowOauthConfig = false;
+      await loadJiraOauthConfig();
+    } catch (err) {
+      jiraError = err instanceof Error ? err.message : String(err);
+    } finally {
+      jiraSavingClient = false;
+    }
+  }
+
+  async function clearJiraClient() {
+    await clearJiraOauthClient();
+    await loadJiraOauthConfig();
+  }
+
+  async function startJiraConnect() {
+    jiraError = null;
+    jiraOauthMessage = null;
+    try {
+      const result = await startJiraOauth();
+      jiraOauthState = result.state;
+      openInNewTab(result.authorize_url);
+      jiraOauthTimer = setInterval(() => pollJira(), 2500);
+    } catch (err) {
+      jiraError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function stopJiraConnect() {
+    if (jiraOauthTimer) {
+      clearInterval(jiraOauthTimer);
+      jiraOauthTimer = null;
+    }
+    jiraOauthState = null;
+  }
+
+  async function pollJira() {
+    if (!jiraOauthState) return;
+    const status = await pollJiraOauthStatus(jiraOauthState);
+    if (status.status === "ok") {
+      jiraOauthMessage = t("integrations.jira.oauth.success", { site: status.display_name });
+      stopJiraConnect();
+      await loadSources();
+      onChanged?.();
+    } else if (status.status === "failed" || status.status === "expired") {
+      jiraError = status.status === "failed" && status.detail ? status.detail : status.status;
+      stopJiraConnect();
     }
   }
 
@@ -290,6 +399,7 @@
   }
 
   loadGhStatus();
+  loadJiraOauthConfig();
   loadSources();
 </script>
 
@@ -341,20 +451,61 @@
           {:else}
             <div class="status">{t("integrations.github.not_connected")}</div>
             <div class="row connect-actions">
-              {#if ghOauthConfig?.device_flow_available}
-                <button class="primary" onclick={startDeviceFlow}>
-                  {t("integrations.github.button.connect_oauth")}
-                </button>
-              {/if}
+              <button
+                class="primary"
+                onclick={startDeviceFlow}
+                disabled={!ghOauthConfig?.device_flow_available}
+                title={ghOauthConfig?.device_flow_available ? "" : "Configurez d'abord un Client ID"}
+              >
+                {t("integrations.github.button.connect_oauth")}
+              </button>
               {#if ghOauthConfig}
                 <button onclick={() => openInNewTab(ghOauthConfig!.pat_url)}>
                   {t("integrations.github.button.create_token")}
                 </button>
               {/if}
+              <button class="link" onclick={() => (ghShowOauthConfig = !ghShowOauthConfig)}>
+                ⚙ {t("integrations.github.oauth.configure")}
+              </button>
               <button class="link" onclick={() => (ghShowTokenForm = !ghShowTokenForm)}>
                 {ghShowTokenForm ? "↑" : "↓"} {t("integrations.github.button.connect")}
               </button>
             </div>
+            {#if ghOauthConfig?.client_id_hint}
+              <div class="muted small">
+                {t("integrations.github.oauth.configured_hint", { hint: ghOauthConfig.client_id_hint })}
+              </div>
+            {/if}
+            {#if ghShowOauthConfig}
+              <div class="config-panel">
+                <label class="field">
+                  <span class="label">{t("integrations.github.oauth.client_id_label")}</span>
+                  <input
+                    type="text"
+                    bind:value={ghClientIdInput}
+                    placeholder="Iv1.…  ou  Ov23li…"
+                    autocomplete="off"
+                  />
+                  <small>{t("integrations.github.oauth.client_id_help")}</small>
+                </label>
+                <div class="row">
+                  <button
+                    class="primary"
+                    onclick={saveGhClientId}
+                    disabled={ghSavingClient || !ghClientIdInput.trim()}
+                  >
+                    {ghSavingClient
+                      ? t("integrations.github.oauth.saving")
+                      : t("integrations.github.oauth.save")}
+                  </button>
+                  {#if ghOauthConfig}
+                    <button onclick={() => openInNewTab(ghOauthConfig!.register_url)}>
+                      {t("integrations.github.oauth.register_button")}
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/if}
             {#if ghShowTokenForm}
               <label class="field">
                 <span class="label">{t("integrations.github.pat_label")}</span>
@@ -415,6 +566,68 @@
         </section>
       {:else if tab === "jira"}
         <section class="panel">
+          <div class="row connect-actions">
+            <button
+              class="primary"
+              onclick={startJiraConnect}
+              disabled={!jiraOauthConfig?.oauth_available || jiraOauthState !== null}
+              title={jiraOauthConfig?.oauth_available ? "" : "Configurez d'abord un Client ID + Secret"}
+            >
+              {t("integrations.jira.oauth.connect")}
+            </button>
+            <button class="link" onclick={() => (jiraShowOauthConfig = !jiraShowOauthConfig)}>
+              ⚙ {t("integrations.jira.oauth.configure")}
+            </button>
+          </div>
+          {#if jiraOauthConfig?.client_id_hint}
+            <div class="muted small">
+              {t("integrations.jira.oauth.configured_hint", { hint: jiraOauthConfig.client_id_hint })}
+              <button class="link inline" onclick={clearJiraClient}>↺ reset</button>
+            </div>
+          {/if}
+          {#if jiraOauthState !== null}
+            <div class="device-flow">
+              <p>⟳ {t("integrations.jira.oauth.waiting")}</p>
+              <button onclick={stopJiraConnect}>{t("integrations.jira.oauth.cancel")}</button>
+            </div>
+          {/if}
+          {#if jiraOauthMessage}<div class="msg ok">{jiraOauthMessage}</div>{/if}
+          {#if jiraShowOauthConfig}
+            <div class="config-panel">
+              <label class="field">
+                <span class="label">{t("integrations.jira.oauth.client_id_label")}</span>
+                <input type="text" bind:value={jiraClientIdInput} autocomplete="off" />
+              </label>
+              <label class="field">
+                <span class="label">{t("integrations.jira.oauth.client_secret_label")}</span>
+                <input type="password" bind:value={jiraClientSecretInput} autocomplete="off" />
+              </label>
+              <small class="muted">
+                {t("integrations.jira.oauth.help", {
+                  redirect: typeof window !== "undefined"
+                    ? `${window.location.origin}/api/v1/integrations/jira/oauth/callback`
+                    : "/api/v1/integrations/jira/oauth/callback"
+                })}
+              </small>
+              <div class="row">
+                <button
+                  class="primary"
+                  onclick={saveJiraClient}
+                  disabled={jiraSavingClient || !jiraClientIdInput.trim() || !jiraClientSecretInput.trim()}
+                >
+                  {jiraSavingClient
+                    ? t("integrations.github.oauth.saving")
+                    : t("integrations.github.oauth.save")}
+                </button>
+                {#if jiraOauthConfig}
+                  <button onclick={() => openInNewTab(jiraOauthConfig!.register_url)}>
+                    {t("integrations.jira.oauth.register_button")}
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/if}
+          <hr />
           <label class="field">
             <span class="label">{t("integrations.jira.base_url")}</span>
             <input type="url" bind:value={jiraBaseUrl} placeholder="https://your-org.atlassian.net" />
@@ -661,4 +874,14 @@
     font-size: 11px;
     margin-top: 2px;
   }
+  .config-panel {
+    border: 1px solid #e4e7ec;
+    border-radius: 6px;
+    padding: 12px;
+    background: #f9fafb;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .muted.small { font-size: 11px; }
 </style>
