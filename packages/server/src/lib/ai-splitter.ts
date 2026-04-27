@@ -15,6 +15,8 @@ export interface SplitProposal {
   model: string;
 }
 
+export type AiProvider = "anthropic" | "openai" | "codex";
+
 export class AiSplitterUnavailableError extends Error {
   constructor(message: string) {
     super(message);
@@ -95,24 +97,41 @@ function buildUserPrompt(workItem: Task, repos: string[]): string {
   return lines.join("\n");
 }
 
+interface SuggestOptions {
+  provider?: AiProvider;
+  apiKey?: string;
+  model?: string;
+}
+
 export async function suggestSplit(
   workItem: Task,
   repos: string[],
-  options: { apiKey?: string; model?: string } = {},
+  options: SuggestOptions = {},
+): Promise<SplitProposal> {
+  if (repos.length === 0) {
+    throw new Error("No repos available — configure at least one repo in the workspace before splitting.");
+  }
+  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
+  if (provider === "anthropic") return suggestSplitAnthropic(workItem, repos, options);
+  if (provider === "openai" || provider === "codex") {
+    return suggestSplitOpenAi(workItem, repos, { ...options, isCodex: provider === "codex" });
+  }
+  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
+}
+
+async function suggestSplitAnthropic(
+  workItem: Task,
+  repos: string[],
+  options: SuggestOptions,
 ): Promise<SplitProposal> {
   const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new AiSplitterUnavailableError(
-      "ANTHROPIC_API_KEY is not set. Pass --api-key or export the variable to enable AI suggestions.",
+      "ANTHROPIC_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
     );
   }
-  if (repos.length === 0) {
-    throw new Error("No repos available — configure at least one repo in the workspace before splitting.");
-  }
-
   const client = new Anthropic({ apiKey });
   const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-opus-4-7";
-
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -131,7 +150,6 @@ export async function suggestSplit(
       },
     ],
   });
-
   const textBlock = response.content.find(
     (block): block is Anthropic.TextBlock => block.type === "text",
   );
@@ -144,6 +162,60 @@ export async function suggestSplit(
   } catch (error) {
     throw new Error(
       `Anthropic returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${textBlock.text.slice(0, 500)}`,
+    );
+  }
+  return validateProposal(parsed, repos, model);
+}
+
+async function suggestSplitOpenAi(
+  workItem: Task,
+  repos: string[],
+  options: SuggestOptions & { isCodex?: boolean },
+): Promise<SplitProposal> {
+  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new AiSplitterUnavailableError(
+      "OPENAI_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
+    );
+  }
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5-codex" : "gpt-5.4");
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildUserPrompt(workItem, repos) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "split_proposal",
+          strict: true,
+          schema: PROPOSAL_SCHEMA,
+        },
+      },
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`OpenAI returned ${response.status}: ${detail.slice(0, 500)}`);
+  }
+  const json = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const text = json.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("OpenAI response had no message content; cannot parse proposal.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(
+      `OpenAI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
     );
   }
   return validateProposal(parsed, repos, model);

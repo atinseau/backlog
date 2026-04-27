@@ -171,7 +171,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
           400,
         );
       }
-      const proposal = await suggestSplit(workItem, repos);
+      const proposal = await suggestSplit(workItem, repos, { provider: config.ai_provider });
       return c.json({
         work_item_id: id,
         model: proposal.model,

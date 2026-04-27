@@ -12,6 +12,8 @@ export const repoConfigSchema = z.object({
   provider: repoProviderSchema.optional(),
 });
 
+export const aiProviderSchema = z.enum(["anthropic", "openai", "codex"]);
+
 export const projectConfigSchema = z.object({
   version: z.number().int().positive(),
   project_id: z.string().min(1).optional(),
@@ -20,6 +22,7 @@ export const projectConfigSchema = z.object({
   default_branch: z.string().min(1),
   autonomy_mode: z.enum(["observe", "assist", "delegate", "autopilot"]),
   max_agents: z.number().int().positive(),
+  ai_provider: aiProviderSchema.default("anthropic"),
   claims: z.object({
     ttl_minutes: z.number().int().positive(),
     enforce_on_commit: z.boolean(),
@@ -29,4 +32,5 @@ export const projectConfigSchema = z.object({
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
 export type RepoProvider = z.infer<typeof repoProviderSchema>;
+export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
