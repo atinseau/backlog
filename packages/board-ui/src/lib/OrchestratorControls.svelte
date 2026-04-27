@@ -9,11 +9,10 @@
   import type { OrchestratorState } from "./types.js";
 
   interface Props {
-    selectedProjectId: string | null;
     onError?: (message: string) => void;
   }
 
-  let { selectedProjectId, onError }: Props = $props();
+  let { onError }: Props = $props();
 
   let state = $state<OrchestratorState | null>(null);
   let busy = $state(false);
@@ -30,9 +29,7 @@
   async function handleStart() {
     busy = true;
     try {
-      const input: Parameters<typeof startOrchestrator>[0] = {};
-      if (selectedProjectId) input.project_id = selectedProjectId;
-      state = await startOrchestrator(input);
+      state = await startOrchestrator({});
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {

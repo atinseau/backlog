@@ -10,7 +10,6 @@ export interface UpdateOrchestratorStateInput {
   max_agents?: number;
   auto_pick_agents?: boolean;
   tick_interval_ms?: number;
-  project_id?: string | null;
   started_at?: string | null;
   paused_at?: string | null;
   last_tick_at?: string;
@@ -30,10 +29,6 @@ export function updateOrchestratorState(
   if (input.auto_pick_agents !== undefined) next.auto_pick_agents = input.auto_pick_agents;
   if (input.tick_interval_ms !== undefined) next.tick_interval_ms = input.tick_interval_ms;
 
-  if (input.project_id !== undefined) {
-    if (input.project_id === null) delete next.project_id;
-    else next.project_id = input.project_id;
-  }
   if (input.started_at !== undefined) {
     if (input.started_at === null) delete next.started_at;
     else next.started_at = input.started_at;

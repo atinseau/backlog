@@ -4,7 +4,6 @@ import type {
   ClaimRecord,
   CurrentWorkspace,
   OrchestratorState,
-  Project,
   Repo,
   WorkspaceEntry,
   WorkspaceInfo,
@@ -34,8 +33,8 @@ export function apiUrl(path: string, query: Record<string, string | undefined> =
   return url.toString();
 }
 
-export async function fetchBoard(opts: { repo?: string; project?: string } = {}): Promise<BoardResponse> {
-  const response = await fetch(apiUrl("/board", { repo: opts.repo, project: opts.project }));
+export async function fetchBoard(opts: { repo?: string } = {}): Promise<BoardResponse> {
+  const response = await fetch(apiUrl("/board", { repo: opts.repo }));
   if (!response.ok) {
     throw new Error(`Board fetch failed: ${response.status} ${response.statusText}`);
   }
@@ -84,72 +83,6 @@ export async function touchWorkspaceById(id: string): Promise<void> {
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Touch workspace failed (${response.status}): ${detail}`);
-  }
-}
-
-// Projects ------------------------------------------------------------------
-
-export async function fetchProjects(): Promise<Project[]> {
-  const response = await fetch(apiUrl("/projects"));
-  if (!response.ok) throw new Error(`Projects fetch failed: ${response.status}`);
-  const json = (await response.json()) as { projects: Project[] };
-  return json.projects;
-}
-
-export interface CreateProjectInput {
-  slug: string;
-  name: string;
-  description?: string;
-  color?: string;
-  repo_ids?: string[];
-  max_agents?: number;
-}
-
-export async function createProject(input: CreateProjectInput): Promise<Project> {
-  const response = await fetch(apiUrl("/projects"), {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Create project failed (${response.status}): ${detail}`);
-  }
-  const json = (await response.json()) as { project: Project };
-  return json.project;
-}
-
-export interface UpdateProjectInput {
-  slug?: string;
-  name?: string;
-  description?: string | null;
-  color?: string | null;
-  repo_ids?: string[];
-  max_agents?: number | null;
-  archived?: boolean;
-}
-
-export async function updateProject(idOrSlug: string, input: UpdateProjectInput): Promise<Project> {
-  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(idOrSlug)}`), {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Update project failed (${response.status}): ${detail}`);
-  }
-  const json = (await response.json()) as { project: Project };
-  return json.project;
-}
-
-export async function deleteProject(idOrSlug: string): Promise<void> {
-  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(idOrSlug)}`), {
-    method: "DELETE",
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Delete project failed (${response.status}): ${detail}`);
   }
 }
 
@@ -299,7 +232,6 @@ export async function startOrchestrator(input: {
   max_agents?: number;
   auto_pick_agents?: boolean;
   tick_interval_ms?: number;
-  project_id?: string;
 } = {}): Promise<OrchestratorState> {
   const response = await fetch(apiUrl("/orchestrator/start"), {
     method: "POST",
@@ -355,7 +287,6 @@ export interface CreateWorkItemInput {
   repo_targets?: string[];
   labels?: string[];
   acceptance_criteria?: string[];
-  project_id?: string;
   estimated_duration_seconds?: number;
 }
 
@@ -384,18 +315,6 @@ export async function reorderWorkItem(
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Reorder failed (${response.status}): ${detail}`);
-  }
-}
-
-export async function assignWorkItemProject(id: string, projectId: string | null): Promise<void> {
-  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/project`), {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ project_id: projectId }),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Assign project failed (${response.status}): ${detail}`);
   }
 }
 

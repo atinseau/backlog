@@ -1,7 +1,6 @@
 import { loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
-  assignProjectToWorkItem,
   createWorkItem,
   listWorkItems,
   reorderWorkItem,
@@ -35,7 +34,6 @@ const createBodySchema = z.object({
   repo_targets: z.array(z.string().min(1)).optional(),
   labels: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.array(z.string().min(1)).optional(),
-  project_id: z.string().min(1).optional(),
   estimated_duration_seconds: z.number().int().positive().optional(),
 });
 
@@ -43,12 +41,6 @@ const reorderBodySchema = z.object({
   before_id: z.string().min(1).optional(),
   after_id: z.string().min(1).optional(),
 });
-
-const projectAssignBodySchema = z
-  .object({
-    project_id: z.string().min(1).nullable(),
-  })
-  .strict();
 
 const estimateBodySchema = z
   .object({
@@ -100,9 +92,6 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.acceptance_criteria !== undefined) input.acceptanceCriteria = parsed.data.acceptance_criteria;
       let workItem = createWorkItem(workspace.backlogDir, input);
-      if (parsed.data.project_id) {
-        workItem = assignProjectToWorkItem(workspace.backlogDir, workItem.id, parsed.data.project_id);
-      }
       if (parsed.data.estimated_duration_seconds) {
         workItem = setWorkItemEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
       }
@@ -256,23 +245,6 @@ export function workItemsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "reorder_failed", detail: message }, 404);
-    }
-  });
-
-  app.patch("/work-items/:id/project", async (c) => {
-    const workspace = c.get("workspace");
-    const id = c.req.param("id");
-    const raw = await c.req.json().catch(() => null);
-    const parsed = projectAssignBodySchema.safeParse(raw);
-    if (!parsed.success) {
-      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
-    }
-    try {
-      const workItem = assignProjectToWorkItem(workspace.backlogDir, id, parsed.data.project_id);
-      return c.json({ work_item: workItem });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return c.json({ error: "assign_failed", detail: message }, 404);
     }
   });
 

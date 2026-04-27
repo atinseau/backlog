@@ -11,7 +11,6 @@ import { eventsRoutes } from "./routes/events.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
-import { projectsRoutes } from "./routes/projects.js";
 import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
 import { workspaceRoutes } from "./routes/workspace.js";
@@ -94,7 +93,6 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", tasksRoutes());
   app.route("/api/v1", orchestrateRoutes());
   app.route("/api/v1", orchestratorRoutes());
-  app.route("/api/v1", projectsRoutes());
   app.route("/api/v1", reposRoutes());
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", workspaceRoutes());

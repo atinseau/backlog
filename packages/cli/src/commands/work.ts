@@ -1,7 +1,6 @@
 import { Command } from "commander";
 import { findWorkspace } from "@backlog/config";
 import {
-  assignProjectToWorkItem,
   buildWorkExecutionOutline,
   createWorkItem,
   getSource,
@@ -335,29 +334,6 @@ export function registerWorkCommand(program: Command): void {
         }
         console.log(`${source!.id}: ${items.length} item(s) ${options?.dryRun ? "fetched" : "imported"}`);
       }
-    });
-
-  work
-    .command("assign-project")
-    .description("Attach a work item to a project (or detach with --clear)")
-    .argument("<work-item-id>", "Work item id")
-    .argument("[project]", "Project id or slug (omit with --clear)")
-    .option("--clear", "Detach the work item from any project")
-    .action((workItemId: string, projectArg: string | undefined, options: { clear?: boolean }) => {
-      const workspace = findWorkspace();
-      if (!workspace) {
-        throw new Error("No .backlog workspace found. Run `backlog init` first.");
-      }
-      if (options.clear) {
-        const updated = assignProjectToWorkItem(workspace.backlogDir, workItemId, null);
-        console.log(`Detached ${updated.id} from any project`);
-        return;
-      }
-      if (!projectArg) {
-        throw new Error("Provide a project id or slug, or pass --clear.");
-      }
-      const updated = assignProjectToWorkItem(workspace.backlogDir, workItemId, projectArg);
-      console.log(`Assigned ${updated.id} to project ${updated.project_id}`);
     });
 
   work

@@ -9,8 +9,6 @@
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
-  import ProjectSelector from "./lib/ProjectSelector.svelte";
-  import ProjectsView from "./lib/ProjectsView.svelte";
   import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
@@ -19,7 +17,6 @@
   import {
     fetchBoard,
     fetchCurrentWorkspace,
-    fetchProjects,
     fetchRepos,
     fetchWorkspacesList,
     moveWorkItem,
@@ -32,13 +29,11 @@
     COLUMN_ORDER,
     type BoardResponse,
     type ColumnKey,
-    type Project,
     type Repo,
     type WorkItemCard,
     type WorkspaceEntry,
   } from "./lib/types.js";
 
-  const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const VIEW_STORAGE_KEY = "backlog.kanban_view";
   const WORKSPACE_STORAGE_KEY = "backlog.selected_workspace_id";
@@ -46,11 +41,9 @@
   type KanbanView = "tickets" | "claims";
 
   let board = $state<BoardResponse | null>(null);
-  let projects = $state<Project[]>([]);
   let workspaceRepos = $state<Repo[]>([]);
   let workspaces = $state<WorkspaceEntry[]>([]);
   let selectedWorkspaceId = $state<string | null>(null);
-  let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let view = $state<KanbanView>("tickets");
   let claimsBoardSignal = $state(0);
@@ -60,7 +53,6 @@
   let connected = $state(false);
   let claimDialogOpen = $state(false);
   let claimsViewOpen = $state(false);
-  let projectsViewOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
   let createTicketOpen = $state(false);
@@ -86,16 +78,10 @@
   });
 
   // Repo dropdown source — workspace repos when known, otherwise reverse-engineered
-  // from the board cards. Filtered by the active project's repo_ids when one is set.
+  // from the board cards.
   const repoOptions = $derived.by<Repo[]>(() => {
-    const baseRepos: Repo[] = workspaceRepos.length > 0
-      ? workspaceRepos
-      : boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
-    if (!selectedProjectId) return baseRepos;
-    const project = projects.find((p) => p.id === selectedProjectId);
-    if (!project || project.repo_ids.length === 0) return baseRepos;
-    const allowed = new Set(project.repo_ids);
-    return baseRepos.filter((repo) => allowed.has(repo.id));
+    if (workspaceRepos.length > 0) return workspaceRepos;
+    return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
 
   // The string-only `repos` prop fed to the modals/dialogs that just need a list of repo ids.
@@ -103,23 +89,13 @@
 
   async function refresh() {
     try {
-      const opts: { project?: string; repo?: string } = {};
-      if (selectedProjectId) opts.project = selectedProjectId;
+      const opts: { repo?: string } = {};
       if (selectedRepoId) opts.repo = selectedRepoId;
       board = await fetchBoard(opts);
       error = null;
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  async function refreshProjects() {
-    try {
-      projects = await fetchProjects();
-    } catch (err) {
-      // Don't surface project errors as fatal — backlog without projects is still functional.
-      console.warn("project fetch failed", err);
     }
   }
 
@@ -145,21 +121,6 @@
       refreshTimer = null;
       refresh();
     }, 150);
-  }
-
-  function persistProject(id: string | null) {
-    selectedProjectId = id;
-    if (id) localStorage.setItem(PROJECT_STORAGE_KEY, id);
-    else localStorage.removeItem(PROJECT_STORAGE_KEY);
-    // If the picked project doesn't include the currently-selected repo, drop it.
-    if (id && selectedRepoId) {
-      const project = projects.find((p) => p.id === id);
-      if (project && project.repo_ids.length > 0 && !project.repo_ids.includes(selectedRepoId)) {
-        persistRepo(null);
-        return;
-      }
-    }
-    refresh();
   }
 
   function persistRepo(id: string | null) {
@@ -194,7 +155,6 @@
       (type) => {
         if (type === "ping" || type === "ready") return;
         scheduleRefresh();
-        if (type === "project.changed") refreshProjects();
         if (type === "repo.changed") refreshRepos();
         if (type === "claim.changed") bumpClaimsBoard();
       },
@@ -215,17 +175,13 @@
     selectedWorkspaceId = id;
     setCurrentWorkspaceId(id);
     localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
-    // Reset per-workspace selection — project and repo ids belong to the
-    // previous workspace and almost certainly don't match the new one.
-    selectedProjectId = null;
+    // Reset per-workspace selection — repo ids belong to the previous
+    // workspace and almost certainly don't match the new one.
     selectedRepoId = null;
-    localStorage.removeItem(PROJECT_STORAGE_KEY);
     localStorage.removeItem(REPO_STORAGE_KEY);
     board = null;
-    projects = [];
     workspaceRepos = [];
     refresh();
-    refreshProjects();
     refreshRepos();
     connectSse();
   }
@@ -253,12 +209,10 @@
       selectedWorkspaceId = preferred;
       setCurrentWorkspaceId(preferred);
     }
-    selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
     const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
     if (storedView === "tickets" || storedView === "claims") view = storedView;
     refresh();
-    refreshProjects();
     refreshRepos();
     connectSse();
   }
@@ -309,21 +263,14 @@
         onSelect={applyWorkspace}
       />
     {/if}
-    <ProjectSelector
-      {projects}
-      selectedId={selectedProjectId}
-      onSelect={persistProject}
-      onManage={() => (projectsViewOpen = true)}
-    />
     <RepoSelector
       repos={repoOptions}
       selectedId={selectedRepoId}
-      projectScoped={selectedProjectId !== null}
+      projectScoped={false}
       onSelect={persistRepo}
       onManage={() => (reposViewOpen = true)}
     />
     <OrchestratorControls
-      {selectedProjectId}
       onError={(message) => (error = message)}
     />
     <ViewToggle value={view} onChange={persistView} />
@@ -395,16 +342,6 @@
   />
 {/if}
 
-{#if projectsViewOpen}
-  <ProjectsView
-    availableRepos={repos}
-    onClose={() => (projectsViewOpen = false)}
-    onChanged={() => {
-      refreshProjects();
-    }}
-  />
-{/if}
-
 {#if reposViewOpen}
   <ReposView
     onClose={() => (reposViewOpen = false)}
@@ -436,9 +373,7 @@
 
 {#if createTicketOpen}
   <CreateTicketDialog
-    {projects}
     availableRepos={repos}
-    {selectedProjectId}
     onClose={() => (createTicketOpen = false)}
     onCreated={() => {
       if (!connected) refresh();
@@ -459,7 +394,6 @@
 
 {#if panelOpen}
   <OrchestratorPanel
-    {selectedProjectId}
     onClose={() => (panelOpen = false)}
   />
 {/if}

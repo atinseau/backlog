@@ -1,17 +1,14 @@
 import { loadConfig } from "@backlog/config";
 import type { OrchestratorMode, OrchestratorState } from "@backlog/schemas";
 import { getOrchestratorState, updateOrchestratorState } from "./orchestrator-state.js";
-import { getProject } from "./project-service.js";
 import { listActiveRuns } from "./run-store.js";
 import { startRunsForPlan, type StartRunsResult } from "./run-launcher.js";
 import { buildExecutionPlan } from "./scheduler.js";
-import { getTask } from "./task-service.js";
 
 export interface OrchestratorStartInput {
   max_agents?: number;
   auto_pick_agents?: boolean;
   tick_interval_ms?: number;
-  project_id?: string;
 }
 
 interface RuntimeHandle {
@@ -50,13 +47,6 @@ function activeRunCount(backlogDir: string): number {
   return listActiveRuns(backlogDir).filter((run) => run.status === "running" || run.status === "preparing").length;
 }
 
-function projectRepoFilter(backlogDir: string, projectId: string | undefined): Set<string> | null {
-  if (!projectId) return null;
-  const project = getProject(backlogDir, projectId);
-  if (!project) return null;
-  return new Set(project.repo_ids);
-}
-
 export async function orchestratorTick(backlogDir: string): Promise<StartRunsResult | null> {
   const handle = runtime(backlogDir);
   if (handle.ticking) return null;
@@ -66,18 +56,7 @@ export async function orchestratorTick(backlogDir: string): Promise<StartRunsRes
     if (state.mode !== "running") return null;
 
     const config = loadConfig(backlogDir);
-    let plan = buildExecutionPlan(backlogDir, config);
-
-    const repoFilter = projectRepoFilter(backlogDir, state.project_id);
-    if (repoFilter) {
-      plan = {
-        ...plan,
-        runnable: plan.runnable.filter((decision) => {
-          // Look up task to get repo via plan; the decision doesn't carry repo, so we re-read from listTasks via filter helper.
-          return decisionMatchesRepoFilter(backlogDir, decision.taskId, repoFilter);
-        }),
-      };
-    }
+    const plan = buildExecutionPlan(backlogDir, config);
 
     const inFlight = activeRunCount(backlogDir);
     const targetMax = state.auto_pick_agents
@@ -117,12 +96,6 @@ export async function orchestratorTick(backlogDir: string): Promise<StartRunsRes
   }
 }
 
-function decisionMatchesRepoFilter(backlogDir: string, taskId: string, repoFilter: Set<string>): boolean {
-  const task = getTask(backlogDir, taskId);
-  if (!task) return false;
-  return repoFilter.has(task.repo);
-}
-
 function scheduleNextTick(backlogDir: string, intervalMs: number): void {
   const handle = runtime(backlogDir);
   clearTimer(handle);
@@ -150,7 +123,6 @@ export async function startOrchestrator(
     max_agents: max,
     auto_pick_agents: input.auto_pick_agents ?? previous.auto_pick_agents,
     tick_interval_ms: input.tick_interval_ms ?? previous.tick_interval_ms,
-    project_id: input.project_id ?? previous.project_id ?? null,
     started_at: new Date().toISOString(),
     paused_at: null,
     last_error: null,

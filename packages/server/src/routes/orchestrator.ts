@@ -14,7 +14,6 @@ const startBodySchema = z
     max_agents: z.number().int().positive().optional(),
     auto_pick_agents: z.boolean().optional(),
     tick_interval_ms: z.number().int().positive().optional(),
-    project_id: z.string().optional(),
   })
   .strict();
 
@@ -46,7 +45,6 @@ export function orchestratorRoutes(): Hono<AppEnv> {
       if (parsed.data.max_agents !== undefined) input.max_agents = parsed.data.max_agents;
       if (parsed.data.auto_pick_agents !== undefined) input.auto_pick_agents = parsed.data.auto_pick_agents;
       if (parsed.data.tick_interval_ms !== undefined) input.tick_interval_ms = parsed.data.tick_interval_ms;
-      if (parsed.data.project_id !== undefined) input.project_id = parsed.data.project_id;
       const state = await startOrchestrator(workspace.backlogDir, input);
       return c.json({ state });
     } catch (error) {

@@ -1,21 +1,17 @@
 <script lang="ts">
   import { createWorkItem } from "./api.js";
-  import type { Project } from "./types.js";
 
   interface Props {
-    projects: Project[];
     availableRepos: string[];
-    selectedProjectId: string | null;
     onClose: () => void;
     onCreated?: () => void;
   }
 
-  let { projects, availableRepos, selectedProjectId, onClose, onCreated }: Props = $props();
+  let { availableRepos, onClose, onCreated }: Props = $props();
 
   let title = $state("");
   let description = $state("");
   let priority = $state<"P0" | "P1" | "P2" | "P3">("P2");
-  let projectId = $state(selectedProjectId ?? "");
   let repoTargets = $state<string[]>([]);
   let submitting = $state(false);
   let error = $state<string | null>(null);
@@ -34,7 +30,6 @@
         priority,
       };
       if (description.trim()) input.description = description.trim();
-      if (projectId) input.project_id = projectId;
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       await createWorkItem(input);
       onCreated?.();
@@ -69,26 +64,15 @@
         <textarea bind:value={description} rows="3"></textarea>
       </label>
 
-      <div class="row">
-        <label>
-          Priorité
-          <select bind:value={priority}>
-            <option value="P0">P0 — bloquant</option>
-            <option value="P1">P1 — haut</option>
-            <option value="P2">P2 — normal</option>
-            <option value="P3">P3 — bas</option>
-          </select>
-        </label>
-        <label>
-          Projet
-          <select bind:value={projectId}>
-            <option value="">— sans projet —</option>
-            {#each projects.filter((p) => !p.archived) as project (project.id)}
-              <option value={project.id}>{project.name}</option>
-            {/each}
-          </select>
-        </label>
-      </div>
+      <label>
+        Priorité
+        <select bind:value={priority}>
+          <option value="P0">P0 — bloquant</option>
+          <option value="P1">P1 — haut</option>
+          <option value="P2">P2 — normal</option>
+          <option value="P3">P3 — bas</option>
+        </select>
+      </label>
 
       {#if availableRepos.length > 0}
         <div class="repos">

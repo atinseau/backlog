@@ -8,7 +8,6 @@ export * from "./executor.js";
 export * from "./orchestrator-loop.js";
 export * from "./orchestrator-state.js";
 export * from "./progress.js";
-export * from "./project-service.js";
 export * from "./provider-utils.js";
 export * from "./repo-service.js";
 export * from "./release-snapshot.js";

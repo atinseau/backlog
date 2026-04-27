@@ -70,7 +70,6 @@ export interface WorkItemCard {
   status: string;
   labels: string[];
   repo_targets: string[];
-  project_id: string | null;
   rank: number | null;
   tasks: TaskCard[];
   blocked_by_claims: ClaimSummary[];
@@ -87,19 +86,6 @@ export interface BoardResponse {
   active_runs_count: number;
   total_estimated_seconds: number;
   total_remaining_seconds: number;
-}
-
-export interface Project {
-  id: string;
-  slug: string;
-  name: string;
-  description?: string;
-  color?: string;
-  repo_ids: string[];
-  max_agents?: number;
-  archived: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 export type RepoProvider = "local" | "github" | "gitlab" | "bitbucket" | "other";
@@ -166,7 +152,6 @@ export interface OrchestratorState {
   max_agents: number;
   auto_pick_agents: boolean;
   tick_interval_ms: number;
-  project_id?: string;
   started_at?: string;
   paused_at?: string;
   last_tick_at?: string;

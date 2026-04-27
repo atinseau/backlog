@@ -14,10 +14,9 @@
 
   interface Props {
     onClose: () => void;
-    selectedProjectId?: string | null;
   }
 
-  let { onClose, selectedProjectId }: Props = $props();
+  let { onClose }: Props = $props();
 
   let plan = $state<OrchestratePlan | null>(null);
   let loading = $state(false);
@@ -48,7 +47,6 @@
         max_agents: maxAgents,
         auto_pick_agents: autoPick,
       };
-      if (selectedProjectId) input.project_id = selectedProjectId;
       orchState = await startOrchestrator(input);
       lastResult = "Orchestrateur démarré.";
     } catch (err) {

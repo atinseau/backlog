@@ -36,12 +36,10 @@ describe("orchestrator-state", () => {
       mode: "running",
       max_agents: 7,
       auto_pick_agents: false,
-      project_id: "PROJ-abc",
       started_at: "2026-04-26T10:00:00.000Z",
     });
     expect(updated.mode).toBe("running");
     expect(updated.max_agents).toBe(7);
-    expect(updated.project_id).toBe("PROJ-abc");
 
     const reloaded = getOrchestratorState(backlogDir);
     expect(reloaded).toEqual(updated);
@@ -50,15 +48,12 @@ describe("orchestrator-state", () => {
   it("supports clearing optional fields with null", () => {
     updateOrchestratorState(backlogDir, {
       mode: "running",
-      project_id: "PROJ-abc",
       started_at: "2026-04-26T10:00:00.000Z",
     });
     const cleared = updateOrchestratorState(backlogDir, {
       mode: "idle",
-      project_id: null,
       started_at: null,
     });
-    expect(cleared.project_id).toBeUndefined();
     expect(cleared.started_at).toBeUndefined();
   });
 });

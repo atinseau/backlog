@@ -8,7 +8,6 @@ export const orchestratorStateSchema = z.object({
   max_agents: z.number().int().positive().default(3),
   auto_pick_agents: z.boolean().default(true),
   tick_interval_ms: z.number().int().positive().default(5000),
-  project_id: z.string().optional(),
   started_at: z.string().optional(),
   paused_at: z.string().optional(),
   last_tick_at: z.string().optional(),

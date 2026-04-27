@@ -5,7 +5,6 @@ import {
   elapsedSeconds,
   estimateTask,
   etaIso,
-  getProject,
   listActiveRuns,
   listTasks,
   listWorkItems,
@@ -56,7 +55,6 @@ interface WorkItemCard {
   status: WorkItem["status"];
   labels: string[];
   repo_targets: string[];
-  project_id: string | null;
   rank: number | null;
   tasks: TaskCard[];
   blocked_by_claims: ClaimSummary[];
@@ -106,7 +104,6 @@ function findActiveClaimForTask(
 
 interface BoardFilters {
   repo?: string | undefined;
-  projectIdOrSlug?: string | undefined;
 }
 
 function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardResponse {
@@ -114,9 +111,6 @@ function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardRes
   const tasks = listTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);
   const runs = listActiveRuns(workspace.backlogDir);
-
-  const project = filters.projectIdOrSlug ? getProject(workspace.backlogDir, filters.projectIdOrSlug) : null;
-  const projectRepoSet = project ? new Set(project.repo_ids) : null;
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const archivedRunsCtx = { tasksById };
@@ -133,19 +127,12 @@ function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardRes
   let totalRemaining = 0;
 
   for (const workItem of workItems) {
-    if (project && workItem.project_id && workItem.project_id !== project.id) continue;
-    if (project && !workItem.project_id) {
-      const itemRepos = new Set(workItem.repo_targets);
-      const overlap = [...itemRepos].some((id) => projectRepoSet?.has(id));
-      if (!overlap) continue;
-    }
     const column = statusToColumn(workItem.status);
     if (!column) continue;
 
     const itemTasks = tasks.filter((task) => {
       if (task.work_item_id !== workItem.id) return false;
       if (filters.repo && task.repo !== filters.repo) return false;
-      if (projectRepoSet && !projectRepoSet.has(task.repo)) return false;
       return true;
     });
 
@@ -225,7 +212,6 @@ function buildBoard(workspace: ServerWorkspace, filters: BoardFilters): BoardRes
       status: workItem.status,
       labels: workItem.labels,
       repo_targets: workItem.repo_targets,
-      project_id: workItem.project_id ?? null,
       rank: workItem.rank ?? null,
       tasks: taskCards,
       blocked_by_claims: blockedByClaims,
@@ -279,8 +265,7 @@ export function boardRoutes(): Hono<AppEnv> {
   app.get("/board", (c) => {
     const workspace = c.get("workspace");
     const repo = c.req.query("repo") ?? undefined;
-    const projectIdOrSlug = c.req.query("project") ?? undefined;
-    return c.json(buildBoard(workspace, { repo, projectIdOrSlug }));
+    return c.json(buildBoard(workspace, { repo }));
   });
   return app;
 }

@@ -5,9 +5,6 @@ import {
   defaultOrchestratorState,
   type OrchestratorState,
   orchestratorStateSchema,
-  type Project,
-  type ProjectsFile,
-  projectsFileSchema,
   tasksFileSchema,
   type Task,
   type TasksFile,
@@ -55,26 +52,6 @@ export function listWorkItems(backlogDir: string): WorkItem[] {
 
 export function listTasks(backlogDir: string): Task[] {
   return readTasksFile(backlogDir).tasks;
-}
-
-export function projectsPath(backlogDir: string): string {
-  return path.join(backlogDir, "projects.yaml");
-}
-
-export function readProjectsFile(backlogDir: string): ProjectsFile {
-  const filePath = projectsPath(backlogDir);
-  if (!fs.existsSync(filePath)) {
-    return { version: 1, projects: [] };
-  }
-  return readYaml(filePath, (value) => projectsFileSchema.parse(value));
-}
-
-export function writeProjectsFile(backlogDir: string, file: ProjectsFile): void {
-  writeYaml(projectsPath(backlogDir), file);
-}
-
-export function listProjects(backlogDir: string): Project[] {
-  return readProjectsFile(backlogDir).projects;
 }
 
 export function orchestratorStatePath(backlogDir: string): string {

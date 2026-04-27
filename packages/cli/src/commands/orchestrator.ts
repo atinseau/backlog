@@ -27,13 +27,11 @@ export function registerOrchestratorCommand(program: Command): void {
     .option("--max-agents <n>", "Cap on parallel runs")
     .option("--auto", "Let the orchestrator pick the agent count automatically")
     .option("--no-auto", "Disable auto-pick of agent count")
-    .option("--project <idOrSlug>", "Limit to one project")
     .option("--tick-interval <ms>", "Tick interval in ms")
-    .action(async (options: { maxAgents?: string; auto?: boolean; project?: string; tickInterval?: string }) => {
+    .action(async (options: { maxAgents?: string; auto?: boolean; tickInterval?: string }) => {
       const input: Parameters<typeof startOrchestrator>[1] = {};
       if (options.maxAgents !== undefined) input.max_agents = parseInt(options.maxAgents, 10);
       if (options.auto !== undefined) input.auto_pick_agents = options.auto;
-      if (options.project) input.project_id = options.project;
       if (options.tickInterval !== undefined) input.tick_interval_ms = parseInt(options.tickInterval, 10);
       const state = await startOrchestrator(workspaceDir(), input);
       console.log(`Orchestrator running (max=${state.max_agents}, auto=${state.auto_pick_agents}).`);

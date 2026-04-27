@@ -143,17 +143,6 @@ export function updateWorkItemPlanning(
   return item;
 }
 
-export function assignProjectToWorkItem(backlogDir: string, id: string, projectId: string | null): WorkItem {
-  const file = readWorkItemsFile(backlogDir);
-  const item = file.items.find((candidate) => candidate.id === id);
-  if (!item) throw new Error(`Unknown work item: ${id}`);
-  if (projectId === null) delete item.project_id;
-  else item.project_id = projectId;
-  item.updated_at = new Date().toISOString();
-  writeWorkItemsFile(backlogDir, file);
-  return item;
-}
-
 export function setWorkItemEstimate(backlogDir: string, id: string, seconds: number | null): WorkItem {
   const file = readWorkItemsFile(backlogDir);
   const item = file.items.find((candidate) => candidate.id === id);
