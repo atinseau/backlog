@@ -2,8 +2,8 @@
   import { onDestroy, onMount } from "svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
+  import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
-  import CreateTicketDialog from "./lib/CreateTicketDialog.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
@@ -46,8 +46,8 @@
   let claimsViewOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
-  let createTicketOpen = $state(false);
-  let createTaskTarget = $state<TaskCard | null>(null);
+  let createTaskOpen = $state(false);
+  let createSubTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
   let splitTarget = $state<TaskCard | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -276,7 +276,7 @@
     <button onclick={() => (claimsViewOpen = true)} title="Activité (claims, runs)">📋 Activité</button>
     <button onclick={() => (permissionsViewOpen = true)}>🔒 Permissions</button>
     <button onclick={() => (panelOpen = !panelOpen)}>⚙ Plan</button>
-    <button class="primary" onclick={() => (createTicketOpen = true)}>+ Ticket</button>
+    <button class="primary" onclick={() => (createTaskOpen = true)}>+ Tâche</button>
     <button onclick={refresh}>↻</button>
   </div>
 </header>
@@ -327,21 +327,21 @@
   />
 {/if}
 
-{#if createTicketOpen}
-  <CreateTicketDialog
+{#if createTaskOpen}
+  <CreateTaskDialog
     availableRepos={repos}
-    onClose={() => (createTicketOpen = false)}
+    onClose={() => (createTaskOpen = false)}
     onCreated={() => {
       if (!connected) refresh();
     }}
   />
 {/if}
 
-{#if createTaskTarget}
-  <CreateTaskDialog
-    workItem={createTaskTarget}
+{#if createSubTaskTarget}
+  <CreateSubTaskDialog
+    workItem={createSubTaskTarget}
     availableRepos={repos}
-    onClose={() => (createTaskTarget = null)}
+    onClose={() => (createSubTaskTarget = null)}
     onCreated={() => {
       if (!connected) refresh();
     }}

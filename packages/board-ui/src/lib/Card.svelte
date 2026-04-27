@@ -111,7 +111,7 @@
 
   {#if card.tasks.length > 0}
     <div class="card-footer">
-      <div class="card-progress" aria-label="progression du ticket">
+      <div class="card-progress" aria-label="progression de la tâche">
         <div class="card-progress-fill" style:width="{card.progress_percent}%"></div>
       </div>
       <div class="card-stats">
