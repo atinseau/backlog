@@ -41,11 +41,12 @@
   interface Props {
     onClose: () => void;
     onChanged?: () => void;
+    defaultTab?: "account" | "github" | "jira" | "sources";
   }
 
-  let { onClose, onChanged }: Props = $props();
+  let { onClose, onChanged, defaultTab = "account" }: Props = $props();
 
-  let tab = $state<"account" | "github" | "jira" | "sources">("account");
+  let tab = $state<"account" | "github" | "jira" | "sources">(defaultTab);
 
   // Cloud account state
   let cloudStatus = $state<CloudStatus | null>(null);

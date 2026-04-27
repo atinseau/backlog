@@ -15,6 +15,8 @@
   "topbar.moving": "↻ moving…",
   "topbar.remaining": "⏱ {duration} left",
   "topbar.locale_switch": "FR / EN",
+  "topbar.profile": "Profile",
+  "topbar.profile_signed_out": "Profile — not signed in",
 
   "selector.new_project": "+ New project",
   "selector.all_repos": "All repos ({count})",

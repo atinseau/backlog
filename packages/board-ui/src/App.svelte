@@ -20,12 +20,14 @@
   import { t } from "./lib/i18n.svelte.js";
   import {
     fetchBoard,
+    fetchCloudStatus,
     fetchCurrentProject,
     fetchRepos,
     fetchProjectsList,
     moveWorkItem,
     reorderTask,
     setCurrentProjectId,
+    type CloudStatus,
   } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
@@ -55,6 +57,26 @@
   let integrationsOpen = $state(false);
   let reposViewOpen = $state(false);
   let createProjectOpen = $state(false);
+  let cloudStatus = $state<CloudStatus | null>(null);
+  let integrationsTab = $state<"account" | "github" | "jira" | "sources">("account");
+
+  async function loadCloudStatus() {
+    try {
+      cloudStatus = await fetchCloudStatus();
+    } catch {
+      cloudStatus = { signed_in: false };
+    }
+  }
+
+  function userInitials(email: string): string {
+    const local = email.split("@")[0] ?? "";
+    return local.slice(0, 2).toUpperCase() || "?";
+  }
+
+  function openProfile() {
+    integrationsTab = "account";
+    integrationsOpen = true;
+  }
   let permissionsViewOpen = $state(false);
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
@@ -206,6 +228,7 @@
     refresh();
     refreshRepos();
     connectSse();
+    loadCloudStatus();
   }
 
   async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
@@ -296,6 +319,19 @@
     <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
     <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
     <button onclick={refresh} aria-label={t("topbar.refresh")}>{t("topbar.refresh")}</button>
+    <button
+      class="user-avatar"
+      class:signed-in={cloudStatus?.signed_in}
+      onclick={openProfile}
+      title={cloudStatus?.user?.email ?? t("topbar.profile_signed_out")}
+      aria-label={t("topbar.profile")}
+    >
+      {#if cloudStatus?.signed_in && cloudStatus.user}
+        {userInitials(cloudStatus.user.email)}
+      {:else}
+        ☺
+      {/if}
+    </button>
   </div>
 </header>
 
@@ -355,10 +391,15 @@
 
 {#if integrationsOpen}
   <IntegrationsView
-    onClose={() => (integrationsOpen = false)}
+    defaultTab={integrationsTab}
+    onClose={() => {
+      integrationsOpen = false;
+      loadCloudStatus();
+    }}
     onChanged={() => {
       refreshRepos();
       if (!connected) refresh();
+      loadCloudStatus();
     }}
   />
 {/if}
@@ -516,6 +557,27 @@
     color: #475467;
   }
   button.topbar-add-project:hover { color: #1570ef; }
+  button.user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    padding: 0;
+    margin-left: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f2f4f7;
+    color: #475467;
+    border: 1px solid #d0d5dd;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  button.user-avatar.signed-in {
+    background: #d1fadf;
+    color: #027a48;
+    border-color: #b6efbe;
+  }
+  button.user-avatar:hover { box-shadow: 0 0 0 3px rgba(21, 112, 239, 0.15); }
   button.primary:hover { background: #155eef; }
   .error {
     background: #fef0c7;
