@@ -1,5 +1,6 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
+  import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { SubTaskCard, TaskCard } from "./types.js";
   import { onDestroy } from "svelte";
@@ -44,10 +45,10 @@
     <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
     {#if onSplit && card.tasks.length === 0}
-      <button class="icon-btn" onclick={handleSplitClick} aria-label="Split into tasks" title="Split into tasks">✂</button>
+      <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
     {/if}
     {#if onAddTask}
-      <button class="icon-btn" onclick={handleAddTaskClick} aria-label="Ajouter une tâche" title="Ajouter une tâche">+</button>
+      <button class="icon-btn" onclick={handleAddTaskClick} aria-label={t("card.add_subtask")} title={t("card.add_subtask")}>+</button>
     {/if}
   </header>
 
@@ -98,7 +99,7 @@
     <ul class="blockers">
       {#each card.blocked_by_claims as claim (claim.id)}
         <li>
-          <span>blocked: {claim.topic}{claim.agent_id ? ` (${claim.agent_id})` : ""}</span>
+          <span>{t("card.blocked", { topic: claim.topic + (claim.agent_id ? ` (${claim.agent_id})` : "") })}</span>
           <RetryBadge
             expiresAt={claim.expires_at}
             expectedFinishAt={claim.expected_finish_at}
@@ -111,13 +112,13 @@
 
   {#if card.tasks.length > 0}
     <div class="card-footer">
-      <div class="card-progress" aria-label="progression de la tâche">
+      <div class="card-progress" aria-label={t("card.progress_aria")}>
         <div class="card-progress-fill" style:width="{card.progress_percent}%"></div>
       </div>
       <div class="card-stats">
         <span>{card.progress_percent}%</span>
         <span class="dot">·</span>
-        <span>il reste {formatDuration(card.remaining_seconds)}</span>
+        <span>{t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
         {#if runningCount > 0}<span class="dot">·</span><span class="badge running">▶ {runningCount}</span>{/if}
         {#if blockedCount > 0}<span class="dot">·</span><span class="badge blocked">⚠ {blockedCount}</span>{/if}
       </div>

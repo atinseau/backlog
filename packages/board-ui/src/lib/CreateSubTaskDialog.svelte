@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createSubTask } from "./api.js";
+  import { t } from "./i18n.svelte.js";
   import type { TaskCard } from "./types.js";
 
   interface Props {
@@ -50,7 +51,7 @@
 <div class="backdrop" onclick={onClose} role="presentation">
   <form class="modal" onclick={(e) => e.stopPropagation()} onsubmit={handleSubmit}>
     <header>
-      <h2>Nouvelle sous-tâche</h2>
+      <h2>{t("create_subtask.title")}</h2>
       <span class="task-title">{workItem.title}</span>
       <button type="button" class="close" onclick={onClose}>✕</button>
     </header>
@@ -61,13 +62,13 @@
 
     <div class="body">
       <label>
-        Titre
+        {t("create_subtask.field.title")}
         <input type="text" bind:value={title} required autofocus />
       </label>
 
       <div class="row">
         <label>
-          Repo
+          {t("create_subtask.field.repo")}
           <select bind:value={repo} required>
             {#each availableRepos as r (r)}
               <option value={r}>{r}</option>
@@ -75,11 +76,11 @@
           </select>
         </label>
         <label>
-          Lane (optionnel)
+          {t("create_subtask.field.lane")}
           <input type="text" bind:value={lane} placeholder="frontend" />
         </label>
         <label>
-          Risque
+          {t("create_subtask.field.risk")}
           <select bind:value={risk}>
             <option value="low">low</option>
             <option value="medium">medium</option>
@@ -89,15 +90,15 @@
       </div>
 
       <label>
-        Scopes (un par ligne, ex. <code>src/foo/**</code>)
+        {t("create_subtask.field.scopes")}
         <textarea bind:value={scopes} rows="3" placeholder="src/feature/**"></textarea>
       </label>
     </div>
 
     <footer>
-      <button type="button" onclick={onClose}>annuler</button>
+      <button type="button" onclick={onClose}>{t("create_subtask.button.cancel")}</button>
       <button type="submit" class="primary" disabled={submitting || !title.trim() || !repo}>
-        {submitting ? "création…" : "créer"}
+        {submitting ? t("create_subtask.button.submitting") : t("create_subtask.button.submit")}
       </button>
     </footer>
   </form>

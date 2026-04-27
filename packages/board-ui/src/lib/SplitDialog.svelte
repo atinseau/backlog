@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import {
     applySplitProposal,
     splitTask,
@@ -139,7 +140,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="Split work item" onclick={(e) => e.stopPropagation()}>
     <header>
       <div>
-        <h2>Split work item</h2>
+        <h2>{t("split_dialog.title", { taskId: workItem.id })}</h2>
         <p class="meta">{workItem.title}</p>
       </div>
       <button class="close" onclick={onClose} aria-label="Close">×</button>

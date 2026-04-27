@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import {
     fetchOrchestratePlan,
     fetchOrchestratorState,
@@ -142,7 +143,7 @@
 <aside class="panel" role="complementary" aria-label="Orchestrator plan">
   <header>
     <div>
-      <h2>Orchestrator</h2>
+      <h2>{t("orchestrator_panel.title")}</h2>
       {#if plan}
         <p class="meta">
           {plan.runnable_count} runnable now · max {plan.max_agents}

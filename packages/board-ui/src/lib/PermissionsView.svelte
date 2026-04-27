@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import {
     fetchAgents,
     fetchWorkspace,
@@ -133,7 +134,7 @@
 <div class="backdrop" onclick={onClose} role="presentation">
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
     <header>
-      <h2>Permissions</h2>
+      <h2>{t("permissions.title")}</h2>
       <button class="close" onclick={onClose}>✕</button>
     </header>
 

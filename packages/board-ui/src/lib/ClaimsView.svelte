@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import { archiveClaim, fetchAllClaims } from "./api.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { ClaimRecord } from "./types.js";
@@ -117,7 +118,7 @@
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
     <header>
       <div class="title-block">
-        <h2>Claims</h2>
+        <h2>{t("claims_view.title")}</h2>
         <div class="tabs">
           <button class="tab" class:active={tab === "active"} onclick={() => switchTab("active")}>
             Actifs ({activeClaims.length})

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
   import { createRepo, deleteRepo, fetchRepos, updateRepo } from "./api.js";
   import type { Repo } from "./types.js";
 
@@ -114,7 +115,7 @@
 <div class="backdrop" onclick={onClose} role="presentation">
   <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
     <header>
-      <h2>Repos</h2>
+      <h2>{t("repos_view.title")}</h2>
       <button class="close" onclick={onClose}>✕</button>
     </header>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createClaim, type ClaimConflict } from "./api.js";
+  import { t } from "./i18n.svelte.js";
 
   interface Props {
     repos: string[];
@@ -68,15 +69,15 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="New claim" onclick={(e) => e.stopPropagation()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={t("claim_dialog.title")} onclick={(e) => e.stopPropagation()}>
     <header>
-      <h2>New claim</h2>
-      <button class="close" onclick={onClose} aria-label="Close">×</button>
+      <h2>{t("claim_dialog.title")}</h2>
+      <button class="close" onclick={onClose} aria-label={t("claim_dialog.close")}>×</button>
     </header>
 
     <form onsubmit={handleSubmit}>
       <label>
-        Repo
+        {t("claim_dialog.field.repo")}
         {#if repos.length === 0}
           <input type="text" bind:value={repo} placeholder="repo id" required />
         {:else}
@@ -89,12 +90,12 @@
       </label>
 
       <label>
-        Topic
-        <input type="text" bind:value={topic} placeholder="fix-login-bug" required />
+        {t("claim_dialog.field.topic")}
+        <input type="text" bind:value={topic} placeholder={t("claim_dialog.field.topic.placeholder")} required />
       </label>
 
       <label>
-        Paths (one per line, globs OK)
+        {t("claim_dialog.field.paths")}
         <textarea
           bind:value={pathsRaw}
           rows="3"
@@ -105,26 +106,23 @@
 
       <div class="row">
         <label>
-          Duration (min)
+          {t("claim_dialog.field.duration")}
           <input type="number" min="1" bind:value={durationMinutes} />
         </label>
         <label>
-          Agent id (optional)
+          {t("claim_dialog.field.agent")}
           <input type="text" bind:value={agentId} placeholder="claude-default" />
         </label>
       </div>
 
       {#if conflict}
         <div class="conflict">
-          <strong>Path conflict</strong>
+          <strong>{t("claim_dialog.conflict.title")}</strong>
+          <p>{t("claim_dialog.conflict.body", { id: conflict.conflict_with, topic: conflict.blocking_topic, paths: conflict.blocking_paths.join(", ") })}</p>
           <p>
-            Active claim <code>{conflict.conflict_with}</code> ({conflict.blocking_topic})
-            holds: {conflict.blocking_paths.join(", ")}.
-          </p>
-          <p>
-            Retry in <strong>~{Math.ceil(conflict.retry_after_seconds / 60)} min</strong>
+            <strong>{t("claim_dialog.conflict.retry", { min: Math.ceil(conflict.retry_after_seconds / 60) })}</strong>
             {#if conflict.blocking_status === "overdue"}
-              <span class="overdue">(holder is overdue)</span>
+              <span class="overdue">{t("claim_dialog.conflict.overdue")}</span>
             {/if}
             <span class="src">[{conflict.retry_after_source}]</span>
           </p>
@@ -136,9 +134,9 @@
       {/if}
 
       <footer>
-        <button type="button" onclick={onClose}>Cancel</button>
+        <button type="button" onclick={onClose}>{t("claim_dialog.button.cancel")}</button>
         <button type="submit" class="primary" disabled={submitting}>
-          {submitting ? "Creating…" : "Create claim"}
+          {submitting ? t("claim_dialog.button.creating") : t("claim_dialog.button.create")}
         </button>
       </footer>
     </form>
