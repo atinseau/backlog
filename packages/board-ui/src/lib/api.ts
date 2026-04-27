@@ -700,6 +700,7 @@ export async function fetchGithubStatus(): Promise<GithubStatus> {
 export interface GithubOauthConfig {
   device_flow_available: boolean;
   client_id_hint: string | null;
+  client_id_source: "env" | "user" | "cloud" | null;
   pat_url: string;
   register_url: string;
 }
@@ -720,8 +721,12 @@ export async function clearGithubOauthClientId(): Promise<void> {
 export interface JiraOauthConfig {
   oauth_available: boolean;
   client_id_hint: string | null;
+  mode: "cloud" | "byo";
+  cloud_url: string;
   register_url: string;
   scopes: string;
+  connected: boolean;
+  site_url: string | null;
 }
 
 export async function fetchJiraOauthConfig(): Promise<JiraOauthConfig> {

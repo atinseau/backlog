@@ -25,6 +25,35 @@ const GITHUB_TOKEN_KEY = "github.pat";
 const GITHUB_CLIENT_ID_KEY = "github.oauth.client_id";
 const JIRA_CLIENT_ID_KEY = "jira.oauth.client_id";
 const JIRA_CLIENT_SECRET_KEY = "jira.oauth.client_secret";
+const JIRA_ACCESS_TOKEN_KEY = "jira.oauth.access_token";
+const JIRA_REFRESH_TOKEN_KEY = "jira.oauth.refresh_token";
+const JIRA_CLOUD_ID_KEY = "jira.oauth.cloud_id";
+const JIRA_SITE_URL_KEY = "jira.oauth.site_url";
+
+// Public OAuth proxy hosted by backlog-cloud. Holds the GitHub and Jira
+// OAuth secrets so the CLI doesn't have to ship them. Override with
+// BACKLOG_CLOUD_URL when developing against a local Rails instance.
+const BACKLOG_CLOUD_URL = process.env.BACKLOG_CLOUD_URL ?? "https://backlog.so";
+
+// Cache the official GitHub client_id we fetch from backlog-cloud, so we
+// don't hammer the proxy on every request.
+let cloudGithubClientId: string | null | undefined = undefined;
+async function fetchCloudGithubClientId(): Promise<string | null> {
+  if (cloudGithubClientId !== undefined) return cloudGithubClientId;
+  try {
+    const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/oauth/github/client_id`);
+    if (!response.ok) {
+      cloudGithubClientId = null;
+      return null;
+    }
+    const json = (await response.json()) as { client_id?: string };
+    cloudGithubClientId = json.client_id ?? null;
+    return cloudGithubClientId;
+  } catch {
+    cloudGithubClientId = null;
+    return null;
+  }
+}
 
 // In-memory pending Jira OAuth flows keyed by state. Holds the verifier we'll
 // need for the callback exchange. Cleared on completion or after 10 minutes.
@@ -181,12 +210,28 @@ export function integrationsRoutes(): Hono<AppEnv> {
     return process.env.BACKLOG_GITHUB_CLIENT_ID ?? getSecret(backlogDir, GITHUB_CLIENT_ID_KEY);
   }
 
-  app.get("/integrations/github/oauth/config", (c) => {
+  // Resolution chain: env var → user-saved client_id → backlog-cloud default.
+  // Returns the source so the UI can tell the user where it came from.
+  async function resolveGithubClientIdWithFallback(
+    backlogDir: string,
+  ): Promise<{ id: string | null; source: "env" | "user" | "cloud" | null }> {
+    if (process.env.BACKLOG_GITHUB_CLIENT_ID) {
+      return { id: process.env.BACKLOG_GITHUB_CLIENT_ID, source: "env" };
+    }
+    const stored = getSecret(backlogDir, GITHUB_CLIENT_ID_KEY);
+    if (stored) return { id: stored, source: "user" };
+    const cloud = await fetchCloudGithubClientId();
+    if (cloud) return { id: cloud, source: "cloud" };
+    return { id: null, source: null };
+  }
+
+  app.get("/integrations/github/oauth/config", async (c) => {
     const project = c.get("workspace");
-    const clientId = resolveGithubClientId(project.backlogDir);
+    const { id: clientId, source } = await resolveGithubClientIdWithFallback(project.backlogDir);
     return c.json({
       device_flow_available: clientId !== null,
       client_id_hint: clientId ? `${clientId.slice(0, 6)}…` : null,
+      client_id_source: source,
       pat_url: "https://github.com/settings/tokens/new?scopes=repo,read:user&description=Backlog%20Local",
       register_url: "https://github.com/settings/applications/new",
     });
@@ -211,7 +256,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
 
   app.post("/integrations/github/oauth/start", async (c) => {
     const project = c.get("workspace");
-    const clientId = resolveGithubClientId(project.backlogDir);
+    const { id: clientId } = await resolveGithubClientIdWithFallback(project.backlogDir);
     if (!clientId) {
       return c.json(
         {
@@ -248,7 +293,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
 
   app.post("/integrations/github/oauth/poll", async (c) => {
     const project = c.get("workspace");
-    const clientId = resolveGithubClientId(project.backlogDir);
+    const { id: clientId } = await resolveGithubClientIdWithFallback(project.backlogDir);
     if (!clientId) {
       return c.json({ error: "device_flow_unavailable" }, 400);
     }
@@ -402,11 +447,20 @@ export function integrationsRoutes(): Hono<AppEnv> {
   app.get("/integrations/jira/oauth/config", (c) => {
     const project = c.get("workspace");
     const { id, secret } = resolveJiraClient(project.backlogDir);
+    const hasLocalCreds = id !== null && secret !== null;
+    const accessToken = getSecret(project.backlogDir, JIRA_ACCESS_TOKEN_KEY);
+    const siteUrl = getSecret(project.backlogDir, JIRA_SITE_URL_KEY);
     return c.json({
-      oauth_available: id !== null && secret !== null,
+      // We always offer the connect button: the cloud proxy at backlog.so
+      // serves as the default. BYO credentials win if configured locally.
+      oauth_available: true,
       client_id_hint: id ? `${id.slice(0, 6)}…` : null,
+      mode: hasLocalCreds ? "byo" : "cloud",
+      cloud_url: BACKLOG_CLOUD_URL,
       register_url: "https://developer.atlassian.com/console/myapps/",
       scopes: "read:jira-work read:jira-user offline_access",
+      connected: accessToken !== null,
+      site_url: siteUrl,
     });
   });
 
@@ -433,35 +487,98 @@ export function integrationsRoutes(): Hono<AppEnv> {
 
   app.post("/integrations/jira/oauth/start", async (c) => {
     const project = c.get("workspace");
-    const { id: clientId } = resolveJiraClient(project.backlogDir);
-    if (!clientId) {
-      return c.json(
-        {
-          error: "oauth_unavailable",
-          detail: "Configure a Jira OAuth (3LO) app's client_id and secret first.",
-        },
-        400,
-      );
-    }
+    const { id: clientId, secret: clientSecret } = resolveJiraClient(project.backlogDir);
     const requestUrl = new URL(c.req.url);
-    const redirectUri = `${requestUrl.origin}/api/v1/integrations/jira/oauth/callback`;
-    const state = randomUUID();
-    gcPendingJiraFlows();
-    pendingJiraFlows.set(state, {
-      state,
-      redirect_uri: redirectUri,
-      created_at: Date.now(),
-      status: "pending",
-    });
-    const authorizeUrl = new URL("https://auth.atlassian.com/authorize");
-    authorizeUrl.searchParams.set("audience", "api.atlassian.com");
-    authorizeUrl.searchParams.set("client_id", clientId);
-    authorizeUrl.searchParams.set("scope", "read:jira-work read:jira-user offline_access");
-    authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-    authorizeUrl.searchParams.set("state", state);
-    authorizeUrl.searchParams.set("response_type", "code");
-    authorizeUrl.searchParams.set("prompt", "consent");
-    return c.json({ authorize_url: authorizeUrl.toString(), state });
+
+    // BYO mode — user pasted their own client_id + secret locally. Talk to
+    // Atlassian directly with the local secret.
+    if (clientId && clientSecret) {
+      const redirectUri = `${requestUrl.origin}/api/v1/integrations/jira/oauth/callback`;
+      const state = randomUUID();
+      gcPendingJiraFlows();
+      pendingJiraFlows.set(state, {
+        state,
+        redirect_uri: redirectUri,
+        created_at: Date.now(),
+        status: "pending",
+      });
+      const authorizeUrl = new URL("https://auth.atlassian.com/authorize");
+      authorizeUrl.searchParams.set("audience", "api.atlassian.com");
+      authorizeUrl.searchParams.set("client_id", clientId);
+      authorizeUrl.searchParams.set("scope", "read:jira-work read:jira-user offline_access");
+      authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+      authorizeUrl.searchParams.set("state", state);
+      authorizeUrl.searchParams.set("response_type", "code");
+      authorizeUrl.searchParams.set("prompt", "consent");
+      return c.json({ authorize_url: authorizeUrl.toString(), state, mode: "byo" });
+    }
+
+    // Cloud mode (default) — backlog-cloud holds the OAuth secrets, talks to
+    // Atlassian, and bounces the token back to us via local-callback.
+    const localCallback = `${requestUrl.origin}/api/v1/integrations/jira/oauth/local-callback`;
+    try {
+      const proxyResponse = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/oauth/jira/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ local_callback: localCallback }),
+      });
+      if (!proxyResponse.ok) {
+        const detail = await proxyResponse.text().catch(() => "");
+        return c.json(
+          { error: "cloud_proxy_failed", detail: detail.slice(0, 200) },
+          502,
+        );
+      }
+      const data = (await proxyResponse.json()) as { authorize_url: string; state: string };
+      // Track the state so the local-callback knows it's expected.
+      gcPendingJiraFlows();
+      pendingJiraFlows.set(data.state, {
+        state: data.state,
+        redirect_uri: localCallback,
+        created_at: Date.now(),
+        status: "pending",
+      });
+      return c.json({ authorize_url: data.authorize_url, state: data.state, mode: "cloud" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cloud_proxy_unreachable", detail: message }, 502);
+    }
+  });
+
+  // Receives the token bounced back by backlog-cloud after Atlassian auth.
+  // The proxy redirects the browser here with status + token in the query.
+  app.get("/integrations/jira/oauth/local-callback", (c) => {
+    const status = c.req.query("status") ?? "failed";
+    const state = c.req.query("state") ?? "";
+    const flow = pendingJiraFlows.get(state);
+    if (!flow) {
+      return c.html(callbackHtml("error", "expired_state"));
+    }
+    if (status !== "ok") {
+      flow.status = "failed";
+      flow.detail = c.req.query("detail") ?? status;
+      return c.html(callbackHtml("error", flow.detail));
+    }
+    const accessToken = c.req.query("access_token");
+    const refreshToken = c.req.query("refresh_token");
+    const cloudId = c.req.query("cloud_id");
+    const siteUrl = c.req.query("site_url");
+    const siteName = c.req.query("site_name");
+    if (!accessToken || !cloudId) {
+      flow.status = "failed";
+      flow.detail = "missing_token_payload";
+      return c.html(callbackHtml("error", flow.detail));
+    }
+    const project = c.get("workspace");
+    setSecret(project.backlogDir, JIRA_ACCESS_TOKEN_KEY, accessToken);
+    if (refreshToken) setSecret(project.backlogDir, JIRA_REFRESH_TOKEN_KEY, refreshToken);
+    setSecret(project.backlogDir, JIRA_CLOUD_ID_KEY, cloudId);
+    if (siteUrl) setSecret(project.backlogDir, JIRA_SITE_URL_KEY, siteUrl);
+    flow.status = "ok";
+    flow.cloud_id = cloudId;
+    if (siteUrl) flow.site_url = siteUrl;
+    if (siteName) flow.display_name = siteName;
+    return c.html(callbackHtml("ok", siteName ?? siteUrl ?? "Jira"));
   });
 
   app.get("/integrations/jira/oauth/callback", async (c) => {

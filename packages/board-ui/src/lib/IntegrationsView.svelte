@@ -474,6 +474,13 @@
             {#if ghOauthConfig?.client_id_hint}
               <div class="muted small">
                 {t("integrations.github.oauth.configured_hint", { hint: ghOauthConfig.client_id_hint })}
+                {#if ghOauthConfig.client_id_source === "cloud"}
+                  · via backlog.so
+                {:else if ghOauthConfig.client_id_source === "user"}
+                  · custom
+                {:else if ghOauthConfig.client_id_source === "env"}
+                  · env
+                {/if}
               </div>
             {/if}
             {#if ghShowOauthConfig}
@@ -566,12 +573,16 @@
         </section>
       {:else if tab === "jira"}
         <section class="panel">
+          {#if jiraOauthConfig?.connected}
+            <div class="status ok">
+              ✓ Connecté à {jiraOauthConfig.site_url ?? "Jira"}
+            </div>
+          {/if}
           <div class="row connect-actions">
             <button
               class="primary"
               onclick={startJiraConnect}
-              disabled={!jiraOauthConfig?.oauth_available || jiraOauthState !== null}
-              title={jiraOauthConfig?.oauth_available ? "" : "Configurez d'abord un Client ID + Secret"}
+              disabled={jiraOauthState !== null}
             >
               {t("integrations.jira.oauth.connect")}
             </button>
@@ -579,10 +590,15 @@
               ⚙ {t("integrations.jira.oauth.configure")}
             </button>
           </div>
-          {#if jiraOauthConfig?.client_id_hint}
+          {#if jiraOauthConfig}
             <div class="muted small">
-              {t("integrations.jira.oauth.configured_hint", { hint: jiraOauthConfig.client_id_hint })}
-              <button class="link inline" onclick={clearJiraClient}>↺ reset</button>
+              {#if jiraOauthConfig.mode === "cloud"}
+                via backlog.so · zéro config
+              {:else if jiraOauthConfig.client_id_hint}
+                {t("integrations.jira.oauth.configured_hint", { hint: jiraOauthConfig.client_id_hint })}
+                · custom
+                <button class="link inline" onclick={clearJiraClient}>↺ reset</button>
+              {/if}
             </div>
           {/if}
           {#if jiraOauthState !== null}
