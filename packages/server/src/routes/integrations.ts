@@ -917,6 +917,40 @@ export function integrationsRoutes(): Hono<AppEnv> {
     return c.json({ ok: true });
   });
 
+  // OAuth sign-in via Google / GitHub / Apple. Browser-based: the CLI opens
+  // the returned URL, the user authenticates on the provider, backlog-cloud
+  // exchanges the code, and bounces a JWT back to the local-callback below.
+  app.get("/cloud/oauth/start", (c) => {
+    const provider = c.req.query("provider") ?? "";
+    if (!["google_oauth2", "github", "apple"].includes(provider)) {
+      return c.json({ error: "invalid_provider" }, 400);
+    }
+    const requestUrl = new URL(c.req.url);
+    const localCallback = `${requestUrl.origin}/api/v1/cloud/oauth/local-callback`;
+    const authorizeUrl = new URL(`${BACKLOG_CLOUD_URL}/cli-signin/${provider}`);
+    authorizeUrl.searchParams.set("cli_callback", localCallback);
+    return c.json({ authorize_url: authorizeUrl.toString() });
+  });
+
+  // Receives the JWT after the OAuth round-trip lands back on us via
+  // backlog-cloud's OmniauthCallbacksController.
+  app.get("/cloud/oauth/local-callback", (c) => {
+    const project = c.get("workspace");
+    const status = c.req.query("status") ?? "failed";
+    if (status !== "ok") {
+      const detail = c.req.query("detail") ?? status;
+      return c.html(callbackHtml("error", detail));
+    }
+    const accessToken = c.req.query("access_token");
+    const email = c.req.query("email") ?? "";
+    if (!accessToken) {
+      return c.html(callbackHtml("error", "missing_token"));
+    }
+    setSecret(project.backlogDir, CLOUD_JWT_KEY, accessToken);
+    invalidateCloudCaches();
+    return c.html(callbackHtml("ok", email || "Backlog Cloud"));
+  });
+
   // POST /cloud/billing/checkout — opens a Stripe Checkout for Pro upgrade.
   // Returns { url } that the UI opens in a new tab.
   app.post("/cloud/billing/checkout", async (c) => {

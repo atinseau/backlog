@@ -857,6 +857,19 @@ export async function cloudLogout(): Promise<void> {
   await fetch(apiUrl("/cloud/logout"), { method: "POST" });
 }
 
+export type OauthProvider = "google_oauth2" | "github" | "apple";
+
+export async function startCloudOauth(provider: OauthProvider): Promise<{ authorize_url: string }> {
+  const response = await fetch(apiUrl("/cloud/oauth/start", { provider }));
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "error" in json
+      ? (json as { error: string }).error
+      : `HTTP ${response.status}`);
+  }
+  return json as { authorize_url: string };
+}
+
 export interface CloudBillingResult {
   url?: string;
   error?: string;

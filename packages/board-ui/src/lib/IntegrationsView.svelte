@@ -11,6 +11,8 @@
     cloudLogin,
     cloudLogout,
     cloudSignup,
+    startCloudOauth,
+    type OauthProvider,
     deleteSource,
     fetchCloudStatus,
     fetchGithubOauthConfig,
@@ -75,6 +77,37 @@
     if (error === "invalid_input") return t("account.error.invalid_input");
     if (error === "cloud_unreachable") return t("account.error.cloud_unreachable");
     return error;
+  }
+
+  let cloudOauthBusy = $state<OauthProvider | null>(null);
+
+  async function startOauth(provider: OauthProvider) {
+    cloudOauthBusy = provider;
+    cloudError = null;
+    try {
+      const result = await startCloudOauth(provider);
+      openInNewTab(result.authorize_url);
+      // Poll for completion — local-callback drops the JWT in secrets.json,
+      // we re-check /cloud/me every 2s while the tab is open.
+      const intervalId = setInterval(async () => {
+        const status = await fetchCloudStatus();
+        if (status.signed_in) {
+          clearInterval(intervalId);
+          cloudOauthBusy = null;
+          await loadCloudStatus();
+          await loadGhStatus();
+          await loadJiraOauthConfig();
+        }
+      }, 2000);
+      // Stop polling after 5 minutes either way.
+      setTimeout(() => {
+        clearInterval(intervalId);
+        if (cloudOauthBusy === provider) cloudOauthBusy = null;
+      }, 5 * 60_000);
+    } catch (err) {
+      cloudOauthBusy = null;
+      cloudError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   async function submitCloudAuth() {
@@ -578,6 +611,33 @@
             {#if billingError}<div class="msg err">{billingError}</div>{/if}
           {:else}
             <div class="status">{t("account.signed_out")}</div>
+            <div class="oauth-buttons">
+              <button
+                class="oauth oauth-google"
+                onclick={() => startOauth("google_oauth2")}
+                disabled={cloudOauthBusy !== null}
+              >
+                <span class="oauth-icon">G</span>
+                {cloudOauthBusy === "google_oauth2" ? t("account.oauth.waiting") : t("account.oauth.google")}
+              </button>
+              <button
+                class="oauth oauth-github"
+                onclick={() => startOauth("github")}
+                disabled={cloudOauthBusy !== null}
+              >
+                <span class="oauth-icon">⌥</span>
+                {cloudOauthBusy === "github" ? t("account.oauth.waiting") : t("account.oauth.github")}
+              </button>
+              <button
+                class="oauth oauth-apple"
+                onclick={() => startOauth("apple")}
+                disabled={cloudOauthBusy !== null}
+              >
+                <span class="oauth-icon"></span>
+                {cloudOauthBusy === "apple" ? t("account.oauth.waiting") : t("account.oauth.apple")}
+              </button>
+            </div>
+            <div class="divider"><span>{t("account.oauth.or")}</span></div>
             <label class="field">
               <span class="label">{t("account.email")}</span>
               <input type="email" bind:value={cloudEmail} autocomplete="email" />
@@ -1248,4 +1308,48 @@
   .plan-pill.plan-pro { background: #d1fadf; color: #027a48; }
   .plan-pill.plan-enterprise { background: #f4ebff; color: #6941c6; }
   .over { color: #b42318; font-weight: 600; }
+  .oauth-buttons { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+  button.oauth {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #d0d5dd;
+    background: white;
+    color: #1d2939;
+    cursor: pointer;
+    transition: background-color 120ms;
+  }
+  button.oauth:hover:not(:disabled) { background: #f9fafb; }
+  button.oauth:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.oauth .oauth-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  button.oauth-google .oauth-icon { background: #4285f4; color: white; }
+  button.oauth-github .oauth-icon { background: #1d2939; color: white; }
+  button.oauth-apple .oauth-icon { background: black; color: white; font-size: 14px; }
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    color: #98a2b3;
+    font-size: 11px;
+  }
+  .divider::before, .divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid #e4e7ec;
+  }
 </style>
