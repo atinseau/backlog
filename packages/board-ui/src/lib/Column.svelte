@@ -22,9 +22,10 @@
     onReorder?: (workItemId: string, beforeId: string | null, afterId: string | null) => void;
     onSplit?: (card: TaskCard) => void;
     onAddTask?: (card: TaskCard) => void;
+    onOpen?: (card: TaskCard) => void;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -95,7 +96,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} {onSplit} {onAddTask} />
+        <Card {card} {onSplit} {onAddTask} {onOpen} />
       </div>
     {/each}
     {#if localCards.length === 0}

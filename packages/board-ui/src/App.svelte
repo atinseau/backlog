@@ -14,6 +14,7 @@
   import LocaleToggle from "./lib/LocaleToggle.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
+  import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import { t } from "./lib/i18n.svelte.js";
   import {
@@ -57,6 +58,7 @@
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
   let splitTarget = $state<TaskCard | null>(null);
+  let detailTarget = $state<TaskCard | null>(null);
   let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
   let pollFallback: ReturnType<typeof setInterval> | null = null;
   let sse: BoardSseClient | null = null;
@@ -305,6 +307,7 @@
       onReorder={handleReorder}
       onSplit={(card) => (splitTarget = card)}
       onAddTask={(card) => (createSubTaskTarget = card)}
+      onOpen={(card) => (detailTarget = card)}
     />
   {/each}
 </main>
@@ -398,6 +401,21 @@
     onClose={() => (splitTarget = null)}
     onSplit={() => {
       if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if detailTarget}
+  <TaskDetailDialog
+    taskId={detailTarget.id}
+    onClose={() => (detailTarget = null)}
+    onSplit={() => {
+      splitTarget = detailTarget;
+      detailTarget = null;
+    }}
+    onAddSubTask={() => {
+      createSubTaskTarget = detailTarget;
+      detailTarget = null;
     }}
   />
 {/if}

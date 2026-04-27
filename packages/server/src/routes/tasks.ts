@@ -2,6 +2,7 @@ import { loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
   createTask,
+  listSubTasks,
   listTasks,
   reorderTask,
   resolveSplitRepos,
@@ -74,6 +75,17 @@ const applySplitBodySchema = z.object({
 
 export function workItemsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  app.get("/tasks/:id", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    const task = listTasks(workspace.backlogDir).find((item) => item.id === id);
+    if (!task) {
+      return c.json({ error: "unknown_task", id }, 404);
+    }
+    const subtasks = listSubTasks(workspace.backlogDir).filter((sub) => sub.work_item_id === id);
+    return c.json({ task, subtasks });
+  });
 
   app.post("/tasks", async (c) => {
     const workspace = c.get("workspace");

@@ -9,9 +9,10 @@
     card: TaskCard;
     onSplit?: (card: TaskCard) => void;
     onAddTask?: (card: TaskCard) => void;
+    onOpen?: (card: TaskCard) => void;
   }
 
-  let { card, onSplit, onAddTask }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -30,6 +31,39 @@
     onAddTask?.(card);
   }
 
+  // Track press position so we don't open the dialog when the user actually
+  // started a drag — svelte-dnd-action moves the card after ~5px of motion.
+  let pressX = 0;
+  let pressY = 0;
+  let pressing = false;
+
+  function handlePointerDown(event: PointerEvent) {
+    if (!onOpen) return;
+    pressX = event.clientX;
+    pressY = event.clientY;
+    pressing = true;
+  }
+
+  function handleClick(event: MouseEvent) {
+    if (!onOpen || !pressing) return;
+    pressing = false;
+    const dx = Math.abs(event.clientX - pressX);
+    const dy = Math.abs(event.clientY - pressY);
+    if (dx > 5 || dy > 5) return;
+    const target = event.target as HTMLElement;
+    // Don't open when the click was on a button, link, or anything inside one.
+    if (target.closest("button, a")) return;
+    onOpen(card);
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (!onOpen) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onOpen(card);
+    }
+  }
+
   function progressBarColor(task: SubTaskCard): string {
     if (task.status === "completed") return "#12b76a";
     if (task.status === "blocked") return "#f04438";
@@ -40,7 +74,17 @@
   }
 </script>
 
-<article class="card">
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+<article
+  class="card"
+  class:clickable={Boolean(onOpen)}
+  onpointerdown={handlePointerDown}
+  onclick={handleClick}
+  onkeydown={handleKeydown}
+  role={onOpen ? "button" : undefined}
+  tabindex={onOpen ? 0 : undefined}
+>
   <header>
     <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
@@ -140,6 +184,15 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     border-left: 3px solid #ccc;
     cursor: grab;
+    transition: box-shadow 120ms ease, transform 120ms ease;
+  }
+  .card.clickable:hover {
+    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
+    transform: translateY(-1px);
+  }
+  .card.clickable:focus-visible {
+    outline: 2px solid #1570ef;
+    outline-offset: 2px;
   }
   header {
     display: flex;

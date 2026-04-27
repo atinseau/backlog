@@ -637,6 +637,46 @@ export interface CommitEntry {
   links: CommitLink[];
 }
 
+export interface TaskDetail {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+  labels: string[];
+  repo_targets: string[];
+  acceptance_criteria: string[];
+  dependencies: string[];
+  source_links: Array<{ kind: string; external_id: string; url?: string; source_ref?: string }>;
+  estimated_duration_seconds?: number;
+  planning: { split_status: "pending" | "done"; risk: "low" | "medium" | "high"; preferred_lane?: string };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubTaskDetail {
+  id: string;
+  work_item_id: string;
+  title: string;
+  repo: string;
+  status: string;
+  priority_score: number;
+  risk: "low" | "medium" | "high";
+  scopes: string[];
+  depends_on: string[];
+  blockers: string[];
+  estimated_duration_seconds?: number;
+  progress_percent?: number;
+}
+
+export async function fetchTaskDetail(id: string): Promise<{ task: TaskDetail; subtasks: SubTaskDetail[] }> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}`));
+  if (!response.ok) {
+    throw new Error(`Task fetch failed: ${response.status}`);
+  }
+  return (await response.json()) as { task: TaskDetail; subtasks: SubTaskDetail[] };
+}
+
 export async function fetchCommits(limit = 50): Promise<CommitEntry[]> {
   const response = await fetch(apiUrl("/commits", { limit: String(limit) }));
   if (!response.ok) throw new Error(`Commits fetch failed: ${response.status}`);
