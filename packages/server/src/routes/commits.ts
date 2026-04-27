@@ -18,7 +18,7 @@ export interface CommitEntry {
   links: CommitLink[];
 }
 
-const TASK_RE = /\b(WI|TK)-[0-9a-f]{8}\b/gi;
+const TASK_RE = /\b(TASK|WI|TK)-[0-9a-f]{8}\b/gi;
 const SUBTASK_RE = /\b(ST|SUB)-[0-9a-f]{8}\b/gi;
 const CLAIM_RE = /\bCLM-[0-9TZ:.\-]+-[0-9a-f]{4}\b/g;
 

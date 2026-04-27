@@ -33,7 +33,7 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
   const file = readTasksFile(backlogDir);
   const now = new Date().toISOString();
   const item: Task = {
-    id: makeId("WI"),
+    id: makeId("TASK"),
     title: input.title,
     ...(input.description ? { description: input.description } : {}),
     source_links: input.sourceLinks ?? [],

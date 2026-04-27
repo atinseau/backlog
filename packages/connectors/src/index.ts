@@ -20,7 +20,7 @@ function nowIso(): string {
 }
 
 function makeImportedId(): string {
-  return `WI-${crypto.randomBytes(4).toString("hex")}`;
+  return `TASK-${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function parsePriority(value: string | undefined): Task["priority"] {
