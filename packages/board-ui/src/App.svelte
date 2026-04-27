@@ -15,7 +15,17 @@
   import ReposView from "./lib/ReposView.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import ViewToggle from "./lib/ViewToggle.svelte";
-  import { fetchBoard, fetchProjects, fetchRepos, moveWorkItem, reorderWorkItem } from "./lib/api.js";
+  import WorkspaceSelector from "./lib/WorkspaceSelector.svelte";
+  import {
+    fetchBoard,
+    fetchCurrentWorkspace,
+    fetchProjects,
+    fetchRepos,
+    fetchWorkspacesList,
+    moveWorkItem,
+    reorderWorkItem,
+    setCurrentWorkspaceId,
+  } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
   import {
@@ -25,17 +35,21 @@
     type Project,
     type Repo,
     type WorkItemCard,
+    type WorkspaceEntry,
   } from "./lib/types.js";
 
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const VIEW_STORAGE_KEY = "backlog.kanban_view";
+  const WORKSPACE_STORAGE_KEY = "backlog.selected_workspace_id";
 
   type KanbanView = "tickets" | "claims";
 
   let board = $state<BoardResponse | null>(null);
   let projects = $state<Project[]>([]);
   let workspaceRepos = $state<Repo[]>([]);
+  let workspaces = $state<WorkspaceEntry[]>([]);
+  let selectedWorkspaceId = $state<string | null>(null);
   let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let view = $state<KanbanView>("tickets");
@@ -117,6 +131,14 @@
     }
   }
 
+  async function refreshWorkspaces() {
+    try {
+      workspaces = await fetchWorkspacesList();
+    } catch (err) {
+      console.warn("workspaces fetch failed", err);
+    }
+  }
+
   function scheduleRefresh() {
     if (refreshTimer) return;
     refreshTimer = setTimeout(() => {
@@ -156,6 +178,91 @@
     claimsBoardSignal += 1;
   }
 
+  function teardownSse() {
+    sse?.close();
+    sse = null;
+    if (pollFallback) {
+      clearInterval(pollFallback);
+      pollFallback = null;
+    }
+    connected = false;
+  }
+
+  function connectSse() {
+    teardownSse();
+    sse = subscribeToBoard(
+      (type) => {
+        if (type === "ping" || type === "ready") return;
+        scheduleRefresh();
+        if (type === "project.changed") refreshProjects();
+        if (type === "repo.changed") refreshRepos();
+        if (type === "claim.changed") bumpClaimsBoard();
+      },
+      (alive) => {
+        connected = alive;
+        if (!alive && !pollFallback) {
+          pollFallback = setInterval(refresh, 5000);
+        } else if (alive && pollFallback) {
+          clearInterval(pollFallback);
+          pollFallback = null;
+        }
+      },
+    );
+  }
+
+  function applyWorkspace(id: string) {
+    if (id === selectedWorkspaceId) return;
+    selectedWorkspaceId = id;
+    setCurrentWorkspaceId(id);
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+    // Reset per-workspace selection — project and repo ids belong to the
+    // previous workspace and almost certainly don't match the new one.
+    selectedProjectId = null;
+    selectedRepoId = null;
+    localStorage.removeItem(PROJECT_STORAGE_KEY);
+    localStorage.removeItem(REPO_STORAGE_KEY);
+    board = null;
+    projects = [];
+    workspaceRepos = [];
+    refresh();
+    refreshProjects();
+    refreshRepos();
+    connectSse();
+  }
+
+  async function bootstrap() {
+    await refreshWorkspaces();
+    let preferred = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    const known = new Set(workspaces.map((w) => w.id));
+    if (preferred && !known.has(preferred)) {
+      // The remembered workspace was unregistered — fall back to current.
+      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      preferred = null;
+    }
+    if (!preferred) {
+      try {
+        const current = await fetchCurrentWorkspace();
+        // /workspaces/current returns paths; match against the registry to find the id.
+        const match = workspaces.find((w) => w.path === current.root);
+        preferred = match?.id ?? workspaces[0]?.id ?? null;
+      } catch {
+        preferred = workspaces[0]?.id ?? null;
+      }
+    }
+    if (preferred) {
+      selectedWorkspaceId = preferred;
+      setCurrentWorkspaceId(preferred);
+    }
+    selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
+    selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
+    const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (storedView === "tickets" || storedView === "claims") view = storedView;
+    refresh();
+    refreshProjects();
+    refreshRepos();
+    connectSse();
+  }
+
   async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
     if (!board) return;
     inFlightMove = workItemId;
@@ -183,36 +290,11 @@
   }
 
   onMount(() => {
-    selectedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
-    selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
-    const storedView = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (storedView === "tickets" || storedView === "claims") view = storedView;
-    refresh();
-    refreshProjects();
-    refreshRepos();
-    sse = subscribeToBoard(
-      (type) => {
-        if (type === "ping" || type === "ready") return;
-        scheduleRefresh();
-        if (type === "project.changed") refreshProjects();
-        if (type === "repo.changed") refreshRepos();
-        if (type === "claim.changed") bumpClaimsBoard();
-      },
-      (alive) => {
-        connected = alive;
-        if (!alive && !pollFallback) {
-          pollFallback = setInterval(refresh, 5000);
-        } else if (alive && pollFallback) {
-          clearInterval(pollFallback);
-          pollFallback = null;
-        }
-      },
-    );
+    bootstrap();
   });
 
   onDestroy(() => {
-    sse?.close();
-    if (pollFallback) clearInterval(pollFallback);
+    teardownSse();
     if (refreshTimer) clearTimeout(refreshTimer);
   });
 </script>
@@ -220,6 +302,13 @@
 <header class="topbar">
   <div class="topbar-left">
     <h1>Backlog</h1>
+    {#if workspaces.length > 0 && selectedWorkspaceId}
+      <WorkspaceSelector
+        {workspaces}
+        selectedId={selectedWorkspaceId}
+        onSelect={applyWorkspace}
+      />
+    {/if}
     <ProjectSelector
       {projects}
       selectedId={selectedProjectId}

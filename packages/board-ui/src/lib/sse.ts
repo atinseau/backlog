@@ -1,3 +1,5 @@
+import { apiUrl } from "./api.js";
+
 export type BoardEventType =
   | "ready"
   | "ping"
@@ -18,7 +20,11 @@ export function subscribeToBoard(
   onEvent: (type: BoardEventType) => void,
   onConnectionChange?: (connected: boolean) => void,
 ): BoardSseClient {
-  const source = new EventSource("/api/v1/events");
+  // apiUrl injects the active ?workspace=<id>, so SSE follows whatever the
+  // user picked in the WorkspaceSelector. App.svelte tears down + recreates
+  // this subscription on workspace change to point the EventSource at the
+  // new workspace's bus.
+  const source = new EventSource(apiUrl("/events"));
   const eventTypes: BoardEventType[] = [
     "ready",
     "ping",

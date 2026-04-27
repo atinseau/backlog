@@ -124,6 +124,7 @@ export interface AgentSummary {
 }
 
 export interface WorkspaceInfo {
+  id?: string;
   name: string;
   mode: "embedded" | "control_plane";
   default_branch: string;
@@ -133,6 +134,20 @@ export interface WorkspaceInfo {
     ttl_minutes: number;
     enforce_on_commit: boolean;
   };
+}
+
+export interface WorkspaceEntry {
+  id: string;
+  path: string;
+  name: string;
+  added_at: string;
+  last_opened_at?: string;
+}
+
+export interface CurrentWorkspace {
+  root: string;
+  backlog_dir: string;
+  resolved_from: string;
 }
 
 export interface Repo {

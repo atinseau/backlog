@@ -2,29 +2,95 @@ import type {
   AgentSummary,
   BoardResponse,
   ClaimRecord,
+  CurrentWorkspace,
   OrchestratorState,
   Project,
   Repo,
+  WorkspaceEntry,
   WorkspaceInfo,
 } from "./types.js";
 
 const BASE = "/api/v1";
 
+// Active workspace id used by every api.ts call. App.svelte sets it on mount
+// and on user selection in the WorkspaceSelector. When null, the server falls
+// back to the workspace it was launched with.
+let currentWorkspaceId: string | null = null;
+
+export function setCurrentWorkspaceId(id: string | null): void {
+  currentWorkspaceId = id;
+}
+
+export function getCurrentWorkspaceId(): string | null {
+  return currentWorkspaceId;
+}
+
+export function apiUrl(path: string, query: Record<string, string | undefined> = {}): string {
+  const url = new URL(`${BASE}${path}`, window.location.origin);
+  if (currentWorkspaceId) url.searchParams.set("workspace", currentWorkspaceId);
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
 export async function fetchBoard(opts: { repo?: string; project?: string } = {}): Promise<BoardResponse> {
-  const url = new URL(`${BASE}/board`, window.location.origin);
-  if (opts.repo) url.searchParams.set("repo", opts.repo);
-  if (opts.project) url.searchParams.set("project", opts.project);
-  const response = await fetch(url.toString());
+  const response = await fetch(apiUrl("/board", { repo: opts.repo, project: opts.project }));
   if (!response.ok) {
     throw new Error(`Board fetch failed: ${response.status} ${response.statusText}`);
   }
   return (await response.json()) as BoardResponse;
 }
 
+// Workspaces (registry) -----------------------------------------------------
+
+export async function fetchWorkspacesList(): Promise<WorkspaceEntry[]> {
+  const response = await fetch(apiUrl("/workspaces"));
+  if (!response.ok) throw new Error(`Workspaces fetch failed: ${response.status}`);
+  const json = (await response.json()) as { workspaces: WorkspaceEntry[] };
+  return json.workspaces;
+}
+
+export async function fetchCurrentWorkspace(): Promise<CurrentWorkspace> {
+  const response = await fetch(apiUrl("/workspaces/current"));
+  if (!response.ok) throw new Error(`Current workspace fetch failed: ${response.status}`);
+  return (await response.json()) as CurrentWorkspace;
+}
+
+export async function registerWorkspaceByPath(absolutePath: string): Promise<WorkspaceEntry> {
+  const response = await fetch(apiUrl("/workspaces"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: absolutePath }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Register workspace failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { workspace: WorkspaceEntry };
+  return json.workspace;
+}
+
+export async function unregisterWorkspaceById(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/workspaces/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Unregister workspace failed (${response.status}): ${detail}`);
+  }
+}
+
+export async function touchWorkspaceById(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/workspaces/${encodeURIComponent(id)}/touch`), { method: "PUT" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Touch workspace failed (${response.status}): ${detail}`);
+  }
+}
+
 // Projects ------------------------------------------------------------------
 
 export async function fetchProjects(): Promise<Project[]> {
-  const response = await fetch(`${BASE}/projects`);
+  const response = await fetch(apiUrl("/projects"));
   if (!response.ok) throw new Error(`Projects fetch failed: ${response.status}`);
   const json = (await response.json()) as { projects: Project[] };
   return json.projects;
@@ -40,7 +106,7 @@ export interface CreateProjectInput {
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
-  const response = await fetch(`${BASE}/projects`, {
+  const response = await fetch(apiUrl("/projects"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -64,7 +130,7 @@ export interface UpdateProjectInput {
 }
 
 export async function updateProject(idOrSlug: string, input: UpdateProjectInput): Promise<Project> {
-  const response = await fetch(`${BASE}/projects/${encodeURIComponent(idOrSlug)}`, {
+  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(idOrSlug)}`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -78,7 +144,7 @@ export async function updateProject(idOrSlug: string, input: UpdateProjectInput)
 }
 
 export async function deleteProject(idOrSlug: string): Promise<void> {
-  const response = await fetch(`${BASE}/projects/${encodeURIComponent(idOrSlug)}`, {
+  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(idOrSlug)}`), {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -90,7 +156,7 @@ export async function deleteProject(idOrSlug: string): Promise<void> {
 // Permissions / agents / workspace ------------------------------------------
 
 export async function fetchAgents(): Promise<AgentSummary[]> {
-  const response = await fetch(`${BASE}/agents`);
+  const response = await fetch(apiUrl("/agents"));
   if (!response.ok) throw new Error(`Agents fetch failed: ${response.status}`);
   const json = (await response.json()) as { agents: AgentSummary[] };
   return json.agents;
@@ -109,7 +175,7 @@ export interface UpdateAgentInput {
 }
 
 export async function patchAgent(id: string, input: UpdateAgentInput): Promise<unknown> {
-  const response = await fetch(`${BASE}/agents/${encodeURIComponent(id)}`, {
+  const response = await fetch(apiUrl(`/agents/${encodeURIComponent(id)}`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -122,14 +188,14 @@ export async function patchAgent(id: string, input: UpdateAgentInput): Promise<u
 }
 
 export async function fetchWorkspace(): Promise<WorkspaceInfo> {
-  const response = await fetch(`${BASE}/workspace`);
+  const response = await fetch(apiUrl("/workspace"));
   if (!response.ok) throw new Error(`Workspace fetch failed: ${response.status}`);
   const json = (await response.json()) as { workspace: WorkspaceInfo };
   return json.workspace;
 }
 
 export async function setAutonomyMode(mode: WorkspaceInfo["autonomy_mode"]): Promise<void> {
-  const response = await fetch(`${BASE}/workspace/autonomy`, {
+  const response = await fetch(apiUrl("/workspace/autonomy"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ autonomy_mode: mode }),
@@ -144,7 +210,7 @@ export async function setClaimsConfig(input: {
   ttl_minutes?: number;
   enforce_on_commit?: boolean;
 }): Promise<void> {
-  const response = await fetch(`${BASE}/workspace/claims`, {
+  const response = await fetch(apiUrl("/workspace/claims"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -158,7 +224,7 @@ export async function setClaimsConfig(input: {
 // Repos ---------------------------------------------------------------------
 
 export async function fetchRepos(): Promise<Repo[]> {
-  const response = await fetch(`${BASE}/repos`);
+  const response = await fetch(apiUrl("/repos"));
   if (!response.ok) throw new Error(`Repos fetch failed: ${response.status}`);
   const json = (await response.json()) as { repos: Repo[] };
   return json.repos;
@@ -175,7 +241,7 @@ export interface CreateRepoInput {
 }
 
 export async function createRepo(input: CreateRepoInput): Promise<{ repo: Repo; cloned: boolean }> {
-  const response = await fetch(`${BASE}/repos`, {
+  const response = await fetch(apiUrl("/repos"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -196,7 +262,7 @@ export interface UpdateRepoInput {
 }
 
 export async function updateRepo(id: string, input: UpdateRepoInput): Promise<Repo> {
-  const response = await fetch(`${BASE}/repos/${encodeURIComponent(id)}`, {
+  const response = await fetch(apiUrl(`/repos/${encodeURIComponent(id)}`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -210,9 +276,10 @@ export async function updateRepo(id: string, input: UpdateRepoInput): Promise<Re
 }
 
 export async function deleteRepo(id: string, options: { force?: boolean } = {}): Promise<void> {
-  const url = new URL(`${BASE}/repos/${encodeURIComponent(id)}`, window.location.origin);
-  if (options.force) url.searchParams.set("force", "1");
-  const response = await fetch(url.toString(), { method: "DELETE" });
+  const response = await fetch(
+    apiUrl(`/repos/${encodeURIComponent(id)}`, options.force ? { force: "1" } : {}),
+    { method: "DELETE" },
+  );
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Delete repo failed (${response.status}): ${detail}`);
@@ -222,7 +289,7 @@ export async function deleteRepo(id: string, options: { force?: boolean } = {}):
 // Orchestrator --------------------------------------------------------------
 
 export async function fetchOrchestratorState(): Promise<OrchestratorState> {
-  const response = await fetch(`${BASE}/orchestrator/state`);
+  const response = await fetch(apiUrl("/orchestrator/state"));
   if (!response.ok) throw new Error(`Orchestrator state failed: ${response.status}`);
   const json = (await response.json()) as { state: OrchestratorState };
   return json.state;
@@ -234,7 +301,7 @@ export async function startOrchestrator(input: {
   tick_interval_ms?: number;
   project_id?: string;
 } = {}): Promise<OrchestratorState> {
-  const response = await fetch(`${BASE}/orchestrator/start`, {
+  const response = await fetch(apiUrl("/orchestrator/start"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -248,14 +315,14 @@ export async function startOrchestrator(input: {
 }
 
 export async function pauseOrchestrator(): Promise<OrchestratorState> {
-  const response = await fetch(`${BASE}/orchestrator/pause`, { method: "POST" });
+  const response = await fetch(apiUrl("/orchestrator/pause"), { method: "POST" });
   if (!response.ok) throw new Error(`Pause orchestrator failed: ${response.status}`);
   const json = (await response.json()) as { state: OrchestratorState };
   return json.state;
 }
 
 export async function stopOrchestrator(): Promise<OrchestratorState> {
-  const response = await fetch(`${BASE}/orchestrator/stop`, { method: "POST" });
+  const response = await fetch(apiUrl("/orchestrator/stop"), { method: "POST" });
   if (!response.ok) throw new Error(`Stop orchestrator failed: ${response.status}`);
   const json = (await response.json()) as { state: OrchestratorState };
   return json.state;
@@ -266,7 +333,7 @@ export async function patchOrchestratorConfig(input: {
   auto_pick_agents?: boolean;
   tick_interval_ms?: number;
 }): Promise<OrchestratorState> {
-  const response = await fetch(`${BASE}/orchestrator/config`, {
+  const response = await fetch(apiUrl("/orchestrator/config"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -293,7 +360,7 @@ export interface CreateWorkItemInput {
 }
 
 export async function createWorkItem(input: CreateWorkItemInput): Promise<unknown> {
-  const response = await fetch(`${BASE}/work-items`, {
+  const response = await fetch(apiUrl("/work-items"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -309,7 +376,7 @@ export async function reorderWorkItem(
   id: string,
   input: { before_id?: string; after_id?: string },
 ): Promise<void> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/reorder`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/reorder`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -321,7 +388,7 @@ export async function reorderWorkItem(
 }
 
 export async function assignWorkItemProject(id: string, projectId: string | null): Promise<void> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/project`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/project`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ project_id: projectId }),
@@ -343,7 +410,7 @@ export interface CreateTaskInput {
 }
 
 export async function createTask(input: CreateTaskInput): Promise<unknown> {
-  const response = await fetch(`${BASE}/tasks`, {
+  const response = await fetch(apiUrl("/tasks"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -356,7 +423,7 @@ export async function createTask(input: CreateTaskInput): Promise<unknown> {
 }
 
 export async function reorderTask(id: string, input: { before_id?: string; after_id?: string }): Promise<void> {
-  const response = await fetch(`${BASE}/tasks/${encodeURIComponent(id)}/reorder`, {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/reorder`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -368,7 +435,7 @@ export async function reorderTask(id: string, input: { before_id?: string; after
 }
 
 export async function setTaskEstimate(id: string, seconds: number | null): Promise<void> {
-  const response = await fetch(`${BASE}/tasks/${encodeURIComponent(id)}/estimate`, {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/estimate`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ seconds, source: seconds === null ? undefined : "manual" }),
@@ -380,13 +447,13 @@ export async function setTaskEstimate(id: string, seconds: number | null): Promi
 }
 
 export async function fetchHealth(): Promise<{ ok: boolean; workspace: string; version: string }> {
-  const response = await fetch(`${BASE}/health`);
+  const response = await fetch(apiUrl("/health"));
   if (!response.ok) throw new Error(`Health failed: ${response.status}`);
   return response.json();
 }
 
 export async function moveWorkItem(id: string, to: string): Promise<void> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/move`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/move`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ to }),
@@ -456,7 +523,7 @@ export interface OrchestratePlan {
 }
 
 export async function fetchOrchestratePlan(): Promise<OrchestratePlan> {
-  const response = await fetch(`${BASE}/orchestrate`);
+  const response = await fetch(apiUrl("/orchestrate"));
   if (!response.ok) {
     throw new Error(`Orchestrate failed: ${response.status}`);
   }
@@ -507,7 +574,7 @@ export interface StartRunResult {
 }
 
 export async function startRun(input: StartRunInput): Promise<StartRunResult> {
-  const response = await fetch(`${BASE}/runs`, {
+  const response = await fetch(apiUrl("/runs"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -541,7 +608,7 @@ export type SuggestSplitResult =
   | { ok: false; error: "ai_unavailable" | "suggest_failed" | "no_repos"; detail: string };
 
 export async function suggestSplit(workItemId: string): Promise<SuggestSplitResult> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(workItemId)}/suggest-split`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(workItemId)}/suggest-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}",
@@ -563,7 +630,7 @@ export async function applySplitProposal(
   tasks: ProposedTask[],
   force = false,
 ): Promise<SplitResult> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(workItemId)}/apply-split`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(workItemId)}/apply-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ tasks, force }),
@@ -576,7 +643,7 @@ export async function applySplitProposal(
 }
 
 export async function splitWorkItem(id: string, input: SplitInput): Promise<SplitResult> {
-  const response = await fetch(`${BASE}/work-items/${encodeURIComponent(id)}/split`, {
+  const response = await fetch(apiUrl(`/work-items/${encodeURIComponent(id)}/split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -589,17 +656,19 @@ export async function splitWorkItem(id: string, input: SplitInput): Promise<Spli
 }
 
 export async function fetchAllClaims(opts: { repo?: string; archived?: boolean } = {}): Promise<ClaimRecord[]> {
-  const url = new URL(`${BASE}/claims`, window.location.origin);
-  if (opts.repo) url.searchParams.set("repo", opts.repo);
-  if (opts.archived) url.searchParams.set("archived", "1");
-  const response = await fetch(url.toString());
+  const response = await fetch(
+    apiUrl("/claims", {
+      repo: opts.repo,
+      archived: opts.archived ? "1" : undefined,
+    }),
+  );
   if (!response.ok) throw new Error(`Claims fetch failed: ${response.status}`);
   const json = (await response.json()) as { claims: ClaimRecord[] };
   return json.claims;
 }
 
 export async function archiveClaim(id: string): Promise<void> {
-  const response = await fetch(`${BASE}/claims/${encodeURIComponent(id)}`, { method: "DELETE" });
+  const response = await fetch(apiUrl(`/claims/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`Archive claim failed (${response.status}): ${detail}`);
@@ -607,7 +676,7 @@ export async function archiveClaim(id: string): Promise<void> {
 }
 
 export async function createClaim(input: ClaimCreateInput): Promise<ClaimCreateResult> {
-  const response = await fetch(`${BASE}/claims`, {
+  const response = await fetch(apiUrl("/claims"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
