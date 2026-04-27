@@ -316,6 +316,67 @@ class JiraConnector implements SourceConnector {
   }
 }
 
+class GithubConnector implements SourceConnector {
+  constructor(private readonly source: SourceConfig) {}
+
+  async validate() {
+    const repo = String(this.source.config.repo ?? "");
+    const tokenEnv = String(this.source.auth.refs.token ?? "");
+    const token = tokenEnv ? process.env[tokenEnv] : undefined;
+    return {
+      ok: Boolean(repo && token),
+      details: [repo || "<missing repo>", tokenEnv || "<missing token env>"],
+    };
+  }
+
+  async pull(): Promise<Task[]> {
+    const repo = String(this.source.config.repo ?? "");
+    const labels = String(this.source.config.labels ?? "");
+    const state = String(this.source.config.state ?? "open");
+    const tokenEnv = String(this.source.auth.refs.token ?? "");
+    const token = tokenEnv ? process.env[tokenEnv] : undefined;
+    if (!repo || !token) {
+      throw new Error(`Source ${this.source.id} is missing GitHub repo or token.`);
+    }
+    const url = new URL(`https://api.github.com/repos/${repo}/issues`);
+    url.searchParams.set("state", state);
+    url.searchParams.set("per_page", "100");
+    if (labels) url.searchParams.set("labels", labels);
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`GitHub sync failed for ${this.source.id}: ${response.status} ${response.statusText}`);
+    }
+    const issues = (await response.json()) as Array<{
+      number: number;
+      title: string;
+      body?: string | null;
+      state: string;
+      labels?: Array<{ name: string } | string>;
+      pull_request?: unknown;
+      html_url?: string;
+    }>;
+    return issues
+      .filter((issue) => !issue.pull_request)
+      .map((issue) => {
+        const externalId = `${repo}#${issue.number}`;
+        const item = baseImportedWorkItem(this.source, externalId, issue.title);
+        if (issue.body) item.description = issue.body;
+        item.status = issue.state === "closed" ? "done" : "backlog";
+        item.labels = (issue.labels ?? []).map((entry) =>
+          typeof entry === "string" ? entry : entry.name,
+        );
+        if (issue.html_url) item.source_links[0]!.url = issue.html_url;
+        return item;
+      });
+  }
+}
+
 function mapBacklogStatusToJiraStatus(status: Task["status"]): string | null {
   switch (status) {
     case "backlog":
@@ -344,6 +405,85 @@ export function createConnector(source: SourceConfig, projectRoot: string): Sour
       return new CsvConnector(source, projectRoot);
     case "jira":
       return new JiraConnector(source);
+    case "github":
+      return new GithubConnector(source);
   }
   throw new Error(`Unsupported source kind: ${String(source.kind)}`);
+}
+
+// GitHub helpers used by the cloning workflow (independent of source connectors).
+
+export interface GithubRepoSummary {
+  full_name: string;
+  description: string | null;
+  private: boolean;
+  default_branch: string;
+  clone_url: string;
+  ssh_url: string;
+  html_url: string;
+  pushed_at: string;
+}
+
+export async function listGithubRepos(token: string): Promise<GithubRepoSummary[]> {
+  const repos: GithubRepoSummary[] = [];
+  let page = 1;
+  while (page <= 5) {
+    const url = new URL("https://api.github.com/user/repos");
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("sort", "pushed");
+    url.searchParams.set("affiliation", "owner,collaborator,organization_member");
+    url.searchParams.set("page", String(page));
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`GitHub /user/repos failed: ${response.status} ${response.statusText} ${detail.slice(0, 200)}`);
+    }
+    const batch = (await response.json()) as GithubRepoSummary[];
+    repos.push(...batch);
+    if (batch.length < 100) break;
+    page += 1;
+  }
+  return repos;
+}
+
+export async function testGithubToken(token: string): Promise<{ login: string }> {
+  const response = await fetch("https://api.github.com/user", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub token check failed: ${response.status} ${response.statusText}`);
+  }
+  const user = (await response.json()) as { login: string };
+  return { login: user.login };
+}
+
+export interface JiraTestInput {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+}
+
+export async function testJiraConnection(input: JiraTestInput): Promise<{ accountId: string; displayName: string }> {
+  const auth = Buffer.from(`${input.email}:${input.apiToken}`).toString("base64");
+  const response = await fetch(new URL("/rest/api/3/myself", input.baseUrl), {
+    headers: {
+      Authorization: `Basic ${auth}`,
+      Accept: "application/json",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Jira /myself failed: ${response.status} ${response.statusText}`);
+  }
+  const user = (await response.json()) as { accountId: string; displayName: string };
+  return { accountId: user.accountId, displayName: user.displayName };
 }

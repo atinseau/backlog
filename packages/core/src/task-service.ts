@@ -1,3 +1,4 @@
+import type { SourceLink } from "@backlog/schemas";
 import { taskStatusSchema, type Task, type TaskStatus } from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
@@ -10,6 +11,7 @@ export interface CreateWorkItemInput {
   repoTargets?: string[];
   labels?: string[];
   acceptanceCriteria?: string[];
+  sourceLinks?: SourceLink[];
 }
 
 export interface UpdateWorkItemInput {
@@ -34,7 +36,7 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
     id: makeId("WI"),
     title: input.title,
     ...(input.description ? { description: input.description } : {}),
-    source_links: [],
+    source_links: input.sourceLinks ?? [],
     status: "backlog",
     priority: input.priority ?? "P2",
     labels: input.labels ?? [],

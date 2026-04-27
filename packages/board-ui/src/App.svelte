@@ -5,6 +5,7 @@
   import CommitsView from "./lib/CommitsView.svelte";
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
+  import IntegrationsView from "./lib/IntegrationsView.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
@@ -49,6 +50,7 @@
   let connected = $state(false);
   let claimsViewOpen = $state(false);
   let commitsViewOpen = $state(false);
+  let integrationsOpen = $state(false);
   let reposViewOpen = $state(false);
   let permissionsViewOpen = $state(false);
   let createTaskOpen = $state(false);
@@ -282,6 +284,7 @@
     <LocaleToggle />
     <button onclick={() => (claimsViewOpen = true)} title={t("topbar.activity")}>📋 {t("topbar.activity")}</button>
     <button onclick={() => (commitsViewOpen = true)} title={t("topbar.commits")}>{t("topbar.commits")}</button>
+    <button onclick={() => (integrationsOpen = true)} title={t("topbar.integrations")}>{t("topbar.integrations")}</button>
     <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
     <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
     <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
@@ -327,6 +330,16 @@
 
 {#if commitsViewOpen}
   <CommitsView onClose={() => (commitsViewOpen = false)} />
+{/if}
+
+{#if integrationsOpen}
+  <IntegrationsView
+    onClose={() => (integrationsOpen = false)}
+    onChanged={() => {
+      refreshRepos();
+      if (!connected) refresh();
+    }}
+  />
 {/if}
 
 {#if permissionsViewOpen}

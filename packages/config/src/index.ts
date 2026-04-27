@@ -6,3 +6,4 @@ export * from "./shim.js";
 export * from "./user-paths.js";
 export * from "./project-id.js";
 export * from "./project-registry.js";
+export * from "./secrets.js";

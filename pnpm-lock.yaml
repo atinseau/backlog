@@ -208,6 +208,9 @@ importers:
       '@backlog/config':
         specifier: workspace:*
         version: link:../config
+      '@backlog/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@backlog/core':
         specifier: workspace:*
         version: link:../core

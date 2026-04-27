@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const sourceKindSchema = z.enum(["jira", "markdown", "csv"]);
+export const sourceKindSchema = z.enum(["jira", "github", "markdown", "csv"]);
 
 export const sourceConfigSchema = z.object({
   id: z.string().min(1),

@@ -9,6 +9,7 @@ import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
 import { commitsRoutes } from "./routes/commits.js";
 import { eventsRoutes } from "./routes/events.js";
+import { integrationsRoutes } from "./routes/integrations.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
@@ -99,6 +100,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", projectRoutes());
   app.route("/api/v1", projectsRoutes(options.workspace));
   app.route("/api/v1", commitsRoutes());
+  app.route("/api/v1", integrationsRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 
   void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {

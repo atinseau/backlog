@@ -24,6 +24,7 @@
     "@anthropic-ai/sdk": "^0.91.1",
     "@backlog/claims": "workspace:*",
     "@backlog/config": "workspace:*",
+    "@backlog/connectors": "workspace:*",
     "@backlog/core": "workspace:*",
     "@backlog/git": "workspace:*",
     "@backlog/schemas": "workspace:*",

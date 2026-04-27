@@ -49,6 +49,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "orchestrator.json",
       "durations-cache.json",
       "cache/",
+      "secrets.json",
       "*.tmp",
       "",
       "# Local shim used by the pre-commit hook.",

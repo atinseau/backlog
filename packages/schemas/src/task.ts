@@ -16,6 +16,7 @@ export const workPrioritySchema = z.enum(["P0", "P1", "P2", "P3"]);
 export const sourceLinkSchema = z.object({
   kind: z.enum([
     "jira",
+    "github",
     "notion",
     "trello",
     "asana",

@@ -643,3 +643,184 @@ export async function fetchCommits(limit = 50): Promise<CommitEntry[]> {
   const json = (await response.json()) as { commits: CommitEntry[] };
   return json.commits;
 }
+
+// Integrations: GitHub + Jira ----------------------------------------------
+
+export interface GithubStatus {
+  connected: boolean;
+  token_hint: string | null;
+}
+
+export async function fetchGithubStatus(): Promise<GithubStatus> {
+  const response = await fetch(apiUrl("/integrations/github/status"));
+  if (!response.ok) throw new Error(`GitHub status failed: ${response.status}`);
+  return (await response.json()) as GithubStatus;
+}
+
+export async function setGithubPat(token: string): Promise<{ login: string }> {
+  const response = await fetch(apiUrl("/integrations/github/pat"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as { login: string };
+}
+
+export async function clearGithubPat(): Promise<void> {
+  await fetch(apiUrl("/integrations/github/pat"), { method: "DELETE" });
+}
+
+export interface GithubRepoSummary {
+  full_name: string;
+  description: string | null;
+  private: boolean;
+  default_branch: string;
+  clone_url: string;
+  ssh_url: string;
+  html_url: string;
+  pushed_at: string;
+}
+
+export async function listGithubRepos(): Promise<GithubRepoSummary[]> {
+  const response = await fetch(apiUrl("/integrations/github/repos"));
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return (json as { repos: GithubRepoSummary[] }).repos;
+}
+
+export async function cloneGithubRepo(input: {
+  full_name: string;
+  default_branch?: string;
+  id?: string;
+  use_ssh?: boolean;
+}): Promise<{ repo: Repo; cloned: boolean }> {
+  const response = await fetch(apiUrl("/integrations/github/clone"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as { repo: Repo; cloned: boolean };
+}
+
+export async function addGithubSource(input: {
+  id: string;
+  repo: string;
+  labels?: string;
+  state?: "open" | "closed" | "all";
+}): Promise<unknown> {
+  const response = await fetch(apiUrl("/integrations/github/source"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json;
+}
+
+export interface JiraTestResult {
+  ok: boolean;
+  account_id: string;
+  display_name: string;
+}
+
+export async function testJira(input: {
+  base_url: string;
+  email: string;
+  api_token: string;
+}): Promise<JiraTestResult> {
+  const response = await fetch(apiUrl("/integrations/jira/test"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as JiraTestResult;
+}
+
+export async function addJiraSource(input: {
+  id: string;
+  base_url: string;
+  email: string;
+  api_token: string;
+  jql?: string;
+}): Promise<unknown> {
+  const response = await fetch(apiUrl("/integrations/jira/source"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json;
+}
+
+export interface SourceSummary {
+  id: string;
+  kind: "jira" | "github" | "markdown" | "csv";
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+export async function listSources(): Promise<SourceSummary[]> {
+  const response = await fetch(apiUrl("/integrations/sources"));
+  if (!response.ok) throw new Error(`Sources fetch failed: ${response.status}`);
+  const json = (await response.json()) as { sources: SourceSummary[] };
+  return json.sources;
+}
+
+export async function deleteSource(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/integrations/sources/${encodeURIComponent(id)}`), {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(`Delete source failed: ${response.status}`);
+}
+
+export interface SyncResult {
+  source_id: string;
+  pulled_total: number;
+  created: number;
+  skipped: number;
+}
+
+export async function syncSource(id: string): Promise<SyncResult> {
+  const response = await fetch(apiUrl(`/integrations/sources/${encodeURIComponent(id)}/sync`), {
+    method: "POST",
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as SyncResult;
+}
