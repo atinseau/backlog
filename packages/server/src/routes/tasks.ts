@@ -8,7 +8,7 @@ import {
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const moveBodySchema = z.object({
   to: z.enum([
@@ -60,10 +60,11 @@ const progressBodySchema = z.object({
   percent: z.number().min(0).max(100),
 });
 
-export function tasksRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function tasksRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.post("/tasks", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -95,6 +96,7 @@ export function tasksRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/tasks/:id/move", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = moveBodySchema.safeParse(raw);
@@ -111,6 +113,7 @@ export function tasksRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/tasks/:id/reorder", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => ({}));
     const parsed = reorderBodySchema.safeParse(raw ?? {});
@@ -130,6 +133,7 @@ export function tasksRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/tasks/:id/estimate", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = estimateBodySchema.safeParse(raw);
@@ -148,6 +152,7 @@ export function tasksRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/tasks/:id/progress", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = progressBodySchema.safeParse(raw);

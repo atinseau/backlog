@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { initLayout } from "@backlog/config";
+import { ensureWorkspaceId, initLayout } from "@backlog/config";
 import { describe, expect, it } from "vitest";
 import type { ServerWorkspace } from "../workspace-context.js";
 import { workspacesRoutes } from "./workspaces.js";
@@ -13,11 +13,13 @@ function tmpRegistryDir(): string {
 function makeWorkspace(name = "demo"): { root: string; serverWorkspace: ServerWorkspace } {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `backlog-routes-ws-${name}-`));
   initLayout({ root, workspaceName: name });
+  const backlogDir = path.join(root, ".backlog");
   return {
     root,
     serverWorkspace: {
       root,
-      backlogDir: path.join(root, ".backlog"),
+      backlogDir,
+      workspace_id: ensureWorkspaceId(backlogDir),
       resolvedFrom: root,
     },
   };

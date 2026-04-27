@@ -21,7 +21,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const workspace = resolveWorkspace(options.workspace);
   const appOptions: { workspace: ServerWorkspace; uiDistDir?: string } = { workspace };
   if (options.uiDistDir) appOptions.uiDistDir = options.uiDistDir;
-  const { app, bus } = buildApp(appOptions);
+  const { app, buses } = buildApp(appOptions);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 7878;
 
@@ -39,7 +39,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     workspace,
     close: () =>
       new Promise<void>((closeResolve, closeReject) => {
-        bus.stop();
+        buses.stopAll();
         // Drop every open socket — without this, long-lived SSE streams hold
         // server.close() open indefinitely on Ctrl+C.
         const closeable = server as unknown as { closeAllConnections?: () => void };
@@ -63,3 +63,4 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
 
 export { buildApp, VERSION };
 export type { ServerWorkspace } from "./workspace-context.js";
+export type { AppEnv } from "./workspace-resolver.js";

@@ -8,7 +8,7 @@ import {
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const slugSchema = z
   .string()
@@ -36,22 +36,25 @@ const updateBodySchema = z
   })
   .strict();
 
-export function projectsRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function projectsRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/projects", (c) => {
+    const workspace = c.get("workspace");
     const includeArchived = c.req.query("archived") === "1";
     const projects = listProjects(workspace.backlogDir).filter((p) => includeArchived || !p.archived);
     return c.json({ projects });
   });
 
   app.get("/projects/:idOrSlug", (c) => {
+    const workspace = c.get("workspace");
     const project = getProject(workspace.backlogDir, c.req.param("idOrSlug"));
     if (!project) return c.json({ error: "unknown_project" }, 404);
     return c.json({ project });
   });
 
   app.post("/projects", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -75,6 +78,7 @@ export function projectsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/projects/:idOrSlug", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -103,6 +107,7 @@ export function projectsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/projects/:idOrSlug/archive", (c) => {
+    const workspace = c.get("workspace");
     try {
       const project = archiveProject(workspace.backlogDir, c.req.param("idOrSlug"));
       return c.json({ project });
@@ -113,6 +118,7 @@ export function projectsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.delete("/projects/:idOrSlug", (c) => {
+    const workspace = c.get("workspace");
     try {
       const project = removeProject(workspace.backlogDir, c.req.param("idOrSlug"));
       return c.json({ project });

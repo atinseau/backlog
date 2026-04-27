@@ -10,7 +10,7 @@ import type { Agent, ClaimRecord } from "@backlog/schemas";
 import { Hono } from "hono";
 import { z } from "zod";
 import { computeRetryAfter } from "../lib/retry-after.js";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 interface EnrichedClaim extends ClaimRecord {
   agent?: {
@@ -62,10 +62,11 @@ function buildConflictResponse(blocking: ClaimRecord) {
   };
 }
 
-export function claimsRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function claimsRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/claims", (c) => {
+    const workspace = c.get("workspace");
     const archivedFlag = c.req.query("archived");
     const archivedOnly = archivedFlag === "1" || archivedFlag === "true";
     const claims = archivedOnly
@@ -83,12 +84,12 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.get("/claims/check", (c) => {
+    const workspace = c.get("workspace");
     const repo = c.req.query("repo");
     const path = c.req.query("path");
     if (!repo || !path) {
       return c.json({ error: "missing_query", required: ["repo", "path"] }, 400);
     }
-    const claims = listActiveClaims(workspace.backlogDir);
     const candidate = {
       id: "__check__",
       repo,
@@ -117,6 +118,7 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/claims", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createClaimBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -162,6 +164,7 @@ export function claimsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.delete("/claims/:id", (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     try {
       const archived = archiveClaim(workspace.backlogDir, id);

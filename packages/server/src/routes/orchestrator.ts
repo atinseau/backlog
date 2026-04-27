@@ -7,7 +7,7 @@ import {
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const startBodySchema = z
   .object({
@@ -26,14 +26,16 @@ const configBodySchema = z
   })
   .strict();
 
-export function orchestratorRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function orchestratorRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/orchestrator/state", (c) => {
+    const workspace = c.get("workspace");
     return c.json({ state: getOrchestratorState(workspace.backlogDir) });
   });
 
   app.post("/orchestrator/start", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => ({}));
     const parsed = startBodySchema.safeParse(raw ?? {});
     if (!parsed.success) {
@@ -54,10 +56,12 @@ export function orchestratorRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/orchestrator/pause", (c) => {
+    const workspace = c.get("workspace");
     return c.json({ state: pauseOrchestrator(workspace.backlogDir) });
   });
 
   app.post("/orchestrator/stop", async (c) => {
+    const workspace = c.get("workspace");
     try {
       const state = await stopOrchestrator(workspace.backlogDir);
       return c.json({ state });
@@ -68,6 +72,7 @@ export function orchestratorRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/orchestrator/config", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = configBodySchema.safeParse(raw);
     if (!parsed.success) {

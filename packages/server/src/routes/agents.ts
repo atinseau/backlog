@@ -1,7 +1,7 @@
 import { listActiveRuns, listAgents, updateAgent } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const updateBodySchema = z
   .object({
@@ -17,10 +17,11 @@ const updateBodySchema = z
   })
   .strict();
 
-export function agentsRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function agentsRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/agents", (c) => {
+    const workspace = c.get("workspace");
     const agents = listAgents(workspace.backlogDir);
     const runs = listActiveRuns(workspace.backlogDir);
     const summary = agents.map((agent) => {
@@ -44,6 +45,7 @@ export function agentsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/agents/:id", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {

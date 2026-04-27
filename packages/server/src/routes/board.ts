@@ -19,6 +19,7 @@ import type {
 import { Hono } from "hono";
 import { COLUMN_KEYS, type ColumnKey, statusToColumn } from "../lib/columns.js";
 import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 interface ClaimSummary {
   id: string;
@@ -273,9 +274,10 @@ function priorityOrder(priority: WorkItem["priority"]): number {
   }
 }
 
-export function boardRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function boardRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
   app.get("/board", (c) => {
+    const workspace = c.get("workspace");
     const repo = c.req.query("repo") ?? undefined;
     const projectIdOrSlug = c.req.query("project") ?? undefined;
     return c.json(buildBoard(workspace, { repo, projectIdOrSlug }));

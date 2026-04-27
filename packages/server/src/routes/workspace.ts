@@ -1,7 +1,7 @@
 import { loadConfig, saveConfig } from "@backlog/config";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const autonomyBodySchema = z.object({
   autonomy_mode: z.enum(["observe", "assist", "delegate", "autopilot"]),
@@ -14,13 +14,15 @@ const claimsBodySchema = z
   })
   .strict();
 
-export function workspaceRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function workspaceRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/workspace", (c) => {
+    const workspace = c.get("workspace");
     const config = loadConfig(workspace.backlogDir);
     return c.json({
       workspace: {
+        id: workspace.workspace_id,
         name: config.workspace_name,
         mode: config.workspace_mode,
         default_branch: config.default_branch,
@@ -32,6 +34,7 @@ export function workspaceRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/workspace/autonomy", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = autonomyBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -44,6 +47,7 @@ export function workspaceRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/workspace/claims", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = claimsBodySchema.safeParse(raw);
     if (!parsed.success) {

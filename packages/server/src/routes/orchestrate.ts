@@ -9,6 +9,7 @@ import {
 import type { Task, WorkItem } from "@backlog/schemas";
 import { Hono } from "hono";
 import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 interface EnrichedDecision {
   task_id: string;
@@ -129,10 +130,11 @@ function buildResponse(workspace: ServerWorkspace, plan: ExecutionPlan): Orchest
   };
 }
 
-export function orchestrateRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function orchestrateRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/orchestrate", (c) => {
+    const workspace = c.get("workspace");
     try {
       const config = loadConfig(workspace.backlogDir);
       const workItem = c.req.query("work_item");

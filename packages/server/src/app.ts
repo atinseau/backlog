@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hydrateOrchestrator } from "@backlog/core";
 import { Hono } from "hono";
-import { EventBus } from "./lib/event-bus.js";
+import { EventBusRegistry } from "./lib/event-bus-registry.js";
 import { agentsRoutes } from "./routes/agents.js";
 import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
@@ -20,6 +20,7 @@ import { tasksRoutes } from "./routes/tasks.js";
 import { workItemsRoutes } from "./routes/work-items.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerWorkspace } from "./workspace-context.js";
+import { type AppEnv, WorkspaceResolver } from "./workspace-resolver.js";
 
 declare const __BACKLOG_SERVER_VERSION__: string;
 const VERSION =
@@ -31,8 +32,8 @@ export interface BuildAppOptions {
 }
 
 export interface BuildAppResult {
-  app: Hono;
-  bus: EventBus;
+  app: Hono<AppEnv>;
+  buses: EventBusRegistry;
 }
 
 const PLACEHOLDER_HTML = `<!doctype html>
@@ -67,9 +68,9 @@ function defaultUiDistDir(): string {
 }
 
 export function buildApp(options: BuildAppOptions): BuildAppResult {
-  const app = new Hono();
-  const bus = new EventBus();
-  bus.start(options.workspace.backlogDir);
+  const app = new Hono<AppEnv>();
+  const buses = new EventBusRegistry();
+  const resolver = new WorkspaceResolver(options.workspace);
 
   app.use("*", async (c, next) => {
     const start = Date.now();
@@ -80,20 +81,25 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
     }
   });
 
-  app.route("/api/v1", healthRoutes(options.workspace, VERSION));
-  app.route("/api/v1", boardRoutes(options.workspace));
-  app.route("/api/v1", claimsRoutes(options.workspace));
-  app.route("/api/v1", agentsRoutes(options.workspace));
-  app.route("/api/v1", workItemsRoutes(options.workspace));
-  app.route("/api/v1", tasksRoutes(options.workspace));
-  app.route("/api/v1", orchestrateRoutes(options.workspace));
-  app.route("/api/v1", orchestratorRoutes(options.workspace));
-  app.route("/api/v1", projectsRoutes(options.workspace));
-  app.route("/api/v1", reposRoutes(options.workspace));
-  app.route("/api/v1", runsRoutes(options.workspace));
-  app.route("/api/v1", workspaceRoutes(options.workspace));
+  // Resolves ?workspace=<wid> (or X-Backlog-Workspace header) on every API
+  // request, falling back to the default workspace the server was launched
+  // with. Replies 404 if the requested workspace isn't in the registry.
+  app.use("/api/v1/*", resolver.middleware());
+
+  app.route("/api/v1", healthRoutes(VERSION));
+  app.route("/api/v1", boardRoutes());
+  app.route("/api/v1", claimsRoutes());
+  app.route("/api/v1", agentsRoutes());
+  app.route("/api/v1", workItemsRoutes());
+  app.route("/api/v1", tasksRoutes());
+  app.route("/api/v1", orchestrateRoutes());
+  app.route("/api/v1", orchestratorRoutes());
+  app.route("/api/v1", projectsRoutes());
+  app.route("/api/v1", reposRoutes());
+  app.route("/api/v1", runsRoutes());
+  app.route("/api/v1", workspaceRoutes());
   app.route("/api/v1", workspacesRoutes(options.workspace));
-  app.route("/api/v1", eventsRoutes(bus));
+  app.route("/api/v1", eventsRoutes(buses));
 
   void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {
     if (process.env.BACKLOG_SERVER_LOG === "1") {
@@ -110,7 +116,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
 
   app.notFound((c) => c.json({ error: "not_found", path: c.req.path }, 404));
 
-  return { app, bus };
+  return { app, buses };
 }
 
 export { VERSION };

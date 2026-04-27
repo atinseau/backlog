@@ -1,7 +1,7 @@
 import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const createBodySchema = z.object({
   id: z.string().min(1).optional(),
@@ -23,20 +23,23 @@ const updateBodySchema = z
   })
   .strict();
 
-export function reposRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function reposRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/repos", (c) => {
+    const workspace = c.get("workspace");
     return c.json({ repos: listRepos(workspace.backlogDir) });
   });
 
   app.get("/repos/:id", (c) => {
+    const workspace = c.get("workspace");
     const repo = getRepo(workspace.backlogDir, c.req.param("id"));
     if (!repo) return c.json({ error: "unknown_repo" }, 404);
     return c.json({ repo });
   });
 
   app.post("/repos", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -77,6 +80,7 @@ export function reposRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/repos/:id", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -101,6 +105,7 @@ export function reposRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.delete("/repos/:id", async (c) => {
+    const workspace = c.get("workspace");
     const force = c.req.query("force") === "1" || c.req.query("force") === "true";
     try {
       const repo = removeRepo(workspace.backlogDir, c.req.param("id"), { force });

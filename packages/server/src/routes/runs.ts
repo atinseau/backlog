@@ -6,7 +6,7 @@ import {
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const startBodySchema = z.object({
   work_item_id: z.string().min(1).optional(),
@@ -16,15 +16,17 @@ const startBodySchema = z.object({
   approve: z.boolean().optional(),
 });
 
-export function runsRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function runsRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.get("/runs", (c) => {
+    const workspace = c.get("workspace");
     const runs = listActiveRuns(workspace.backlogDir);
     return c.json({ count: runs.length, runs });
   });
 
   app.post("/runs", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = startBodySchema.safeParse(raw ?? {});
     if (!parsed.success) {

@@ -13,7 +13,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { AiSplitterUnavailableError, suggestSplit } from "../lib/ai-splitter.js";
-import type { ServerWorkspace } from "../workspace-context.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const moveBodySchema = z.object({
   to: z.enum([
@@ -80,10 +80,11 @@ const applySplitBodySchema = z.object({
   force: z.boolean().optional(),
 });
 
-export function workItemsRoutes(workspace: ServerWorkspace): Hono {
-  const app = new Hono();
+export function workItemsRoutes(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
   app.post("/work-items", async (c) => {
+    const workspace = c.get("workspace");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -113,6 +114,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/work-items/:id/move", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = moveBodySchema.safeParse(raw);
@@ -129,6 +131,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/work-items/:id/split", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = splitBodySchema.safeParse(raw ?? {});
@@ -164,6 +167,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/work-items/:id/suggest-split", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     try {
       const config = loadConfig(workspace.backlogDir);
@@ -201,6 +205,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/work-items/:id/apply-split", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = applySplitBodySchema.safeParse(raw);
@@ -235,6 +240,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.post("/work-items/:id/reorder", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => ({}));
     const parsed = reorderBodySchema.safeParse(raw ?? {});
@@ -254,6 +260,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/work-items/:id/project", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = projectAssignBodySchema.safeParse(raw);
@@ -270,6 +277,7 @@ export function workItemsRoutes(workspace: ServerWorkspace): Hono {
   });
 
   app.patch("/work-items/:id/estimate", async (c) => {
+    const workspace = c.get("workspace");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = estimateBodySchema.safeParse(raw);

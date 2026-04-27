@@ -1,19 +1,22 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { EventBus } from "../lib/event-bus.js";
+import type { EventBusRegistry } from "../lib/event-bus-registry.js";
+import type { AppEnv } from "../workspace-resolver.js";
 
 const HEARTBEAT_MS = 25_000;
 
-export function eventsRoutes(bus: EventBus): Hono {
-  const app = new Hono();
+export function eventsRoutes(buses: EventBusRegistry): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
 
-  app.get("/events", (c) =>
-    streamSSE(c, async (stream) => {
+  app.get("/events", (c) => {
+    const workspace = c.get("workspace");
+    const bus = buses.get(workspace);
+    return streamSSE(c, async (stream) => {
       let id = 0;
       await stream.writeSSE({
         event: "ready",
         id: String(id++),
-        data: JSON.stringify({ ts: new Date().toISOString() }),
+        data: JSON.stringify({ ts: new Date().toISOString(), workspace_id: workspace.workspace_id }),
       });
 
       const unsubscribe = bus.onBoard(async (event) => {
@@ -45,8 +48,8 @@ export function eventsRoutes(bus: EventBus): Hono {
       await new Promise<void>((resolve) => {
         stream.onAbort(resolve);
       });
-    }),
-  );
+    });
+  });
 
   return app;
 }
