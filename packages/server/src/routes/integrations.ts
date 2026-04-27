@@ -134,6 +134,96 @@ export function integrationsRoutes(): Hono<AppEnv> {
     return c.json({ ok: true });
   });
 
+  // GitHub Device Flow ---------------------------------------------------
+  // Lets the user click "Connect" instead of pasting a PAT. Requires a
+  // public GitHub OAuth App / GitHub App client_id; we never need a secret
+  // because Device Flow is designed for native apps.
+
+  app.get("/integrations/github/oauth/config", (c) => {
+    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID ?? null;
+    return c.json({
+      device_flow_available: clientId !== null,
+      pat_url: "https://github.com/settings/tokens/new?scopes=repo,read:user&description=Backlog%20Local",
+    });
+  });
+
+  app.post("/integrations/github/oauth/start", async (c) => {
+    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return c.json(
+        { error: "device_flow_unavailable", detail: "Set BACKLOG_GITHUB_CLIENT_ID env to enable one-click GitHub auth." },
+        400,
+      );
+    }
+    const response = await fetch("https://github.com/login/device/code", {
+      method: "POST",
+      headers: { Accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, scope: "repo read:user" }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return c.json({ error: "device_start_failed", detail: detail.slice(0, 200) }, 502);
+    }
+    const data = (await response.json()) as {
+      device_code: string;
+      user_code: string;
+      verification_uri: string;
+      expires_in: number;
+      interval: number;
+    };
+    return c.json({
+      device_code: data.device_code,
+      user_code: data.user_code,
+      verification_uri: data.verification_uri,
+      expires_in: data.expires_in,
+      interval: data.interval,
+    });
+  });
+
+  app.post("/integrations/github/oauth/poll", async (c) => {
+    const clientId = process.env.BACKLOG_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      return c.json({ error: "device_flow_unavailable" }, 400);
+    }
+    const raw = await c.req.json().catch(() => null);
+    const parsed = z.object({ device_code: z.string().min(8) }).safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body" }, 400);
+    }
+    const response = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { Accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        device_code: parsed.data.device_code,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
+    });
+    const json = (await response.json()) as {
+      access_token?: string;
+      error?: string;
+      error_description?: string;
+    };
+    if (json.access_token) {
+      const project = c.get("workspace");
+      try {
+        const user = await testGithubToken(json.access_token);
+        setSecret(project.backlogDir, GITHUB_TOKEN_KEY, json.access_token);
+        return c.json({ status: "ok", login: user.login });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return c.json({ status: "verify_failed", detail: message }, 400);
+      }
+    }
+    if (json.error === "authorization_pending" || json.error === "slow_down") {
+      return c.json({ status: "pending", error: json.error });
+    }
+    return c.json(
+      { status: "failed", error: json.error ?? "unknown", detail: json.error_description ?? null },
+      400,
+    );
+  });
+
   app.get("/integrations/github/repos", async (c) => {
     const project = c.get("workspace");
     const token = getSecret(project.backlogDir, GITHUB_TOKEN_KEY);

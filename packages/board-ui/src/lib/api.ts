@@ -697,6 +697,51 @@ export async function fetchGithubStatus(): Promise<GithubStatus> {
   return (await response.json()) as GithubStatus;
 }
 
+export interface GithubOauthConfig {
+  device_flow_available: boolean;
+  pat_url: string;
+}
+
+export async function fetchGithubOauthConfig(): Promise<GithubOauthConfig> {
+  const response = await fetch(apiUrl("/integrations/github/oauth/config"));
+  if (!response.ok) throw new Error(`GitHub OAuth config failed: ${response.status}`);
+  return (await response.json()) as GithubOauthConfig;
+}
+
+export interface GithubDeviceStart {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+}
+
+export async function startGithubDeviceFlow(): Promise<GithubDeviceStart> {
+  const response = await fetch(apiUrl("/integrations/github/oauth/start"), { method: "POST" });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? (json as { detail: string }).detail
+      : `HTTP ${response.status}`);
+  }
+  return json as GithubDeviceStart;
+}
+
+export type GithubDevicePoll =
+  | { status: "ok"; login: string }
+  | { status: "pending"; error: "authorization_pending" | "slow_down" }
+  | { status: "failed"; error: string; detail?: string | null }
+  | { status: "verify_failed"; detail?: string };
+
+export async function pollGithubDeviceFlow(deviceCode: string): Promise<GithubDevicePoll> {
+  const response = await fetch(apiUrl("/integrations/github/oauth/poll"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ device_code: deviceCode }),
+  });
+  return (await response.json()) as GithubDevicePoll;
+}
+
 export async function setGithubPat(token: string): Promise<{ login: string }> {
   const response = await fetch(apiUrl("/integrations/github/pat"), {
     method: "POST",

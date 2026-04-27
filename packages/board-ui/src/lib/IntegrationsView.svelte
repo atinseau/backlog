@@ -6,17 +6,23 @@
     clearGithubPat,
     cloneGithubRepo,
     deleteSource,
+    fetchGithubOauthConfig,
     fetchGithubStatus,
     listGithubRepos,
     listSources,
+    pollGithubDeviceFlow,
     setGithubPat,
+    startGithubDeviceFlow,
     syncSource,
     testJira,
+    type GithubDeviceStart,
+    type GithubOauthConfig,
     type GithubRepoSummary,
     type GithubStatus,
     type SourceSummary,
     type SyncResult,
   } from "./api.js";
+  import { onDestroy } from "svelte";
 
   interface Props {
     onClose: () => void;
@@ -29,6 +35,7 @@
 
   // GitHub state
   let ghStatus = $state<GithubStatus | null>(null);
+  let ghOauthConfig = $state<GithubOauthConfig | null>(null);
   let ghToken = $state("");
   let ghConnecting = $state(false);
   let ghError = $state<string | null>(null);
@@ -37,6 +44,16 @@
   let ghFilter = $state("");
   let ghCloning = $state<string | null>(null);
   let ghMessage = $state<string | null>(null);
+  let ghShowTokenForm = $state(false);
+
+  // Device-flow state
+  let ghDevice = $state<GithubDeviceStart | null>(null);
+  let ghDevicePolling = $state(false);
+  let ghDeviceTimer: ReturnType<typeof setInterval> | null = null;
+
+  onDestroy(() => {
+    if (ghDeviceTimer) clearInterval(ghDeviceTimer);
+  });
 
   // Jira state
   let jiraBaseUrl = $state("");
@@ -63,9 +80,67 @@
 
   async function loadGhStatus() {
     try {
-      ghStatus = await fetchGithubStatus();
+      const [status, config] = await Promise.all([fetchGithubStatus(), fetchGithubOauthConfig()]);
+      ghStatus = status;
+      ghOauthConfig = config;
     } catch (err) {
       ghError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function openInNewTab(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async function startDeviceFlow() {
+    ghError = null;
+    try {
+      ghDevice = await startGithubDeviceFlow();
+      // Open the GitHub verification page in a new tab so the user can paste the code.
+      openInNewTab(ghDevice.verification_uri);
+      ghDevicePolling = true;
+      const intervalMs = Math.max(ghDevice.interval, 5) * 1000;
+      ghDeviceTimer = setInterval(() => pollDeviceFlow(), intervalMs);
+    } catch (err) {
+      ghError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function stopDeviceFlow() {
+    if (ghDeviceTimer) {
+      clearInterval(ghDeviceTimer);
+      ghDeviceTimer = null;
+    }
+    ghDevice = null;
+    ghDevicePolling = false;
+  }
+
+  async function pollDeviceFlow() {
+    if (!ghDevice) return;
+    try {
+      const result = await pollGithubDeviceFlow(ghDevice.device_code);
+      if (result.status === "ok") {
+        ghMessage = t("integrations.github.oauth.success", { login: result.login });
+        stopDeviceFlow();
+        await loadGhStatus();
+      } else if (result.status === "pending") {
+        // keep polling
+      } else {
+        ghError = ("detail" in result && result.detail) ? result.detail : `error: ${result.error}`;
+        stopDeviceFlow();
+      }
+    } catch (err) {
+      ghError = err instanceof Error ? err.message : String(err);
+      stopDeviceFlow();
+    }
+  }
+
+  async function copyDeviceCode() {
+    if (!ghDevice) return;
+    try {
+      await navigator.clipboard.writeText(ghDevice.user_code);
+    } catch {
+      // ignore
     }
   }
 
@@ -246,16 +321,50 @@
               {t("integrations.github.connected", { login: ghStatus.token_hint ?? "?" })}
               <button class="link" onclick={disconnectGh}>{t("integrations.github.button.disconnect")}</button>
             </div>
+          {:else if ghDevice}
+            <div class="device-flow">
+              <h3>{t("integrations.github.oauth.title")}</h3>
+              <p>{t("integrations.github.oauth.code_label")}</p>
+              <button class="device-code" onclick={copyDeviceCode} title="copy">
+                {ghDevice.user_code}
+              </button>
+              <div class="row">
+                <button class="primary" onclick={() => openInNewTab(ghDevice!.verification_uri)}>
+                  {t("integrations.github.oauth.open")}
+                </button>
+                <button onclick={stopDeviceFlow}>{t("integrations.github.oauth.cancel")}</button>
+              </div>
+              {#if ghDevicePolling}
+                <div class="muted polling">⟳ {t("integrations.github.oauth.waiting")}</div>
+              {/if}
+            </div>
           {:else}
             <div class="status">{t("integrations.github.not_connected")}</div>
-            <label class="field">
-              <span class="label">{t("integrations.github.pat_label")}</span>
-              <input type="password" bind:value={ghToken} placeholder="ghp_…" autocomplete="off" />
-              <small>{t("integrations.github.pat_help")}</small>
-            </label>
-            <button class="primary" onclick={connectGh} disabled={ghConnecting || !ghToken}>
-              {ghConnecting ? t("integrations.github.button.connecting") : t("integrations.github.button.connect")}
-            </button>
+            <div class="row connect-actions">
+              {#if ghOauthConfig?.device_flow_available}
+                <button class="primary" onclick={startDeviceFlow}>
+                  {t("integrations.github.button.connect_oauth")}
+                </button>
+              {/if}
+              {#if ghOauthConfig}
+                <button onclick={() => openInNewTab(ghOauthConfig!.pat_url)}>
+                  {t("integrations.github.button.create_token")}
+                </button>
+              {/if}
+              <button class="link" onclick={() => (ghShowTokenForm = !ghShowTokenForm)}>
+                {ghShowTokenForm ? "↑" : "↓"} {t("integrations.github.button.connect")}
+              </button>
+            </div>
+            {#if ghShowTokenForm}
+              <label class="field">
+                <span class="label">{t("integrations.github.pat_label")}</span>
+                <input type="password" bind:value={ghToken} placeholder="ghp_…" autocomplete="off" />
+                <small>{t("integrations.github.pat_help")}</small>
+              </label>
+              <button class="primary" onclick={connectGh} disabled={ghConnecting || !ghToken}>
+                {ghConnecting ? t("integrations.github.button.connecting") : t("integrations.github.button.connect")}
+              </button>
+            {/if}
           {/if}
 
           {#if ghStatus?.connected}
@@ -318,6 +427,12 @@
             <span class="label">{t("integrations.jira.api_token")}</span>
             <input type="password" bind:value={jiraToken} autocomplete="off" />
             <small>{t("integrations.jira.api_token_help")}</small>
+            <button
+              class="link inline"
+              onclick={() => openInNewTab("https://id.atlassian.com/manage-profile/security/api-tokens")}
+            >
+              ↗ {t("integrations.jira.button.create_token")}
+            </button>
           </label>
           <label class="field">
             <span class="label">{t("integrations.jira.jql")}</span>
@@ -510,4 +625,40 @@
   .msg.err { background: #fef0c7; color: #b54708; }
   .empty { padding: 16px; text-align: center; color: #667085; }
   .loading { padding: 16px; text-align: center; color: #667085; }
+  .connect-actions { gap: 8px; flex-wrap: wrap; }
+  .device-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #d6bbfb;
+    border-radius: 6px;
+    background: #faf5ff;
+  }
+  .device-flow h3 { margin: 0; font-size: 14px; color: #5925dc; }
+  .device-flow p { margin: 0; font-size: 12px; color: #475467; }
+  .device-code {
+    align-self: flex-start;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 22px;
+    letter-spacing: 0.18em;
+    font-weight: 600;
+    color: #1d2939;
+    background: white;
+    border: 1px dashed #d6bbfb;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .device-code:hover { background: #f9fafb; }
+  .polling {
+    font-size: 12px;
+    color: #6941c6;
+  }
+  button.link.inline {
+    align-self: flex-start;
+    padding: 0;
+    font-size: 11px;
+    margin-top: 2px;
+  }
 </style>
