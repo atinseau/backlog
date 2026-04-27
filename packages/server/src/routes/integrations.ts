@@ -917,6 +917,48 @@ export function integrationsRoutes(): Hono<AppEnv> {
     return c.json({ ok: true });
   });
 
+  // POST /cloud/billing/checkout — opens a Stripe Checkout for Pro upgrade.
+  // Returns { url } that the UI opens in a new tab.
+  app.post("/cloud/billing/checkout", async (c) => {
+    const project = c.get("workspace");
+    const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
+    if (!jwt) return c.json({ error: "cloud_signin_required" }, 401);
+    const raw = await c.req.json().catch(() => ({}));
+    const interval = (raw && (raw as { interval?: string }).interval) ?? "monthly";
+    try {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/billing/account/checkout`, {
+        method: "POST",
+        headers: cloudAuthHeaders(project.backlogDir, true),
+        body: JSON.stringify({ interval }),
+      });
+      const json = await response.json();
+      return c.json(json, response.status as 200 | 400 | 401 | 422 | 502 | 503);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cloud_unreachable", detail: message }, 502);
+    }
+  });
+
+  // POST /cloud/billing/portal — opens the Stripe Billing Portal so the
+  // user can manage their subscription / cancel / update card.
+  app.post("/cloud/billing/portal", async (c) => {
+    const project = c.get("workspace");
+    const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
+    if (!jwt) return c.json({ error: "cloud_signin_required" }, 401);
+    try {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/billing/account/portal`, {
+        method: "POST",
+        headers: cloudAuthHeaders(project.backlogDir, true),
+        body: JSON.stringify({}),
+      });
+      const json = await response.json();
+      return c.json(json, response.status as 200 | 400 | 401 | 422 | 502 | 503);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cloud_unreachable", detail: message }, 502);
+    }
+  });
+
   app.get("/cloud/me", async (c) => {
     const project = c.get("workspace");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);

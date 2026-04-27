@@ -836,6 +836,28 @@ export async function cloudLogout(): Promise<void> {
   await fetch(apiUrl("/cloud/logout"), { method: "POST" });
 }
 
+export interface CloudBillingResult {
+  url?: string;
+  error?: string;
+  details?: unknown;
+}
+
+export async function cloudBillingCheckout(interval: "monthly" | "yearly" = "monthly"): Promise<CloudBillingResult> {
+  const response = await fetch(apiUrl("/cloud/billing/checkout"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ interval }),
+  });
+  return (await response.json()) as CloudBillingResult;
+}
+
+export async function cloudBillingPortal(): Promise<CloudBillingResult> {
+  const response = await fetch(apiUrl("/cloud/billing/portal"), {
+    method: "POST",
+  });
+  return (await response.json()) as CloudBillingResult;
+}
+
 export async function fetchGithubOauthConfig(): Promise<GithubOauthConfig> {
   const response = await fetch(apiUrl("/integrations/github/oauth/config"));
   if (!response.ok) throw new Error(`GitHub OAuth config failed: ${response.status}`);

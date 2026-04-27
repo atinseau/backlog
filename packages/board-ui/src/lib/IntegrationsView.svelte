@@ -6,6 +6,8 @@
     clearGithubPat,
     clearJiraOauthClient,
     cloneGithubRepo,
+    cloudBillingCheckout,
+    cloudBillingPortal,
     cloudLogin,
     cloudLogout,
     cloudSignup,
@@ -106,6 +108,43 @@
     await loadCloudStatus();
     await loadGhStatus();
     await loadJiraOauthConfig();
+  }
+
+  let billingBusy = $state(false);
+  let billingError = $state<string | null>(null);
+
+  async function handleUpgrade() {
+    billingBusy = true;
+    billingError = null;
+    try {
+      const result = await cloudBillingCheckout("monthly");
+      if (result.url) {
+        openInNewTab(result.url);
+      } else {
+        billingError = result.error ?? "checkout_failed";
+      }
+    } catch (err) {
+      billingError = err instanceof Error ? err.message : String(err);
+    } finally {
+      billingBusy = false;
+    }
+  }
+
+  async function handleManageBilling() {
+    billingBusy = true;
+    billingError = null;
+    try {
+      const result = await cloudBillingPortal();
+      if (result.url) {
+        openInNewTab(result.url);
+      } else {
+        billingError = result.error ?? "portal_failed";
+      }
+    } catch (err) {
+      billingError = err instanceof Error ? err.message : String(err);
+    } finally {
+      billingBusy = false;
+    }
   }
 
   // GitHub state
@@ -525,12 +564,17 @@
             </div>
             <div class="row">
               {#if cloudStatus.user.plan === "free"}
-                <button class="primary" onclick={() => openInNewTab("https://backlog.so/pricing")}>
-                  {t("account.button.upgrade")}
+                <button class="primary" onclick={handleUpgrade} disabled={billingBusy}>
+                  {billingBusy ? t("account.button.upgrading") : t("account.button.upgrade")}
+                </button>
+              {:else}
+                <button onclick={handleManageBilling} disabled={billingBusy}>
+                  {billingBusy ? t("account.button.opening_portal") : t("account.button.manage_billing")}
                 </button>
               {/if}
               <button onclick={handleCloudLogout}>{t("account.button.logout")}</button>
             </div>
+            {#if billingError}<div class="msg err">{billingError}</div>{/if}
           {:else}
             <div class="status">{t("account.signed_out")}</div>
             <label class="field">
