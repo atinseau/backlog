@@ -95,7 +95,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.estimated_duration_seconds) {
         workItem = setTaskEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
       }
-      return c.json({ work_item: workItem }, 201);
+      return c.json({ task: workItem }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "create_failed", detail: message }, 400);
@@ -112,7 +112,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
     try {
       const updated = updateTaskStatus(workspace.backlogDir, id, parsed.data.to);
-      return c.json({ work_item: updated });
+      return c.json({ task: updated });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "update_failed", detail: message }, 404);
@@ -144,7 +144,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.force !== undefined) input.force = parsed.data.force;
       const result = splitTask(workspace.backlogDir, input);
       return c.json({
-        work_item: result.workItem,
+        task: result.workItem,
         created_tasks: result.createdTasks,
         mode: result.mode,
       }, 201);
@@ -215,7 +215,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       });
       return c.json(
         {
-          work_item: result.workItem,
+          task: result.workItem,
           created_tasks: result.createdTasks,
           mode: result.mode,
         },
@@ -241,7 +241,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.before_id !== undefined) input.beforeId = parsed.data.before_id;
       if (parsed.data.after_id !== undefined) input.afterId = parsed.data.after_id;
       const workItem = reorderTask(workspace.backlogDir, input);
-      return c.json({ work_item: workItem });
+      return c.json({ task: workItem });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "reorder_failed", detail: message }, 404);
@@ -258,7 +258,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     }
     try {
       const workItem = setTaskEstimate(workspace.backlogDir, id, parsed.data.seconds);
-      return c.json({ work_item: workItem });
+      return c.json({ task: workItem });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "estimate_failed", detail: message }, 404);

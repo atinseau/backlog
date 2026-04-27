@@ -278,9 +278,9 @@ export async function patchOrchestratorConfig(input: {
   return json.state;
 }
 
-// Work items + tasks --------------------------------------------------------
+// Tasks + sub-tasks ---------------------------------------------------------
 
-export interface CreateWorkItemInput {
+export interface CreateTaskInput {
   title: string;
   description?: string;
   priority?: "P0" | "P1" | "P2" | "P3";
@@ -290,7 +290,15 @@ export interface CreateWorkItemInput {
   estimated_duration_seconds?: number;
 }
 
-export async function createTask(input: CreateWorkItemInput): Promise<unknown> {
+export interface CreatedTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: "P0" | "P1" | "P2" | "P3";
+  repo_targets: string[];
+}
+
+export async function createTask(input: CreateTaskInput): Promise<CreatedTask> {
   const response = await fetch(apiUrl("/tasks"), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -298,9 +306,10 @@ export async function createTask(input: CreateWorkItemInput): Promise<unknown> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Create work item failed (${response.status}): ${detail}`);
+    throw new Error(`Create task failed (${response.status}): ${detail}`);
   }
-  return (await response.json()) as unknown;
+  const json = (await response.json()) as { task: CreatedTask };
+  return json.task;
 }
 
 export async function reorderTask(
@@ -318,7 +327,7 @@ export async function reorderTask(
   }
 }
 
-export interface CreateTaskInput {
+export interface CreateSubTaskInput {
   work_item_id: string;
   title: string;
   repo: string;
@@ -328,7 +337,7 @@ export interface CreateTaskInput {
   lane?: string;
 }
 
-export async function createSubTask(input: CreateTaskInput): Promise<unknown> {
+export async function createSubTask(input: CreateSubTaskInput): Promise<unknown> {
   const response = await fetch(apiUrl("/subtasks"), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -336,7 +345,7 @@ export async function createSubTask(input: CreateTaskInput): Promise<unknown> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Create task failed (${response.status}): ${detail}`);
+    throw new Error(`Create sub-task failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as unknown;
 }
