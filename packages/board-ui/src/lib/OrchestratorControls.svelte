@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import {
+    fetchOrchestratePlan,
     fetchOrchestratorState,
     pauseOrchestrator,
     startOrchestrator,
@@ -15,12 +16,18 @@
   let { onError }: Props = $props();
 
   let state = $state<OrchestratorState | null>(null);
+  let runnableCount = $state<number | null>(null);
   let busy = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
     try {
-      state = await fetchOrchestratorState();
+      const [orchState, plan] = await Promise.all([
+        fetchOrchestratorState(),
+        fetchOrchestratePlan().catch(() => null),
+      ]);
+      state = orchState;
+      runnableCount = plan?.runnable_count ?? null;
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     }
@@ -77,6 +84,14 @@
   const isRunning = $derived(mode === "running");
   const isPaused = $derived(mode === "paused");
   const isStopping = $derived(mode === "stopping");
+  const nothingToRun = $derived(runnableCount !== null && runnableCount === 0);
+  const playTitle = $derived(
+    isRunning
+      ? "Orchestrateur déjà en cours"
+      : nothingToRun
+        ? "Rien à exécuter — créez une tâche d'abord"
+        : "Démarrer l'orchestrateur",
+  );
 </script>
 
 <div class="controls" role="toolbar" aria-label="Orchestrator controls">
@@ -84,8 +99,8 @@
     class="ctrl play"
     class:active={isRunning}
     onclick={handleStart}
-    disabled={busy || isRunning}
-    title="Démarrer l'orchestrateur"
+    disabled={busy || isRunning || nothingToRun}
+    title={playTitle}
     aria-label="Play"
   >
     ▶
@@ -111,6 +126,9 @@
     ⏹
   </button>
   <span class="state state-{mode}">{mode}</span>
+  {#if runnableCount !== null && runnableCount > 0 && !isRunning}
+    <span class="ready" title="Sous-tâches prêtes à être exécutées">{runnableCount} prêt{runnableCount > 1 ? "es" : "e"}</span>
+  {/if}
   {#if state?.last_started_count !== undefined && state.last_started_count > 0}
     <span class="count">+{state.last_started_count}</span>
   {/if}
@@ -162,6 +180,15 @@
   .state-running { background: #027a48; }
   .state-paused { background: #f79009; }
   .state-stopping { background: #b42318; }
+  .ready {
+    font-size: 10px;
+    color: #1570ef;
+    font-weight: 600;
+    margin-left: 4px;
+    padding: 2px 6px;
+    background: #eff8ff;
+    border-radius: 10px;
+  }
   .count {
     font-size: 10px;
     color: #027a48;
