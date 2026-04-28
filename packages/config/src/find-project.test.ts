@@ -106,6 +106,56 @@ describe("findProject", () => {
     expect(found).toBeNull();
   });
 
+  it("matches when cwd is the COMMON PARENT of multiple configured repos (multi-repo project layout)", () => {
+    const registryDir = tmp("backlog-fp-parent-");
+    const userWorkspace = tmp("backlog-fp-parent-ws-");
+    // Two sibling repos under a shared parent dir — typical for a
+    // multi-repo project (e.g. ~/Dev/backlog/{backlog-cli,backlog-cloud}).
+    const projectParent = tmp("backlog-fp-parent-projects-");
+    const repoA = path.join(projectParent, "a");
+    const repoB = path.join(projectParent, "b");
+    fs.mkdirSync(repoA);
+    fs.mkdirSync(repoB);
+
+    initLayout({
+      root: userWorkspace,
+      projectName: "parent-multi",
+      location: "user_level",
+      repos: [
+        { id: "a", path: repoA, default_branch: "main", enabled: true },
+        { id: "b", path: repoB, default_branch: "main", enabled: true },
+      ],
+    });
+    registerProject({ projectRoot: userWorkspace, location: "user_level" }, { dir: registryDir });
+
+    // cwd is the parent — not inside any repo, but it's the common
+    // parent of both. Should resolve.
+    const found = findProject(projectParent, { registryOptions: { dir: registryDir } });
+    expect(found).not.toBeNull();
+    expect(found!.backlogDir).toBe(userWorkspace);
+  });
+
+  it("doesn't false-match when cwd is the parent of only ONE configured repo (could be coincidence)", () => {
+    const registryDir = tmp("backlog-fp-parent-single-");
+    const userWorkspace = tmp("backlog-fp-parent-single-ws-");
+    const projectParent = tmp("backlog-fp-parent-single-parent-");
+    const onlyRepo = path.join(projectParent, "only");
+    fs.mkdirSync(onlyRepo);
+
+    initLayout({
+      root: userWorkspace,
+      projectName: "single",
+      location: "user_level",
+      repos: [{ id: "only", path: onlyRepo, default_branch: "main", enabled: true }],
+    });
+    registerProject({ projectRoot: userWorkspace, location: "user_level" }, { dir: registryDir });
+
+    // Single repo as a child isn't strong enough signal — cwd could
+    // just happen to live next to one project's repo. Don't resolve.
+    const found = findProject(projectParent, { registryOptions: { dir: registryDir } });
+    expect(found).toBeNull();
+  });
+
   it("caches the registry→repos mapping by file mtime: a registry edit invalidates the cache", () => {
     const registryDir = tmp("backlog-fp-cache-reg-");
     const userWorkspace = tmp("backlog-fp-cache-ws-");

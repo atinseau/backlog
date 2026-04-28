@@ -161,11 +161,29 @@ function findUserLevelProjectForCwd(
   cwd: string,
   registryOptions?: RegistryOptions,
 ): ProjectPaths | null {
+  // Two match shapes:
+  //   1. cwd is INSIDE one of the configured repos (the common case
+  //      — running CLI from inside a repo's tree).
+  //   2. cwd is the COMMON PARENT of multiple configured repos. This
+  //      catches the multi-repo project layout where the workspace
+  //      lives at ~/.backlog/<slug>/ and repos sit at ~/Dev/<slug>/<repo-i>;
+  //      running the CLI from ~/Dev/<slug>/ should resolve.
+  // Match #2 only fires when at least 2 configured repos are direct
+  // children of cwd — a single repo as a child isn't enough signal
+  // (could be coincidence with another project).
   for (const ws of loadUserLevelIndex(registryOptions)) {
+    let descendantHits = 0;
+    let parentChildren = 0;
     for (const repoPath of ws.repoPaths) {
       if (cwd === repoPath || cwd.startsWith(repoPath + path.sep)) {
-        return { root: ws.workspaceDir, backlogDir: ws.workspaceDir };
+        descendantHits++;
       }
+      if (path.dirname(repoPath) === cwd) {
+        parentChildren++;
+      }
+    }
+    if (descendantHits > 0 || parentChildren >= 2) {
+      return { root: ws.workspaceDir, backlogDir: ws.workspaceDir };
     }
   }
   return null;
