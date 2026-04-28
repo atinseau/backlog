@@ -6,6 +6,7 @@ import {
   setOrchestratorConfig,
   startOrchestrator,
   stopOrchestrator,
+  updateOrchestratorState,
 } from "@backlog/core";
 
 function projectDir(): string {
@@ -75,5 +76,20 @@ export function registerOrchestratorCommand(program: Command): void {
       if (options.tickInterval !== undefined) input.tick_interval_ms = parseInt(options.tickInterval, 10);
       const state = setOrchestratorConfig(projectDir(), input);
       console.log(`Updated. max=${state.max_agents}, auto=${state.auto_pick_agents}, tick=${state.tick_interval_ms}ms.`);
+    });
+
+  orchestrator
+    .command("clear-error")
+    .description("Clear last_error from the orchestrator state (a sticky error after a transient failure)")
+    .action(() => {
+      const dir = projectDir();
+      const before = getOrchestratorState(dir);
+      if (before.last_error === undefined || before.last_error === null) {
+        console.log("Nothing to clear — last_error is already empty.");
+        return;
+      }
+      const after = updateOrchestratorState(dir, { last_error: null });
+      console.log(`Cleared last_error: "${before.last_error}"`);
+      console.log(`State: mode=${after.mode}, last_tick_at=${after.last_tick_at ?? "(none)"}`);
     });
 }
