@@ -15,6 +15,7 @@ import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { activityRoutes } from "./routes/activity.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
 import { orchestratorChatRoutes } from "./routes/orchestrator-chat.js";
+import { runDiffRoutes } from "./routes/run-diff.js";
 import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
@@ -99,6 +100,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", orchestratorRoutes());
   app.route("/api/v1", orchestratorChatRoutes());
   app.route("/api/v1", activityRoutes());
+  app.route("/api/v1", runDiffRoutes());
   app.route("/api/v1", reposRoutes());
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", projectRoutes());

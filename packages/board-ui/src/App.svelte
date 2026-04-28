@@ -7,6 +7,7 @@
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
   import ActivityBanner from "./lib/ActivityBanner.svelte";
+  import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorChat from "./lib/OrchestratorChat.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
@@ -100,6 +101,10 @@
   // (focused execution mode), so toggling it once should stick.
   const CHAT_STORAGE_KEY = "backlog.chat.open";
   let chatOpen = $state(typeof localStorage !== "undefined" && localStorage.getItem(CHAT_STORAGE_KEY) === "1");
+  // Open DiffPanel target — set when the user clicks a file link in
+  // the ActivityBanner. Single-panel; clicking another file replaces.
+  let diffTarget = $state<{ runId: string; file: string } | null>(null);
+
   function toggleChat() {
     chatOpen = !chatOpen;
     if (typeof localStorage !== "undefined") {
@@ -530,7 +535,14 @@
 {/if}
 
 <OrchestratorChat open={chatOpen} workspaceId={selectedWorkspaceId} onClose={toggleChat} />
-<ActivityBanner workspaceId={selectedWorkspaceId} />
+<ActivityBanner
+  workspaceId={selectedWorkspaceId}
+  onOpenDiff={(runId, file) => (diffTarget = { runId, file })}
+/>
+
+{#if diffTarget}
+  <DiffPanel runId={diffTarget.runId} file={diffTarget.file} onClose={() => (diffTarget = null)} />
+{/if}
 
 {#if splitTarget}
   <SplitDialog

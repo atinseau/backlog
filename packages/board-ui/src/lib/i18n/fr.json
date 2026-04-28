@@ -78,6 +78,13 @@
   "activity.collapse": "Replier",
   "activity.clear": "Vider le journal",
   "activity.empty": "Pas encore d'évènement. Lance une tâche pour voir les agents en action.",
+
+  "diff.title": "Diff du fichier",
+  "diff.close": "Fermer",
+  "diff.close_hint": "Fermer (Échap)",
+  "diff.head": "SHA actuel du worktree",
+  "diff.loading": "Chargement du diff…",
+  "diff.empty": "Pas de diff (le fichier n'a pas changé dans ce run).",
   "topbar.chat": "💬 Chat",
   "orchestrator.pause.title": "Pause (les runs actifs continuent)",
   "orchestrator.stop.title": "Stop (attend la fin des runs actifs)",

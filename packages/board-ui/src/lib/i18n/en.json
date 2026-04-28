@@ -78,6 +78,13 @@
   "activity.collapse": "Collapse",
   "activity.clear": "Clear log",
   "activity.empty": "No events yet. Launch a task to see the agents at work.",
+
+  "diff.title": "File diff",
+  "diff.close": "Close",
+  "diff.close_hint": "Close (Esc)",
+  "diff.head": "Current worktree SHA",
+  "diff.loading": "Loading diff…",
+  "diff.empty": "No diff (file hasn't changed in this run).",
   "topbar.chat": "💬 Chat",
   "orchestrator.pause.title": "Pause (active runs keep going)",
   "orchestrator.stop.title": "Stop (wait for active runs to finish)",

@@ -5,9 +5,43 @@
 
   interface Props {
     workspaceId: string | null;
+    onOpenDiff?: (runId: string, file: string) => void;
   }
 
-  let { workspaceId }: Props = $props();
+  let { workspaceId, onOpenDiff }: Props = $props();
+
+  // Pull a file path out of the activity event message when one is
+  // present. Tool summaries follow the shape "Read foo/bar.rb" /
+  // "Edit app/views/x.erb" / "Write config/locales/es.yml" — match the
+  // first whitespace-separated token that looks like a repo-relative
+  // file path. Returns null when nothing usable is found, in which
+  // case the line stays plain text.
+  function extractFile(message: string | undefined): string | null {
+    if (!message) return null;
+    // "Read app/views/foo.erb" → "app/views/foo.erb"
+    // "Edit app/views/coming_soon.html.erb" → "app/views/coming_soon.html.erb"
+    const m = /(?:^|\s)([\w./@\-]+\.[\w]+)/.exec(message);
+    if (!m) return null;
+    const candidate = m[1]!;
+    // Reject things that look like flag tokens / numeric versions
+    if (candidate.startsWith("-")) return null;
+    if (/^\d/.test(candidate)) return null;
+    return candidate;
+  }
+
+  function isFileEvent(type: string): boolean {
+    return (
+      type === "agent.read" ||
+      type === "agent.edit" ||
+      type === "agent.write" ||
+      type === "agent.fs"
+    );
+  }
+
+  function clickFile(runId: string | undefined, file: string) {
+    if (!runId || !onOpenDiff) return;
+    onOpenDiff(runId, file);
+  }
 
   // Open/closed state persisted in localStorage. Mounted bar is always
   // visible (collapsed) so the user can find the toggle even on a
@@ -157,11 +191,20 @@
       {:else}
         <ul>
           {#each events as ev (ev.id)}
+            {@const file = isFileEvent(ev.type) ? extractFile(ev.message) : null}
             <li class="evt evt-{ev.kind}">
               <span class="ts">{new Date(ev.ts).toLocaleTimeString("fr-FR")}</span>
               {#if ev.runId}<span class="run-pill">{ev.runId.replace(/^RUN-/, "").slice(0, 6)}</span>{/if}
               <code class="type">{ev.type}</code>
-              {#if ev.message}<span class="msg">{ev.message}</span>{/if}
+              {#if ev.message}
+                {#if file && onOpenDiff && ev.runId}
+                  <span class="msg">
+                    <button class="file-link" onclick={() => clickFile(ev.runId, file)} title={file}>{file}</button>
+                  </span>
+                {:else}
+                  <span class="msg">{ev.message}</span>
+                {/if}
+              {/if}
             </li>
           {/each}
         </ul>
@@ -294,6 +337,16 @@
     flex: 1;
     min-width: 0;
   }
+  .file-link {
+    background: transparent;
+    border: none;
+    color: #84caff;
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+  }
+  .file-link:hover { color: #b2ddff; }
 
   @media (max-width: 600px) {
     .bar.open { bottom: 200px; }

@@ -102,6 +102,12 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       ttl_minutes: 30,
       enforce_on_commit: true,
     },
+    git: {
+      branch_strategy: "isolated_worktree",
+      merge_strategy: "none",
+      cleanup_worktree_on_approve: true,
+      delete_branch_after_merge: true,
+    },
     repos: options.repos ?? [],
   };
 

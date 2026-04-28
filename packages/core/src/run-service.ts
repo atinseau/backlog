@@ -1,8 +1,10 @@
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
+import { loadConfig } from "@backlog/config";
 import { cascadeBlockDependents, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { updateTaskStatus } from "./task-service.js";
-import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { cleanupRunWorktree, mergeRunBranch } from "./run-merge.js";
 
 function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
   const task = getSubTask(backlogDir, taskId);
@@ -61,7 +63,81 @@ export async function completeRun(backlogDir: string, runId: string, summary?: s
 }
 
 export async function approveRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  // Capture the run + repo BEFORE completeRun moves it to archive,
+  // because the merge + worktree cleanup need the worktree path that
+  // only exists on the active record.
+  const run = loadRun(backlogDir, runId);
   await completeRun(backlogDir, runId, summary ?? "Approved in review");
+  if (!run) return;
+
+  // Optional auto-merge + worktree cleanup, both off by default.
+  // Failure of either is logged into events.ndjson but never throws —
+  // the approve itself already succeeded and the user shouldn't have
+  // to retry the whole flow because of a leftover lock or a conflict.
+  try {
+    const config = loadConfig(backlogDir);
+    const repo = config.repos.find((r) => r.id === run.repo);
+    if (!repo) return;
+
+    if (config.git.merge_strategy !== "none") {
+      const mergeResult = await mergeRunBranch({
+        run,
+        repoPath: repo.path,
+        repoDefaultBranch: repo.default_branch,
+        config,
+      });
+      if (mergeResult) {
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: mergeResult.ok ? "run.merged" : "run.merge_failed",
+          message: mergeResult.ok
+            ? `Merged ${mergeResult.branch} → ${mergeResult.target} (${mergeResult.strategy})`
+            : `Merge into ${mergeResult.target} failed: ${mergeResult.error ?? "unknown"}`,
+        });
+
+        if (config.git.cleanup_worktree_on_approve) {
+          const cleanup = await cleanupRunWorktree({
+            worktreePath: run.worktree_path,
+            branch: run.branch,
+            repoPath: repo.path,
+            // Only delete the branch when merge succeeded — otherwise
+            // the unmerged work would be lost.
+            deleteBranch: mergeResult.ok && config.git.delete_branch_after_merge,
+          });
+          appendRunEvent(backlogDir, runId, {
+            ts: new Date().toISOString(),
+            type: cleanup.removedWorktree ? "worktree.removed" : "worktree.cleanup_failed",
+            message: cleanup.removedWorktree
+              ? `Removed worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
+              : `Failed to remove worktree: ${cleanup.error ?? "unknown"}`,
+          });
+        }
+      }
+    } else if (config.git.cleanup_worktree_on_approve) {
+      // No-merge path — still tear down the worktree so `git switch
+      // <branch>` works in the user's main checkout. Branch stays.
+      const cleanup = await cleanupRunWorktree({
+        worktreePath: run.worktree_path,
+        branch: run.branch,
+        repoPath: repo.path,
+        deleteBranch: false,
+      });
+      appendRunEvent(backlogDir, runId, {
+        ts: new Date().toISOString(),
+        type: cleanup.removedWorktree ? "worktree.removed" : "worktree.cleanup_failed",
+        message: cleanup.removedWorktree
+          ? `Removed worktree (branch ${run.branch} kept — set git.merge_strategy to auto-merge)`
+          : `Failed to remove worktree: ${cleanup.error ?? "unknown"}`,
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "run.merge_failed",
+      message: `Post-approve git work failed: ${message}`,
+    });
+  }
 }
 
 export async function failRun(

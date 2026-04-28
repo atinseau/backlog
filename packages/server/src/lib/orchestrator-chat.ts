@@ -117,6 +117,12 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_git_settings",
+    description:
+      "Read the workspace's git settings: branch_strategy, merge_strategy, merge_target, cleanup_worktree_on_approve, delete_branch_after_merge. Useful when the user asks 'is auto-merge on?' or 'where do my runs end up?'.",
+    input_schema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "start_subtask",
     description:
       "Launch one specific subtask now (independent of the orchestrator's running mode). Pass either subtask_id or task_id. WRITE TOOL — costs real money on codex/claude agents. Only call with confirmed:true AFTER explicit user approval naming the subtask.",
@@ -235,6 +241,16 @@ function runTool(input: ToolHandlerInput): unknown {
     case "get_orchestrator_state": {
       const state: OrchestratorState = getOrchestratorState(backlogDir);
       return state;
+    }
+    case "get_git_settings": {
+      const config = loadConfig(backlogDir);
+      return {
+        branch_strategy: config.git.branch_strategy,
+        merge_strategy: config.git.merge_strategy,
+        merge_target: config.git.merge_target ?? "(per-repo default_branch)",
+        cleanup_worktree_on_approve: config.git.cleanup_worktree_on_approve,
+        delete_branch_after_merge: config.git.delete_branch_after_merge,
+      };
     }
     default:
       throw new Error(`Unknown tool: ${toolName}`);

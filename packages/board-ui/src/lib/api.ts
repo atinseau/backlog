@@ -557,6 +557,30 @@ export async function startRun(input: StartRunInput): Promise<StartRunResult> {
   return json as StartRunResult;
 }
 
+export interface RunDiff {
+  run_id: string;
+  file: string;
+  base: string;
+  head: string;
+  diff: string;
+  empty: boolean;
+}
+
+export async function fetchRunDiff(runId: string, file: string, base?: string): Promise<RunDiff> {
+  const query: Record<string, string | undefined> = { file };
+  if (base) query["base"] = base;
+  const response = await fetch(apiUrl(`/runs/${runId}/diff`, query));
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof detail === "object" && detail && "detail" in detail
+        ? `Diff failed: ${(detail as { detail: string }).detail}`
+        : `Diff failed: ${response.status}`,
+    );
+  }
+  return (await response.json()) as RunDiff;
+}
+
 export async function approveRun(runId: string, summary?: string): Promise<void> {
   const response = await fetch(apiUrl(`/runs/${runId}/approve`), {
     method: "POST",

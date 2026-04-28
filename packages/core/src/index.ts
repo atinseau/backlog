@@ -12,6 +12,7 @@ export * from "./provider-utils.js";
 export * from "./repo-service.js";
 export * from "./release-snapshot.js";
 export * from "./run-launcher.js";
+export * from "./run-merge.js";
 export * from "./run-service.js";
 export * from "./state-files.js";
 export * from "./scheduler.js";

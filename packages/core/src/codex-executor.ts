@@ -8,6 +8,88 @@ import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktre
 import { parseCodexJsonStream } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
 
+// Codex `--json` emits item.started / item.completed events for every
+// tool call (mostly `command_execution` since codex acts through
+// bash). Map each item.started into a friendly activity event so the
+// banner reflects what the agent is doing in real time, the same
+// way the claude executor surfaces tool_use blocks.
+function summarizeBash(command: string): string {
+  // Strip the `/bin/zsh -lc "..."` wrapper codex puts around every
+  // shell line so the banner shows just the meaningful command.
+  const m = /\/bin\/(?:zsh|bash)\s+-l?c\s+"(.*)"$/.exec(command);
+  const inner = m ? m[1]! : command;
+  const trimmed = inner.replace(/\s+/g, " ").trim();
+  return trimmed.length > 80 ? trimmed.slice(0, 79) + "…" : trimmed;
+}
+
+function classifyCodexCommand(command: string): string {
+  const c = command.replace(/.*?-l?c\s+"/, "").trim();
+  if (/^(?:git|gh)\s/.test(c)) return "agent.git";
+  if (/^(?:cat|head|tail|less|more|bat)\s/.test(c)) return "agent.read";
+  if (/^(?:rg|grep|ag|find|fd|ls|tree|wc)\s/.test(c)) return "agent.read";
+  if (/^(?:apply_patch|sed\s|awk\s|patch\s|tee\s|>\s)/.test(c) || c.includes(" > ")) return "agent.edit";
+  if (/^(?:rm|mv|cp|mkdir|touch|chmod|chown)\s/.test(c)) return "agent.fs";
+  if (/test|spec|jest|vitest|mocha|pytest|cargo\s+test/.test(c)) return "agent.test";
+  if (/^(?:npm|pnpm|yarn|bun|cargo|go|python3?|node|ruby|bundle|rake|bin\/)\s/.test(c)) return "agent.run";
+  return "agent.bash";
+}
+
+function handleCodexStreamEvent(
+  backlogDir: string,
+  runId: string,
+  ev: Record<string, unknown>,
+): void {
+  const type = ev["type"];
+  if (type === "thread.started") {
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "agent.session_init",
+      message: `thread ${String(ev["thread_id"] ?? "").slice(0, 8)}`,
+    });
+    return;
+  }
+  if (type === "item.started") {
+    const item = ev["item"] as Record<string, unknown> | undefined;
+    if (!item) return;
+    if (item["type"] === "command_execution") {
+      const command = String(item["command"] ?? "");
+      appendRunEvent(backlogDir, runId, {
+        ts: new Date().toISOString(),
+        type: classifyCodexCommand(command),
+        message: summarizeBash(command),
+      });
+    } else if (item["type"] === "file_change") {
+      // Newer codex versions emit file_change items with a `path`.
+      const p = String(item["path"] ?? item["file"] ?? "");
+      if (p) {
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: "agent.edit",
+          message: `Edit ${p}`,
+        });
+      }
+    }
+    return;
+  }
+  if (type === "item.completed") {
+    const item = ev["item"] as Record<string, unknown> | undefined;
+    if (!item) return;
+    // Surface failed shells so the user notices the run is stuck on
+    // an error (codex may retry or ask for help).
+    if (item["type"] === "command_execution" && item["status"] === "failed") {
+      const exit = item["exit_code"];
+      appendRunEvent(backlogDir, runId, {
+        ts: new Date().toISOString(),
+        type: "agent.bash_failed",
+        message: `exit ${exit !== undefined ? exit : "?"} — ${summarizeBash(String(item["command"] ?? ""))}`,
+      });
+    }
+  }
+  // turn.started / turn.completed / agent_message text are intentionally
+  // silent — too noisy and the lifecycle close-out is already in
+  // executor.success / executor.failed.
+}
+
 export async function executeCodexAgentRun(params: {
   backlogDir: string;
   run: Run;
@@ -48,23 +130,48 @@ export async function executeCodexAgentRun(params: {
   });
 
   try {
-    const result = await execa(executable, args, {
+    const subprocess = execa(executable, args, {
       cwd: params.run.worktree_path,
       env: buildProviderEnv(params.agent, params.run, params.task, params.workItem),
       input: prompt,
       reject: false,
     });
 
+    // Pipe stdout through a line splitter and emit per-event activity
+    // lines as they happen — same pattern as the claude executor. We
+    // also keep the full stdout so the existing usage parser can scan
+    // it at the end (codex's usage lives on `turn.completed`).
+    let stdoutBuf = "";
+    let lineBuf = "";
+    subprocess.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      stdoutBuf += text;
+      lineBuf += text;
+      let nl: number;
+      while ((nl = lineBuf.indexOf("\n")) >= 0) {
+        const line = lineBuf.slice(0, nl).trim();
+        lineBuf = lineBuf.slice(nl + 1);
+        if (!line || !line.startsWith("{")) continue;
+        try {
+          handleCodexStreamEvent(params.backlogDir, params.run.id, JSON.parse(line) as Record<string, unknown>);
+        } catch {
+          // Non-JSON line — codex sometimes prints log lines to stdout. Skip.
+        }
+      }
+    });
+
+    const result = await subprocess;
+
     fs.writeFileSync(
       logPath,
-      [`# stdout`, result.stdout, ``, `# stderr`, result.stderr].join("\n"),
+      [`# stdout`, stdoutBuf, ``, `# stderr`, result.stderr].join("\n"),
       "utf8",
     );
 
     // Codex `--json` already streams JSON events; the last `usage` block
     // is the cumulative count for the session.
     const fallbackModel = params.agent.model ?? "gpt-5";
-    const usage = parseCodexJsonStream(result.stdout, fallbackModel);
+    const usage = parseCodexJsonStream(stdoutBuf, fallbackModel);
     if (usage) {
       try {
         recordUsage(params.backlogDir, params.run.id, {
