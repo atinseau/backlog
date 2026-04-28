@@ -52,13 +52,16 @@ export function registerSourceCommand(program: Command): void {
   sources
     .command("add")
     .description("Add a source connector")
-    .argument("<kind>", "Source kind: markdown, csv, jira")
+    .argument("<kind>", "Source kind: markdown, csv, jira, github")
     .requiredOption("--id <id>", "Source id")
     .option("--path <path>", "Path for markdown or csv")
     .option("--base-url <url>", "Base URL for Jira")
     .option("--jql <jql>", "JQL query for Jira")
     .option("--email-env <env>", "Env var name for Jira email", "JIRA_EMAIL")
-    .option("--token-env <env>", "Env var name for Jira API token", "JIRA_API_TOKEN")
+    .option("--token-env <env>", "Env var name for Jira API token (or GitHub PAT)", "JIRA_API_TOKEN")
+    .option("--repo <owner/name>", "Repo for GitHub (e.g. octocat/hello-world)")
+    .option("--labels <labels>", "Comma-separated GitHub label filter")
+    .option("--state <state>", "GitHub issue state filter (open | closed | all)", "open")
     .action((kind: SourceKind, options: {
       id: string;
       path?: string;
@@ -66,6 +69,9 @@ export function registerSourceCommand(program: Command): void {
       jql?: string;
       emailEnv?: string;
       tokenEnv?: string;
+      repo?: string;
+      labels?: string;
+      state?: string;
     }) => {
       const workspace = findProject();
       if (!workspace) {
@@ -128,6 +134,44 @@ export function registerSourceCommand(program: Command): void {
             },
           };
           break;
+        case "github":
+          if (!options.repo) {
+            throw new Error("--repo <owner/name> is required for github");
+          }
+          if (!/^[^/\s]+\/[^/\s]+$/.test(options.repo)) {
+            throw new Error(`--repo must be in <owner/name> form, got: ${options.repo}`);
+          }
+          source = {
+            id: options.id,
+            kind,
+            enabled: true,
+            config: {
+              repo: options.repo,
+              ...(options.labels ? { labels: options.labels.split(",").map((l) => l.trim()).filter(Boolean) } : {}),
+              state: options.state ?? "open",
+            },
+            auth: {
+              strategy: "env",
+              refs: {
+                token: options.tokenEnv ?? "GITHUB_TOKEN",
+              },
+            },
+            mapping: {},
+            sync: {
+              pull: true,
+              push_status: false,
+              push_comments: false,
+              source_of_truth: "external",
+            },
+          };
+          break;
+        default: {
+          // Exhaustiveness check: if SourceKind grows another variant, the
+          // never-cast forces a compile error here so we don't silently
+          // forget to handle it.
+          const _exhaustive: never = kind;
+          throw new Error(`Unsupported source kind: ${String(_exhaustive)}`);
+        }
       }
 
       addSource(workspace.backlogDir, source);
