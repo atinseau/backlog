@@ -13,6 +13,7 @@ import { integrationsRoutes } from "./routes/integrations.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { orchestratorRoutes } from "./routes/orchestrator.js";
+import { orchestratorChatRoutes } from "./routes/orchestrator-chat.js";
 import { reposRoutes } from "./routes/repos.js";
 import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
@@ -95,6 +96,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", subtasksRoutes());
   app.route("/api/v1", orchestrateRoutes());
   app.route("/api/v1", orchestratorRoutes());
+  app.route("/api/v1", orchestratorChatRoutes());
   app.route("/api/v1", reposRoutes());
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", projectRoutes());

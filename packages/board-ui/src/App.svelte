@@ -6,6 +6,7 @@
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
+  import OrchestratorChat from "./lib/OrchestratorChat.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
@@ -92,6 +93,18 @@
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
+  // Persist the chat drawer's open/closed state across reloads — most users
+  // either want it always-on (operations dashboard mode) or always-off
+  // (focused execution mode), so toggling it once should stick.
+  const CHAT_STORAGE_KEY = "backlog.chat.open";
+  let chatOpen = $state(typeof localStorage !== "undefined" && localStorage.getItem(CHAT_STORAGE_KEY) === "1");
+  function toggleChat() {
+    chatOpen = !chatOpen;
+    if (typeof localStorage !== "undefined") {
+      if (chatOpen) localStorage.setItem(CHAT_STORAGE_KEY, "1");
+      else localStorage.removeItem(CHAT_STORAGE_KEY);
+    }
+  }
   let splitTarget = $state<TaskCard | null>(null);
   let detailTarget = $state<TaskCard | null>(null);
   let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
@@ -350,6 +363,7 @@
     <button onclick={() => (commitsViewOpen = true)} title={t("topbar.commits")}>{t("topbar.commits")}</button>
     <button onclick={() => (integrationsOpen = true)} title={t("topbar.integrations")}>{t("topbar.integrations")}</button>
     <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
+    <button onclick={toggleChat} class:active={chatOpen} title={t("chat.title")}>{t("topbar.chat")}</button>
     <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
     <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
     <button onclick={refresh} aria-label={t("topbar.refresh")}>{t("topbar.refresh")}</button>
@@ -499,6 +513,8 @@
   />
 {/if}
 
+<OrchestratorChat open={chatOpen} onClose={toggleChat} />
+
 {#if splitTarget}
   <SplitDialog
     workItem={splitTarget}
@@ -580,6 +596,12 @@
     font-size: 14px;
   }
   button:hover { background: #e4e7ec; }
+  button.active {
+    background: #d1fadf;
+    border-color: #027a48;
+    color: #027a48;
+  }
+  button.active:hover { background: #c5f4d3; }
   button.primary {
     background: #1570ef;
     color: white;
