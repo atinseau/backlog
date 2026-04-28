@@ -290,7 +290,15 @@
       } else if (result.status === "pending") {
         // keep polling
       } else {
-        ghError = ("detail" in result && result.detail) ? result.detail : `error: ${result.error}`;
+        // result is { status: "failed"; error; detail? } | { status: "verify_failed"; detail? }
+        // — `error` only exists on the "failed" branch.
+        if ("detail" in result && result.detail) {
+          ghError = result.detail;
+        } else if (result.status === "failed") {
+          ghError = `error: ${result.error}`;
+        } else {
+          ghError = "verification failed";
+        }
         stopDeviceFlow();
       }
     } catch (err) {

@@ -9,6 +9,11 @@ import type {
   ProjectInfo,
 } from "./types.js";
 
+// Re-export so callers that already pull from this module (e.g. SplitDialog
+// importing splitTask + AgentSummary in one block) don't have to dual-import
+// from ./types.js.
+export type { AgentSummary } from "./types.js";
+
 const BASE = "/api/v1";
 
 // Active workspace id used by every api.ts call. App.svelte sets it on mount
@@ -442,10 +447,14 @@ export type ClaimCreateResult =
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
 export interface EnrichedDecision {
-  task_id: string;
+  // The executable subtask this decision is about. Each row in the
+  // orchestrator panel corresponds to one subtask, so this is the
+  // unique key.
+  subtask_id: string;
+  // The parent task (work item) the subtask belongs to.
   task_id: string;
   task_title: string | null;
-  work_item_title: string | null;
+  subtask_title: string | null;
   repo: string | null;
   scopes: string[];
   action: DecisionAction;
@@ -494,7 +503,11 @@ export interface SplitResult {
 }
 
 export interface StartRunInput {
-  task_id?: string;
+  // Start the planned wave for a single executable subtask. Mutually
+  // useful with task_id below — pass whichever you have.
+  subtask_id?: string;
+  // Start the planned wave for a parent task (executes any of its
+  // ready subtasks, picked by the scheduler).
   task_id?: string;
   max_start?: number;
   agent_id?: string;
@@ -518,8 +531,11 @@ export interface SkippedRun {
 export interface StartRunResult {
   started: StartedRun[];
   skipped: SkippedRun[];
-  waiting: Array<{ task_id: string; reasons: string[] }>;
-  blocked: Array<{ task_id: string; reasons: string[] }>;
+  // Server reports waiting/blocked subtasks here (it sends `subtask_id`
+  // — see runsRoutes in @backlog/server). Don't confuse with the parent
+  // task_id elsewhere in this module.
+  waiting: Array<{ subtask_id: string; reasons: string[] }>;
+  blocked: Array<{ subtask_id: string; reasons: string[] }>;
 }
 
 export async function startRun(input: StartRunInput): Promise<StartRunResult> {

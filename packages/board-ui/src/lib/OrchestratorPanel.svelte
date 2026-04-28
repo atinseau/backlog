@@ -103,12 +103,16 @@
     }
   }
 
-  async function startTask(taskId: string) {
-    starting = taskId;
+  async function startTask(subtaskId: string) {
+    starting = subtaskId;
     error = null;
     lastResult = null;
     try {
-      const result = await startRun({ task_id: taskId, approve: true });
+      // Pass subtask_id (not task_id) so we start the specific row the
+      // user clicked on, not "any subtask of the parent" — the latter
+      // would let the scheduler pick a different sibling than the one
+      // the ▶ button is attached to.
+      const result = await startRun({ subtask_id: subtaskId, approve: true });
       if (result.started.length > 0) {
         const item = result.started[0]!;
         lastResult = `Started run ${item.runId} (${item.agentId}) on ${item.branch}`;
@@ -216,26 +220,26 @@
         <article class="wave">
           <h3>Wave {wave.wave} <span class="size">({wave.decisions.length} parallel)</span></h3>
           <ul>
-            {#each wave.decisions as d (d.task_id)}
+            {#each wave.decisions as d (d.subtask_id)}
               <li>
                 <div class="row">
                   <span class={actionClass(d.action)}>{d.action}</span>
-                  <span class="title">{d.task_title ?? d.task_id}</span>
+                  <span class="title">{d.subtask_title ?? d.subtask_id}</span>
                   {#if d.action === "run"}
                     <button
                       class="start"
-                      onclick={() => startTask(d.task_id)}
+                      onclick={() => startTask(d.subtask_id)}
                       disabled={starting !== null}
                       title="Launch this run"
                     >
-                      {starting === d.task_id ? "…" : "▶"}
+                      {starting === d.subtask_id ? "…" : "▶"}
                     </button>
                   {/if}
                   <span class="score">{d.score}</span>
                 </div>
                 <div class="row sub">
-                  {#if d.work_item_title}
-                    <span class="parent">{d.work_item_title}</span>
+                  {#if d.task_title}
+                    <span class="parent">{d.task_title}</span>
                   {/if}
                   {#if d.repo}
                     <span class="repo">{d.repo}</span>
@@ -262,9 +266,9 @@
       <section class="other">
         <h3>Blocked <span class="size">({plan.blocked.length})</span></h3>
         <ul>
-          {#each plan.blocked as d (d.task_id)}
+          {#each plan.blocked as d (d.subtask_id)}
             <li>
-              <span class="title">{d.task_title ?? d.task_id}</span>
+              <span class="title">{d.subtask_title ?? d.subtask_id}</span>
               <span class="reasons">{reasonsLine(d)}</span>
             </li>
           {/each}
@@ -276,9 +280,9 @@
       <section class="other muted">
         <h3>Skipped <span class="size">({plan.skipped.length})</span></h3>
         <ul>
-          {#each plan.skipped as d (d.task_id)}
+          {#each plan.skipped as d (d.subtask_id)}
             <li>
-              <span class="title">{d.task_title ?? d.task_id}</span>
+              <span class="title">{d.subtask_title ?? d.subtask_id}</span>
               <span class="reasons">{reasonsLine(d)}</span>
             </li>
           {/each}
