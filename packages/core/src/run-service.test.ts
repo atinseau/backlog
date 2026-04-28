@@ -17,7 +17,12 @@ async function createWorkspace(): Promise<string> {
   await git(["init"], root);
   fs.writeFileSync(path.join(root, "README.md"), "smoke\n", "utf8");
   await git(["add", "README.md"], root);
-  await git(["commit", "-m", "init"], root);
+  // Inline identity per call so the test doesn't depend on global git
+  // config — CI runners ship without user.name/user.email set.
+  await git(
+    ["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"],
+    root,
+  );
 
   initLayout({
     root,
