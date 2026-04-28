@@ -6,6 +6,7 @@
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
+  import ActivityBanner from "./lib/ActivityBanner.svelte";
   import OrchestratorChat from "./lib/OrchestratorChat.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
@@ -514,6 +515,7 @@
 {/if}
 
 <OrchestratorChat open={chatOpen} workspaceId={selectedWorkspaceId} onClose={toggleChat} />
+<ActivityBanner workspaceId={selectedWorkspaceId} />
 
 {#if splitTarget}
   <SplitDialog
@@ -647,6 +649,9 @@
     grid-template-columns: repeat(4, minmax(240px, 1fr));
     gap: 12px;
     padding: 16px;
+    /* 26px is the always-visible ActivityBanner toggle bar at the
+       bottom — pad so nothing gets hidden behind it. */
+    padding-bottom: calc(16px + 26px);
     align-items: start;
     min-height: calc(100vh - 60px);
   }

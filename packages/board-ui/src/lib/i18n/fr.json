@@ -72,6 +72,12 @@
   "chat.emergency_stopped": "(action utilisateur) Orchestrateur arrêté — mode: {mode}",
   "chat.close_hint": "Fermer (Échap)",
   "chat.usage_hint": "Tokens d'entrée / sortie / cache pour cette conversation",
+
+  "activity.title": "Activité agents",
+  "activity.expand": "Déplier (afficher les logs des agents en direct)",
+  "activity.collapse": "Replier",
+  "activity.clear": "Vider le journal",
+  "activity.empty": "Pas encore d'évènement. Lance une tâche pour voir les agents en action.",
   "topbar.chat": "💬 Chat",
   "orchestrator.pause.title": "Pause (les runs actifs continuent)",
   "orchestrator.stop.title": "Stop (attend la fin des runs actifs)",

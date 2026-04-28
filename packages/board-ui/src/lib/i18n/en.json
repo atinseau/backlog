@@ -72,6 +72,12 @@
   "chat.emergency_stopped": "(user action) Orchestrator stopped — mode: {mode}",
   "chat.close_hint": "Close (Esc)",
   "chat.usage_hint": "Input / output / cache tokens for this conversation",
+
+  "activity.title": "Agent activity",
+  "activity.expand": "Expand (show live agent logs)",
+  "activity.collapse": "Collapse",
+  "activity.clear": "Clear log",
+  "activity.empty": "No events yet. Launch a task to see the agents at work.",
   "topbar.chat": "💬 Chat",
   "orchestrator.pause.title": "Pause (active runs keep going)",
   "orchestrator.stop.title": "Stop (wait for active runs to finish)",
