@@ -201,7 +201,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="Split task" onclick={(e) => e.stopPropagation()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="Split task" onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <div>
         <h2>{t("split_dialog.title", { taskId: workItem.id })}</h2>

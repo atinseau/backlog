@@ -115,7 +115,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <div class="title-block">
         <h2>{t("claims_view.title")}</h2>

@@ -546,17 +546,6 @@
     border-radius: 10px;
     font-weight: 500;
   }
-  .claims-link {
-    background: transparent;
-    border: none;
-    padding: 0;
-    color: inherit;
-    cursor: pointer;
-    text-decoration: underline dotted;
-    text-underline-offset: 2px;
-    font: inherit;
-  }
-  .claims-link:hover { color: #1570ef; }
   button {
     background: #f2f4f7;
     border: 1px solid #d0d5dd;

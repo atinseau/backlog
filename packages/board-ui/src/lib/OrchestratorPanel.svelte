@@ -144,7 +144,7 @@
   }
 </script>
 
-<aside class="panel" role="complementary" aria-label="Orchestrator plan">
+<aside class="panel" aria-label="Orchestrator plan">
   <header>
     <div>
       <h2>{t("orchestrator_panel.title")}</h2>

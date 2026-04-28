@@ -108,7 +108,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <h2>
         {#if phase === "input" || phase === "creating"}
@@ -134,7 +134,7 @@
       <form class="body" onsubmit={handleSubmit}>
         <label>
           {t("create_task.field.title")}
-          <input type="text" bind:value={title} required autofocus />
+          <input type="text" bind:value={title} required />
         </label>
 
         <label>

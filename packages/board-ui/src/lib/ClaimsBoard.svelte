@@ -192,20 +192,4 @@
     color: #98a2b3;
     font-size: 13px;
   }
-  .placeholder p {
-    margin: 0;
-    padding: 12px 8px;
-    color: #98a2b3;
-    font-size: 12px;
-    text-align: center;
-    line-height: 1.5;
-  }
-  .placeholder code {
-    background: #f2f4f7;
-    color: #475467;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: ui-monospace, monospace;
-    font-size: 11px;
-  }
 </style>

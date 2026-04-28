@@ -154,7 +154,6 @@
     font-size: 12px;
     color: #475467;
   }
-  code { font-family: ui-monospace, monospace; font-size: 11px; }
   input, select, textarea {
     padding: 6px 8px;
     border: 1px solid #d0d5dd;

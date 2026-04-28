@@ -69,7 +69,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" aria-label={t("claim_dialog.title")} onclick={(e) => e.stopPropagation()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={t("claim_dialog.title")} onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <h2>{t("claim_dialog.title")}</h2>
       <button class="close" onclick={onClose} aria-label={t("claim_dialog.close")}>×</button>
@@ -213,12 +213,6 @@
     font-size: 12px;
   }
   .conflict p { margin: 4px 0; }
-  .conflict code {
-    background: rgba(0, 0, 0, 0.06);
-    padding: 0 4px;
-    border-radius: 3px;
-    font-size: 11px;
-  }
   .conflict .overdue { color: #b42318; font-weight: 600; }
   .conflict .src { color: #667085; font-size: 11px; }
   .error {

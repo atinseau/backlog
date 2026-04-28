@@ -32,6 +32,11 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: svelte-check (board-ui)
+        run: pnpm --filter @backlog/board-ui typecheck
+        # exits 0 on warnings, non-zero on errors — gates against a11y /
+        # template type regressions like the WorkItem→Task rename leftover
+
       - name: Test
         run: pnpm test
 

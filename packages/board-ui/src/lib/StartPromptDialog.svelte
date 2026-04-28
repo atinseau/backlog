@@ -30,7 +30,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <h2>{t("start_prompt.title")}</h2>
     </header>
@@ -79,13 +79,6 @@
   h2 { margin: 0; font-size: 16px; }
   .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
   p { margin: 0; line-height: 1.5; }
-  code {
-    background: #f2f4f7;
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px;
-  }
   .muted { color: #98a2b3; font-size: 12px; }
   .error {
     background: #fee4e2;
