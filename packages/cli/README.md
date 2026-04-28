@@ -213,6 +213,10 @@ any one repo)
 that doesn't collide with any other registered user-level project. The user
 registry itself lives at `~/.backlog/projects.json` on every platform.
 
+Run into the hook crashing or the workspace not being found?
+[docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) covers the five
+that come up most often.
+
 Either way, the layout inside the workspace dir is the same:
 
 ```
