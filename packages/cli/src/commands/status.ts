@@ -1,5 +1,7 @@
+import fs from "node:fs";
+import path from "node:path";
 import { Command } from "commander";
-import { findProject, loadConfig } from "@backlog/config";
+import { findProject, listRegisteredProjects, loadConfig } from "@backlog/config";
 import { buildExecutionPlan, buildWorkspaceStatus } from "@backlog/core";
 import { listSubTasks } from "@backlog/core";
 
@@ -41,20 +43,119 @@ async function streamRemoteEvents(baseUrl: string): Promise<void> {
   }
 }
 
+// One-line summary of a project for the cross-project --all view.
+// Read directly from disk (registry path → backlogDir → state files);
+// avoids the cost of buildWorkspaceStatus which is overkill here.
+function summarizeProjectForAllView(entry: ReturnType<typeof listRegisteredProjects>[number]): {
+  id: string;
+  name: string;
+  location: string;
+  path: string;
+  exists: boolean;
+  workItems: number;
+  activeClaims: number;
+  activeRuns: number;
+  reachable: boolean;
+} {
+  const backlogDir = entry.location === "in_repo" ? path.join(entry.path, ".backlog") : entry.path;
+  const exists = fs.existsSync(path.join(backlogDir, "config.toml"));
+  if (!exists) {
+    return {
+      id: entry.id,
+      name: entry.name,
+      location: entry.location,
+      path: backlogDir,
+      exists: false,
+      workItems: 0,
+      activeClaims: 0,
+      activeRuns: 0,
+      reachable: false,
+    };
+  }
+  // Cheap counts: just length-of-array reads, not full plan builds.
+  const config = loadConfig(backlogDir);
+  void config;
+  const tasksFile = path.join(backlogDir, "tasks.yaml");
+  const claimsActive = path.join(backlogDir, "claims", "active");
+  const runsActive = path.join(backlogDir, "runs", "active");
+  // tasks.yaml entries are indented under `tasks:` so the array
+  // markers line up at "  - id:" (two-space + dash). Counting those
+  // gives an accurate top-level task count without a YAML parse.
+  let workItems = 0;
+  if (fs.existsSync(tasksFile)) {
+    const text = fs.readFileSync(tasksFile, "utf8");
+    workItems = (text.match(/^\s*- id:/gm) ?? []).length;
+  }
+  const activeClaims = fs.existsSync(claimsActive)
+    ? fs.readdirSync(claimsActive).filter((f) => f.endsWith(".json")).length
+    : 0;
+  const activeRuns = fs.existsSync(runsActive)
+    ? fs.readdirSync(runsActive).filter((f) => fs.existsSync(path.join(runsActive, f, "run.json"))).length
+    : 0;
+  return {
+    id: entry.id,
+    name: entry.name,
+    location: entry.location,
+    path: backlogDir,
+    exists: true,
+    workItems,
+    activeClaims,
+    activeRuns,
+    reachable: true,
+  };
+}
+
+function runAllStatus(options: { json?: boolean }): void {
+  const entries = listRegisteredProjects();
+  if (entries.length === 0) {
+    console.log("No projects registered. Run `backlog init` or `backlog project add <path>`.");
+    return;
+  }
+  const summaries = entries.map((entry) => summarizeProjectForAllView(entry));
+  if (options.json) {
+    console.log(JSON.stringify(summaries, null, 2));
+    return;
+  }
+  console.log(`Registered projects: ${summaries.length}`);
+  console.log("");
+  for (const s of summaries) {
+    if (!s.reachable) {
+      console.log(`${s.id} | ${s.name} | [${s.location}] | (workspace not reachable at ${s.path})`);
+      continue;
+    }
+    const activity = s.activeRuns > 0 || s.activeClaims > 0 ? ` ⚡ ${s.activeRuns} runs / ${s.activeClaims} claims` : "";
+    console.log(`${s.id} | ${s.name} | [${s.location}] | ${s.workItems} tasks${activity}`);
+  }
+  const totalRuns = summaries.reduce((sum, s) => sum + s.activeRuns, 0);
+  const totalClaims = summaries.reduce((sum, s) => sum + s.activeClaims, 0);
+  if (totalRuns + totalClaims > 0) {
+    console.log("");
+    console.log(`Across all projects: ${totalRuns} active runs, ${totalClaims} active claims.`);
+  }
+}
+
 export function registerStatusCommand(program: Command): void {
   program
     .command("status")
     .description("Show a compact Backlog workspace summary")
     .option("--repo <id>", "Focus status on one configured repo")
+    .option("--all", "Aggregate across every registered project (cross-project view)")
     .option("--json", "Emit machine-readable JSON")
     .option(
       "--remote [url]",
       `Stream live events from a running \`backlog serve\` at <url> (default: ${DEFAULT_REMOTE_URL})`,
     )
-    .action(async (options: { repo?: string; json?: boolean; remote?: string | boolean }) => {
+    .action(async (options: { repo?: string; all?: boolean; json?: boolean; remote?: string | boolean }) => {
       if (options.remote) {
         const url = typeof options.remote === "string" ? options.remote : DEFAULT_REMOTE_URL;
         await streamRemoteEvents(url);
+        return;
+      }
+      if (options.all) {
+        if (options.repo) {
+          throw new Error("--all and --repo are mutually exclusive (different scopes).");
+        }
+        runAllStatus(options);
         return;
       }
       runLocalStatus(options);
