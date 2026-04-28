@@ -557,6 +557,22 @@ export async function startRun(input: StartRunInput): Promise<StartRunResult> {
   return json as StartRunResult;
 }
 
+export async function approveRun(runId: string, summary?: string): Promise<void> {
+  const response = await fetch(apiUrl(`/runs/${runId}/approve`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(summary ? { summary } : {}),
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof detail === "object" && detail && "detail" in detail
+        ? `Approve failed: ${(detail as { detail: string }).detail}`
+        : `Approve failed: ${response.status}`,
+    );
+  }
+}
+
 export interface ProposedTask {
   title: string;
   repo: string;

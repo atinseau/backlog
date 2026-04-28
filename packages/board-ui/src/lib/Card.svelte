@@ -11,9 +11,10 @@
     onAddTask?: (card: TaskCard) => void;
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
+    onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
   }
 
-  let { card, onSplit, onAddTask, onOpen, onPlay }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -39,6 +40,16 @@
         (card.tasks.length === 0 && (card.status === "ready" || card.status === "backlog"))),
   );
   let starting = $state(false);
+  let approving = $state(false);
+
+  // Find a subtask whose run is awaiting_review — that's the one the
+  // ✓ button approves. Cards in EN REVUE typically have exactly one
+  // such subtask; if multiple, we approve the first (the agent
+  // pattern is one run per subtask anyway).
+  const awaitingReviewSubtask = $derived(
+    card.tasks.find((t) => t.active_run?.status === "awaiting_review") ?? null,
+  );
+  const canApprove = $derived(Boolean(onApprove) && awaitingReviewSubtask !== null);
 
   function handleSplitClick(event: MouseEvent) {
     event.stopPropagation();
@@ -58,6 +69,19 @@
       await onPlay(card);
     } finally {
       starting = false;
+    }
+  }
+
+  async function handleApproveClick(event: MouseEvent) {
+    event.stopPropagation();
+    if (!onApprove || approving) return;
+    const runId = awaitingReviewSubtask?.active_run?.id;
+    if (!runId) return;
+    approving = true;
+    try {
+      await onApprove(card, runId);
+    } finally {
+      approving = false;
     }
   }
 
@@ -126,6 +150,15 @@
         aria-label={t("card.play")}
         title={t("card.play")}
       >{starting ? "…" : "▶"}</button>
+    {/if}
+    {#if canApprove}
+      <button
+        class="icon-btn approve"
+        onclick={handleApproveClick}
+        disabled={approving}
+        aria-label={t("card.approve")}
+        title={t("card.approve")}
+      >{approving ? "…" : "✓"}</button>
     {/if}
     {#if onSplit && card.tasks.length === 0}
       <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
@@ -280,6 +313,15 @@
   .icon-btn.play:hover:not(:disabled) {
     background: #036a3e;
     border-color: #036a3e;
+  }
+  .icon-btn.approve {
+    background: #6941c6;
+    border-color: #6941c6;
+    color: white;
+  }
+  .icon-btn.approve:hover:not(:disabled) {
+    background: #5a3aae;
+    border-color: #5a3aae;
   }
   .icon-btn:disabled {
     opacity: 0.5;

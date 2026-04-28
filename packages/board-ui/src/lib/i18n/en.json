@@ -94,6 +94,8 @@
   "card.add_subtask": "Add a sub-task",
   "card.split": "Split into sub-tasks",
   "card.play": "Start this task",
+  "card.approve": "Approve the run and move to Done",
+  "card.approve_failed": "Approval failed: {reason}",
   "card.play_skipped": "Start skipped: {reason}",
   "card.play_skipped_empty": "Nothing started — check the available agents",
   "card.progress_aria": "task progress",

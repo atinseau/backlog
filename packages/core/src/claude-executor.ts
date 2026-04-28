@@ -8,6 +8,83 @@ import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktre
 import { parseClaudeJsonStdout } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
 
+// Maps a Claude tool name to the granular activity event we surface
+// in the bottom banner. Keep these short and unambiguous so the
+// terminal-style log stays scannable. Anything we don't recognize
+// falls back to "agent.tool" with the raw name.
+function classifyTool(toolName: string): string {
+  if (toolName === "Read" || toolName === "Glob" || toolName === "Grep") return "agent.read";
+  if (toolName === "Edit" || toolName === "MultiEdit" || toolName === "NotebookEdit") return "agent.edit";
+  if (toolName === "Write") return "agent.write";
+  if (toolName === "Bash" || toolName === "BashOutput" || toolName === "KillBash") return "agent.bash";
+  if (toolName === "Task") return "agent.subagent";
+  if (toolName === "WebFetch" || toolName === "WebSearch") return "agent.web";
+  if (toolName === "TodoWrite") return "agent.todo";
+  if (toolName === "ExitPlanMode") return "agent.plan";
+  return "agent.tool";
+}
+
+// Extract the most-useful one-line summary of what a tool call did,
+// derived from the standard Claude tool input shapes. Truncated so
+// the banner row stays on one line.
+function summarizeToolUse(toolName: string, input: unknown): string {
+  const args = (input ?? {}) as Record<string, unknown>;
+  const truncate = (s: string, n: number): string =>
+    s.length > n ? s.slice(0, n - 1) + "…" : s;
+  if (toolName === "Read" || toolName === "Edit" || toolName === "MultiEdit" || toolName === "Write" || toolName === "NotebookEdit") {
+    const file = String(args["file_path"] ?? args["notebook_path"] ?? "");
+    return file ? `${toolName} ${file}` : toolName;
+  }
+  if (toolName === "Glob") return `Glob ${truncate(String(args["pattern"] ?? ""), 80)}`;
+  if (toolName === "Grep") return `Grep ${truncate(String(args["pattern"] ?? ""), 60)}${args["path"] ? ` in ${args["path"]}` : ""}`;
+  if (toolName === "Bash") {
+    const cmd = String(args["command"] ?? "");
+    const desc = String(args["description"] ?? "");
+    return `Bash ${truncate(desc || cmd, 80)}`;
+  }
+  if (toolName === "Task") {
+    const desc = String(args["description"] ?? args["subagent_type"] ?? "");
+    return `Task ${truncate(desc, 60)}`;
+  }
+  if (toolName === "WebFetch" || toolName === "WebSearch") {
+    return `${toolName} ${truncate(String(args["url"] ?? args["query"] ?? ""), 80)}`;
+  }
+  return toolName;
+}
+
+function handleStreamEvent(
+  backlogDir: string,
+  runId: string,
+  ev: Record<string, unknown>,
+): void {
+  const type = ev["type"];
+  if (type === "assistant") {
+    const message = ev["message"] as { content?: Array<Record<string, unknown>> } | undefined;
+    const content = message?.content ?? [];
+    for (const block of content) {
+      if (block["type"] === "tool_use") {
+        const toolName = String(block["name"] ?? "unknown");
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: classifyTool(toolName),
+          message: summarizeToolUse(toolName, block["input"]),
+        });
+      }
+    }
+  } else if (type === "system" && ev["subtype"] === "init") {
+    // Helpful breadcrumb so the banner shows "started" before the
+    // first tool call lands.
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "agent.session_init",
+      message: `model=${String(ev["model"] ?? "")} tools=${Array.isArray(ev["tools"]) ? (ev["tools"] as unknown[]).length : 0}`,
+    });
+  }
+  // user (tool_result) and result events are silent in the activity
+  // banner — tool results can be enormous and the lifecycle close-out
+  // is already covered by executor.success / executor.failed.
+}
+
 export async function executeClaudeAgentRun(params: {
   backlogDir: string;
   run: Run;
@@ -26,11 +103,13 @@ export async function executeClaudeAgentRun(params: {
   const logPath = path.join(params.run.worktree_path, ".backlog-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
-  // `--output-format json` returns a single object with `summary` (or
-  // `result`) plus `usage`. We need usage for `backlog runs cost`; the
-  // parser below tolerates plain text too, so a Claude CLI version that
-  // doesn't produce JSON gracefully degrades.
-  const args = ["-p", "--output-format", "json", "--permission-mode", "bypassPermissions"];
+  // `--output-format stream-json --verbose` emits NDJSON of the agent
+  // loop in real time: one line per system / assistant / user / result
+  // event. We pipe it line-by-line into events.ndjson so the activity
+  // banner shows what claude is doing as it does it (Read foo.rb,
+  // Edit bar.rb, Bash 'npm test', …) instead of an empty 5-minute
+  // silence followed by a single executor.success at the end.
+  const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"];
   if (params.agent.model) {
     args.push("--model", params.agent.model);
   }
@@ -46,23 +125,49 @@ export async function executeClaudeAgentRun(params: {
   });
 
   try {
-    const result = await execa(executable, args, {
+    const subprocess = execa(executable, args, {
       cwd: params.run.worktree_path,
       env: buildProviderEnv(params.agent, params.run, params.task, params.workItem),
       reject: false,
     });
 
+    let stdoutBuf = "";
+    let lineBuf = "";
+    let resultEventLine: string | null = null; // last `type: "result"` JSON
+
+    subprocess.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      stdoutBuf += text;
+      lineBuf += text;
+      let nl: number;
+      while ((nl = lineBuf.indexOf("\n")) >= 0) {
+        const line = lineBuf.slice(0, nl).trim();
+        lineBuf = lineBuf.slice(nl + 1);
+        if (!line) continue;
+        try {
+          const ev = JSON.parse(line) as Record<string, unknown>;
+          if (ev["type"] === "result") resultEventLine = line;
+          handleStreamEvent(params.backlogDir, params.run.id, ev);
+        } catch {
+          // Non-JSON line in stream-json output — skip silently.
+        }
+      }
+    });
+
+    const result = await subprocess;
+
     fs.writeFileSync(
       logPath,
-      [`# stdout`, result.stdout, ``, `# stderr`, result.stderr].join("\n"),
+      [`# stdout`, stdoutBuf, ``, `# stderr`, result.stderr].join("\n"),
       "utf8",
     );
 
-    // Try the JSON output path first (current `--output-format json`).
-    // Fall back to raw stdout for older Claude CLIs that ignore the flag
-    // and print plain text — preserves the previous behaviour.
+    // Parse usage from the final stream-json `result` event when we
+    // captured one. Falls back to the legacy single-object path so
+    // older Claude CLIs (or runs that crashed before emitting a
+    // result) still record what they can.
     const fallbackModel = params.agent.model ?? "claude";
-    const parsed = parseClaudeJsonStdout(result.stdout, fallbackModel);
+    const parsed = parseClaudeJsonStdout(resultEventLine ?? stdoutBuf, fallbackModel);
     if (parsed.usage) {
       try {
         recordUsage(params.backlogDir, params.run.id, {

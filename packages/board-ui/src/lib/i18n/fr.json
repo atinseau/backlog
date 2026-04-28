@@ -94,6 +94,8 @@
   "card.add_subtask": "Ajouter une sous-tâche",
   "card.split": "Découper en sous-tâches",
   "card.play": "Lancer cette tâche",
+  "card.approve": "Approuver le run et passer en Done",
+  "card.approve_failed": "Approbation échouée : {reason}",
   "card.play_skipped": "Lancement ignoré : {reason}",
   "card.play_skipped_empty": "Rien n'a démarré — vérifie les agents disponibles",
   "card.progress_aria": "progression de la tâche",

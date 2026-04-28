@@ -27,6 +27,7 @@
     fetchCurrentProject,
     fetchRepos,
     fetchProjectsList,
+    approveRun,
     moveWorkItem,
     reorderTask,
     setCurrentProjectId,
@@ -282,6 +283,19 @@
     }
   }
 
+  async function handleApproveCard(_card: TaskCard, runId: string) {
+    error = null;
+    try {
+      await approveRun(runId);
+    } catch (err) {
+      error = t("card.approve_failed", {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      if (!connected) await refresh();
+    }
+  }
+
   async function handlePlayCard(card: TaskCard) {
     error = null;
     try {
@@ -410,6 +424,7 @@
       onAddTask={(card) => (createSubTaskTarget = card)}
       onOpen={(card) => (detailTarget = card)}
       onPlay={handlePlayCard}
+      onApprove={handleApproveCard}
     />
   {/each}
 </main>

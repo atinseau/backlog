@@ -1,7 +1,9 @@
 import { loadConfig } from "@backlog/config";
 import {
+  approveRun,
   buildExecutionPlan,
   listActiveRuns,
+  loadRun,
   startRunsForPlan,
 } from "@backlog/core";
 import { Hono } from "hono";
@@ -79,6 +81,42 @@ export function runsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "run_failed", detail: message }, 500);
+    }
+  });
+
+  // Approve a run sitting in awaiting_review — the chat-board's
+  // one-click "✓ Approuver" button calls this. Mirrors the
+  // `backlog runs approve` CLI command. Without this endpoint the
+  // user has to drop to a terminal to clear EN REVUE cards, which
+  // is the difference between "looks alive" and "I have to babysit".
+  const approveBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
+  app.post("/runs/:id/approve", async (c) => {
+    const workspace = c.get("workspace");
+    const runId = c.req.param("id");
+    const run = loadRun(workspace.backlogDir, runId);
+    if (!run) {
+      return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
+    }
+    if (run.status !== "awaiting_review") {
+      return c.json(
+        {
+          error: "wrong_status",
+          detail: `Run is '${run.status}', not 'awaiting_review' — nothing to approve.`,
+        },
+        409,
+      );
+    }
+    const raw = await c.req.json().catch(() => undefined);
+    const parsed = approveBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      await approveRun(workspace.backlogDir, runId, parsed.data?.summary);
+      return c.json({ ok: true, run_id: runId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "approve_failed", detail: message }, 500);
     }
   });
 

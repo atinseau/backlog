@@ -24,9 +24,10 @@
     onAddTask?: (card: TaskCard) => void;
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
+    onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -101,7 +102,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} />
+        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} />
       </div>
     {/each}
     {#if localCards.length === 0}
