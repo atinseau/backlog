@@ -21,16 +21,22 @@
   const priorityClass = $derived(`pri pri-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
   const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
-  // Show the per-card ▶ only on cards that are actually startable. Status
-  // "ready" / "backlog" maps to the À FAIRE column minus blocked rows;
-  // anything already running, in review, or done shouldn't offer a Play.
-  // We also hide it once a subtask is running to avoid double-starting
-  // — the orchestrator panel is the right place to manage live runs.
+  // Subtasks that the scheduler could pick up if asked to start now.
+  // "queued" and "planned" both mean "ready, just hasn't been launched
+  // yet"; "waiting" still has unmet deps so we don't count it.
+  const startableCount = $derived(
+    card.tasks.filter((t) => t.status === "queued" || t.status === "planned").length,
+  );
+  // Show ▶ whenever the scheduler has something to start — including
+  // EN COURS cards that still have queued siblings, so the user can
+  // fan out parallel runs without opening the orchestrator panel.
+  // Cards with zero subtasks fall back to the À FAIRE columns since
+  // there's nothing else to gate on.
   const canPlay = $derived(
     Boolean(onPlay) &&
-      (card.status === "ready" || card.status === "backlog") &&
-      runningCount === 0 &&
-      blockedCount === 0,
+      blockedCount === 0 &&
+      (startableCount > 0 ||
+        (card.tasks.length === 0 && (card.status === "ready" || card.status === "backlog"))),
   );
   let starting = $state(false);
 
