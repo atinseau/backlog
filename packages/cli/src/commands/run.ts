@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
   aggregateUsage,
+  aggregateUsageByBucket,
   approveRun,
   completeRun,
   createRunHandoff,
@@ -320,12 +321,44 @@ export function registerRunCommand(program: Command): void {
     .description("Aggregate token usage and USD cost across runs from their events.ndjson")
     .option("--run <id>", "Limit the report to one run")
     .option("--since <iso>", "Only count usage events with ts >= this ISO timestamp")
+    .option("--bucket <day|week|month>", "Aggregate by time bucket instead of by run")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { run?: string; since?: string; json?: boolean }) => {
+    .action((options: { run?: string; since?: string; bucket?: string; json?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
+
+      // --bucket is a different shape (time-series) and not really
+      // composable with --run (one run lives in one bucket), so we
+      // branch up front.
+      if (options.bucket) {
+        if (options.bucket !== "day" && options.bucket !== "week" && options.bucket !== "month") {
+          throw new Error(`--bucket must be 'day', 'week', or 'month' (got ${options.bucket}).`);
+        }
+        const series = aggregateUsageByBucket(workspace.backlogDir, options.bucket, {
+          ...(options.since ? { sinceIso: options.since } : {}),
+        });
+        if (options.json) {
+          console.log(JSON.stringify(series, null, 2));
+          return;
+        }
+        if (series.length === 0) {
+          console.log("No usage events recorded yet.");
+          return;
+        }
+        const dollar = (n: number) => `$${n.toFixed(4)}`;
+        const tokens = (n: number) => n.toLocaleString();
+        console.log(`Cost by ${options.bucket}:`);
+        for (const point of series) {
+          console.log(
+            `  ${point.bucket}: ${dollar(point.totals.cost_usd).padEnd(10)} ` +
+              `(${tokens(point.totals.input_tokens)} in / ${tokens(point.totals.output_tokens)} out)`,
+          );
+        }
+        return;
+      }
+
       const result = aggregateUsage(workspace.backlogDir, {
         ...(options.run ? { runIds: [options.run] } : {}),
         ...(options.since ? { sinceIso: options.since } : {}),

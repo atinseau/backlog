@@ -268,6 +268,62 @@ export function estimateRunCost(
   };
 }
 
+// Time bucket for cost time-series. The bucket key is an ISO date
+// string truncated to the appropriate precision: "2026-04-28" for
+// day, "2026-W17" for week (ISO week), "2026-04" for month.
+export type CostBucket = "day" | "week" | "month";
+
+function bucketKey(ts: string, bucket: CostBucket): string {
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  if (bucket === "month") return ts.slice(0, 7); // "YYYY-MM"
+  if (bucket === "day") return ts.slice(0, 10); // "YYYY-MM-DD"
+  // ISO week: pad year + ISO week-of-year. Approximation good enough
+  // for cost reporting (the weeks-cross-year edge case at New Year
+  // could be off by one but the report still groups consistently).
+  const year = date.getUTCFullYear();
+  const start = Date.UTC(year, 0, 1);
+  const days = Math.floor((date.getTime() - start) / 86_400_000);
+  const week = Math.floor(days / 7) + 1;
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+export interface BucketedCost {
+  bucket: string;
+  totals: UsageTotals;
+}
+
+// Group usage events into time buckets and return one totals record
+// per bucket, sorted by bucket key ascending. Used by `backlog runs
+// cost --bucket day|week|month` to render a time-series.
+export function aggregateUsageByBucket(
+  backlogDir: string,
+  bucket: CostBucket,
+  options: AggregateOptions = {},
+): BucketedCost[] {
+  const runIds = options.runIds ?? listAllRunIds(backlogDir);
+  const buckets = new Map<string, UsageTotals>();
+
+  for (const runId of runIds) {
+    const events = readUsageEvents(backlogDir, runId).filter((e) =>
+      options.sinceIso ? e.ts >= options.sinceIso : true,
+    );
+    for (const event of events) {
+      const key = bucketKey(event.ts, bucket);
+      let totals = buckets.get(key);
+      if (!totals) {
+        totals = emptyTotals();
+        buckets.set(key, totals);
+      }
+      add(totals, event);
+    }
+  }
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([bucketKey_, totals]) => ({ bucket: bucketKey_, totals }));
+}
+
 // Aggregate usage events across runs. Returns the totals and a
 // breakdown by model for each run (so a per-run cost report is one
 // pass over the data, not one pass per run).

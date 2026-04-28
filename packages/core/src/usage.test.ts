@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { aggregateUsage, estimateRunCost, recordUsage } from "./usage.js";
+import { aggregateUsage, aggregateUsageByBucket, estimateRunCost, recordUsage } from "./usage.js";
 
 function makeBacklogWithRun(runId: string): string {
   const backlogDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-usage-"));
@@ -117,6 +117,79 @@ describe("recordUsage / aggregateUsage", () => {
     const totals = aggregateUsage(backlogDir).totals;
     // Opus 4.7 = $15/MM input, $75/MM output → 10×15/MM + 5×75/MM
     expect(totals.cost_usd).toBeCloseTo((10 * 15 + 5 * 75) / 1_000_000, 8);
+  });
+});
+
+describe("aggregateUsageByBucket", () => {
+  it("groups events into day buckets in chronological order", () => {
+    const backlogDir = makeBacklogWithRun("RUN-day");
+    recordUsage(backlogDir, "RUN-day", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 100_000,
+      output_tokens: 50_000,
+      ts: "2026-04-26T08:00:00.000Z",
+    });
+    recordUsage(backlogDir, "RUN-day", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 200_000,
+      output_tokens: 100_000,
+      ts: "2026-04-28T10:00:00.000Z",
+    });
+    recordUsage(backlogDir, "RUN-day", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 50_000,
+      output_tokens: 25_000,
+      ts: "2026-04-28T18:00:00.000Z",
+    });
+
+    const series = aggregateUsageByBucket(backlogDir, "day");
+    expect(series.map((s) => s.bucket)).toEqual(["2026-04-26", "2026-04-28"]);
+    // Same-day events sum together.
+    expect(series[1]!.totals.input_tokens).toBe(250_000);
+    expect(series[1]!.totals.output_tokens).toBe(125_000);
+  });
+
+  it("groups by month with YYYY-MM keys", () => {
+    const backlogDir = makeBacklogWithRun("RUN-month");
+    for (const ts of ["2026-03-01T00:00:00.000Z", "2026-04-01T00:00:00.000Z", "2026-04-30T23:00:00.000Z"]) {
+      recordUsage(backlogDir, "RUN-month", {
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        input_tokens: 1000,
+        output_tokens: 500,
+        ts,
+      });
+    }
+    const series = aggregateUsageByBucket(backlogDir, "month");
+    expect(series.map((s) => s.bucket)).toEqual(["2026-03", "2026-04"]);
+    expect(series[1]!.totals.input_tokens).toBe(2000);
+  });
+
+  it("respects --since by filtering older events out before bucketing", () => {
+    const backlogDir = makeBacklogWithRun("RUN-since");
+    recordUsage(backlogDir, "RUN-since", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 1000,
+      output_tokens: 500,
+      ts: "2026-01-01T00:00:00.000Z",
+    });
+    recordUsage(backlogDir, "RUN-since", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 2000,
+      output_tokens: 1000,
+      ts: "2026-04-15T00:00:00.000Z",
+    });
+
+    const filtered = aggregateUsageByBucket(backlogDir, "month", {
+      sinceIso: "2026-04-01T00:00:00.000Z",
+    });
+    expect(filtered.map((s) => s.bucket)).toEqual(["2026-04"]);
+    expect(filtered[0]!.totals.input_tokens).toBe(2000);
   });
 });
 
