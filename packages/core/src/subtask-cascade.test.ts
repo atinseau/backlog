@@ -24,7 +24,7 @@ function makeWorkspace(): string {
 describe("cascadeBlockDependents", () => {
   it("marks every direct dependent of a failed subtask as blocked", () => {
     const backlogDir = makeWorkspace();
-    const workItem = createTask(backlogDir, { title: "parent", repo: "repo" });
+    const workItem = createTask(backlogDir, { title: "parent", repoTargets: ["repo"] });
     const a = createSubTask(backlogDir, { workItemId: workItem.id, title: "A", repo: "repo" });
     const b = createSubTask(backlogDir, {
       workItemId: workItem.id,
@@ -47,7 +47,7 @@ describe("cascadeBlockDependents", () => {
 
   it("walks the graph transitively (B → C → D all get blocked when A fails)", () => {
     const backlogDir = makeWorkspace();
-    const workItem = createTask(backlogDir, { title: "parent", repo: "repo" });
+    const workItem = createTask(backlogDir, { title: "parent", repoTargets: ["repo"] });
     const a = createSubTask(backlogDir, { workItemId: workItem.id, title: "A", repo: "repo" });
     const b = createSubTask(backlogDir, {
       workItemId: workItem.id,
@@ -74,7 +74,7 @@ describe("cascadeBlockDependents", () => {
 
   it("doesn't touch siblings that don't depend on the failed task", () => {
     const backlogDir = makeWorkspace();
-    const workItem = createTask(backlogDir, { title: "parent", repo: "repo" });
+    const workItem = createTask(backlogDir, { title: "parent", repoTargets: ["repo"] });
     const a = createSubTask(backlogDir, { workItemId: workItem.id, title: "A", repo: "repo" });
     const sibling = createSubTask(backlogDir, { workItemId: workItem.id, title: "Sibling", repo: "repo" });
 
@@ -85,7 +85,7 @@ describe("cascadeBlockDependents", () => {
 
   it("is idempotent — re-running on the same failed id doesn't double-tag the blocker", () => {
     const backlogDir = makeWorkspace();
-    const workItem = createTask(backlogDir, { title: "parent", repo: "repo" });
+    const workItem = createTask(backlogDir, { title: "parent", repoTargets: ["repo"] });
     const a = createSubTask(backlogDir, { workItemId: workItem.id, title: "A", repo: "repo" });
     createSubTask(backlogDir, {
       workItemId: workItem.id,
@@ -103,7 +103,7 @@ describe("cascadeBlockDependents", () => {
 
   it("skips terminal-state dependents (completed and canceled)", () => {
     const backlogDir = makeWorkspace();
-    const workItem = createTask(backlogDir, { title: "parent", repo: "repo" });
+    const workItem = createTask(backlogDir, { title: "parent", repoTargets: ["repo"] });
     const a = createSubTask(backlogDir, { workItemId: workItem.id, title: "A", repo: "repo" });
     const done = createSubTask(backlogDir, {
       workItemId: workItem.id,
