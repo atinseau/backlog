@@ -4,7 +4,7 @@ import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
+import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
 import { parseClaudeJsonStdout } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
 
@@ -14,9 +14,14 @@ export async function executeClaudeAgentRun(params: {
   task: SubTask;
   workItem: Task;
   agent: Agent;
+  priorFailureFeedback?: string;
+  attemptNumber?: number;
 }): Promise<void> {
   const executable = params.agent.command || "claude";
-  const prompt = buildProviderPrompt(params.task, params.workItem);
+  const basePrompt = buildProviderPrompt(params.task, params.workItem);
+  const prompt = params.priorFailureFeedback && (params.attemptNumber ?? 1) > 1
+    ? buildRetryPrompt(basePrompt, params.attemptNumber ?? 2, params.priorFailureFeedback)
+    : basePrompt;
   const promptPath = path.join(params.run.worktree_path, ".backlog-claude-prompt.md");
   const logPath = path.join(params.run.worktree_path, ".backlog-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");

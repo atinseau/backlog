@@ -3,11 +3,17 @@ import { detectGitDir } from "@backlog/git";
 import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
-import { addRunArtifact, createRun, listActiveRuns, nextRunId, updateRunStatus } from "./run-store.js";
+import { appendRunEvent, addRunArtifact, createRun, getRunEvents, listActiveRuns, loadRun, nextRunId, updateRunStatus } from "./run-store.js";
+import { runWithRetry, retryPolicyForAgent } from "./retry.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask } from "./task-service.js";
 import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./worktrees.js";
+
+// How much of the failed run's events tail we feed back into the next
+// attempt's prompt. Bounded so a verbose Claude log doesn't explode
+// the prompt size.
+const RETRY_FEEDBACK_BYTES = 4_000;
 
 export interface StartedRun {
   runId: string;
@@ -153,18 +159,61 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       claimIds: [claim.id],
     });
 
-    const executed = await executeAgentRun({
-      backlogDir,
-      run,
-      task,
-      workItem,
-      agent,
+    // Wrap the executor in the agent's retry policy. Default policy
+    // is `mode=none` so existing agents keep their one-shot behaviour.
+    // For mode=feedback, each retry reuses the same Run record + the
+    // same worktree (so partial work isn't lost) and feeds the
+    // previous attempt's tail-of-events into the prompt as context.
+    const policy = retryPolicyForAgent(agent);
+    let executed = false;
+    let unsupported = false;
+
+    await runWithRetry({
+      policy,
+      attempt: async ({ attemptNumber, priorFeedback }) => {
+        if (attemptNumber > 1) {
+          updateRunStatus(backlogDir, run.id, "running", `Retry attempt ${attemptNumber}`);
+          appendRunEvent(backlogDir, run.id, {
+            ts: new Date().toISOString(),
+            type: "executor.retry",
+            message: `Starting retry attempt ${attemptNumber} (policy=${policy.mode}, max=${String(policy.max_attempts)})`,
+          });
+        }
+        const ok = await executeAgentRun({
+          backlogDir,
+          run,
+          task,
+          workItem,
+          agent,
+          ...(priorFeedback ? { priorFailureFeedback: priorFeedback } : {}),
+          ...(attemptNumber > 1 ? { attemptNumber } : {}),
+        });
+        if (!ok) {
+          unsupported = true;
+          return { ok: true }; // stop the loop; we'll handle below
+        }
+        executed = true;
+        const finalState = loadRun(backlogDir, run.id);
+        const status = finalState?.status;
+        if (status === "succeeded" || status === "awaiting_review") {
+          return { ok: true };
+        }
+        // Capture a tail of the events.ndjson as feedback for the next
+        // attempt. We slice from the end so the most recent failure
+        // signals are kept; if it's still too long the buildRetryPrompt
+        // helper truncates again at prompt construction time.
+        const events = getRunEvents(backlogDir, run.id);
+        const feedback = events.slice(-15).join("\n").slice(-RETRY_FEEDBACK_BYTES);
+        return { ok: false, feedback };
+      },
     });
-    if (!executed) {
+
+    if (unsupported) {
       skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
       updateRunStatus(backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
       updateSubTaskStatus(backlogDir, task.id, "blocked");
     }
+    void executed;
   }
 
   return { started, skipped };
