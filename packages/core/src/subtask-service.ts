@@ -5,7 +5,7 @@ import {
 } from "@backlog/schemas";
 import { makeId } from "./id.js";
 import { getTask, updateTaskStatus, deriveTaskStatusFromSubTasks } from "./task-service.js";
-import { readSubTasksFile, writeSubTasksFile } from "./state-files.js";
+import { listSubTasks, readSubTasksFile, writeSubTasksFile } from "./state-files.js";
 
 export interface CreateTaskInput {
   workItemId: string;
@@ -172,6 +172,49 @@ export function blockTask(backlogDir: string, id: string, reasons: string[]): Su
   const blockers = Array.from(new Set([...task.blockers, ...reasons]));
   updateSubTask(backlogDir, id, { blockers });
   return updateSubTaskStatus(backlogDir, id, "blocked");
+}
+
+// Walk forward through the dependency graph and mark every (transitive)
+// dependent of `id` as blocked, citing the failed parent in their
+// blockers array. Used by `failRun` (when its caller opts in) so the
+// orchestrator panel doesn't keep showing chains stuck on a dep that
+// will never resolve.
+//
+// Returns the list of dependents that were newly blocked. Idempotent
+// — already-blocked dependents are noted with a fresh blocker entry
+// but their status doesn't change.
+export function cascadeBlockDependents(backlogDir: string, failedSubtaskId: string): SubTask[] {
+  const all = listSubTasks(backlogDir);
+  const byId = new Map(all.map((t) => [t.id, t]));
+
+  // BFS over `depends_on` edges, but inverted: from failedSubtaskId
+  // forward to anything that listed it as a dep, then onward.
+  const dependents = new Map<string, SubTask>(); // id -> task
+  const queue: string[] = [failedSubtaskId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const candidate of all) {
+      if (candidate.depends_on.includes(current) && !dependents.has(candidate.id)) {
+        dependents.set(candidate.id, candidate);
+        queue.push(candidate.id);
+      }
+    }
+  }
+
+  const blockerTag = `dependency_failed:${failedSubtaskId}`;
+  const updated: SubTask[] = [];
+  for (const dep of dependents.values()) {
+    if (dep.status === "completed" || dep.status === "canceled") continue;
+    if (dep.blockers.includes(blockerTag)) continue;
+    const blockers = [...dep.blockers, blockerTag];
+    updateSubTask(backlogDir, dep.id, { blockers });
+    if (dep.status !== "blocked") {
+      updateSubTaskStatus(backlogDir, dep.id, "blocked");
+    }
+    const refreshed = byId.get(dep.id);
+    if (refreshed) updated.push(refreshed);
+  }
+  return updated;
 }
 
 export function unblockTask(backlogDir: string, id: string, reasons?: string[]): SubTask {

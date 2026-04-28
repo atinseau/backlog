@@ -81,9 +81,26 @@ function overlapWithClaim(task: SubTask, repoPath: string, claims: ReturnType<ty
 }
 
 function dependencyReasons(task: SubTask, tasksById: Map<string, SubTask>): string[] {
-  return task.depends_on
-    .filter((dependencyId) => tasksById.get(dependencyId)?.status !== "completed")
-    .map((dependencyId) => `blocked_by_dependency:${dependencyId}`);
+  // Differentiate between deps that might resolve (waiting_on) and
+  // deps that almost certainly won't on their own (dependency_failed).
+  // Lets the orchestrator panel show different copy / colors for the
+  // two cases — "waiting" deserves patience, "failed dependency"
+  // deserves attention.
+  const reasons: string[] = [];
+  for (const depId of task.depends_on) {
+    const dep = tasksById.get(depId);
+    if (!dep) {
+      reasons.push(`unknown_dependency:${depId}`);
+      continue;
+    }
+    if (dep.status === "completed") continue;
+    if (dep.status === "blocked" || dep.status === "canceled") {
+      reasons.push(`dependency_failed:${depId}`);
+    } else {
+      reasons.push(`waiting_on:${depId}`);
+    }
+  }
+  return reasons;
 }
 
 function policyReasons(task: SubTask, config: ProjectConfig): string[] {
@@ -194,7 +211,15 @@ export function buildExecutionPlan(
       };
     }
 
-    const action: DecisionAction = reasons.some((reason) => reason.startsWith("scope_conflict_with:") || reason.startsWith("blocked_by_dependency:"))
+    // `wait`: the task could still run later — scope conflict will
+    // resolve when the other claim finishes; `waiting_on:` deps will
+    // resolve when the dependency completes.
+    // `block`: the task is stuck on something that won't resolve on
+    // its own (`dependency_failed:`, `unknown_dependency:`, agent
+    // policy reasons, etc).
+    const action: DecisionAction = reasons.some(
+      (reason) => reason.startsWith("scope_conflict_with:") || reason.startsWith("waiting_on:"),
+    )
       ? "wait"
       : "block";
 

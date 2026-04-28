@@ -44,7 +44,10 @@ describe("buildExecutionPlan", () => {
 
     const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.runnable.some((decision) => decision.taskId === first.id)).toBe(true);
-    expect(plan.waiting.find((decision) => decision.taskId === second.id)?.reasons).toContain(`blocked_by_dependency:${first.id}`);
+    // The reason text changed in the dependency-state split:
+    // pending deps now read `waiting_on:<id>`; failed deps read
+    // `dependency_failed:<id>`. `first` here is queued, so `waiting_on`.
+    expect(plan.waiting.find((decision) => decision.taskId === second.id)?.reasons).toContain(`waiting_on:${first.id}`);
   });
 
   it("does not schedule overlapping runnable tasks in the same plan", () => {

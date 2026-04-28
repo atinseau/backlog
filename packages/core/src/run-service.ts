@@ -1,6 +1,6 @@
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
-import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
+import { cascadeBlockDependents, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { updateTaskStatus } from "./task-service.js";
 import { archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 
@@ -64,9 +64,21 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
   await completeRun(backlogDir, runId, summary ?? "Approved in review");
 }
 
-export async function failRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+export async function failRun(
+  backlogDir: string,
+  runId: string,
+  summary?: string,
+  options?: { cascadeBlock?: boolean },
+): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "failed", summary ?? "Failed by operator");
   syncParentWorkAfterRun(backlogDir, run.subtask_id, "blocked");
+  // Optional cascade: mark every (transitive) dependent of the failed
+  // subtask as blocked so they don't sit in "waiting" forever. Off by
+  // default for backward compat — callers who know the failure is
+  // permanent (operator giveup, hard error) can opt in.
+  if (options?.cascadeBlock) {
+    cascadeBlockDependents(backlogDir, run.subtask_id);
+  }
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
