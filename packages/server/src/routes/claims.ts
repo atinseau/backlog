@@ -4,9 +4,13 @@ import {
   findOverlappingClaims,
   listActiveClaims,
   listArchivedClaims,
+  removeContextFile,
+  writeContextFile,
 } from "@backlog/claims";
+import { loadConfig } from "@backlog/config";
 import { listAgents } from "@backlog/core";
-import type { Agent, ClaimRecord } from "@backlog/schemas";
+import { detectGitDir } from "@backlog/git";
+import type { Agent, ClaimRecord, RepoConfig } from "@backlog/schemas";
 import { Hono } from "hono";
 import { z } from "zod";
 import { computeRetryAfter } from "../lib/retry-after.js";
@@ -45,6 +49,21 @@ const createClaimBodySchema = z.object({
   agent_id: z.string().min(1).optional(),
   metadata: z.record(z.string(), z.string()).optional(),
 });
+
+async function resolveGitDirForRepo(backlogDir: string, repoId: string): Promise<string | null> {
+  let repo: RepoConfig | undefined;
+  try {
+    repo = loadConfig(backlogDir).repos.find((entry) => entry.id === repoId);
+  } catch {
+    return null;
+  }
+  if (!repo) return null;
+  try {
+    return await detectGitDir(repo.path);
+  } catch {
+    return null;
+  }
+}
 
 function buildConflictResponse(blocking: ClaimRecord) {
   const hint = computeRetryAfter(blocking);
@@ -160,14 +179,26 @@ export function claimsRoutes(): Hono<AppEnv> {
     }
 
     const claim = createClaim(createInput);
+    const gitDir = await resolveGitDirForRepo(workspace.backlogDir, claim.repo);
+    if (gitDir) {
+      writeContextFile(gitDir, {
+        version: 1,
+        claim_id: claim.id,
+        updated_at: new Date().toISOString(),
+      });
+    }
     return c.json({ claim }, 201);
   });
 
-  app.delete("/claims/:id", (c) => {
+  app.delete("/claims/:id", async (c) => {
     const workspace = c.get("workspace");
     const id = c.req.param("id");
     try {
       const archived = archiveClaim(workspace.backlogDir, id);
+      const gitDir = await resolveGitDirForRepo(workspace.backlogDir, archived.repo);
+      if (gitDir) {
+        removeContextFile(gitDir, archived.id);
+      }
       return c.json({ archived });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
