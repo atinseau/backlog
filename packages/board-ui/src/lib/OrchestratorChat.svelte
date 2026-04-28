@@ -1,17 +1,29 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
-  import { apiUrl } from "./api.js";
+  import { apiUrl, fetchOrchestratorState, pauseOrchestrator, stopOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
     open: boolean;
+    workspaceId: string | null;
     onClose: () => void;
   }
 
-  let { open, onClose }: Props = $props();
+  let { open, workspaceId, onClose }: Props = $props();
 
-  // Chat history is in-memory only in V1. Closing the drawer doesn't clear
-  // it, but a tab refresh does — that's documented in the plan.
+  // Fetched on mount + refreshed whenever an orchestrator.changed SSE
+  // event lands. Drives the visibility / enabled state of the emergency
+  // pause/stop buttons so we don't show controls that would 4xx.
+  let orchestratorMode = $state<string | null>(null);
+  async function refreshOrchestratorMode() {
+    try {
+      const state = await fetchOrchestratorState();
+      orchestratorMode = state.mode;
+    } catch {
+      orchestratorMode = null;
+    }
+  }
+
   interface ChatTurn {
     role: "user" | "assistant";
     content: string;
@@ -23,11 +35,58 @@
       write?: boolean;
     }>;
   }
+  interface UsageBucket {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheCreation: number;
+  }
   let history = $state<ChatTurn[]>([]);
   let input = $state("");
   let busy = $state(false);
   let error = $state<string | null>(null);
   let scrollEl = $state<HTMLDivElement | null>(null);
+  let usage = $state<UsageBucket>({ input: 0, output: 0, cacheRead: 0, cacheCreation: 0 });
+  let actionBusy = $state<"pause" | "stop" | null>(null);
+
+  // History is persisted per workspace so switching workspaces doesn't mix
+  // conversations and a tab refresh keeps the thread you were on. Bounded
+  // to the last 30 turns so localStorage stays small.
+  const HISTORY_KEY_PREFIX = "backlog.chat.history.";
+  const MAX_HISTORY = 30;
+
+  function historyKey(id: string | null): string | null {
+    return id ? HISTORY_KEY_PREFIX + id : null;
+  }
+
+  function loadHistory(id: string | null) {
+    const key = historyKey(id);
+    if (!key) {
+      history = [];
+      usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : null;
+      history = Array.isArray(parsed?.history) ? parsed.history : [];
+      usage = parsed?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    } catch {
+      history = [];
+      usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+    }
+  }
+
+  function saveHistory() {
+    const key = historyKey(workspaceId);
+    if (!key) return;
+    try {
+      const trimmed = history.slice(-MAX_HISTORY);
+      localStorage.setItem(key, JSON.stringify({ history: trimmed, usage }));
+    } catch {
+      // localStorage full or disabled — silently degrade
+    }
+  }
 
   // Live event feed: tail of the workspace's SSE bus, displayed at the
   // bottom of the drawer so the user can watch the orchestrator tick
@@ -49,7 +108,8 @@
     ].slice(0, MAX_EVENTS);
   }
 
-  onMount(() => {
+  function attachEventSource() {
+    source?.close();
     source = new EventSource(apiUrl("/events"));
     const types = [
       "subtask.changed",
@@ -58,12 +118,45 @@
       "claim.changed",
       "orchestrator.changed",
     ];
-    for (const type of types) source.addEventListener(type, () => pushEvent(type));
+    for (const type of types) {
+      source.addEventListener(type, () => {
+        pushEvent(type);
+        if (type === "orchestrator.changed") void refreshOrchestratorMode();
+      });
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener("keydown", handleGlobalKey);
+  });
+
+  // Single source of truth for workspace-bound setup: this effect runs
+  // once on mount with the initial workspaceId, and again every time it
+  // changes (workspace switch). onMount can't safely do this work
+  // because the prop may still be null at first paint while App resolves
+  // the active workspace from localStorage.
+  let lastWorkspaceId: string | null | undefined = undefined;
+  $effect(() => {
+    const id = workspaceId;
+    if (id === lastWorkspaceId) return;
+    const firstRun = lastWorkspaceId === undefined;
+    lastWorkspaceId = id;
+    if (!firstRun) events = [];
+    loadHistory(id);
+    attachEventSource();
+    void refreshOrchestratorMode();
   });
 
   onDestroy(() => {
     source?.close();
+    window.removeEventListener("keydown", handleGlobalKey);
   });
+
+  function handleGlobalKey(e: KeyboardEvent) {
+    if (open && e.key === "Escape" && !busy) {
+      onClose();
+    }
+  }
 
   async function scrollToBottom() {
     await tick();
@@ -101,7 +194,36 @@
       history = history.slice(0, -1);
     } finally {
       busy = false;
+      saveHistory();
       void scrollToBottom();
+    }
+  }
+
+  async function emergency(action: "pause" | "stop") {
+    if (actionBusy) return;
+    const label = action === "pause" ? t("chat.confirm_pause") : t("chat.confirm_stop");
+    if (!window.confirm(label)) return;
+    actionBusy = action;
+    try {
+      const fn = action === "pause" ? pauseOrchestrator : stopOrchestrator;
+      const state = await fn();
+      // Surface the action in the chat history so the user (and the agent
+      // on subsequent turns) sees what just happened.
+      history = [
+        ...history,
+        {
+          role: "assistant",
+          content: t(action === "pause" ? "chat.emergency_paused" : "chat.emergency_stopped", {
+            mode: state.mode,
+          }),
+        },
+      ];
+      saveHistory();
+      void scrollToBottom();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      actionBusy = null;
     }
   }
 
@@ -174,6 +296,20 @@
         last.toolCalls = list;
         history = [...history];
       }
+    } else if (event === "done") {
+      // Accumulate token usage across the whole conversation so the user
+      // can see the running cost. The agent loop emits one done event per
+      // user turn (after all tool roundtrips), so this fires once per
+      // user message.
+      const u = payload.usage as Record<string, number> | undefined;
+      if (u) {
+        usage = {
+          input: usage.input + (u.input_tokens ?? 0),
+          output: usage.output + (u.output_tokens ?? 0),
+          cacheRead: usage.cacheRead + (u.cache_read_input_tokens ?? 0),
+          cacheCreation: usage.cacheCreation + (u.cache_creation_input_tokens ?? 0),
+        };
+      }
     } else if (event === "error") {
       error = String(payload.message ?? "unknown error");
     }
@@ -188,8 +324,18 @@
 
   function clearHistory() {
     history = [];
+    usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
     error = null;
+    saveHistory();
   }
+
+  function fmt(n: number): string {
+    if (n < 1000) return String(n);
+    if (n < 1_000_000) return (n / 1000).toFixed(1) + "k";
+    return (n / 1_000_000).toFixed(2) + "M";
+  }
+  const totalUsage = $derived(usage.input + usage.output + usage.cacheRead + usage.cacheCreation);
+  const isLive = $derived(orchestratorMode === "running" || orchestratorMode === "paused");
 </script>
 
 {#if open}
@@ -197,8 +343,25 @@
     <header>
       <h2>{t("chat.title")}</h2>
       <div class="actions">
+        {#if isLive}
+          <!-- Emergency pause/stop. The full surface (Play, settings) lives in
+               the topbar OrchestratorControls — these are just the brakes
+               for when something looks wrong and the user wants out fast. -->
+          <button
+            class="emergency"
+            onclick={() => emergency("pause")}
+            disabled={actionBusy !== null || orchestratorMode !== "running"}
+            title={t("chat.action_pause")}
+          >{actionBusy === "pause" ? "…" : "⏸"}</button>
+          <button
+            class="emergency stop"
+            onclick={() => emergency("stop")}
+            disabled={actionBusy !== null || orchestratorMode === "idle"}
+            title={t("chat.action_stop")}
+          >{actionBusy === "stop" ? "…" : "⏹"}</button>
+        {/if}
         <button onclick={clearHistory} title={t("chat.clear")} disabled={history.length === 0 || busy}>↺</button>
-        <button onclick={onClose} aria-label={t("chat.close")}>✕</button>
+        <button onclick={onClose} aria-label={t("chat.close")} title={t("chat.close_hint")}>✕</button>
       </div>
     </header>
 
@@ -253,6 +416,14 @@
         {busy ? "…" : "↑"}
       </button>
     </form>
+
+    {#if totalUsage > 0}
+      <div class="usage" title={t("chat.usage_hint")}>
+        <span>↑ {fmt(usage.input)}</span>
+        <span>↓ {fmt(usage.output)}</span>
+        {#if usage.cacheRead > 0}<span class="cache">⚡ {fmt(usage.cacheRead)}</span>{/if}
+      </div>
+    {/if}
 
     <section class="feed" aria-label={t("chat.feed")}>
       <h3>{t("chat.feed")}</h3>
@@ -312,6 +483,31 @@
   }
   .actions button:hover:not(:disabled) { background: #e4e7ec; }
   .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .actions button.emergency {
+    background: #fef0c7;
+    border-color: #f79009;
+    color: #b54708;
+  }
+  .actions button.emergency:hover:not(:disabled) { background: #fdb022; color: white; }
+  .actions button.emergency.stop {
+    background: #fee4e2;
+    border-color: #f04438;
+    color: #b42318;
+  }
+  .actions button.emergency.stop:hover:not(:disabled) { background: #f04438; color: white; }
+
+  .usage {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    padding: 4px 12px;
+    border-top: 1px solid #e4e7ec;
+    background: #fafafa;
+    font-size: 10px;
+    color: #667085;
+    font-variant-numeric: tabular-nums;
+  }
+  .usage .cache { color: #027a48; }
 
   .conversation {
     flex: 1;

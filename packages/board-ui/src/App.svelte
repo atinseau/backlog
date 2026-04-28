@@ -513,7 +513,7 @@
   />
 {/if}
 
-<OrchestratorChat open={chatOpen} onClose={toggleChat} />
+<OrchestratorChat open={chatOpen} workspaceId={selectedWorkspaceId} onClose={toggleChat} />
 
 {#if splitTarget}
   <SplitDialog
