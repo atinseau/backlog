@@ -395,6 +395,12 @@ function mapBacklogStatusToJiraStatus(status: Task["status"]): string | null {
     case "blocked":
       return null;
   }
+  // Defensive fallback: if Task["status"] ever loosens to `string` (which
+  // can happen in CI when the schemas/dist .d.ts isn't built yet and the
+  // path alias resolves the type from source), the switch above would
+  // not be seen as exhaustive. Returning null here keeps the contract
+  // (string | null) intact.
+  return null;
 }
 
 export function createConnector(source: SourceConfig, projectRoot: string): SourceConnector {

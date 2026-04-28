@@ -8,7 +8,7 @@
     "clean": "find . -name '*.tsbuildinfo' -delete && find packages -name dist -type d -prune -exec rm -rf {} +",
     "dev": "pnpm --filter backlog dev",
     "test": "vitest run",
-    "typecheck": "pnpm -r exec tsc --noEmit",
+    "typecheck": "tsc -b",
     "pack:check": "cd packages/cli && npm pack --dry-run"
   },
   "devDependencies": {
