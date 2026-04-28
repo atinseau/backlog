@@ -13,6 +13,9 @@
   let { workItem, availableRepos, onClose, onCreated }: Props = $props();
 
   let title = $state("");
+  // Initial-from-prop is intended: dialog seeds the repo dropdown with
+  // a sensible default and then the user owns the value.
+  // svelte-ignore state_referenced_locally
   let repo = $state(workItem.repo_targets[0] ?? availableRepos[0] ?? "");
   let scopes = $state("");
   let lane = $state("");
@@ -49,6 +52,8 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <form class="modal" onclick={(e) => e.stopPropagation()} onsubmit={handleSubmit}>
     <header>
       <h2>{t("create_subtask.title")}</h2>
@@ -63,7 +68,7 @@
     <div class="body">
       <label>
         {t("create_subtask.field.title")}
-        <input type="text" bind:value={title} required autofocus />
+        <input type="text" bind:value={title} required />
       </label>
 
       <div class="row">

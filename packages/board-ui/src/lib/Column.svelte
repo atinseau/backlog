@@ -29,6 +29,10 @@
 
   const FLIP_MS = 180;
 
+  // The initial-from-prop is intentional: localCards mutates locally
+  // during drag-considering and gets re-synced by the $effect below
+  // whenever `cards` changes. The reference here only seeds the state.
+  // svelte-ignore state_referenced_locally
   let localCards = $state<TaskCard[]>(cards);
 
   $effect(() => {

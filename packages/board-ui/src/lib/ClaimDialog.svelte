@@ -10,6 +10,10 @@
 
   let { repos, onClose, onCreated }: Props = $props();
 
+  // Initial-from-prop: seed the repo dropdown with the first available;
+  // user picks afterwards persist independently of subsequent prop
+  // changes (which would reset their selection if reactive).
+  // svelte-ignore state_referenced_locally
   let repo = $state(repos[0] ?? "");
   let topic = $state("");
   let pathsRaw = $state("");

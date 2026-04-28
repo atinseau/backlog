@@ -48,6 +48,10 @@
 
   let { onClose, onChanged, defaultTab = "account" }: Props = $props();
 
+  // Initial-from-prop: defaultTab seeds the active tab; user clicks
+  // afterwards take precedence. Reactivity to prop changes here would
+  // surprise the user (their selection would reset).
+  // svelte-ignore state_referenced_locally
   let tab = $state<"account" | "github" | "jira" | "sources">(defaultTab);
 
   // Cloud account state

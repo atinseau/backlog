@@ -23,15 +23,21 @@
 
   type ViewMode = "manual" | "ai-loading" | "ai-proposal";
 
+  // svelte-ignore state_referenced_locally
   const initialRepos = workItem.repo_targets.length > 0
     ? workItem.repo_targets
     : availableRepos.slice(0, 1);
 
   let view = $state<ViewMode>("manual");
+  // Initial-from-prop: split dialog opens with a sensible repo
+  // selection and split-force-flag, then the user owns both. Prop
+  // changes after open shouldn't reset the selections.
+  // svelte-ignore state_referenced_locally
   let selectedRepos = $state<string[]>([...initialRepos]);
   let mode = $state<"parallel" | "serial">("parallel");
   let scopesByRepo = $state<Record<string, string>>({});
   let risk = $state<"low" | "medium" | "high">("medium");
+  // svelte-ignore state_referenced_locally
   let force = $state(workItem.tasks.length > 0);
   let submitting = $state(false);
   let error = $state<string | null>(null);
