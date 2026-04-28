@@ -14,6 +14,13 @@ export interface PreCommitHookStatus {
 
 // Inline template — keeps the bundled CLI tarball self-contained, no
 // templates/ directory shipped. Mirrors templates/pre-commit.sh.
+//
+// __BACKLOG_WORKSPACE__ is the dir we hand back to the CLI via
+// BACKLOG_PROJECT_DIR. For in_repo workspaces it's the project root (which
+// contains .backlog/); for user_level workspaces it's the workspace dir
+// itself (config.toml lives there directly). __BACKLOG_PAUSE_FILE__ is the
+// resolved absolute path to the pause sentinel — different shape for the
+// two layouts.
 const PRE_COMMIT_TEMPLATE = `#!/usr/bin/env bash
 
 # Managed by Backlog. Reinstall through:
@@ -23,8 +30,13 @@ set -euo pipefail
 
 BACKLOG_BIN="__BACKLOG_BIN__"
 BACKLOG_WORKSPACE="__BACKLOG_WORKSPACE__"
-PAUSE_FILE="$BACKLOG_WORKSPACE/.backlog/${PAUSE_FILE_NAME}"
+PAUSE_FILE="__BACKLOG_PAUSE_FILE__"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Tell the CLI exactly which workspace this hook belongs to — covers both
+# in_repo (.backlog/ subdir) and user_level (~/.backlog/<name>/) layouts
+# without depending on the upward .backlog/ walk.
+export BACKLOG_PROJECT_DIR="$BACKLOG_WORKSPACE"
 
 # Escape hatch 1: explicit per-commit opt-out.
 if [[ "\${BACKLOG_SKIP_HOOK:-}" == "1" ]]; then
@@ -51,10 +63,6 @@ if [[ ! -x "$BACKLOG_BIN" ]]; then
   exit 1
 fi
 
-# Run from the workspace dir so \`claim check\` can locate .backlog/ even when
-# the staged repo is a sibling of the workspace (e.g. twoody-app committing
-# against a workspace at twoody-backlog/.backlog/).
-cd "$BACKLOG_WORKSPACE"
 if ! "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged; then
   cat >&2 <<'EOF'
 
@@ -99,7 +107,14 @@ export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCo
 export function installPreCommitHook(params: {
   gitDir: string;
   backlogBin: string;
+  // For in_repo: the project root containing .backlog/.
+  // For user_level: the workspace dir itself (~/.backlog/<name>/).
+  // Either way: the value we'd hand to BACKLOG_PROJECT_DIR.
   projectRoot: string;
+  // Where the workspace data actually lives. For in_repo this is
+  // <projectRoot>/.backlog/; for user_level it equals projectRoot.
+  // Defaults to <projectRoot>/.backlog/ to keep older callers working.
+  backlogDir?: string;
   force?: boolean;
 }): string {
   const hookPath = path.join(params.gitDir, "hooks", "pre-commit");
@@ -110,9 +125,12 @@ export function installPreCommitHook(params: {
     );
   }
 
+  const backlogDir = params.backlogDir ?? path.join(params.projectRoot, ".backlog");
+  const pauseFile = path.join(backlogDir, PAUSE_FILE_NAME);
   const rendered = readTemplate()
     .replace("__BACKLOG_BIN__", params.backlogBin)
-    .replace("__BACKLOG_WORKSPACE__", params.projectRoot);
+    .replace("__BACKLOG_WORKSPACE__", params.projectRoot)
+    .replace("__BACKLOG_PAUSE_FILE__", pauseFile);
   fs.mkdirSync(path.dirname(hookPath), { recursive: true });
   fs.writeFileSync(hookPath, rendered, "utf8");
   fs.chmodSync(hookPath, 0o755);

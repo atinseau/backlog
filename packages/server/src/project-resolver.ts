@@ -38,10 +38,13 @@ export class ProjectResolver {
     const entry = entries.find((w) => w.id === workspaceId);
     if (!entry) return null;
     const root = path.resolve(entry.path);
+    // For user_level entries the registry path IS the workspace dir; for
+    // in_repo it's the project root containing a .backlog/ subdir.
+    const backlogDir = entry.location === "user_level" ? root : path.join(root, ".backlog");
     return {
       project_id: entry.id,
       root,
-      backlogDir: path.join(root, ".backlog"),
+      backlogDir,
       resolvedFrom: this.defaultWorkspace.resolvedFrom,
     };
   }

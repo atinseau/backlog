@@ -1,15 +1,20 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import type { RepoConfig, ProjectConfig } from "@backlog/schemas";
+import type { RepoConfig, ProjectConfig, ProjectLocation } from "@backlog/schemas";
 import { saveConfig } from "./save-config.js";
 import { writeLocalShim } from "./shim.js";
 import { generateProjectId } from "./project-id.js";
 
 export interface InitLayoutOptions {
+  // For in_repo: the project root that will contain .backlog/.
+  // For user_level: the workspace dir itself (typically ~/.backlog/<name>/).
   root: string;
   projectName: string;
   defaultBranch?: string;
   mode?: "embedded" | "control_plane";
+  // Where the workspace data lives: in_repo (default) or user_level.
+  location?: ProjectLocation;
   maxAgents?: number;
   force?: boolean;
   repos?: RepoConfig[];
@@ -19,14 +24,38 @@ export interface InitLayoutResult {
   backlogDir: string;
   configPath: string;
   shimPath: string;
+  location: ProjectLocation;
+}
+
+// Returns the conventional path for a user-level workspace given its name:
+// ~/.backlog/<slug>/. Slugified to lowercase-hyphen so the dir is portable
+// across platforms; the canonical, human-friendly name is still kept in
+// config.toml's project_name. Independent of the user-level CONFIG dir
+// (~/Library/Application Support/Backlog/ on macOS) where the registry
+// lives — those are separate concerns.
+export function userLevelWorkspaceDir(projectName: string): string {
+  const slug = projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (!slug) throw new Error(`Cannot derive user-level workspace dir from project name: "${projectName}"`);
+  return path.join(os.homedir(), ".backlog", slug);
 }
 
 export function initLayout(options: InitLayoutOptions): InitLayoutResult {
-  const backlogDir = path.join(options.root, ".backlog");
-  if (fs.existsSync(backlogDir) && !options.force) {
-    throw new Error(`.backlog already exists at ${backlogDir}`);
+  const location: ProjectLocation = options.location ?? "in_repo";
+  const backlogDir = location === "in_repo" ? path.join(options.root, ".backlog") : options.root;
+
+  // For in_repo we still treat the .backlog/ subdir as the marker. For
+  // user_level the workspace dir IS the marker dir, so we use config.toml
+  // as the existence test (the dir itself may have been pre-created).
+  const marker = location === "in_repo" ? backlogDir : path.join(backlogDir, "config.toml");
+  if (fs.existsSync(marker) && !options.force) {
+    throw new Error(
+      location === "in_repo"
+        ? `.backlog already exists at ${backlogDir}`
+        : `Backlog workspace already initialized at ${backlogDir}`,
+    );
   }
 
+  fs.mkdirSync(backlogDir, { recursive: true });
   fs.mkdirSync(path.join(backlogDir, "claims", "active"), { recursive: true });
   fs.mkdirSync(path.join(backlogDir, "claims", "archive"), { recursive: true });
   fs.mkdirSync(path.join(backlogDir, "runs", "active"), { recursive: true });
@@ -64,6 +93,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
     project_id: generateProjectId(),
     project_name: options.projectName,
     project_mode: options.mode ?? "embedded",
+    project_location: location,
     default_branch: options.defaultBranch ?? "main",
     autonomy_mode: "assist",
     max_agents: options.maxAgents ?? 2,
@@ -120,5 +150,5 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   );
 
   const shimPath = writeLocalShim(backlogDir, options.root);
-  return { backlogDir, configPath, shimPath };
+  return { backlogDir, configPath, shimPath, location };
 }

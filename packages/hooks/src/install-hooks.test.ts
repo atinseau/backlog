@@ -72,7 +72,7 @@ describe("inspectPreCommitHook", () => {
     });
     const hookContents = fs.readFileSync(path.join(gitDir, "hooks", "pre-commit"), "utf8");
     expect(hookContents).toContain('BACKLOG_WORKSPACE="/tmp/backlog"');
-    expect(hookContents).toContain('cd "$BACKLOG_WORKSPACE"');
+    expect(hookContents).toContain('export BACKLOG_PROJECT_DIR="$BACKLOG_WORKSPACE"');
 
     expect(uninstallPreCommitHook(gitDir)).toBe(true);
     expect(inspectPreCommitHook(gitDir).exists).toBe(false);

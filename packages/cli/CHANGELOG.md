@@ -4,6 +4,26 @@ All notable changes to the `backlog` CLI are documented here.
 
 ## [Unreleased]
 
+### Added — User-level workspace layout
+
+- **`backlog init --user-level`** places the workspace at `~/.backlog/<slug>/`
+  instead of `<cwd>/.backlog/`. Right for multi-repo projects that don't have
+  a single natural "project root". Single-repo projects still default to
+  `in_repo`. Project name uniqueness is enforced across user-level entries.
+- **`config.toml` gains `project_location`** (`in_repo` | `user_level`) and
+  the user registry's per-entry `location` mirrors it.
+- **`~/.backlog/projects.json` is the cross-platform registry path**.
+  Existing registries under `~/Library/Application Support/Backlog/` (macOS)
+  or `~/.config/Backlog/` (Linux) are auto-migrated on first read.
+- **`backlog project migrate <id> --to user-level`** (or `--to in-repo --into
+  <repo-id>`) moves an existing workspace between layouts: copies state,
+  rewrites `config.toml`, updates the registry, force-reinstalls hooks for
+  every configured repo, and renames the old dir to
+  `.backlog.migrated-YYYY-MM-DD/` for rollback.
+- **The pre-commit hook now exports `BACKLOG_PROJECT_DIR`** so `claim check`
+  finds the workspace whether it's in_repo or user_level. The previous
+  `cd "$BACKLOG_WORKSPACE"` trick is no longer needed and was removed.
+
 ### Added — Jira-like board (projects, persistent orchestrator, ETA, progress, reorder, repos, permissions)
 
 - **Projects** — first-class entity that groups one or many repos. Each work item can carry a `project_id`; the kanban supports per-project filtering. Storage: `.backlog/projects.yaml`. CLI: `backlog project add|list|show|update|archive|remove`. UI: project dropdown + ⚙ "Projets" modal in the topbar.

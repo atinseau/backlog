@@ -1,0 +1,104 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { findProject } from "./find-project.js";
+import { initLayout } from "./init-layout.js";
+import { registerProject } from "./project-registry.js";
+
+function tmp(prefix: string): string {
+  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+}
+
+describe("findProject", () => {
+  let savedEnv: string | undefined;
+  beforeEach(() => {
+    savedEnv = process.env.BACKLOG_PROJECT_DIR;
+    delete process.env.BACKLOG_PROJECT_DIR;
+  });
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env.BACKLOG_PROJECT_DIR;
+    else process.env.BACKLOG_PROJECT_DIR = savedEnv;
+  });
+
+  it("walks up to find an in_repo .backlog/", () => {
+    const root = tmp("backlog-fp-inrepo-");
+    initLayout({ root, projectName: "demo" });
+    const inner = path.join(root, "src", "deep");
+    fs.mkdirSync(inner, { recursive: true });
+    const found = findProject(inner, { skipRegistry: true });
+    expect(found).not.toBeNull();
+    expect(found!.root).toBe(root);
+    expect(found!.backlogDir).toBe(path.join(root, ".backlog"));
+  });
+
+  it("returns null when no .backlog/ is found and no registry match", () => {
+    const lonely = tmp("backlog-fp-lonely-");
+    const registryDir = tmp("backlog-fp-empty-reg-");
+    const found = findProject(lonely, { registryOptions: { dir: registryDir } });
+    expect(found).toBeNull();
+  });
+
+  it("falls back to a user_level workspace via registry when cwd is inside one of its repos", () => {
+    const registryDir = tmp("backlog-fp-reg-");
+    const userWorkspace = tmp("backlog-fp-userlevel-ws-");
+    const repoA = tmp("backlog-fp-repoA-");
+    fs.mkdirSync(path.join(repoA, "subdir"), { recursive: true });
+
+    initLayout({
+      root: userWorkspace,
+      projectName: "multi",
+      location: "user_level",
+      repos: [{ id: "a", path: repoA, default_branch: "main", enabled: true }],
+    });
+    registerProject(
+      { projectRoot: userWorkspace, location: "user_level" },
+      { dir: registryDir },
+    );
+
+    const found = findProject(path.join(repoA, "subdir"), { registryOptions: { dir: registryDir } });
+    expect(found).not.toBeNull();
+    expect(found!.root).toBe(userWorkspace);
+    expect(found!.backlogDir).toBe(userWorkspace);
+  });
+
+  it("honours BACKLOG_PROJECT_DIR for an in_repo workspace", () => {
+    const root = tmp("backlog-fp-env-inrepo-");
+    initLayout({ root, projectName: "env-demo" });
+    process.env.BACKLOG_PROJECT_DIR = root;
+
+    // Call from an unrelated cwd to force the env var path.
+    const elsewhere = tmp("backlog-fp-elsewhere-");
+    const found = findProject(elsewhere);
+    expect(found!.root).toBe(root);
+    expect(found!.backlogDir).toBe(path.join(root, ".backlog"));
+  });
+
+  it("honours BACKLOG_PROJECT_DIR for a user_level workspace", () => {
+    const userWorkspace = tmp("backlog-fp-env-userlevel-");
+    initLayout({ root: userWorkspace, projectName: "env-multi", location: "user_level" });
+    process.env.BACKLOG_PROJECT_DIR = userWorkspace;
+
+    const elsewhere = tmp("backlog-fp-elsewhere2-");
+    const found = findProject(elsewhere);
+    expect(found!.root).toBe(userWorkspace);
+    expect(found!.backlogDir).toBe(userWorkspace);
+  });
+
+  it("returns null from the registry fallback when cwd doesn't match any repo", () => {
+    const registryDir = tmp("backlog-fp-reg-nomatch-");
+    const userWorkspace = tmp("backlog-fp-userlevel-nomatch-");
+    const repoA = tmp("backlog-fp-other-repo-");
+    initLayout({
+      root: userWorkspace,
+      projectName: "other-multi",
+      location: "user_level",
+      repos: [{ id: "a", path: repoA, default_branch: "main", enabled: true }],
+    });
+    registerProject({ projectRoot: userWorkspace, location: "user_level" }, { dir: registryDir });
+
+    const unrelated = tmp("backlog-fp-stranger-");
+    const found = findProject(unrelated, { registryOptions: { dir: registryDir } });
+    expect(found).toBeNull();
+  });
+});

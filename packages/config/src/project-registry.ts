@@ -1,12 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  type ProjectLocation,
   type ProjectRegistry,
   type ProjectRegistryEntry,
   projectRegistrySchema,
 } from "@backlog/schemas";
 import { loadConfig } from "./load-config.js";
-import { getBacklogUserDir } from "./user-paths.js";
+import { getBacklogUserDir, getLegacyBacklogConfigDir } from "./user-paths.js";
 import { ensureProjectId } from "./project-id.js";
 
 export interface RegistryOptions {
@@ -29,24 +30,60 @@ function emptyRegistry(): ProjectRegistry {
   return { version: REGISTRY_VERSION, projects: [] };
 }
 
-// Legacy registries lived at ~/Library/Application Support/Backlog/workspaces.json
-// with an inner `workspaces: []` key. New shape is `projects.json` with `projects: []`.
-// Move-and-rewrite on first load if we still see the old file.
+// Two layers of legacy migration on first load:
+//   1. The registry used to live at ~/Library/Application Support/Backlog/
+//      (macOS) / $XDG_CONFIG_HOME/Backlog/ (Linux) / %APPDATA%\Backlog\
+//      (Windows). It now lives at ~/.backlog/ on every platform.
+//   2. Within that directory, the file used to be workspaces.json with an
+//      inner `workspaces: []` key. It is now projects.json with `projects: []`.
 const LEGACY_INNER_KEY = "workspaces";
 const FRESH_INNER_KEY = "projects";
 
 function migrateLegacyRegistry(options?: RegistryOptions): void {
-  const dir = resolveRegistryDir(options);
-  const newPath = path.join(dir, REGISTRY_FILE);
-  const oldPath = path.join(dir, LEGACY_REGISTRY_FILE);
-  if (!fs.existsSync(oldPath) || fs.existsSync(newPath)) return;
-  const raw = JSON.parse(fs.readFileSync(oldPath, "utf8")) as Record<string, unknown>;
+  // Skip both legacy migrations entirely when the caller supplied an
+  // explicit dir (tests use this to isolate state).
+  if (options?.dir) return;
+
+  const newDir = getBacklogUserDir();
+  const newPath = path.join(newDir, REGISTRY_FILE);
+  if (fs.existsSync(newPath)) return;
+
+  // 1. Look for projects.json or workspaces.json at the legacy platform-
+  //    specific config dir. If we find either, copy/normalize it into the
+  //    new ~/.backlog/ location and remove the original.
+  const legacyDir = getLegacyBacklogConfigDir();
+  const legacyProjectsPath = path.join(legacyDir, REGISTRY_FILE);
+  const legacyWorkspacesPath = path.join(legacyDir, LEGACY_REGISTRY_FILE);
+  let migratedFromPath: string | null = null;
+  let raw: Record<string, unknown> | null = null;
+
+  if (fs.existsSync(legacyProjectsPath)) {
+    raw = JSON.parse(fs.readFileSync(legacyProjectsPath, "utf8")) as Record<string, unknown>;
+    migratedFromPath = legacyProjectsPath;
+  } else if (fs.existsSync(legacyWorkspacesPath)) {
+    raw = JSON.parse(fs.readFileSync(legacyWorkspacesPath, "utf8")) as Record<string, unknown>;
+    migratedFromPath = legacyWorkspacesPath;
+  } else {
+    // 2. Or look for workspaces.json sitting next to the new location
+    //    (older alpha installs of the new layout used the old filename).
+    const workspacesAtNewDir = path.join(newDir, LEGACY_REGISTRY_FILE);
+    if (fs.existsSync(workspacesAtNewDir)) {
+      raw = JSON.parse(fs.readFileSync(workspacesAtNewDir, "utf8")) as Record<string, unknown>;
+      migratedFromPath = workspacesAtNewDir;
+    }
+  }
+
+  if (!raw || !migratedFromPath) return;
+
+  // Normalize inner key.
   if (LEGACY_INNER_KEY in raw && !(FRESH_INNER_KEY in raw)) {
     raw[FRESH_INNER_KEY] = raw[LEGACY_INNER_KEY];
     delete raw[LEGACY_INNER_KEY];
   }
+
+  fs.mkdirSync(newDir, { recursive: true });
   fs.writeFileSync(newPath, JSON.stringify(raw, null, 2) + "\n", "utf8");
-  fs.unlinkSync(oldPath);
+  fs.unlinkSync(migratedFromPath);
 }
 
 export function loadRegistry(options?: RegistryOptions): ProjectRegistry {
@@ -71,7 +108,25 @@ export function listRegisteredProjects(options?: RegistryOptions): ProjectRegist
 }
 
 export interface RegisterWorkspaceInput {
+  // For in_repo: the project root that contains .backlog/.
+  // For user_level: the workspace dir itself (config.toml lives at its root).
   projectRoot: string;
+  // If omitted, inferred from disk: presence of <projectRoot>/.backlog/ ⇒
+  // in_repo, presence of <projectRoot>/config.toml ⇒ user_level.
+  location?: ProjectLocation;
+}
+
+function detectWorkspaceLayout(projectRoot: string): { backlogDir: string; location: ProjectLocation } {
+  const inRepoDir = path.join(projectRoot, ".backlog");
+  if (fs.existsSync(inRepoDir) && fs.statSync(inRepoDir).isDirectory()) {
+    return { backlogDir: inRepoDir, location: "in_repo" };
+  }
+  if (fs.existsSync(path.join(projectRoot, "config.toml"))) {
+    return { backlogDir: projectRoot, location: "user_level" };
+  }
+  throw new Error(
+    `No Backlog workspace at ${projectRoot} (looked for .backlog/ and config.toml)`,
+  );
 }
 
 export function registerProject(
@@ -79,22 +134,40 @@ export function registerProject(
   options?: RegistryOptions,
 ): ProjectRegistryEntry {
   const projectRoot = path.resolve(input.projectRoot);
-  const backlogDir = path.join(projectRoot, ".backlog");
-  if (!fs.existsSync(backlogDir)) {
-    throw new Error(`No .backlog directory at ${projectRoot}`);
+  const detected = detectWorkspaceLayout(projectRoot);
+  const location = input.location ?? detected.location;
+  if (input.location && input.location !== detected.location) {
+    throw new Error(
+      `Layout mismatch: requested location=${input.location} but disk shows ${detected.location} at ${projectRoot}`,
+    );
   }
-  const id = ensureProjectId(backlogDir);
-  const config = loadConfig(backlogDir);
+  const id = ensureProjectId(detected.backlogDir);
+  const config = loadConfig(detected.backlogDir);
   const now = new Date().toISOString();
+
+  const registry = loadRegistry(options);
+  // Block name collisions for user_level entries: two user-level projects
+  // sharing a name would resolve to the same ~/.backlog/<slug>/ dir on
+  // future re-inits and silently clobber each other.
+  if (location === "user_level") {
+    const collision = registry.projects.find(
+      (p) => p.location === "user_level" && p.id !== id && p.name === config.project_name,
+    );
+    if (collision) {
+      throw new Error(
+        `A user-level project named "${config.project_name}" is already registered (id=${collision.id} at ${collision.path}). Pick a different name.`,
+      );
+    }
+  }
+
   const entry: ProjectRegistryEntry = {
     id,
     path: projectRoot,
     name: config.project_name,
     added_at: now,
     last_opened_at: now,
+    location,
   };
-
-  const registry = loadRegistry(options);
   // Drop anything matching either the same id or the same path so we don't
   // accumulate duplicates if a project gets re-registered after a move
   // or a re-init.

@@ -97,7 +97,7 @@ describe("POST /workspaces", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string; message: string };
     expect(body.error).toBe("register_failed");
-    expect(body.message).toMatch(/No \.backlog/);
+    expect(body.message).toMatch(/No Backlog workspace/);
   });
 });
 

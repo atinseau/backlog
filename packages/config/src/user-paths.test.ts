@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getBacklogUserDir, getUserConfigDir } from "./user-paths.js";
+import { getBacklogUserDir, getLegacyBacklogConfigDir, getUserConfigDir } from "./user-paths.js";
 
 describe("getUserConfigDir", () => {
   it("uses ~/Library/Application Support on darwin", () => {
@@ -40,13 +40,24 @@ describe("getUserConfigDir", () => {
 });
 
 describe("getBacklogUserDir", () => {
-  it("namespaces under 'Backlog' on darwin", () => {
-    expect(getBacklogUserDir({}, "darwin")).toBe(
-      path.join(os.homedir(), "Library", "Application Support", "Backlog"),
-    );
+  it("returns ~/.backlog/ on darwin", () => {
+    expect(getBacklogUserDir({}, "darwin")).toBe(path.join(os.homedir(), ".backlog"));
   });
 
-  it("namespaces under 'Backlog' on linux too", () => {
-    expect(getBacklogUserDir({}, "linux")).toBe(path.join(os.homedir(), ".config", "Backlog"));
+  it("returns ~/.backlog/ on linux too", () => {
+    expect(getBacklogUserDir({}, "linux")).toBe(path.join(os.homedir(), ".backlog"));
+  });
+
+  it("returns ~/.backlog/ on win32 too", () => {
+    expect(getBacklogUserDir({}, "win32")).toBe(path.join(os.homedir(), ".backlog"));
+  });
+});
+
+describe("getLegacyBacklogConfigDir", () => {
+  it("returns the platform-specific Backlog/ dir for migration purposes", () => {
+    expect(getLegacyBacklogConfigDir({}, "darwin")).toBe(
+      path.join(os.homedir(), "Library", "Application Support", "Backlog"),
+    );
+    expect(getLegacyBacklogConfigDir({}, "linux")).toBe(path.join(os.homedir(), ".config", "Backlog"));
   });
 });

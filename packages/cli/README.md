@@ -49,7 +49,15 @@ the [multi-target roadmap](docs/ROADMAP.md).
 ```bash
 npm install -g backlog
 
-backlog init --name my-workspace
+# Single-repo project: drop a .backlog/ inside the repo.
+cd ~/Dev/my-repo
+backlog init --name my-project
+
+# Multi-repo project: keep the workspace at ~/.backlog/<slug>/ instead so it
+# isn't tied to any one repo.
+cd ~/Dev/my-multi-repo-parent
+backlog init --user-level --name my-project
+
 backlog doctor
 ```
 
@@ -183,26 +191,49 @@ backlog sources list --enabled true
 
 ## Workspace state
 
-Backlog stores workspace state in `.backlog/`:
+Backlog stores workspace state in one of two layouts. `backlog init` defaults
+to **in_repo** (the same directory you ran it in); pass `--user-level` to put
+the workspace under your home folder instead. Both layouts hold the same set
+of files; only the path on disk differs.
+
+**in_repo** (default — best for a single-repo project)
 
 ```
-.backlog/
-├── config.toml          # workspace + repos + autonomy_mode + claims TTL
-├── work-items.yaml      # tickets (incl. project_id, rank, estimate)
-├── tasks.yaml           # tasks (incl. estimate, progress, priority)
-├── projects.yaml        # projects → repos
-├── orchestrator.json    # persistent ▶/⏸/⏹ state
-├── sources.yaml
-├── agents.yaml          # provider, sandbox, allowed_repos, allowed_risk, ...
-├── claims/              # active and archived
-├── runs/                # active and archived (incl. events.ndjson per run)
-└── worktrees/           # tracked run worktrees
+<project root>/.backlog/
+```
+
+**user_level** (best for multi-repo projects so the workspace lives outside
+any one repo)
+
+```
+~/.backlog/<slug>/
+```
+
+`<slug>` is the lowercased, hyphenated form of the project name; pick a name
+that doesn't collide with any other registered user-level project. The user
+registry itself lives at `~/.backlog/projects.json` on every platform.
+
+Either way, the layout inside the workspace dir is the same:
+
+```
+config.toml          # project + repos + autonomy_mode + claims TTL
+                     # (project_location = "in_repo" | "user_level")
+tasks.yaml           # tickets (incl. project_id, rank, estimate)
+subtasks.yaml        # executable units split out from tasks
+orchestrator.json    # persistent ▶/⏸/⏹ state
+sources.yaml
+agents.yaml          # provider, sandbox, allowed_repos, allowed_risk, ...
+claims/              # active and archived
+runs/                # active and archived (incl. events.ndjson per run)
+bin/backlog          # local shim invoked by the pre-commit hook
+worktrees/           # tracked run worktrees
 ```
 
 You can edit YAML by hand, but `backlog repos`, `backlog project`,
-`backlog work`, `backlog task`, `backlog orchestrator`, `backlog agents`,
+`backlog task`, `backlog orchestrator`, `backlog agents`,
 and `backlog sources` are designed to keep state consistent without manual
-edits.
+edits. Use `backlog project migrate <id> --to user-level` (or `--to in-repo
+--into <repo-id>`) to switch an existing workspace between layouts.
 
 ## Agents
 

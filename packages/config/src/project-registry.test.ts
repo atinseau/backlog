@@ -41,6 +41,7 @@ describe("loadRegistry / saveRegistry", () => {
             path: "/tmp/x",
             name: "x",
             added_at: "2026-01-01T00:00:00.000Z",
+            location: "in_repo",
           },
         ],
       },
@@ -93,10 +94,10 @@ describe("registerProject", () => {
     expect(entries[0]!.name).toBe("beta");
   });
 
-  it("rejects a path without a .backlog directory", () => {
+  it("rejects a path with no Backlog workspace", () => {
     const dir = tmpRegistryDir();
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-empty-"));
-    expect(() => registerProject({ projectRoot: empty }, { dir })).toThrow(/No \.backlog/);
+    expect(() => registerProject({ projectRoot: empty }, { dir })).toThrow(/No Backlog workspace/);
   });
 });
 
