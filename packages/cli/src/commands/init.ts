@@ -14,6 +14,25 @@ function slugifyWorkspaceName(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// Counts immediate child directories that look like a git repo (i.e.
+// contain a .git/ directory or file). Used by `init` to detect a
+// multi-repo parent and suggest --user-level.
+function countChildGitRepos(parent: string): number {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(parent, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === ".backlog" || entry.name.startsWith(".")) continue;
+    if (fs.existsSync(path.join(parent, entry.name, ".git"))) count++;
+  }
+  return count;
+}
+
 interface InitOptions {
   name?: string;
   force?: boolean;
@@ -42,6 +61,23 @@ export function registerInitCommand(program: Command): void {
       const cwd = process.cwd();
       const projectName = options.name ?? (slugifyWorkspaceName(path.basename(cwd)) || "backlog-workspace");
       const location = options.userLevel ? "user_level" : "in_repo";
+
+      // Hint: when init is run in a dir that contains multiple immediate
+      // git-repo subdirs and the user didn't pick a layout explicitly,
+      // they're almost certainly in a multi-repo project parent. The
+      // in_repo default would land .backlog/ in that parent (which usually
+      // isn't itself a repo) — point them at --user-level instead.
+      if (!options.userLevel && !options.inRepo) {
+        const childGitRepos = countChildGitRepos(cwd);
+        if (childGitRepos >= 2) {
+          console.log("");
+          console.log(`Detected ${childGitRepos} git repos as direct children of ${cwd}.`);
+          console.log("Tip: for multi-repo projects pass --user-level so the workspace lives at");
+          console.log(`     ~/.backlog/<slug>/ instead of ${cwd}/.backlog/. Re-run with --in-repo to`);
+          console.log("     suppress this hint and keep the in-repo layout.");
+          console.log("");
+        }
+      }
 
       // user_level: collide-check on the project name before creating anything.
       if (location === "user_level") {
