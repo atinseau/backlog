@@ -1,16 +1,32 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { execa } from "execa";
 import { Command } from "commander";
 import {
+  generateProjectId,
   getRegistryPath,
   listRegisteredProjects,
+  loadConfig,
   migrateProjectToInRepo,
   migrateProjectToUserLevel,
   registerProject,
   rollbackProjectMigration,
+  saveConfig,
   unregisterProject,
+  userLevelWorkspaceDir,
 } from "@backlog/config";
 import { detectGitDir } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
+
+interface ProjectExportManifest {
+  manifest_version: 1;
+  exported_at: string;
+  project_id: string;
+  project_name: string;
+  location: "in_repo" | "user_level";
+  cli_version_at_export: string;
+}
 
 export function registerProjectCommand(program: Command): void {
   const project = program.command("project").description("Manage the user-level registry of known Backlog projects");
@@ -196,6 +212,153 @@ export function registerProjectCommand(program: Command): void {
       if (failed.length > 0) {
         console.log("");
         console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the restored workspace dir to retry.");
+      }
+    });
+
+  project
+    .command("export")
+    .description("Bundle a project's workspace dir into a tar.gz for backup or transfer")
+    .argument("<id-or-name-or-path>", "Project to export")
+    .requiredOption("--to <file>", "Path to write the .tar.gz archive")
+    .action(async (idOrPathOrName: string, options: { to: string }) => {
+      const target = path.isAbsolute(idOrPathOrName) ? path.resolve(idOrPathOrName) : idOrPathOrName;
+      const entry = listRegisteredProjects().find(
+        (p) => p.id === idOrPathOrName || p.path === target || p.name === idOrPathOrName,
+      );
+      if (!entry) throw new Error(`No registered project matching: ${idOrPathOrName}`);
+
+      const backlogDir = entry.location === "in_repo" ? path.join(entry.path, ".backlog") : entry.path;
+      const config = loadConfig(backlogDir);
+
+      // Stage everything in a temp dir, then tar from there. Lets us
+      // include a manifest at the archive root without polluting the
+      // user's workspace.
+      const stage = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-export-")));
+      try {
+        const wsCopy = path.join(stage, "workspace");
+        fs.cpSync(backlogDir, wsCopy, { recursive: true, dereference: false });
+
+        const manifest: ProjectExportManifest = {
+          manifest_version: 1,
+          exported_at: new Date().toISOString(),
+          project_id: entry.id,
+          project_name: config.project_name,
+          location: entry.location,
+          cli_version_at_export: process.env.BACKLOG_VERSION ?? "dev",
+        };
+        fs.writeFileSync(
+          path.join(stage, "manifest.json"),
+          JSON.stringify(manifest, null, 2) + "\n",
+          "utf8",
+        );
+
+        const archivePath = path.resolve(options.to);
+        fs.mkdirSync(path.dirname(archivePath), { recursive: true });
+        // -C cd into stage so the archive has manifest.json + workspace/ at the root.
+        await execa("tar", ["-czf", archivePath, "-C", stage, "manifest.json", "workspace"]);
+
+        console.log(`✓ Exported ${entry.id} (${config.project_name}) → ${archivePath}`);
+        const size = fs.statSync(archivePath).size;
+        console.log(`  size: ${(size / 1024).toFixed(1)} KiB`);
+      } finally {
+        fs.rmSync(stage, { recursive: true, force: true });
+      }
+    });
+
+  project
+    .command("import")
+    .description("Restore a project workspace from a tar.gz produced by `project export`")
+    .argument("<file>", "Path to the .tar.gz archive")
+    .option("--name <name>", "Override the project name (and the user-level slug) on import")
+    .option("--into <path>", "Where to restore. Defaults to ~/.backlog/<slug>/ for user_level imports.")
+    .action(async (file: string, options: { name?: string; into?: string }) => {
+      const archive = path.resolve(file);
+      if (!fs.existsSync(archive)) throw new Error(`Archive not found: ${archive}`);
+
+      const stage = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-import-")));
+      try {
+        await execa("tar", ["-xzf", archive, "-C", stage]);
+        const manifestPath = path.join(stage, "manifest.json");
+        if (!fs.existsSync(manifestPath)) {
+          throw new Error("Archive doesn't contain manifest.json — not a backlog export.");
+        }
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as ProjectExportManifest;
+        if (manifest.manifest_version !== 1) {
+          throw new Error(`Unsupported export manifest_version: ${manifest.manifest_version}`);
+        }
+        const wsCopy = path.join(stage, "workspace");
+        if (!fs.existsSync(path.join(wsCopy, "config.toml"))) {
+          throw new Error("Archive's workspace/ has no config.toml — corrupt export.");
+        }
+
+        const targetName = options.name ?? manifest.project_name;
+        // Compute destination based on the archive's recorded location
+        // unless --into overrides. For in_repo we require --into (the
+        // original path probably doesn't exist on the new machine).
+        let destBacklogDir: string;
+        let destProjectRoot: string;
+        if (options.into) {
+          const into = path.resolve(options.into);
+          if (manifest.location === "in_repo") {
+            destProjectRoot = into;
+            destBacklogDir = path.join(into, ".backlog");
+          } else {
+            destBacklogDir = into;
+            destProjectRoot = into;
+          }
+        } else if (manifest.location === "user_level") {
+          destBacklogDir = userLevelWorkspaceDir(targetName);
+          destProjectRoot = destBacklogDir;
+        } else {
+          throw new Error(
+            "in_repo imports require --into <path-to-host-repo> (the archive doesn't carry a portable host path).",
+          );
+        }
+
+        if (fs.existsSync(path.join(destBacklogDir, "config.toml"))) {
+          throw new Error(`Destination already has a workspace: ${destBacklogDir}`);
+        }
+        fs.mkdirSync(destBacklogDir, { recursive: true });
+        fs.cpSync(wsCopy, destBacklogDir, { recursive: true });
+
+        // If the original project_id is already in the registry (e.g.
+        // re-importing a project on the same machine, or a clone for a
+        // colleague), regenerate so the import is a sibling, not a
+        // silent replacement of the live entry.
+        const idCollision = listRegisteredProjects().some((p) => p.id === manifest.project_id);
+        if (idCollision) {
+          const config = loadConfig(destBacklogDir);
+          config.project_id = generateProjectId();
+          saveConfig(destBacklogDir, config);
+        }
+
+        // Block name collision (user_level only) before we register —
+        // same guard as init. After --name disambiguation if needed.
+        if (manifest.location === "user_level") {
+          const collision = listRegisteredProjects().find(
+            (p) => p.location === "user_level" && p.name === targetName && p.path !== destBacklogDir,
+          );
+          if (collision) {
+            throw new Error(
+              `A user-level project named "${targetName}" is already registered (id=${collision.id}). Pass --name to disambiguate.`,
+            );
+          }
+          // Apply the rename if --name differs from the archive value.
+          if (targetName !== manifest.project_name) {
+            const config = loadConfig(destBacklogDir);
+            config.project_name = targetName;
+            saveConfig(destBacklogDir, config);
+          }
+        }
+
+        const registered = registerProject({ projectRoot: destProjectRoot, location: manifest.location });
+        console.log(`✓ Imported ${registered.id} (${registered.name}) → ${destBacklogDir} [${manifest.location}]`);
+        console.log(`  exported_at: ${manifest.exported_at}`);
+        console.log(
+          "  hooks: not installed yet — run `backlog hooks install --all` from the restored workspace dir.",
+        );
+      } finally {
+        fs.rmSync(stage, { recursive: true, force: true });
       }
     });
 }
