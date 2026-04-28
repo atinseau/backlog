@@ -63,6 +63,7 @@
   "chat.intro": "Pose une question sur les runs en cours, l'état du board, ou ce que les agents sont en train de faire. L'agent peut inspecter (lecture seule).",
   "chat.feed": "Activité live",
   "chat.feed_empty": "Pas encore d'évènement.",
+  "chat.executed": "exécuté",
   "topbar.chat": "💬 Chat",
   "orchestrator.pause.title": "Pause (les runs actifs continuent)",
   "orchestrator.stop.title": "Stop (attend la fin des runs actifs)",

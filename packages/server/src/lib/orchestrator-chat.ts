@@ -1,18 +1,33 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Run, SubTask, Task, OrchestratorState } from "@backlog/schemas";
 import {
+  buildExecutionPlan,
   getOrchestratorState,
   getRunEvents,
   listActiveRuns,
   listSubTasks,
   listTasks,
   loadRun,
+  pauseOrchestrator,
+  startOrchestrator,
+  startRunsForPlan,
+  stopOrchestrator,
 } from "@backlog/core";
 import { getSecret, loadConfig } from "@backlog/config";
 
-// Read-only by design in V1: the agent can inspect state but not mutate it.
-// When we promote write tools (start/pause/stop), they go in a second phase
-// behind a confirmation event.
+// Mutating tools (start_orchestrator, start_subtask, pause, stop) are gated
+// by a required `confirmed: true` argument the model has to set explicitly.
+// First call (typically without `confirmed`) returns an awaiting_confirmation
+// stub; the agent then asks the user, and only re-calls with confirmed:true
+// after explicit approval. This keeps the gate visible in the conversation
+// and prevents an over-eager model from firing a billable run as a
+// side-effect of a casual question.
+const WRITE_TOOL_NAMES = new Set([
+  "start_orchestrator",
+  "pause_orchestrator",
+  "stop_orchestrator",
+  "start_subtask",
+]);
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "list_runs",
@@ -58,7 +73,80 @@ const TOOLS: Anthropic.Tool[] = [
       "Get the orchestrator's current mode (idle/running/paused/stopping), tick interval, max_agents, last tick time, last error.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
+  {
+    name: "start_orchestrator",
+    description:
+      "Switch the orchestrator into 'running' mode so it auto-picks runnable subtasks every tick. WRITE TOOL: only call with confirmed:true AFTER the user has explicitly approved in plain language. The first call should normally omit confirmed (or pass false) so the user sees the proposed action and confirms.",
+    input_schema: {
+      type: "object",
+      properties: {
+        confirmed: {
+          type: "boolean",
+          description: "Set to true ONLY after the user has explicitly approved this specific action in plain language.",
+        },
+        max_agents: {
+          type: "integer",
+          description: "Optional: cap on parallel runs. Defaults to the workspace config.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "pause_orchestrator",
+    description:
+      "Pause the orchestrator (active runs continue, no new runs are dispatched). WRITE TOOL: only call with confirmed:true AFTER explicit user approval.",
+    input_schema: {
+      type: "object",
+      properties: {
+        confirmed: { type: "boolean" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "stop_orchestrator",
+    description:
+      "Stop the orchestrator and wait for all in-flight runs to finish. WRITE TOOL: only call with confirmed:true AFTER explicit user approval.",
+    input_schema: {
+      type: "object",
+      properties: {
+        confirmed: { type: "boolean" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "start_subtask",
+    description:
+      "Launch one specific subtask now (independent of the orchestrator's running mode). Pass either subtask_id or task_id. WRITE TOOL — costs real money on codex/claude agents. Only call with confirmed:true AFTER explicit user approval naming the subtask.",
+    input_schema: {
+      type: "object",
+      properties: {
+        confirmed: { type: "boolean" },
+        subtask_id: { type: "string", description: "Specific subtask, e.g. TASK-4ae54ffa." },
+        task_id: { type: "string", description: "Parent task id, e.g. TASK-8e43acdd. Scheduler picks one of its ready subtasks." },
+        agent_id: { type: "string", description: "Optional: force a specific agent (claude-default, codex-default, …). Defaults to the scheduler's pick." },
+      },
+      required: [],
+    },
+  },
 ];
+
+interface WriteToolOutcome {
+  ok: boolean;
+  result: unknown;
+}
+
+function awaitingConfirmation(action: string): WriteToolOutcome {
+  return {
+    ok: false,
+    result: {
+      status: "awaiting_confirmation",
+      message: `Describe what '${action}' would do, who it affects, and ask the user explicitly. Only call this tool again with confirmed:true after the user says yes/oui/go/approve in plain language.`,
+    },
+  };
+}
 
 interface ToolHandlerInput {
   backlogDir: string;
@@ -153,20 +241,82 @@ function runTool(input: ToolHandlerInput): unknown {
   }
 }
 
-const SYSTEM_PROMPT = `You are the Backlog orchestrator co-pilot. The user is watching a kanban board where autonomous coding agents (Claude, Codex) pick up subtasks and run them in isolated git worktrees. Your job is to help the user understand what's running, why it's stuck, what's queued, and to explain agent activity in real time.
+async function runWriteTool(input: ToolHandlerInput): Promise<WriteToolOutcome> {
+  const { backlogDir, toolName, toolInput } = input;
+  const args = (toolInput ?? {}) as Record<string, unknown>;
+  if (args["confirmed"] !== true) {
+    return awaitingConfirmation(toolName);
+  }
+  switch (toolName) {
+    case "start_orchestrator": {
+      const max = typeof args["max_agents"] === "number" ? (args["max_agents"] as number) : undefined;
+      const state = await startOrchestrator(backlogDir, max ? { max_agents: max } : {});
+      return { ok: true, result: { action: "start_orchestrator", state } };
+    }
+    case "pause_orchestrator": {
+      const state = pauseOrchestrator(backlogDir);
+      return { ok: true, result: { action: "pause_orchestrator", state } };
+    }
+    case "stop_orchestrator": {
+      const state = await stopOrchestrator(backlogDir);
+      return { ok: true, result: { action: "stop_orchestrator", state } };
+    }
+    case "start_subtask": {
+      const subtaskId = typeof args["subtask_id"] === "string" ? (args["subtask_id"] as string) : undefined;
+      const taskId = typeof args["task_id"] === "string" ? (args["task_id"] as string) : undefined;
+      const forcedAgent = typeof args["agent_id"] === "string" ? (args["agent_id"] as string) : undefined;
+      if (!subtaskId && !taskId) {
+        throw new Error("Pass either subtask_id or task_id");
+      }
+      const config = loadConfig(backlogDir);
+      const planOpts: { workItemId?: string; taskId?: string } = {};
+      if (taskId) planOpts.workItemId = taskId;
+      if (subtaskId) planOpts.taskId = subtaskId;
+      const plan = buildExecutionPlan(backlogDir, config, planOpts);
+      const launcherInput: Parameters<typeof startRunsForPlan>[0] = {
+        backlogDir,
+        config,
+        plan,
+        maxStart: 1,
+      };
+      if (forcedAgent) launcherInput.forcedAgentId = forcedAgent;
+      const result = await startRunsForPlan(launcherInput);
+      return {
+        ok: true,
+        result: {
+          action: "start_subtask",
+          started: result.started,
+          skipped: result.skipped,
+          waiting: plan.waiting.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
+          blocked: plan.blocked.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
+        },
+      };
+    }
+    default:
+      throw new Error(`Unknown write tool: ${toolName}`);
+  }
+}
 
-## Tools
-You have read-only inspection tools (list_runs, get_run_events, list_tasks, get_orchestrator_state). Use them whenever the user asks a concrete question — never make up run ids, subtask titles, or statuses. Prefer one or two well-targeted tool calls over a broad sweep; the user is watching latency.
+const SYSTEM_PROMPT = `You are the Backlog orchestrator co-pilot. The user is watching a kanban board where autonomous coding agents (Claude, Codex) pick up subtasks and run them in isolated git worktrees. Your job is to help the user understand what's running, why it's stuck, what's queued, to explain agent activity in real time, and — when explicitly asked — to dispatch actions on their behalf.
+
+## Read tools (use freely)
+list_runs, get_run_events, list_tasks, get_orchestrator_state. Call these whenever the user asks a concrete question — never make up run ids, subtask titles, or statuses. Prefer one or two well-targeted tool calls over a broad sweep.
+
+## Write tools (gated by explicit user approval)
+start_orchestrator, pause_orchestrator, stop_orchestrator, start_subtask. These mutate state and can cost real money (start_subtask launches a billable codex/claude run). The protocol is **always two steps**:
+
+  1. **Propose, don't execute.** Even if the user's message looks like a command ("lance la tâche X", "arrête tout"), your first response is a plain-language description of what you would do, which subtask/run/state it affects, and an explicit ask: "Tu confirmes ?" (or the English equivalent). Do NOT call the write tool yet.
+  2. **Wait for confirmation.** Only after the user replies with explicit approval ("oui", "go", "confirme", "yes", "approve") do you call the write tool again with confirmed:true.
+
+If you call a write tool without confirmed:true, the tool returns an awaiting_confirmation stub — that's the safety net, not the intended path. Don't rely on it.
+
+If the user's first message is itself an explicit approval ("oui démarre l'orchestrateur"), you may treat that as the confirmation step and call the tool with confirmed:true directly — but only if the action is unambiguous (no choice of subtask/agent etc). When in doubt, propose and wait.
 
 ## Style
 - Match the user's language (French → French, English → English).
 - Be concise. The drawer is narrow — short paragraphs, no headings unless the answer is genuinely multi-section.
 - When you cite a run or subtask, use its id verbatim (RUN-…, TASK-…).
-- If a tool errors, say so plainly and propose what would have worked.
-- For "what is X doing right now?" questions, get_run_events with a small tail (10–20) is usually enough.
-
-## Out of scope (V1)
-You cannot start, pause, stop, or modify anything yet. If the user asks for an action, explain what command they'd use (▶ on the card, the orchestrator panel toolbar, or \`backlog\` CLI) and offer to inspect the relevant state.`;
+- After executing a write tool, summarize what happened in one sentence and stop — don't follow up with a tool call unless the user asks.`;
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -306,21 +456,36 @@ ${repoSummary || "  (none configured)"}`;
 
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
     for (const block of toolUses) {
+      const isWrite = WRITE_TOOL_NAMES.has(block.name);
       await onEvent({
         type: "tool_use",
-        data: { id: block.id, name: block.name, input: block.input },
+        data: { id: block.id, name: block.name, input: block.input, write: isWrite },
       });
       try {
-        const result = runTool({ backlogDir, toolName: block.name, toolInput: block.input });
-        const json = JSON.stringify(result);
-        toolResults.push({
+        let json: string;
+        let isError = false;
+        if (isWrite) {
+          const outcome = await runWriteTool({
+            backlogDir,
+            toolName: block.name,
+            toolInput: block.input,
+          });
+          json = JSON.stringify(outcome.result);
+          isError = !outcome.ok;
+        } else {
+          const result = runTool({ backlogDir, toolName: block.name, toolInput: block.input });
+          json = JSON.stringify(result);
+        }
+        const resultBlock: Anthropic.ToolResultBlockParam = {
           type: "tool_result",
           tool_use_id: block.id,
           content: json,
-        });
+        };
+        if (isError) resultBlock.is_error = true;
+        toolResults.push(resultBlock);
         await onEvent({
           type: "tool_result",
-          data: { id: block.id, name: block.name, size: json.length },
+          data: { id: block.id, name: block.name, size: json.length, awaiting_confirmation: isError },
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

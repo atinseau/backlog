@@ -15,7 +15,13 @@
   interface ChatTurn {
     role: "user" | "assistant";
     content: string;
-    toolCalls?: Array<{ name: string; status: "running" | "done" | "error"; size?: number; error?: string }>;
+    toolCalls?: Array<{
+      name: string;
+      status: "running" | "done" | "error" | "awaiting_confirmation";
+      size?: number;
+      error?: string;
+      write?: boolean;
+    }>;
   }
   let history = $state<ChatTurn[]>([]);
   let input = $state("");
@@ -142,7 +148,10 @@
       history = [...history];
       void scrollToBottom();
     } else if (event === "tool_use") {
-      last.toolCalls = [...(last.toolCalls ?? []), { name: String(payload.name), status: "running" }];
+      last.toolCalls = [
+        ...(last.toolCalls ?? []),
+        { name: String(payload.name), status: "running", write: Boolean(payload.write) },
+      ];
       history = [...history];
     } else if (event === "tool_result") {
       const list = last.toolCalls ?? [];
@@ -152,8 +161,14 @@
       const idx = list.findIndex((c) => c.name === String(payload.name) && c.status === "running");
       if (idx >= 0) {
         const updated = { ...list[idx]! };
-        updated.status = payload.error ? "error" : "done";
-        if (payload.error) updated.error = String(payload.error);
+        if (payload.error) {
+          updated.status = "error";
+          updated.error = String(payload.error);
+        } else if (payload.awaiting_confirmation) {
+          updated.status = "awaiting_confirmation";
+        } else {
+          updated.status = "done";
+        }
         if (typeof payload.size === "number") updated.size = payload.size;
         list[idx] = updated;
         last.toolCalls = list;
@@ -197,9 +212,15 @@
             {#if turn.toolCalls && turn.toolCalls.length > 0}
               <ul class="tools">
                 {#each turn.toolCalls as call (call.name + i)}
-                  <li class="tool tool-{call.status}">
-                    <span class="tool-icon">{call.status === "running" ? "⋯" : call.status === "error" ? "⚠" : "✓"}</span>
+                  <li class="tool tool-{call.status}" class:write={call.write}>
+                    <span class="tool-icon">
+                      {#if call.status === "running"}⋯
+                      {:else if call.status === "error"}⚠
+                      {:else if call.status === "awaiting_confirmation"}🔒
+                      {:else}✓{/if}
+                    </span>
                     <code>{call.name}</code>
+                    {#if call.write && call.status === "done"}<span class="write-tag">{t("chat.executed")}</span>{/if}
                     {#if call.error}<span class="tool-err">{call.error}</span>{/if}
                   </li>
                 {/each}
@@ -341,6 +362,22 @@
   .tool-running .tool-icon { color: #f79009; }
   .tool-done .tool-icon { color: #027a48; }
   .tool-error .tool-icon { color: #b42318; }
+  .tool-awaiting_confirmation .tool-icon { color: #b54708; }
+  .tool.write {
+    border-left: 2px solid #d92d20;
+    padding-left: 4px;
+  }
+  .tool.write.tool-done {
+    border-left-color: #027a48;
+    background: #d1fadf;
+  }
+  .write-tag {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #027a48;
+    font-weight: 600;
+  }
   .tool-err { color: #b42318; font-size: 10px; }
 
   .error {
