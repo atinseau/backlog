@@ -167,6 +167,7 @@ export function registerProject(
     added_at: now,
     last_opened_at: now,
     location,
+    migration_history: [],
   };
   // Drop anything matching either the same id or the same path so we don't
   // accumulate duplicates if a project gets re-registered after a move

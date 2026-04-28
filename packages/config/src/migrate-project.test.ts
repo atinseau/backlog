@@ -4,7 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "./init-layout.js";
 import { loadConfig } from "./load-config.js";
-import { migrateProjectToInRepo, migrateProjectToUserLevel } from "./migrate-project.js";
+import {
+  migrateProjectToInRepo,
+  migrateProjectToUserLevel,
+  rollbackProjectMigration,
+} from "./migrate-project.js";
 import { listRegisteredProjects, registerProject } from "./project-registry.js";
 
 function realTmp(prefix: string): string {
@@ -217,5 +221,121 @@ describe("migrateProjectToInRepo", () => {
         registryOptions: { dir: registryDir },
       }),
     ).toThrowError(/already exists/);
+  });
+});
+
+describe("rollbackProjectMigration", () => {
+  it("restores an in_repo→user_level migration: workspace returns to <root>/.backlog/, registry follows", () => {
+    const { root } = makeInRepoWorkspace("undo-inrepo", { repos: 2 });
+
+    const migrate = migrateProjectToUserLevel({
+      identifier: "undo-inrepo",
+      registryOptions: { dir: registryDir },
+    });
+    // Sanity: archived dir exists.
+    expect(fs.existsSync(migrate.archivedAt!)).toBe(true);
+
+    const result = rollbackProjectMigration({
+      identifier: "undo-inrepo",
+      registryOptions: { dir: registryDir },
+    });
+
+    expect(result.restoredBacklogDir).toBe(path.join(root, ".backlog"));
+    expect(result.restoredRoot).toBe(root);
+    expect(result.entry.location).toBe("in_repo");
+    expect(fs.existsSync(path.join(root, ".backlog", "config.toml"))).toBe(true);
+
+    // The user_level dir that was the migration target should be gone.
+    expect(fs.existsSync(migrate.newRoot)).toBe(false);
+
+    const updated = listRegisteredProjects({ dir: registryDir }).find((p) => p.id === result.entry.id);
+    expect(updated?.location).toBe("in_repo");
+    expect(updated?.path).toBe(root);
+  });
+
+  it("restores a user_level→in_repo migration: workspace returns to ~/.backlog/<slug>/", () => {
+    // Build a user-level workspace, migrate it to in_repo, then roll back.
+    const userRoot = path.join(fakeHome, ".backlog", "undo-userlevel");
+    const repoPath = realTmp("backlog-mi-roundtrip-repo-");
+    initLayout({
+      root: userRoot,
+      projectName: "undo-userlevel",
+      location: "user_level",
+      repos: [{ id: "the-repo", path: repoPath, default_branch: "main", enabled: true }],
+    });
+    registerProject({ projectRoot: userRoot, location: "user_level" }, { dir: registryDir });
+
+    migrateProjectToInRepo({
+      identifier: "undo-userlevel",
+      intoRepoId: "the-repo",
+      registryOptions: { dir: registryDir },
+    });
+
+    const result = rollbackProjectMigration({
+      identifier: "undo-userlevel",
+      registryOptions: { dir: registryDir },
+    });
+
+    expect(result.restoredBacklogDir).toBe(userRoot);
+    expect(result.entry.location).toBe("user_level");
+    expect(fs.existsSync(path.join(userRoot, "config.toml"))).toBe(true);
+    expect(fs.existsSync(path.join(repoPath, ".backlog"))).toBe(false);
+  });
+
+  it("--keep-current renames the current workspace instead of deleting it", () => {
+    const { root } = makeInRepoWorkspace("undo-keep");
+    migrateProjectToUserLevel({ identifier: "undo-keep", registryOptions: { dir: registryDir } });
+
+    const result = rollbackProjectMigration({
+      identifier: "undo-keep",
+      keepCurrent: true,
+      registryOptions: { dir: registryDir },
+    });
+
+    expect(result.rolledBackTo).toMatch(/\.rolled-back-\d{4}-\d{2}-\d{2}$/);
+    expect(fs.existsSync(result.rolledBackTo!)).toBe(true);
+    expect(fs.existsSync(path.join(root, ".backlog"))).toBe(true);
+  });
+
+  it("rejects when no .migrated archive exists (nothing to roll back to)", () => {
+    const { root } = makeInRepoWorkspace("nothing-to-undo");
+    void root;
+    expect(() =>
+      rollbackProjectMigration({
+        identifier: "nothing-to-undo",
+        registryOptions: { dir: registryDir },
+      }),
+    ).toThrowError(/no migration history to roll back/);
+  });
+
+  it("rejects when destination already exists", () => {
+    const { root } = makeInRepoWorkspace("clash-restore");
+    migrateProjectToUserLevel({ identifier: "clash-restore", registryOptions: { dir: registryDir } });
+    // Pollute the original spot so rollback can't restore.
+    fs.mkdirSync(path.join(root, ".backlog"));
+
+    expect(() =>
+      rollbackProjectMigration({
+        identifier: "clash-restore",
+        registryOptions: { dir: registryDir },
+      }),
+    ).toThrowError(/already exists/);
+  });
+
+  it("uses --archive-path when explicitly given", () => {
+    const { root } = makeInRepoWorkspace("explicit-archive");
+    const migrate = migrateProjectToUserLevel({
+      identifier: "explicit-archive",
+      registryOptions: { dir: registryDir },
+    });
+
+    const result = rollbackProjectMigration({
+      identifier: "explicit-archive",
+      archivePath: migrate.archivedAt!,
+      registryOptions: { dir: registryDir },
+    });
+
+    expect(result.restoredFrom).toBe(migrate.archivedAt);
+    expect(fs.existsSync(path.join(root, ".backlog", "config.toml"))).toBe(true);
   });
 });

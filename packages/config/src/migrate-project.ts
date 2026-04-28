@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { ProjectRegistryEntry, RepoConfig } from "@backlog/schemas";
+import type { ProjectMigrationRecord, ProjectRegistryEntry, RepoConfig } from "@backlog/schemas";
 import { loadConfig } from "./load-config.js";
 import { saveConfig } from "./save-config.js";
 import {
@@ -77,6 +77,23 @@ function todayUtcDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// List the .backlog.migrated-YYYY-MM-DD/ siblings under a project root,
+// most recent first. Used by rollback to find what's restorable.
+//   in_repo source  (rollback target = <root>/.backlog/, so look at <root>/)
+//   user_level dest (rollback source archive sits at <user-level dir>.migrated-…)
+function listMigrationArchives(searchRoot: string, baseName: string): string[] {
+  const parent = path.dirname(searchRoot);
+  if (!fs.existsSync(parent)) return [];
+  const prefix = `${baseName}.migrated-`;
+  return fs
+    .readdirSync(parent)
+    .filter((entry) => entry.startsWith(prefix))
+    .map((entry) => path.join(parent, entry))
+    .filter((entry) => fs.existsSync(path.join(entry, "config.toml")))
+    .sort()
+    .reverse();
+}
+
 export function migrateProjectToUserLevel(options: MigrateToUserLevelOptions): MigrationResult {
   const entry = findRegistryEntry(options.identifier, options.registryOptions);
   if (!entry) {
@@ -116,6 +133,21 @@ export function migrateProjectToUserLevel(options: MigrateToUserLevelOptions): M
   if (newName !== migrated.project_name) migrated.project_name = newName;
   saveConfig(newRoot, migrated);
 
+  // Archive the old in_repo .backlog/ first so we can record archived_at
+  // in the migration history.
+  let archivedAt: string | undefined;
+  if (!options.keepOld) {
+    archivedAt = `${oldBacklogDir}.migrated-${todayUtcDate()}`;
+    fs.renameSync(oldBacklogDir, archivedAt);
+  }
+
+  const migrationRecord: ProjectMigrationRecord = {
+    previous_path: oldRoot,
+    previous_location: "in_repo",
+    ...(archivedAt ? { archived_at: archivedAt } : {}),
+    migrated_at: new Date().toISOString(),
+  };
+
   const registry = loadRegistry(options.registryOptions);
   const idx = registry.projects.findIndex((p) => p.id === entry.id);
   const updatedEntry: ProjectRegistryEntry = {
@@ -124,16 +156,11 @@ export function migrateProjectToUserLevel(options: MigrateToUserLevelOptions): M
     name: newName,
     location: "user_level",
     last_opened_at: new Date().toISOString(),
+    migration_history: [...(entry.migration_history ?? []), migrationRecord],
   };
   if (idx >= 0) {
     registry.projects[idx] = updatedEntry;
     saveRegistry(registry, options.registryOptions);
-  }
-
-  let archivedAt: string | undefined;
-  if (!options.keepOld) {
-    archivedAt = `${oldBacklogDir}.migrated-${todayUtcDate()}`;
-    fs.renameSync(oldBacklogDir, archivedAt);
   }
 
   return {
@@ -181,6 +208,20 @@ export function migrateProjectToInRepo(options: MigrateToInRepoOptions): Migrati
   migrated.project_location = "in_repo";
   saveConfig(newBacklogDir, migrated);
 
+  // Archive first so we can record archived_at in the migration history.
+  let archivedAt: string | undefined;
+  if (!options.keepOld) {
+    archivedAt = `${oldRoot}.migrated-${todayUtcDate()}`;
+    fs.renameSync(oldRoot, archivedAt);
+  }
+
+  const migrationRecord: ProjectMigrationRecord = {
+    previous_path: oldRoot,
+    previous_location: "user_level",
+    ...(archivedAt ? { archived_at: archivedAt } : {}),
+    migrated_at: new Date().toISOString(),
+  };
+
   const registry = loadRegistry(options.registryOptions);
   const idx = registry.projects.findIndex((p) => p.id === entry.id);
   const updatedEntry: ProjectRegistryEntry = {
@@ -188,16 +229,11 @@ export function migrateProjectToInRepo(options: MigrateToInRepoOptions): Migrati
     path: newRoot,
     location: "in_repo",
     last_opened_at: new Date().toISOString(),
+    migration_history: [...(entry.migration_history ?? []), migrationRecord],
   };
   if (idx >= 0) {
     registry.projects[idx] = updatedEntry;
     saveRegistry(registry, options.registryOptions);
-  }
-
-  let archivedAt: string | undefined;
-  if (!options.keepOld) {
-    archivedAt = `${oldRoot}.migrated-${todayUtcDate()}`;
-    fs.renameSync(oldRoot, archivedAt);
   }
 
   return {
@@ -208,5 +244,141 @@ export function migrateProjectToInRepo(options: MigrateToInRepoOptions): Migrati
     entry: updatedEntry,
     ...(archivedAt ? { archivedAt } : {}),
     reposToReinstallHooksOn: migrated.repos,
+  };
+}
+
+export interface RollbackOptions {
+  // Project to roll back, identified by id/path/name. Rollback restores
+  // the most recent .migrated-YYYY-MM-DD/ archive sibling.
+  identifier: string;
+  // If provided, restore this specific archive path instead of the most
+  // recent one. Useful if multiple migrations have happened.
+  archivePath?: string;
+  // If true, leave the current workspace as a `.rolled-back-YYYY-MM-DD`
+  // archive instead of removing it. Default is to remove (the rollback
+  // is meant to be the inverse of the migration).
+  keepCurrent?: boolean;
+  registryOptions?: RegistryOptions;
+}
+
+export interface RollbackResult {
+  // Where the workspace ended up living after rollback.
+  restoredRoot: string;
+  restoredBacklogDir: string;
+  // The archive that fed the rollback (now consumed/empty).
+  restoredFrom: string;
+  // If the current workspace was kept (keepCurrent: true), this is its
+  // post-rename path. Otherwise undefined.
+  rolledBackTo?: string;
+  entry: ProjectRegistryEntry;
+  reposToReinstallHooksOn: RepoConfig[];
+}
+
+// Roll back the most recent migration of a project. Pops the last entry
+// from registry.entry.migration_history, moves the archive back to where
+// it came from, and updates the registry. The current workspace is
+// removed unless keepCurrent is set.
+//
+// We rely on migration_history (rather than scanning siblings) because
+// the migration's source dir isn't always reachable from configured repo
+// paths — e.g. an in_repo project root that's a parent of all repos but
+// isn't itself a configured repo would be invisible to a heuristic scan.
+export function rollbackProjectMigration(options: RollbackOptions): RollbackResult {
+  const entry = findRegistryEntry(options.identifier, options.registryOptions);
+  if (!entry) {
+    throw new Error(`No registered project matching: ${options.identifier}`);
+  }
+  const currentRoot = path.resolve(entry.path);
+  const currentBacklogDir = entry.location === "in_repo" ? path.join(currentRoot, ".backlog") : currentRoot;
+  if (!fs.existsSync(path.join(currentBacklogDir, "config.toml"))) {
+    throw new Error(`Current workspace at ${currentBacklogDir} has no config.toml.`);
+  }
+
+  const history = entry.migration_history ?? [];
+  const lastMigration = history[history.length - 1];
+
+  // Pick the archive: explicit override → last history record's
+  // archived_at → fail.
+  let archivePath: string | undefined;
+  if (options.archivePath) {
+    archivePath = path.resolve(options.archivePath);
+    if (!fs.existsSync(path.join(archivePath, "config.toml"))) {
+      throw new Error(`No config.toml at archive ${archivePath}.`);
+    }
+  } else if (lastMigration?.archived_at && fs.existsSync(path.join(lastMigration.archived_at, "config.toml"))) {
+    archivePath = lastMigration.archived_at;
+  }
+
+  if (!archivePath) {
+    if (history.length === 0) {
+      throw new Error(
+        `Project ${entry.id} has no migration history to roll back. Pass --archive-path if you have an archive stashed elsewhere.`,
+      );
+    }
+    throw new Error(
+      `Last migration of ${entry.id} was archived at ${lastMigration?.archived_at ?? "(none)"} but that path no longer exists. Pass --archive-path explicitly.`,
+    );
+  }
+
+  // Where to restore: explicit history record → derived from archive name.
+  const archiveBaseMatch = path.basename(archivePath).match(/^(.+)\.migrated-\d{4}-\d{2}-\d{2}$/);
+  if (!archiveBaseMatch) {
+    throw new Error(
+      `Archive ${archivePath} doesn't match the expected .migrated-YYYY-MM-DD/ shape; refusing to guess destination.`,
+    );
+  }
+  const restoredBacklogDir = lastMigration
+    ? (lastMigration.previous_location === "in_repo"
+        ? path.join(lastMigration.previous_path, ".backlog")
+        : lastMigration.previous_path)
+    : path.join(path.dirname(archivePath), archiveBaseMatch[1]!);
+
+  if (fs.existsSync(restoredBacklogDir)) {
+    throw new Error(
+      `Cannot restore: ${restoredBacklogDir} already exists. Move it out of the way first.`,
+    );
+  }
+
+  fs.mkdirSync(path.dirname(restoredBacklogDir), { recursive: true });
+  fs.renameSync(archivePath, restoredBacklogDir);
+
+  const restoredConfig = loadConfig(restoredBacklogDir);
+  const restoredLocation = restoredConfig.project_location;
+  const restoredRoot = lastMigration?.previous_path
+    ?? (restoredLocation === "in_repo" ? path.dirname(restoredBacklogDir) : restoredBacklogDir);
+
+  // Update registry: rewrite the entry to its pre-migration state and pop
+  // the history entry we just consumed.
+  const registry = loadRegistry(options.registryOptions);
+  const idx = registry.projects.findIndex((p) => p.id === entry.id);
+  const updatedEntry: ProjectRegistryEntry = {
+    ...entry,
+    path: restoredRoot,
+    name: restoredConfig.project_name,
+    location: restoredLocation,
+    last_opened_at: new Date().toISOString(),
+    migration_history: history.slice(0, -1),
+  };
+  if (idx >= 0) {
+    registry.projects[idx] = updatedEntry;
+    saveRegistry(registry, options.registryOptions);
+  }
+
+  // Dispose the current workspace.
+  let rolledBackTo: string | undefined;
+  if (options.keepCurrent) {
+    rolledBackTo = `${currentBacklogDir}.rolled-back-${todayUtcDate()}`;
+    fs.renameSync(currentBacklogDir, rolledBackTo);
+  } else {
+    fs.rmSync(currentBacklogDir, { recursive: true, force: true });
+  }
+
+  return {
+    restoredRoot,
+    restoredBacklogDir,
+    restoredFrom: archivePath,
+    ...(rolledBackTo ? { rolledBackTo } : {}),
+    entry: updatedEntry,
+    reposToReinstallHooksOn: restoredConfig.repos,
   };
 }

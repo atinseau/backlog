@@ -6,6 +6,7 @@ import {
   migrateProjectToInRepo,
   migrateProjectToUserLevel,
   registerProject,
+  rollbackProjectMigration,
   unregisterProject,
 } from "@backlog/config";
 import { detectGitDir } from "@backlog/git";
@@ -140,6 +141,61 @@ export function registerProjectCommand(program: Command): void {
       if (failed.length > 0) {
         console.log("");
         console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the new workspace dir to retry.");
+      }
+    });
+
+  project
+    .command("migrate-rollback")
+    .description("Restore a project's most recent .migrated-…/ archive (inverse of `project migrate`)")
+    .argument("<id-or-name-or-path>", "Project to roll back")
+    .option("--archive-path <path>", "Specific archive to restore (defaults to the most recent sibling)")
+    .option("--keep-current", "Don't delete the current workspace; rename it to .rolled-back-…/ instead")
+    .action(async (idOrPathOrName: string, options: { archivePath?: string; keepCurrent?: boolean }) => {
+      const result = rollbackProjectMigration({
+        identifier: idOrPathOrName,
+        ...(options.archivePath !== undefined ? { archivePath: options.archivePath } : {}),
+        ...(options.keepCurrent ? { keepCurrent: true } : {}),
+      });
+
+      console.log(`Rolled back ${result.entry.id} (${result.entry.name})`);
+      console.log(`  restored: ${result.restoredBacklogDir} (${result.entry.location})`);
+      console.log(`  from:     ${result.restoredFrom}`);
+
+      const backlogBin = path.join(result.restoredBacklogDir, "bin", "backlog");
+      const reinstallReport: { repoId: string; status: "ok" | "failed"; detail?: string }[] = [];
+      for (const repo of result.reposToReinstallHooksOn) {
+        try {
+          const gitDir = await detectGitDir(repo.path);
+          installPreCommitHook({
+            gitDir,
+            backlogBin,
+            projectRoot: result.restoredRoot,
+            backlogDir: result.restoredBacklogDir,
+            force: true,
+          });
+          reinstallReport.push({ repoId: repo.id, status: "ok" });
+        } catch (error) {
+          reinstallReport.push({
+            repoId: repo.id,
+            status: "failed",
+            detail: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      if (result.reposToReinstallHooksOn.length > 0) {
+        console.log(`  hooks:`);
+        for (const r of reinstallReport) {
+          const detail = r.detail ? ` — ${r.detail}` : "";
+          console.log(`    ${r.repoId}: ${r.status}${detail}`);
+        }
+      }
+      if (result.rolledBackTo) {
+        console.log(`  current workspace archived to: ${result.rolledBackTo}`);
+      }
+      const failed = reinstallReport.filter((r) => r.status === "failed");
+      if (failed.length > 0) {
+        console.log("");
+        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the restored workspace dir to retry.");
       }
     });
 }

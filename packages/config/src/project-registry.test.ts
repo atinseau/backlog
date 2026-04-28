@@ -42,6 +42,7 @@ describe("loadRegistry / saveRegistry", () => {
             name: "x",
             added_at: "2026-01-01T00:00:00.000Z",
             location: "in_repo",
+            migration_history: [],
           },
         ],
       },
