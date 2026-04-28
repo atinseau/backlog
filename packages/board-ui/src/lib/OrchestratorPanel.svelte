@@ -225,6 +225,12 @@
                 <div class="row">
                   <span class={actionClass(d.action)}>{d.action}</span>
                   <span class="title">{d.subtask_title ?? d.subtask_id}</span>
+                  {#if d.predicted_cost_usd != null}
+                    <span
+                      class="cost"
+                      title={`Median cost across ${d.predicted_cost_sample_size ?? "?"} past runs (same repo+agent)`}
+                    >≈ ${d.predicted_cost_usd.toFixed(2)}</span>
+                  {/if}
                   {#if d.action === "run"}
                     <button
                       class="start"
@@ -425,6 +431,14 @@
     color: #667085;
     font-variant-numeric: tabular-nums;
     font-size: 11px;
+  }
+  .cost {
+    color: #475467;
+    background: #f2f4f7;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
   }
   .chip {
     font-size: 10px;

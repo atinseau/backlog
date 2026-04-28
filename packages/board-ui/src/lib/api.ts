@@ -455,6 +455,10 @@ export interface EnrichedDecision {
   task_id: string;
   task_title: string | null;
   subtask_title: string | null;
+  // Median USD cost predicted from past runs that share the same
+  // (repo, agent) pair. null when there's not enough history.
+  predicted_cost_usd?: number | null;
+  predicted_cost_sample_size?: number | null;
   repo: string | null;
   scopes: string[];
   action: DecisionAction;

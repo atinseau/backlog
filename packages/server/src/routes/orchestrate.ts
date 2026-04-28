@@ -1,6 +1,7 @@
 import { loadConfig } from "@backlog/config";
 import {
   buildExecutionPlan,
+  estimateRunCost,
   listSubTasks,
   listTasks,
   type ExecutionPlan,
@@ -23,6 +24,11 @@ interface EnrichedDecision {
   reasons: string[];
   assigned_agent_id: string | null;
   candidate_agent_ids: string[];
+  // Median USD cost across past runs that match this decision's
+  // (repo, agent) pair. null when there's not enough history yet.
+  // The board UI surfaces this as a pill next to the ▶ button.
+  predicted_cost_usd: number | null;
+  predicted_cost_sample_size: number | null;
 }
 
 interface ExecutionWave {
@@ -45,21 +51,27 @@ function enrich(
   decision: SubTaskDecision,
   tasksById: Map<string, SubTask>,
   workItemsById: Map<string, Task>,
+  costEstimateFor: (repo: string | null, agentId: string | null) => { cost_usd: number; sample_size: number } | null,
 ): EnrichedDecision {
   const task = tasksById.get(decision.taskId) ?? null;
   const workItem = workItemsById.get(decision.workItemId) ?? null;
+  const repo = task?.repo ?? null;
+  const agentId = decision.assignedAgentId ?? null;
+  const estimate = costEstimateFor(repo, agentId);
   return {
     subtask_id: decision.taskId,
     task_id: decision.workItemId,
     subtask_title: task?.title ?? null,
     task_title: workItem?.title ?? null,
-    repo: task?.repo ?? null,
+    repo,
     scopes: task?.scopes ?? [],
     action: decision.action,
     score: decision.score,
     reasons: decision.reasons,
-    assigned_agent_id: decision.assignedAgentId ?? null,
+    assigned_agent_id: agentId,
     candidate_agent_ids: decision.candidateAgentIds ?? [],
+    predicted_cost_usd: estimate?.cost_usd ?? null,
+    predicted_cost_sample_size: estimate?.sample_size ?? null,
   };
 }
 
@@ -110,10 +122,26 @@ function buildResponse(workspace: ServerProject, plan: ExecutionPlan): Orchestra
   const tasksById = new Map(listSubTasks(workspace.backlogDir).map((t) => [t.id, t]));
   const workItemsById = new Map(listTasks(workspace.backlogDir).map((w) => [w.id, w]));
 
-  const enrichedRunnable = plan.runnable.map((d) => enrich(d, tasksById, workItemsById));
-  const enrichedWaiting = plan.waiting.map((d) => enrich(d, tasksById, workItemsById));
-  const enrichedBlocked = plan.blocked.map((d) => enrich(d, tasksById, workItemsById));
-  const enrichedSkipped = plan.skipped.map((d) => enrich(d, tasksById, workItemsById));
+  // Memoize the cost estimate by (repo, agent) — multiple decisions
+  // commonly share both, and estimateRunCost walks the run archive
+  // each call. Null repo or null agent both fall through to a
+  // workspace-wide median.
+  const costCache = new Map<string, { cost_usd: number; sample_size: number } | null>();
+  const costEstimateFor = (repo: string | null, agentId: string | null) => {
+    const key = `${repo ?? ""}::${agentId ?? ""}`;
+    if (costCache.has(key)) return costCache.get(key) ?? null;
+    const estimate = estimateRunCost(workspace.backlogDir, {
+      ...(repo ? { repo } : {}),
+      ...(agentId ? { agent_id: agentId } : {}),
+    });
+    costCache.set(key, estimate);
+    return estimate;
+  };
+
+  const enrichedRunnable = plan.runnable.map((d) => enrich(d, tasksById, workItemsById, costEstimateFor));
+  const enrichedWaiting = plan.waiting.map((d) => enrich(d, tasksById, workItemsById, costEstimateFor));
+  const enrichedBlocked = plan.blocked.map((d) => enrich(d, tasksById, workItemsById, costEstimateFor));
+  const enrichedSkipped = plan.skipped.map((d) => enrich(d, tasksById, workItemsById, costEstimateFor));
 
   const allCandidates = [...enrichedRunnable, ...enrichedWaiting];
   const waves = bucketIntoWaves(allCandidates, Math.max(1, plan.maxAgents));
