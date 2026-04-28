@@ -5,6 +5,8 @@ import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
+import { parseClaudeJsonStdout } from "./provider-usage.js";
+import { recordUsage } from "./usage.js";
 
 export async function executeClaudeAgentRun(params: {
   backlogDir: string;
@@ -19,7 +21,11 @@ export async function executeClaudeAgentRun(params: {
   const logPath = path.join(params.run.worktree_path, ".backlog-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
-  const args = ["-p", "--output-format", "text", "--permission-mode", "bypassPermissions"];
+  // `--output-format json` returns a single object with `summary` (or
+  // `result`) plus `usage`. We need usage for `backlog runs cost`; the
+  // parser below tolerates plain text too, so a Claude CLI version that
+  // doesn't produce JSON gracefully degrades.
+  const args = ["-p", "--output-format", "json", "--permission-mode", "bypassPermissions"];
   if (params.agent.model) {
     args.push("--model", params.agent.model);
   }
@@ -47,7 +53,30 @@ export async function executeClaudeAgentRun(params: {
       "utf8",
     );
 
-    const summary = result.stdout.trim();
+    // Try the JSON output path first (current `--output-format json`).
+    // Fall back to raw stdout for older Claude CLIs that ignore the flag
+    // and print plain text — preserves the previous behaviour.
+    const fallbackModel = params.agent.model ?? "claude";
+    const parsed = parseClaudeJsonStdout(result.stdout, fallbackModel);
+    if (parsed.usage) {
+      try {
+        recordUsage(params.backlogDir, params.run.id, {
+          provider: "anthropic",
+          model: parsed.usage.model,
+          input_tokens: parsed.usage.input_tokens,
+          output_tokens: parsed.usage.output_tokens,
+          ...(parsed.usage.cache_read_input_tokens !== undefined
+            ? { cache_read_input_tokens: parsed.usage.cache_read_input_tokens }
+            : {}),
+          ...(parsed.usage.cache_creation_input_tokens !== undefined
+            ? { cache_creation_input_tokens: parsed.usage.cache_creation_input_tokens }
+            : {}),
+        });
+      } catch {
+        // Don't block the run if the events.ndjson write fails.
+      }
+    }
+    const summary = (parsed.summary ?? result.stdout).trim();
     if (summary) {
       addRunArtifact(params.backlogDir, params.run.id, { kind: "summary", value: summary });
     }

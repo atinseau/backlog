@@ -5,6 +5,8 @@ import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
+import { parseCodexJsonStream } from "./provider-usage.js";
+import { recordUsage } from "./usage.js";
 
 export async function executeCodexAgentRun(params: {
   backlogDir: string;
@@ -53,6 +55,29 @@ export async function executeCodexAgentRun(params: {
       [`# stdout`, result.stdout, ``, `# stderr`, result.stderr].join("\n"),
       "utf8",
     );
+
+    // Codex `--json` already streams JSON events; the last `usage` block
+    // is the cumulative count for the session.
+    const fallbackModel = params.agent.model ?? "gpt-5";
+    const usage = parseCodexJsonStream(result.stdout, fallbackModel);
+    if (usage) {
+      try {
+        recordUsage(params.backlogDir, params.run.id, {
+          provider: "codex",
+          model: usage.model,
+          input_tokens: usage.input_tokens,
+          output_tokens: usage.output_tokens,
+          ...(usage.cache_read_input_tokens !== undefined
+            ? { cache_read_input_tokens: usage.cache_read_input_tokens }
+            : {}),
+          ...(usage.cache_creation_input_tokens !== undefined
+            ? { cache_creation_input_tokens: usage.cache_creation_input_tokens }
+            : {}),
+        });
+      } catch {
+        // Don't block the run on usage write failure.
+      }
+    }
 
     const lastMessage = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, "utf8").trim() : "";
     if (lastMessage) {
