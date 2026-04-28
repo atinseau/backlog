@@ -2,9 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { findProject } from "./find-project.js";
+import { clearFindProjectCache, findProject } from "./find-project.js";
 import { initLayout } from "./init-layout.js";
 import { registerProject } from "./project-registry.js";
+
+beforeEach(() => {
+  clearFindProjectCache();
+});
 
 function tmp(prefix: string): string {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
@@ -100,5 +104,52 @@ describe("findProject", () => {
     const unrelated = tmp("backlog-fp-stranger-");
     const found = findProject(unrelated, { registryOptions: { dir: registryDir } });
     expect(found).toBeNull();
+  });
+
+  it("caches the registry→repos mapping by file mtime: a registry edit invalidates the cache", () => {
+    const registryDir = tmp("backlog-fp-cache-reg-");
+    const userWorkspace = tmp("backlog-fp-cache-ws-");
+    const repoA = tmp("backlog-fp-cache-repoA-");
+    const repoB = tmp("backlog-fp-cache-repoB-");
+
+    // Start with one repo configured.
+    initLayout({
+      root: userWorkspace,
+      projectName: "cache-test",
+      location: "user_level",
+      repos: [{ id: "a", path: repoA, default_branch: "main", enabled: true }],
+    });
+    registerProject({ projectRoot: userWorkspace, location: "user_level" }, { dir: registryDir });
+
+    // First call: cwd inside repoA matches.
+    expect(
+      findProject(repoA, { registryOptions: { dir: registryDir } })?.backlogDir,
+    ).toBe(userWorkspace);
+
+    // cwd inside repoB doesn't match yet — repoB isn't configured.
+    expect(findProject(repoB, { registryOptions: { dir: registryDir } })).toBeNull();
+
+    // Add repoB to the workspace's config and bump the registry mtime
+    // (registerProject writes the registry; even re-registering the same
+    // project mutates last_opened_at + bumps mtime).
+    const config = JSON.parse(JSON.stringify({})) as Record<string, never>;
+    void config;
+    // Append repoB via a config rewrite — easier than driving repos add.
+    const configPath = path.join(userWorkspace, "config.toml");
+    const configToml = fs.readFileSync(configPath, "utf8");
+    fs.writeFileSync(
+      configPath,
+      configToml + `\n[[repos]]\nid = "b"\npath = "${repoB}"\ndefault_branch = "main"\nenabled = true\n`,
+      "utf8",
+    );
+    // Bump registry mtime so the cache is invalidated.
+    const registryPath = path.join(registryDir, "projects.json");
+    const now = Date.now() / 1000;
+    fs.utimesSync(registryPath, now + 5, now + 5);
+
+    // Now repoB resolves.
+    expect(
+      findProject(repoB, { registryOptions: { dir: registryDir } })?.backlogDir,
+    ).toBe(userWorkspace);
   });
 });
