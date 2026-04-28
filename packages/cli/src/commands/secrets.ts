@@ -36,13 +36,42 @@ export function registerSecretsCommand(program: Command): void {
 
   secrets
     .command("set")
-    .description("Store or overwrite a secret value (passed as --value or read from stdin)")
-    .argument("<key>", "Secret key")
+    .description(
+      "Store or overwrite a secret value. Accepts: `set KEY=VALUE`, `set KEY VALUE`, `set KEY --value VALUE`, or `set KEY` reading one line from stdin.",
+    )
+    .argument("<key>", "Secret key (or KEY=VALUE shorthand)")
+    .argument("[value]", "Secret value")
     .option("--value <value>", "Value to store. If omitted, reads from stdin (one line).")
-    .action(async (key: string, options: { value?: string }) => {
-      let value = options.value;
-      if (value === undefined) {
-        // Read one line from stdin.
+    .action(async (rawKey: string, positionalValue: string | undefined, options: { value?: string }) => {
+      // Three input shapes — picked in priority order, with conflicts as
+      // hard errors so a user who pasted a literal "KEY=VALUE" *and*
+      // also supplied --value doesn't get a silent surprise about which
+      // wins.
+      let key = rawKey;
+      let value: string | undefined;
+
+      const eqIndex = rawKey.indexOf("=");
+      if (eqIndex > 0) {
+        // KEY=VALUE shorthand. Anything after the first `=` is the
+        // value verbatim — including additional `=` characters that
+        // commonly appear in base64-encoded tokens.
+        key = rawKey.slice(0, eqIndex);
+        value = rawKey.slice(eqIndex + 1);
+        if (positionalValue !== undefined || options.value !== undefined) {
+          throw new Error(
+            `Ambiguous: '${rawKey}' already contains '=value'. Drop the positional argument or --value flag.`,
+          );
+        }
+      } else if (positionalValue !== undefined) {
+        if (options.value !== undefined) {
+          throw new Error("Ambiguous: pass the value either positionally or as --value, not both.");
+        }
+        value = positionalValue;
+      } else if (options.value !== undefined) {
+        value = options.value;
+      } else {
+        // Last resort: stdin. Trimmed so a trailing newline from `echo`
+        // doesn't end up encrypted into the secret.
         value = await new Promise<string>((resolve) => {
           let buf = "";
           process.stdin.setEncoding("utf8");
@@ -52,6 +81,7 @@ export function registerSecretsCommand(program: Command): void {
           process.stdin.on("end", () => resolve(buf.trim()));
         });
       }
+      if (!key) throw new Error("Secret key cannot be empty.");
       if (!value) throw new Error("Refusing to store an empty secret.");
       setSecret(projectBacklogDir(), key, value);
       console.log(`Stored ${key}.`);
