@@ -5,6 +5,7 @@ import {
   approveRun,
   completeRun,
   createRunHandoff,
+  estimateRunCost,
   failRun,
   garbageCollectArchivedRuns,
   getRunEvents,
@@ -277,6 +278,41 @@ export function registerRunCommand(program: Command): void {
       }
       const handoffPath = createRunHandoff(workspace.backlogDir, runId, options.reason);
       console.log(`Wrote handoff to ${handoffPath}`);
+    });
+
+  runs
+    .command("estimate")
+    .description("Predict the USD cost of a future run by taking the median of past runs that match")
+    .option("--repo <id>", "Filter the history to a single repo")
+    .option("--agent <id>", "Filter the history to a single agent")
+    .option("--since <iso>", "Only consider runs whose usage events are at or after this timestamp")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { repo?: string; agent?: string; since?: string; json?: boolean }) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const estimate = estimateRunCost(workspace.backlogDir, {
+        ...(options.repo ? { repo: options.repo } : {}),
+        ...(options.agent ? { agent_id: options.agent } : {}),
+        ...(options.since ? { sinceIso: options.since } : {}),
+      });
+
+      if (options.json) {
+        console.log(JSON.stringify(estimate, null, 2));
+        return;
+      }
+      if (!estimate) {
+        console.log("Not enough run history yet (need ≥3 matching past runs).");
+        console.log("Run a few tasks first, then come back.");
+        return;
+      }
+      const dollar = `$${estimate.cost_usd.toFixed(4)}`;
+      console.log(`Predicted next run cost: ${dollar}`);
+      console.log(
+        `  median ${estimate.median_input_tokens.toLocaleString()} in / ${estimate.median_output_tokens.toLocaleString()} out across ${estimate.sample_size} runs`,
+      );
+      console.log("Use --json to surface this in the board UI / orchestrator panel.");
     });
 
   runs

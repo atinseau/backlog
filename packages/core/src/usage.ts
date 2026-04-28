@@ -181,6 +181,93 @@ export interface RunCostSummary {
   perModel: Record<string, UsageTotals>;
 }
 
+// Estimate the USD cost of a future run, based on the median of past
+// runs that match the given criteria. We deliberately use median (not
+// mean) so a single $20 outlier doesn't shift the prediction. Returns
+// null when fewer than 3 matching runs exist — small samples are too
+// noisy to commit to a single number.
+export interface CostEstimate {
+  cost_usd: number;
+  sample_size: number;
+  // Same shape as UsageTotals but the values are medians, not sums.
+  median_input_tokens: number;
+  median_output_tokens: number;
+}
+
+export interface EstimateRunCostOptions {
+  // Restrict the historical runs we consider to the ones whose run.json
+  // matches these fields. Each filter is optional. The resulting set
+  // must have at least 3 entries or estimateRunCost returns null.
+  repo?: string;
+  agent_id?: string;
+  // ISO timestamp lower bound — only consider runs started after this.
+  // Useful when pricing has just changed.
+  sinceIso?: string;
+}
+
+function pickMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1]! + sorted[mid]!) / 2;
+  }
+  return sorted[mid]!;
+}
+
+function readRunJson(backlogDir: string, runId: string): Record<string, unknown> | null {
+  for (const dir of [activeRunsDir(backlogDir), archiveRunsDir(backlogDir)]) {
+    const candidate = path.join(dir, runId, "run.json");
+    if (!fs.existsSync(candidate)) continue;
+    try {
+      return JSON.parse(fs.readFileSync(candidate, "utf8")) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function estimateRunCost(
+  backlogDir: string,
+  options: EstimateRunCostOptions = {},
+): CostEstimate | null {
+  const runIds = listAllRunIds(backlogDir);
+  const perRun: { cost: number; input: number; output: number }[] = [];
+
+  for (const runId of runIds) {
+    const events = readUsageEvents(backlogDir, runId).filter((e) =>
+      options.sinceIso ? e.ts >= options.sinceIso : true,
+    );
+    if (events.length === 0) continue;
+
+    // Filter by repo / agent: read the run.json to learn its repo.
+    if (options.repo || options.agent_id) {
+      const run = readRunJson(backlogDir, runId);
+      if (!run) continue;
+      if (options.repo && run.repo !== options.repo) continue;
+      if (options.agent_id && run.agent_id !== options.agent_id) continue;
+    }
+
+    const totals = emptyTotals();
+    for (const event of events) add(totals, event);
+    perRun.push({
+      cost: totals.cost_usd,
+      input: totals.input_tokens,
+      output: totals.output_tokens,
+    });
+  }
+
+  if (perRun.length < 3) return null;
+
+  return {
+    cost_usd: pickMedian(perRun.map((r) => r.cost)),
+    sample_size: perRun.length,
+    median_input_tokens: Math.round(pickMedian(perRun.map((r) => r.input))),
+    median_output_tokens: Math.round(pickMedian(perRun.map((r) => r.output))),
+  };
+}
+
 // Aggregate usage events across runs. Returns the totals and a
 // breakdown by model for each run (so a per-run cost report is one
 // pass over the data, not one pass per run).

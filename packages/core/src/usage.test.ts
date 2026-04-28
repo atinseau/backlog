@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { aggregateUsage, recordUsage } from "./usage.js";
+import { aggregateUsage, estimateRunCost, recordUsage } from "./usage.js";
 
 function makeBacklogWithRun(runId: string): string {
   const backlogDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-usage-"));
@@ -117,5 +117,76 @@ describe("recordUsage / aggregateUsage", () => {
     const totals = aggregateUsage(backlogDir).totals;
     // Opus 4.7 = $15/MM input, $75/MM output → 10×15/MM + 5×75/MM
     expect(totals.cost_usd).toBeCloseTo((10 * 15 + 5 * 75) / 1_000_000, 8);
+  });
+});
+
+describe("estimateRunCost", () => {
+  function seedRun(backlogDir: string, runId: string, run: Record<string, unknown>): void {
+    const dir = path.join(backlogDir, "runs", "active", runId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "events.ndjson"), "", "utf8");
+    fs.writeFileSync(path.join(dir, "run.json"), JSON.stringify(run), "utf8");
+  }
+
+  it("returns null when fewer than 3 matching past runs exist", () => {
+    const backlogDir = makeBacklogWithRun("RUN-only");
+    recordUsage(backlogDir, "RUN-only", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      input_tokens: 1000,
+      output_tokens: 500,
+    });
+    expect(estimateRunCost(backlogDir)).toBeNull();
+  });
+
+  it("returns the median cost across matching runs", () => {
+    const backlogDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-estimate-"));
+    for (let i = 0; i < 5; i++) {
+      const id = `RUN-${i}`;
+      seedRun(backlogDir, id, { id, repo: "alpha", agent_id: "claude-default" });
+      // Costs: $10, $20, $30, $40, $50 → median = $30
+      recordUsage(backlogDir, id, {
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        input_tokens: (i + 1) * 1_000_000, // i+1 M tokens × $3/M = $(i+1)*3 in
+        output_tokens: ((i + 1) * 1_000_000) / 3, // → +$(i+1)*5 out
+      });
+    }
+    const estimate = estimateRunCost(backlogDir);
+    expect(estimate).not.toBeNull();
+    expect(estimate!.sample_size).toBe(5);
+    // $3/MM in × 3MM tokens = $9 + $15/MM out × 1MM tokens = $15 → $24 for the median run
+    expect(estimate!.cost_usd).toBeCloseTo(24, 4);
+  });
+
+  it("filters by repo: only runs for that repo are counted", () => {
+    const backlogDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-est-repo-"));
+    // 3 alpha runs at cheap pricing
+    for (let i = 0; i < 3; i++) {
+      seedRun(backlogDir, `A-${i}`, { id: `A-${i}`, repo: "alpha", agent_id: "x" });
+      recordUsage(backlogDir, `A-${i}`, {
+        provider: "anthropic",
+        model: "claude-haiku-4-5",
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+      });
+    }
+    // 3 beta runs at expensive pricing — should NOT be considered when --repo=alpha
+    for (let i = 0; i < 3; i++) {
+      seedRun(backlogDir, `B-${i}`, { id: `B-${i}`, repo: "beta", agent_id: "x" });
+      recordUsage(backlogDir, `B-${i}`, {
+        provider: "anthropic",
+        model: "claude-opus-4-7",
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+      });
+    }
+    const alpha = estimateRunCost(backlogDir, { repo: "alpha" })!;
+    expect(alpha.sample_size).toBe(3);
+    // haiku 4.5: 100K×$0.25/MM + 50K×$1.25/MM = $0.025 + $0.0625 = $0.0875
+    expect(alpha.cost_usd).toBeCloseTo(0.0875, 4);
+
+    const beta = estimateRunCost(backlogDir, { repo: "beta" })!;
+    expect(beta.cost_usd).toBeCloseTo(15 + 75, 1); // 1MM in + 1MM out at opus rates
   });
 });
