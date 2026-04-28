@@ -175,3 +175,45 @@ export function garbageCollectExpiredClaims(backlogDir: string): ClaimGcResult {
 
   return result;
 }
+
+export interface ContextPointerGcResult {
+  // Repos that had a .git/backlog-context.json before we ran. Useful for
+  // "checked N repos, found M orphans" reporting.
+  scanned: number;
+  // Pointers that referenced a claim_id no longer in claims/active/. We
+  // remove these because they would otherwise crash `backlog claim check`
+  // with a raw ENOENT when the pre-commit hook fires next.
+  removed: { repoRoot: string; claimId: string }[];
+}
+
+// Scan each repo's .git/backlog-context.json and remove the ones that
+// reference a claim that doesn't exist in claims/active/ anymore (archived,
+// gc'd, or moved by `backlog project migrate`). Errors reading individual
+// pointers are skipped — one malformed pointer shouldn't abort the sweep.
+export function gcOrphanContextPointers(params: {
+  backlogDir: string;
+  // List of repo roots (paths). Caller usually passes
+  // loadConfig(backlogDir).repos.map(r => r.path).
+  repoRoots: string[];
+}): ContextPointerGcResult {
+  const result: ContextPointerGcResult = { scanned: 0, removed: [] };
+  for (const repoRoot of params.repoRoots) {
+    const contextPath = path.join(repoRoot, ".git", "backlog-context.json");
+    if (!fs.existsSync(contextPath)) continue;
+    result.scanned++;
+    let claimId: string | undefined;
+    try {
+      const raw = JSON.parse(fs.readFileSync(contextPath, "utf8")) as { claim_id?: unknown };
+      if (typeof raw.claim_id === "string") claimId = raw.claim_id;
+    } catch {
+      // Malformed pointer — leave it alone; the user can clean it up.
+      continue;
+    }
+    if (!claimId) continue;
+    const claimFile = claimFilePath(activeClaimsDir(params.backlogDir), claimId);
+    if (fs.existsSync(claimFile)) continue;
+    fs.unlinkSync(contextPath);
+    result.removed.push({ repoRoot, claimId });
+  }
+  return result;
+}

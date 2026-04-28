@@ -5,6 +5,7 @@ import {
   createClaim,
   findOverlappingClaims,
   garbageCollectExpiredClaims,
+  gcOrphanContextPointers,
   isExpired,
   listActiveClaims,
   loadActiveClaimIfPresent,
@@ -192,7 +193,7 @@ export function registerClaimCommand(program: Command): void {
 
   claim
     .command("gc")
-    .description("Archive expired active claims")
+    .description("Archive expired active claims and clean orphan .git/backlog-context.json pointers")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean }) => {
       const workspace = findProject();
@@ -200,14 +201,29 @@ export function registerClaimCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
-      const result = garbageCollectExpiredClaims(workspace.backlogDir);
+      // First archive expired actives, then sweep orphan context pointers.
+      // Order matters: archiving moves a claim out of active, which makes
+      // any pointer to it an orphan that the second pass will catch.
+      const archivedResult = garbageCollectExpiredClaims(workspace.backlogDir);
+      const config = loadConfig(workspace.backlogDir);
+      const pointerResult = gcOrphanContextPointers({
+        backlogDir: workspace.backlogDir,
+        repoRoots: config.repos.map((repo) => repo.path),
+      });
+
       if (options.json) {
-        console.log(JSON.stringify(result, null, 2));
+        console.log(JSON.stringify({ ...archivedResult, contextPointers: pointerResult }, null, 2));
         return;
       }
-      console.log(`Archived expired claims: ${result.archived.length}`);
-      for (const claimId of result.archived) {
+      console.log(`Archived expired claims: ${archivedResult.archived.length}`);
+      for (const claimId of archivedResult.archived) {
         console.log(`- ${claimId}`);
+      }
+      console.log(
+        `Scanned ${pointerResult.scanned} .git/backlog-context.json pointer(s); removed ${pointerResult.removed.length} orphan(s).`,
+      );
+      for (const orphan of pointerResult.removed) {
+        console.log(`- ${orphan.repoRoot} (was pointing at ${orphan.claimId})`);
       }
     });
 
