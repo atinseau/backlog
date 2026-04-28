@@ -7,7 +7,7 @@ import {
   garbageCollectExpiredClaims,
   isExpired,
   listActiveClaims,
-  loadActiveClaim,
+  loadActiveClaimIfPresent,
   pathsCoveredByScopes,
   readContextFile,
   removeContextFile,
@@ -88,7 +88,17 @@ async function resolveClaimFromContext(backlogDir: string, repoRoot: string): Pr
   if (!context) {
     throw new Error(`No local backlog context found in ${gitDir}. Start a claim first.`);
   }
-  return loadActiveClaim(backlogDir, context.claim_id);
+  const claim = loadActiveClaimIfPresent(backlogDir, context.claim_id);
+  if (!claim) {
+    // Stale pointer: claim file is gone (archived, GC'd, or workspace was
+    // moved by `backlog project migrate`). Clean up so the user isn't stuck
+    // and surface the same "no claim" error they'd see if no pointer existed.
+    removeContextFile(gitDir);
+    throw new Error(
+      `Stale backlog context in ${gitDir}: claim ${context.claim_id} no longer exists in ${backlogDir}/claims/active/. Cleared the pointer; start a new claim with \`backlog claim start\`.`,
+    );
+  }
+  return claim;
 }
 
 export function registerClaimCommand(program: Command): void {

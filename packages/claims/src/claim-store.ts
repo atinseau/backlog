@@ -93,6 +93,16 @@ export function loadActiveClaim(backlogDir: string, claimId: string): ClaimRecor
   return readClaimFile(claimFilePath(activeClaimsDir(backlogDir), claimId));
 }
 
+// Like loadActiveClaim, but returns null if the on-disk file is missing
+// rather than throwing a raw ENOENT. Use this from callers that hold a
+// pointer to a claim id (e.g. .git/backlog-context.json) and need to
+// distinguish "stale pointer" from real errors.
+export function loadActiveClaimIfPresent(backlogDir: string, claimId: string): ClaimRecord | null {
+  const filePath = claimFilePath(activeClaimsDir(backlogDir), claimId);
+  if (!fs.existsSync(filePath)) return null;
+  return readClaimFile(filePath);
+}
+
 export function listArchivedClaims(backlogDir: string): ClaimRecord[] {
   const directory = archiveClaimsDir(backlogDir);
   if (!fs.existsSync(directory)) {
