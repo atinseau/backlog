@@ -1,5 +1,6 @@
 export * from "./find-project.js";
 export * from "./init-layout.js";
+export * from "./migrate-project.js";
 export * from "./load-config.js";
 export * from "./save-config.js";
 export * from "./shim.js";
