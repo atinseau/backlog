@@ -7,6 +7,7 @@
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
   import ActivityBanner from "./lib/ActivityBanner.svelte";
+  import AgentsView from "./lib/AgentsView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorChat from "./lib/OrchestratorChat.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
@@ -93,6 +94,7 @@
     integrationsOpen = true;
   }
   let permissionsViewOpen = $state(false);
+  let agentsViewOpen = $state(false);
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let panelOpen = $state(false);
@@ -307,15 +309,21 @@
       const result = await startRun({ task_id: card.id, approve: true });
       if (result.started.length === 0) {
         // Server accepted the request (200/202) but nothing actually
-        // launched — usually because every subtask is blocked or
-        // waiting. Surface the reason so the user isn't left wondering.
+        // launched. Pick the most actionable explanation: a 0-subtask
+        // task needs to be split first (the scheduler can only run
+        // executable subtasks); otherwise surface whatever skipped /
+        // blocked / waiting reason the server returned.
         const reason =
           result.skipped[0]?.reasons[0] ??
           result.blocked[0]?.reasons[0] ??
           result.waiting[0]?.reasons[0];
-        error = reason
-          ? t("card.play_skipped", { reason })
-          : t("card.play_skipped_empty");
+        if (reason) {
+          error = t("card.play_skipped", { reason });
+        } else if (card.tasks.length === 0) {
+          error = t("card.play_no_subtasks");
+        } else {
+          error = t("card.play_skipped_empty");
+        }
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -382,6 +390,7 @@
     <button onclick={() => (claimsViewOpen = true)} title={t("topbar.activity")}>📋 {t("topbar.activity")}</button>
     <button onclick={() => (commitsViewOpen = true)} title={t("topbar.commits")}>{t("topbar.commits")}</button>
     <button onclick={() => (integrationsOpen = true)} title={t("topbar.integrations")}>{t("topbar.integrations")}</button>
+    <button onclick={() => (agentsViewOpen = true)}>{t("topbar.agents")}</button>
     <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
     <button onclick={toggleChat} class:active={chatOpen} title={t("chat.title")}>{t("topbar.chat")}</button>
     <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
@@ -489,6 +498,16 @@
   <PermissionsView
     availableRepos={repos}
     onClose={() => (permissionsViewOpen = false)}
+    onChanged={() => {
+      if (!connected) refresh();
+    }}
+  />
+{/if}
+
+{#if agentsViewOpen}
+  <AgentsView
+    availableRepos={repos}
+    onClose={() => (agentsViewOpen = false)}
     onChanged={() => {
       if (!connected) refresh();
     }}
