@@ -20,6 +20,38 @@ interface RuntimeHandle {
 const RUNTIMES = new Map<string, RuntimeHandle>();
 const STALE_HYDRATE_MS = 60_000;
 
+// Adaptive backoff: when the orchestrator finds nothing to do for
+// N consecutive ticks, double the next tick interval until we hit a
+// ceiling. The moment something runs, snap back to the configured
+// base interval. Saves disk + CPU + iCloud-watcher noise on idle
+// workspaces while keeping responsiveness when work is actually
+// queued. Numbers picked to feel snappy: 5 idle ticks (≈25s at the
+// 5s default) before backoff kicks in, 12× max (so 5s base → 60s
+// idle ceiling).
+const IDLE_TICKS_BEFORE_BACKOFF = 5;
+const MAX_BACKOFF_MULTIPLIER = 12;
+
+interface BackoffState {
+  consecutiveIdle: number;
+}
+const BACKOFF = new Map<string, BackoffState>();
+
+function backoffState(backlogDir: string): BackoffState {
+  let s = BACKOFF.get(backlogDir);
+  if (!s) {
+    s = { consecutiveIdle: 0 };
+    BACKOFF.set(backlogDir, s);
+  }
+  return s;
+}
+
+function nextIntervalMs(baseMs: number, consecutiveIdle: number): number {
+  if (consecutiveIdle <= IDLE_TICKS_BEFORE_BACKOFF) return baseMs;
+  const overflow = consecutiveIdle - IDLE_TICKS_BEFORE_BACKOFF;
+  const multiplier = Math.min(MAX_BACKOFF_MULTIPLIER, 2 ** overflow);
+  return baseMs * multiplier;
+}
+
 function runtime(backlogDir: string): RuntimeHandle {
   let handle = RUNTIMES.get(backlogDir);
   if (!handle) {
@@ -63,7 +95,9 @@ export async function orchestratorTick(backlogDir: string): Promise<StartRunsRes
       ? Math.min(plan.runnable.length, Math.max(1, state.max_agents))
       : state.max_agents;
     const remaining = Math.max(0, targetMax - inFlight);
+    const backoff = backoffState(backlogDir);
     if (remaining === 0 || plan.runnable.length === 0) {
+      backoff.consecutiveIdle++;
       updateOrchestratorState(backlogDir, {
         last_tick_at: new Date().toISOString(),
         last_started_count: 0,
@@ -78,6 +112,13 @@ export async function orchestratorTick(backlogDir: string): Promise<StartRunsRes
       plan,
       maxStart: remaining,
     });
+    // Snap back to the base interval the moment work actually
+    // happens, even if only one run started.
+    if (result.started.length > 0) {
+      backoff.consecutiveIdle = 0;
+    } else {
+      backoff.consecutiveIdle++;
+    }
     updateOrchestratorState(backlogDir, {
       last_tick_at: new Date().toISOString(),
       last_started_count: result.started.length,
@@ -103,7 +144,12 @@ function scheduleNextTick(backlogDir: string, intervalMs: number): void {
     await orchestratorTick(backlogDir);
     const state = getOrchestratorState(backlogDir);
     if (state.mode === "running") {
-      scheduleNextTick(backlogDir, state.tick_interval_ms);
+      // Adaptive interval: the more consecutive idle ticks we've had,
+      // the longer we wait before the next one. The base interval is
+      // recovered the next time work fires.
+      const backoff = backoffState(backlogDir);
+      const wait = nextIntervalMs(state.tick_interval_ms, backoff.consecutiveIdle);
+      scheduleNextTick(backlogDir, wait);
     }
   }, intervalMs);
   if (typeof handle.timer === "object" && "unref" in handle.timer) {
@@ -198,6 +244,14 @@ export function shutdownOrchestrator(backlogDir: string): void {
   clearTimer(handle);
   clearStopWaiter(handle);
   RUNTIMES.delete(backlogDir);
+  BACKOFF.delete(backlogDir);
+}
+
+// Test hook for the adaptive interval. Production code shouldn't
+// call this — it lets the unit test verify the backoff curve
+// without driving real timer wheels.
+export function _internalNextIntervalMs(baseMs: number, consecutiveIdle: number): number {
+  return nextIntervalMs(baseMs, consecutiveIdle);
 }
 
 export function currentOrchestratorMode(backlogDir: string): OrchestratorMode {
