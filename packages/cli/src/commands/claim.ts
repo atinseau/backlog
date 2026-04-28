@@ -296,23 +296,85 @@ export function registerClaimCommand(program: Command): void {
 
   claim
     .command("finish")
-    .description("Finish and archive the current repo-local claim")
+    .description("Finish and archive the current repo-local claim (or all claims with --all)")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .action(async (options: { repoRoot?: string }) => {
+    .option("--all", "Finish every active claim and clear every .git/backlog-context.json across configured repos")
+    .option("--quiet", "Stay silent when there's nothing to finish (don't error)")
+    .action(async (options: { repoRoot?: string; all?: boolean; quiet?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+
+      if (options.all) {
+        if (options.repoRoot) {
+          throw new Error("--all and --repo-root are mutually exclusive.");
+        }
+        const config = loadConfig(workspace.backlogDir);
+        const finished: string[] = [];
+        const stale: string[] = [];
+
+        // Archive every active claim. We do this even if no context
+        // pointer references them — long-running orphan actives are
+        // exactly the state `claim gc` would otherwise eventually clean.
+        for (const active of listActiveClaims(workspace.backlogDir)) {
+          archiveClaim(workspace.backlogDir, active.id);
+          finished.push(active.id);
+        }
+
+        // Clear every .git/backlog-context.json — they reference claims
+        // that are now archived, or were already orphans.
+        for (const repo of config.repos) {
+          let gitDir;
+          try {
+            gitDir = await detectGitDir(repo.path);
+          } catch {
+            continue;
+          }
+          const context = readContextFile(gitDir);
+          if (!context) continue;
+          removeContextFile(gitDir);
+          stale.push(`${repo.id} (was pointing at ${context.claim_id})`);
+        }
+
+        if (finished.length === 0 && stale.length === 0) {
+          if (!options.quiet) console.log("Nothing to finish — no active claims and no .git/backlog-context.json pointers.");
+          return;
+        }
+        console.log(`Finished ${finished.length} active claim(s).`);
+        for (const id of finished) console.log(`- ${id}`);
+        if (stale.length > 0) {
+          console.log(`Cleared ${stale.length} stale .git/backlog-context.json pointer(s).`);
+          for (const line of stale) console.log(`- ${line}`);
+        }
+        return;
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
       const gitDir = await detectGitDir(repoRoot);
       const context = readContextFile(gitDir);
       if (!context) {
-        throw new Error("No active local claim pointer found.");
+        if (options.quiet) return;
+        throw new Error(
+          `No active local claim pointer in ${gitDir}. Use \`--all\` to sweep every active claim and pointer in this workspace, or \`--quiet\` to suppress this error.`,
+        );
       }
 
-      const archived = archiveClaim(workspace.backlogDir, context.claim_id);
-      removeContextFile(gitDir, archived.id);
-      console.log(`Finished claim ${archived.id}`);
+      // Tolerate a stale pointer: if the claim file is gone, treat the
+      // finish as a no-op and clear the pointer (same recovery path as
+      // claim check). A bare ENOENT here would otherwise replicate the
+      // bug we already fixed for `claim check`.
+      const claim = loadActiveClaimIfPresent(workspace.backlogDir, context.claim_id);
+      if (!claim) {
+        removeContextFile(gitDir);
+        console.log(
+          `Stale pointer in ${gitDir} (claim ${context.claim_id} no longer in active/). Cleared.`,
+        );
+        return;
+      }
+
+      archiveClaim(workspace.backlogDir, claim.id);
+      removeContextFile(gitDir, claim.id);
+      console.log(`Finished claim ${claim.id}`);
     });
 }
