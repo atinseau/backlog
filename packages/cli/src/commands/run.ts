@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
+  aggregateUsage,
   approveRun,
   completeRun,
   createRunHandoff,
@@ -276,5 +277,61 @@ export function registerRunCommand(program: Command): void {
       }
       const handoffPath = createRunHandoff(workspace.backlogDir, runId, options.reason);
       console.log(`Wrote handoff to ${handoffPath}`);
+    });
+
+  runs
+    .command("cost")
+    .description("Aggregate token usage and USD cost across runs from their events.ndjson")
+    .option("--run <id>", "Limit the report to one run")
+    .option("--since <iso>", "Only count usage events with ts >= this ISO timestamp")
+    .option("--json", "Emit machine-readable JSON")
+    .action((options: { run?: string; since?: string; json?: boolean }) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const result = aggregateUsage(workspace.backlogDir, {
+        ...(options.run ? { runIds: [options.run] } : {}),
+        ...(options.since ? { sinceIso: options.since } : {}),
+      });
+
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      if (result.runs.length === 0) {
+        console.log("No usage events recorded yet.");
+        console.log("(Executors haven't started forwarding provider usage blocks into events.ndjson.)");
+        return;
+      }
+
+      const dollar = (n: number) => `$${n.toFixed(4)}`;
+      const tokens = (n: number) => n.toLocaleString();
+
+      console.log(`Total cost: ${dollar(result.totals.cost_usd)}`);
+      console.log(
+        `  input ${tokens(result.totals.input_tokens)} | output ${tokens(result.totals.output_tokens)} | cache_read ${tokens(result.totals.cache_read_input_tokens)} | cache_create ${tokens(result.totals.cache_creation_input_tokens)}`,
+      );
+      if (result.totals.unknown_model_tokens > 0) {
+        console.log(
+          `  ${tokens(result.totals.unknown_model_tokens)} tokens spent on models with no pricing entry (cost = $0)`,
+        );
+      }
+      console.log("");
+      console.log("By model:");
+      for (const [model, modelTotals] of Object.entries(result.perModel) as [
+        string,
+        typeof result.totals,
+      ][]) {
+        console.log(
+          `  ${model}: ${dollar(modelTotals.cost_usd)} (${tokens(modelTotals.input_tokens)} in / ${tokens(modelTotals.output_tokens)} out)`,
+        );
+      }
+      console.log("");
+      console.log("By run:");
+      for (const run of result.runs) {
+        console.log(`  ${run.runId}: ${dollar(run.totals.cost_usd)}`);
+      }
     });
 }
