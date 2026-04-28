@@ -2,12 +2,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import crypto from "node:crypto";
 import {
   _internalKeyFilePath,
   deleteSecret,
   getSecret,
   hasSecret,
   listSecretKeys,
+  reEncryptSecrets,
   setSecret,
 } from "./secrets.js";
 
@@ -98,6 +100,57 @@ describe("auto-upgrade from v1 plaintext", () => {
     // Both keys readable through the encrypted layer.
     expect(getSecret(backlogDir, "legacy")).toBe("still here");
     expect(getSecret(backlogDir, "fresh")).toBe("new value");
+  });
+});
+
+describe("reEncryptSecrets", () => {
+  it("decrypts with the source key and re-encrypts with the local key", () => {
+    // Stash a secret using the local key.
+    setSecret(backlogDir, "imported", "cherished value");
+    // Capture the local key bytes (this is what would be on the SOURCE
+    // machine in the real workflow).
+    const sourceKey = fs.readFileSync(_internalKeyFilePath());
+
+    // Simulate a fresh machine: rotate HOME so a brand-new key gets
+    // generated when we call reEncryptSecrets.
+    process.env.HOME = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-rekey-newhome-")));
+
+    // Re-encrypt with the original key as source. The function reads
+    // the file (still encrypted with sourceKey), decrypts using
+    // sourceKey, encrypts with the new local key.
+    const result = reEncryptSecrets(backlogDir, sourceKey);
+    expect(result.succeeded).toEqual(["imported"]);
+    expect(result.failed).toEqual([]);
+    expect(getSecret(backlogDir, "imported")).toBe("cherished value");
+  });
+
+  it("drops secrets that don't decrypt with the supplied source key", () => {
+    setSecret(backlogDir, "good", "live value");
+
+    process.env.HOME = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-rekey-bad-")));
+
+    // Wrong key — random 32 bytes, won't decrypt.
+    const wrongKey = crypto.randomBytes(32);
+    const result = reEncryptSecrets(backlogDir, wrongKey);
+    expect(result.succeeded).toEqual([]);
+    expect(result.failed).toEqual(["good"]);
+    // The secret was dropped from the file.
+    expect(hasSecret(backlogDir, "good")).toBe(false);
+  });
+
+  it("handles a v1 plaintext file by writing v2 with the local key (fromKey ignored)", () => {
+    fs.writeFileSync(
+      path.join(backlogDir, "secrets.json"),
+      JSON.stringify({ version: 1, secrets: { legacy: "hi" } }, null, 2),
+      "utf8",
+    );
+
+    const result = reEncryptSecrets(backlogDir, crypto.randomBytes(32));
+    expect(result.succeeded).toEqual(["legacy"]);
+    expect(result.failed).toEqual([]);
+    expect(getSecret(backlogDir, "legacy")).toBe("hi");
+    const raw = JSON.parse(fs.readFileSync(path.join(backlogDir, "secrets.json"), "utf8"));
+    expect(raw.version).toBe(2);
   });
 });
 

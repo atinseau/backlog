@@ -197,3 +197,44 @@ export function listSecretKeys(backlogDir: string): string[] {
 export function _internalKeyFilePath(): string {
   return keyFilePath();
 }
+
+// Re-encrypt every secret with the local machine's current key,
+// using `fromKey` to decrypt the source ciphertext. The use case is
+// `backlog project import` from another machine — the imported
+// secrets.json was encrypted with that machine's key, which doesn't
+// match this machine's local one.
+//
+// Returns the list of keys that round-tripped successfully and the
+// list that failed (typically: wrong fromKey or tampered ciphertext).
+// Failed keys are removed from the file rather than kept as
+// undecryptable garbage.
+export interface ReKeyResult {
+  succeeded: string[];
+  failed: string[];
+}
+
+export function reEncryptSecrets(backlogDir: string, fromKey: Buffer): ReKeyResult {
+  const file = readFile(backlogDir);
+  if (file.version === 1) {
+    // v1 plaintext: just upgrade in place using the current local key.
+    // No need for fromKey since nothing is encrypted yet.
+    writePlaintext(backlogDir, file.secrets);
+    return { succeeded: Object.keys(file.secrets), failed: [] };
+  }
+
+  const localKey = getOrCreateKey();
+  const reEncrypted: Record<string, EncryptedValue> = {};
+  const succeeded: string[] = [];
+  const failed: string[] = [];
+  for (const [k, v] of Object.entries(file.secrets)) {
+    try {
+      const plaintext = decrypt(v, fromKey);
+      reEncrypted[k] = encrypt(plaintext, localKey);
+      succeeded.push(k);
+    } catch {
+      failed.push(k);
+    }
+  }
+  writeFile(backlogDir, { version: 2, secrets: reEncrypted });
+  return { succeeded, failed };
+}
