@@ -20,6 +20,7 @@ export * from "./source-state.js";
 export * from "./sync-conflicts.js";
 export * from "./subtask-service.js";
 export * from "./provider-usage.js";
+export * from "./retry.js";
 export * from "./split-service.js";
 export * from "./usage.js";
 export * from "./worktrees.js";

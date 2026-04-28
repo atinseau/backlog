@@ -98,3 +98,29 @@ export function successModeForAgent(agent: Agent): "review" | "complete" {
   }
   return "complete";
 }
+
+// Wrap the base prompt with feedback from a prior failed attempt.
+// Used by the retry policy to give the agent a fresh shot with the
+// previous run's stderr/handoff content as context. Without this the
+// agent would just repeat its mistake.
+export function buildRetryPrompt(
+  basePrompt: string,
+  attemptNumber: number,
+  previousFeedback: string,
+): string {
+  return [
+    basePrompt,
+    "",
+    "---",
+    `IMPORTANT: This is retry attempt ${attemptNumber}. The previous attempt`,
+    "FAILED. Read the feedback below carefully — do NOT repeat the same",
+    "mistake. If the failure looks unrecoverable from your side (rate",
+    "limits, missing tooling, environment problems), say so explicitly",
+    "in your summary so the human can intervene.",
+    "",
+    "Previous attempt's failure context:",
+    "```",
+    previousFeedback.trim(),
+    "```",
+  ].join("\n");
+}

@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+// What to do when an agent run fails before review. `none` is the
+// historical behaviour: the run goes into `failed` immediately and a
+// human steps in. `feedback` retries up to N times with the previous
+// attempt's stderr / handoff content prepended to the prompt so the
+// agent can learn from its own mistake.
+export const retryPolicySchema = z.object({
+  mode: z.enum(["none", "feedback"]).default("none"),
+  max_attempts: z.number().int().positive().max(5).default(2),
+  // If true, retries reuse the same worktree (state from the failed
+  // attempt is preserved). False creates a fresh worktree per retry.
+  reuse_worktree: z.boolean().default(true),
+});
+
 export const agentSchema = z.object({
   id: z.string().min(1),
   provider: z.string().min(1),
@@ -14,6 +27,9 @@ export const agentSchema = z.object({
   allowed_repos: z.array(z.string()).default([]),
   allowed_risk: z.array(z.enum(["low", "medium", "high"])).default(["low", "medium"]),
   capabilities: z.array(z.string()).default([]),
+  // Optional + defaulted to mode=none so existing agents.yaml files
+  // keep their current behaviour.
+  retry_policy: retryPolicySchema.default({ mode: "none", max_attempts: 2, reuse_worktree: true }),
 });
 
 export const agentsFileSchema = z.object({
@@ -21,5 +37,6 @@ export const agentsFileSchema = z.object({
   agents: z.array(agentSchema).default([]),
 });
 
+export type RetryPolicy = z.infer<typeof retryPolicySchema>;
 export type Agent = z.infer<typeof agentSchema>;
 export type AgentsFile = z.infer<typeof agentsFileSchema>;

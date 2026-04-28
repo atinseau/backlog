@@ -69,6 +69,7 @@ describe("executeCodexAgentRun", () => {
       allowed_risk: ["low", "medium"],
       capabilities: ["plan", "edit_code"],
       environment: {},
+      retry_policy: { mode: "none", max_attempts: 1, reuse_worktree: true },
     };
 
     createRun({
