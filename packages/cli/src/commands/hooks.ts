@@ -196,4 +196,54 @@ export function registerHooksCommand(program: Command): void {
         console.log(removed ? `Removed managed pre-commit hook for ${target.id}.` : `No managed pre-commit hook found for ${target.id}.`);
       }
     });
+
+  hooks
+    .command("dry-run")
+    .description("Run `claim check` against given paths without committing — same gate the pre-commit hook applies")
+    .option("--repo <id>", "Target one configured repo by id")
+    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
+    .option(
+      "--path <path...>",
+      "Repo-relative paths to validate. Without this flag, dry-run uses currently staged paths.",
+    )
+    .action(async (options: { repo?: string; repoRoot?: string; path?: string[] }) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const config = loadConfig(workspace.backlogDir);
+      let repoRoot: string;
+      if (options.repo) {
+        const repo = config.repos.find((r) => r.id === options.repo);
+        if (!repo) throw new Error(`Unknown repo: ${options.repo}`);
+        repoRoot = repo.path;
+      } else if (options.repoRoot) {
+        repoRoot = options.repoRoot;
+      } else {
+        repoRoot = await detectRepoRoot();
+      }
+
+      // Driver: invoke the same `claim check` machinery the hook calls.
+      // We exec the local shim binary so we follow whatever resolution
+      // the hook itself would (env var, registry, etc.). Surfacing the
+      // same exit code lets scripts wire it like the real hook.
+      const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
+      const args = ["claim", "check", "--repo-root", repoRoot];
+      if (options.path && options.path.length > 0) {
+        args.push("--path", ...options.path);
+      } else {
+        args.push("--staged");
+      }
+      const { spawn } = await import("node:child_process");
+      const child = spawn(backlogBin, args, {
+        stdio: "inherit",
+        env: { ...process.env, BACKLOG_PROJECT_DIR: workspace.backlogDir },
+      });
+      const exitCode = await new Promise<number>((resolve) => {
+        child.on("exit", (code) => resolve(code ?? 1));
+      });
+      // Force the same exit code as the inner `claim check` so dry-run
+      // can be wired into scripts the way the actual hook would be.
+      process.exit(exitCode);
+    });
 }
