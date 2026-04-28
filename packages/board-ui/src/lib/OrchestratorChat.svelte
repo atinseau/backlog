@@ -88,42 +88,63 @@
     }
   }
 
-  // Live event feed: tail of the workspace's SSE bus, displayed at the
-  // bottom of the drawer so the user can watch the orchestrator tick
-  // without leaving the chat.
+  // Live activity feed: streams the actual events.ndjson lines from
+  // every active run so the user sees what claude/codex is doing in
+  // real time, plus the workspace's coarser SSE bus so orchestrator
+  // mode flips and board changes are reflected. Two sources, merged
+  // into one chronological list.
   interface LiveEvent {
     id: number;
-    type: string;
+    kind: "activity" | "bus";
     ts: string;
+    runId?: string;
+    type: string;
+    message?: string;
   }
   let events = $state<LiveEvent[]>([]);
-  const MAX_EVENTS = 30;
+  const MAX_EVENTS = 60;
   let nextEventId = 0;
-  let source: EventSource | null = null;
+  let busSource: EventSource | null = null;
+  let activitySource: EventSource | null = null;
 
-  function pushEvent(type: string) {
-    events = [
-      { id: nextEventId++, type, ts: new Date().toLocaleTimeString("fr-FR") },
-      ...events,
-    ].slice(0, MAX_EVENTS);
+  function pushEvent(ev: Omit<LiveEvent, "id">) {
+    events = [{ id: nextEventId++, ...ev }, ...events].slice(0, MAX_EVENTS);
   }
 
   function attachEventSource() {
-    source?.close();
-    source = new EventSource(apiUrl("/events"));
-    const types = [
+    busSource?.close();
+    activitySource?.close();
+
+    busSource = new EventSource(apiUrl("/events"));
+    const busTypes = [
       "subtask.changed",
       "task.changed",
       "run.changed",
       "claim.changed",
       "orchestrator.changed",
     ];
-    for (const type of types) {
-      source.addEventListener(type, () => {
-        pushEvent(type);
+    for (const type of busTypes) {
+      busSource.addEventListener(type, () => {
+        pushEvent({ kind: "bus", type, ts: new Date().toISOString() });
         if (type === "orchestrator.changed") void refreshOrchestratorMode();
       });
     }
+
+    activitySource = new EventSource(apiUrl("/activity/stream"));
+    activitySource.addEventListener("activity", (raw) => {
+      try {
+        const data = JSON.parse((raw as MessageEvent).data) as Record<string, unknown>;
+        pushEvent({
+          kind: "activity",
+          ts: typeof data.ts === "string" ? data.ts : new Date().toISOString(),
+          runId: typeof data.run_id === "string" ? data.run_id : undefined,
+          type: typeof data.type === "string" ? data.type : "raw",
+          message: typeof data.message === "string" ? data.message : undefined,
+        });
+      } catch {
+        // ignore malformed line — keep stream alive
+      }
+    });
   }
 
   onMount(() => {
@@ -148,7 +169,8 @@
   });
 
   onDestroy(() => {
-    source?.close();
+    busSource?.close();
+    activitySource?.close();
     window.removeEventListener("keydown", handleGlobalKey);
   });
 
@@ -432,9 +454,11 @@
       {:else}
         <ul>
           {#each events as ev (ev.id)}
-            <li>
-              <span class="ts">{ev.ts}</span>
+            <li class="evt evt-{ev.kind}">
+              <span class="ts">{new Date(ev.ts).toLocaleTimeString("fr-FR")}</span>
+              {#if ev.runId}<span class="run-pill">{ev.runId.replace(/^RUN-/, "").slice(0, 6)}</span>{/if}
               <code>{ev.type}</code>
+              {#if ev.message}<span class="msg">{ev.message}</span>{/if}
             </li>
           {/each}
         </ul>
@@ -643,8 +667,28 @@
     gap: 2px;
     font-size: 11px;
   }
-  .feed li { display: flex; gap: 6px; align-items: baseline; }
-  .feed .ts { color: #98a2b3; font-variant-numeric: tabular-nums; }
+  .feed li { display: flex; gap: 6px; align-items: baseline; padding: 1px 0; }
+  .feed .ts { color: #98a2b3; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .feed .run-pill {
+    font-family: ui-monospace, monospace;
+    font-size: 9px;
+    background: #eff8ff;
+    color: #1570ef;
+    padding: 0 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .feed .msg {
+    color: #344054;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .feed .evt-bus { opacity: 0.55; }
+  .feed .evt-bus code { color: #98a2b3; }
+  .feed .evt-activity code { color: #1d2939; font-weight: 500; }
   .feed code { color: #475467; font-family: ui-monospace, monospace; }
   .muted { color: #98a2b3; font-size: 11px; margin: 0; font-style: italic; }
 </style>

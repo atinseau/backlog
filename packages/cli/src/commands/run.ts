@@ -80,10 +80,10 @@ export function registerRunCommand(program: Command): void {
         if (options.repo && run.repo !== options.repo) {
           return false;
         }
-        if (options.task && run.task_id !== options.task) {
+        if (options.task && run.subtask_id !== options.task) {
           return false;
         }
-        if (options.workItem && run.task_id !== options.workItem) {
+        if (options.workItem && run.subtask_id !== options.workItem) {
           return false;
         }
         if (options.agent && run.agent_id !== options.agent) {
@@ -100,7 +100,7 @@ export function registerRunCommand(program: Command): void {
         return;
       }
       for (const run of runs) {
-        console.log(`${run.id} | ${run.task_id} | ${run.repo} | ${run.agent_id} | ${run.status}`);
+        console.log(`${run.id} | ${run.subtask_id} | ${run.repo} | ${run.agent_id} | ${run.status}`);
       }
     });
 
@@ -123,7 +123,7 @@ export function registerRunCommand(program: Command): void {
         return;
       }
       console.log(`Run: ${run.id}`);
-      console.log(`Task: ${run.task_id}`);
+      console.log(`Task: ${run.subtask_id}`);
       console.log(`Repo: ${run.repo}`);
       console.log(`Agent: ${run.agent_id}`);
       console.log(`Status: ${run.status}`);
@@ -168,7 +168,7 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not interruptible from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "interrupted", "Interrupted by operator");
-      updateSubTaskStatus(workspace.backlogDir, run.task_id, "planned");
+      updateSubTaskStatus(workspace.backlogDir, run.subtask_id, "planned");
       console.log(`Interrupted ${runId}`);
     });
 
@@ -189,7 +189,7 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not resumable from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "running", "Resumed by operator");
-      const task = getSubTask(workspace.backlogDir, run.task_id);
+      const task = getSubTask(workspace.backlogDir, run.subtask_id);
       if (task) {
         updateSubTaskStatus(workspace.backlogDir, task.id, "running");
       }

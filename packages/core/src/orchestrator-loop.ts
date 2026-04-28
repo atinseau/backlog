@@ -1,9 +1,23 @@
+import fs from "node:fs";
+import path from "node:path";
 import { loadConfig } from "@backlog/config";
 import type { OrchestratorMode, OrchestratorState } from "@backlog/schemas";
 import { getOrchestratorState, updateOrchestratorState } from "./orchestrator-state.js";
-import { listActiveRuns } from "./run-store.js";
+import { appendRunEvent, listActiveRuns, updateRunStatus } from "./run-store.js";
+import { listSubTasks } from "./state-files.js";
 import { startRunsForPlan, type StartRunsResult } from "./run-launcher.js";
 import { buildExecutionPlan } from "./scheduler.js";
+import { updateSubTaskStatus } from "./subtask-service.js";
+
+// A live executor writes to events.ndjson at least at start, on every
+// tool call, and at finish. If the file hasn't moved in this many ms
+// AND the run is still marked running/preparing, the executor is dead
+// (server crashed mid-run, kill -9, or — common during dev — the
+// server was restarted with a child still in flight). 90s is the
+// threshold: long enough to cover slow Claude/Codex turns that don't
+// emit interim events, short enough that a real orphan doesn't sit
+// for hours blocking the orchestrator.
+const ORPHAN_RUN_THRESHOLD_MS = 90_000;
 
 export interface OrchestratorStartInput {
   max_agents?: number;
@@ -221,7 +235,77 @@ export function setOrchestratorConfig(
   return updateOrchestratorState(backlogDir, input);
 }
 
+function reapOrphanedRuns(backlogDir: string, now: number): void {
+  // First pass: subtasks marked running/planned with no live run linked
+  // back to them (or whose run died terminally without resetting the
+  // subtask). Symptom: card sits in EN COURS forever, scheduler skips
+  // it because it looks busy.
+  const runs = listActiveRuns(backlogDir);
+  const liveRunSubtaskIds = new Set(
+    runs
+      .filter((r) => r.status === "running" || r.status === "preparing")
+      .map((r) => r.subtask_id),
+  );
+  for (const sub of listSubTasks(backlogDir)) {
+    if (sub.status !== "running") continue;
+    if (liveRunSubtaskIds.has(sub.id)) continue;
+    try {
+      // "queued" (not "planned") so the parent task derives back to
+      // "ready" and the card returns to À FAIRE — clearer signal to
+      // the user that nothing is in flight than leaving it in EN
+      // COURS as a "planned" subtask would.
+      updateSubTaskStatus(backlogDir, sub.id, "queued");
+    } catch {
+      // best effort
+    }
+  }
+
+  for (const run of runs) {
+    if (run.status !== "running" && run.status !== "preparing") continue;
+    const eventsPath = path.join(backlogDir, "runs", "active", run.id, "events.ndjson");
+    let lastTouchMs = 0;
+    try {
+      const stat = fs.statSync(eventsPath);
+      lastTouchMs = stat.mtimeMs;
+    } catch {
+      // No events file at all — definitely orphan (executor never even
+      // got past the create step). Use the run's started_at as the
+      // last-known-alive timestamp; if even that's missing, fall back
+      // to "ancient" so reaping definitely fires.
+      lastTouchMs = run.started_at ? Date.parse(run.started_at) : 0;
+    }
+    if (!Number.isFinite(lastTouchMs)) lastTouchMs = 0;
+    if (now - lastTouchMs < ORPHAN_RUN_THRESHOLD_MS) continue;
+
+    try {
+      updateRunStatus(backlogDir, run.id, "interrupted", "Reaped on hydrate — executor process gone");
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "run.reaped",
+        message: `Run was marked '${run.status}' but its events.ndjson hadn't been touched in ${Math.round((now - lastTouchMs) / 1000)}s. Server presumed the executor died.`,
+      });
+      // Subtask back to planned so the scheduler can pick it up again
+      // (or the user can trigger a fresh ▶). Use subtask_id, not
+      // task_id — task_id points at the parent work item.
+      updateSubTaskStatus(backlogDir, run.subtask_id, "queued");
+    } catch {
+      // Best-effort cleanup; if the subtask is already gone the run
+      // was for a removed task and there's nothing to fix.
+    }
+  }
+}
+
 export async function hydrateOrchestrator(backlogDir: string, options?: { now?: number }): Promise<OrchestratorState> {
+  // Reap orphaned runs first — runs marked running/preparing whose
+  // executor subprocess died with the previous server (kill -9, crash,
+  // or — most commonly during dev — a `kill <pid>` followed by a fresh
+  // `backlog serve`). Without this, the subtask sits forever in
+  // `running` and the orchestrator quietly skips it because it looks
+  // like work is in flight. We use the absence of recent events.ndjson
+  // writes as the staleness signal: an executor that's actually doing
+  // work touches that file at least every minute.
+  reapOrphanedRuns(backlogDir, options?.now ?? Date.now());
+
   const state = getOrchestratorState(backlogDir);
   if (state.mode !== "running") return state;
   const now = options?.now ?? Date.now();

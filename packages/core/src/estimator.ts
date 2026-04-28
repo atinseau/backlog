@@ -61,7 +61,9 @@ export function estimateSubTask(
     if (duration === null) continue;
     if (run.repo !== task.repo) continue;
     sameRepo.push(duration);
-    const runTask = tasksById.get(run.task_id);
+    // Match by subtask_id — `tasksById` is keyed by SubTask.id, while
+    // `run.task_id` is the parent work item's id, which would never hit.
+    const runTask = tasksById.get(run.subtask_id);
     if (lane && runTask?.execution.lane === lane) {
       sameLaneSameRepo.push(duration);
     }
