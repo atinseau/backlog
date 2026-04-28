@@ -11,6 +11,7 @@ const claimsBodySchema = z
   .object({
     ttl_minutes: z.number().int().positive().optional(),
     enforce_on_commit: z.boolean().optional(),
+    auto_claim_on_commit: z.boolean().optional(),
   })
   .strict();
 
@@ -56,6 +57,7 @@ export function projectRoutes(): Hono<AppEnv> {
     const config = loadConfig(workspace.backlogDir);
     if (parsed.data.ttl_minutes !== undefined) config.claims.ttl_minutes = parsed.data.ttl_minutes;
     if (parsed.data.enforce_on_commit !== undefined) config.claims.enforce_on_commit = parsed.data.enforce_on_commit;
+    if (parsed.data.auto_claim_on_commit !== undefined) config.claims.auto_claim_on_commit = parsed.data.auto_claim_on_commit;
     saveConfig(workspace.backlogDir, config);
     return c.json({ claims: config.claims });
   });

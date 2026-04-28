@@ -119,6 +119,7 @@ export interface ProjectInfo {
   claims: {
     ttl_minutes: number;
     enforce_on_commit: boolean;
+    auto_claim_on_commit: boolean;
   };
 }
 

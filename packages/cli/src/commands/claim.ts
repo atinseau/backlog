@@ -15,9 +15,49 @@ import {
   writeContextFile,
 } from "@backlog/claims";
 import { findProject, loadConfig } from "@backlog/config";
-import { detectGitDir, detectRepoRoot, stagedPaths } from "@backlog/git";
+import { detectGitDir, detectRepoRoot, git, stagedPaths } from "@backlog/git";
 import type { ClaimRecord, RepoConfig } from "@backlog/schemas";
 import { detectClaimSourceMetadata } from "./claim-source.js";
+
+// Build a topic string from the current branch + last commit subject so
+// auto-claims have human-readable context in the activity log without
+// requiring the user to type one. Falls back to "auto wip" if both
+// signals are missing (initial commit on a fresh branch etc.).
+async function deriveAutoClaimTopic(repoRoot: string): Promise<string> {
+  let branch = "";
+  try {
+    branch = await git(["symbolic-ref", "--short", "HEAD"], repoRoot);
+  } catch {
+    /* detached HEAD or fresh repo */
+  }
+  return branch ? `auto: ${branch}` : "auto: wip";
+}
+
+// Reduce a list of staged file paths to a smaller set of glob scopes
+// that still covers them. Keeps the claim's footprint readable in
+// `claim list` instead of dumping 50 individual file paths. Strategy:
+// group by top two path segments and use `<dir>/**` when the group
+// has 3+ files, otherwise keep the file paths as-is.
+function compactScopes(paths: string[]): string[] {
+  if (paths.length === 0) return [];
+  const buckets = new Map<string, string[]>();
+  for (const p of paths) {
+    const parts = p.split("/");
+    const key = parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0]!;
+    const list = buckets.get(key) ?? [];
+    list.push(p);
+    buckets.set(key, list);
+  }
+  const scopes: string[] = [];
+  for (const [key, files] of buckets) {
+    if (files.length >= 3) {
+      scopes.push(`${key}/**`);
+    } else {
+      scopes.push(...files);
+    }
+  }
+  return scopes;
+}
 
 function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?: string): RepoConfig {
   if (explicitRepo) {
@@ -255,14 +295,61 @@ export function registerClaimCommand(program: Command): void {
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
     .option("--staged", "Check staged files in the repo")
     .option("--path <path...>", "Explicit repo-relative paths to validate")
-    .action(async (options: { repoRoot?: string; staged?: boolean; path?: string[] }) => {
+    .option(
+      "--auto",
+      "If no claim is active for this repo, create one ad-hoc covering the staged paths (topic = branch name) before checking. Honours [claims].auto_claim_on_commit.",
+    )
+    .action(async (options: { repoRoot?: string; staged?: boolean; path?: string[]; auto?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      const claimRecord = await resolveClaimFromContext(workspace.backlogDir, repoRoot);
+      let claimRecord: ClaimRecord;
+      try {
+        claimRecord = await resolveClaimFromContext(workspace.backlogDir, repoRoot);
+      } catch (error) {
+        // No claim yet for this repo. If --auto was passed AND the
+        // workspace has auto_claim_on_commit enabled, mint one from
+        // the staged paths so the commit goes through. Anything else
+        // → re-throw the original "Start a claim first" error.
+        const config = loadConfig(workspace.backlogDir);
+        const wantsAuto = options.auto === true && config.claims.auto_claim_on_commit;
+        if (!wantsAuto) throw error;
+
+        const stagedForAuto = options.staged ? await stagedPaths(repoRoot) : options.path ?? [];
+        if (stagedForAuto.length === 0) {
+          // Nothing staged → nothing to claim. Let the commit through
+          // (empty commits / amend-only / merge commits land here).
+          console.log("No staged paths; auto-claim skipped.");
+          return;
+        }
+
+        const repo = resolveRepo(config.repos, undefined, repoRoot);
+        const topic = await deriveAutoClaimTopic(repoRoot);
+        const scopes = compactScopes(stagedForAuto);
+        const sourceMetadata = { ...detectClaimSourceMetadata(), auto: "1" };
+        const created = createClaim({
+          backlogDir: workspace.backlogDir,
+          repo: repo.id,
+          repoPath: repo.path,
+          topic,
+          paths: scopes,
+          mode: "exclusive",
+          ttlMinutes: config.claims.ttl_minutes,
+          metadata: sourceMetadata,
+        });
+        const gitDir = await detectGitDir(repoRoot);
+        writeContextFile(gitDir, {
+          version: 1,
+          claim_id: created.id,
+          updated_at: new Date().toISOString(),
+        });
+        console.log(`backlog: auto-claimed ${created.id} (${topic}) covering ${scopes.length} scope(s).`);
+        claimRecord = created;
+      }
+
       if (isExpired(claimRecord)) {
         throw new Error(`Claim ${claimRecord.id} expired at ${claimRecord.expires_at}.`);
       }

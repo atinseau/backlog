@@ -168,6 +168,7 @@ export async function setAutonomyMode(mode: ProjectInfo["autonomy_mode"]): Promi
 export async function setClaimsConfig(input: {
   ttl_minutes?: number;
   enforce_on_commit?: boolean;
+  auto_claim_on_commit?: boolean;
 }): Promise<void> {
   const response = await fetch(apiUrl("/workspace/claims"), {
     method: "PATCH",

@@ -88,6 +88,18 @@
     }
   }
 
+  async function changeAutoClaimOnCommit(checked: boolean) {
+    if (!workspace) return;
+    workspace = { ...workspace, claims: { ...workspace.claims, auto_claim_on_commit: checked } };
+    try {
+      await setClaimsConfig({ auto_claim_on_commit: checked });
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      await load();
+    }
+  }
+
   async function patchAgentField(id: string, input: Parameters<typeof patchAgent>[1]) {
     try {
       await patchAgent(id, input);
@@ -181,6 +193,14 @@
               onchange={(e) => changeEnforceOnCommit((e.currentTarget as HTMLInputElement).checked)}
             />
             Bloquer les commits sans claim couvrant les paths
+          </label>
+          <label class="toggle" title="Au lieu de bloquer, le hook crée un claim ad-hoc à la volée à partir de tes paths staged et du nom de la branche.">
+            <input
+              type="checkbox"
+              checked={workspace.claims.auto_claim_on_commit}
+              onchange={(e) => changeAutoClaimOnCommit((e.currentTarget as HTMLInputElement).checked)}
+            />
+            Auto-claim si rien n'est posé (recommandé pour le solo)
           </label>
         </div>
       </section>

@@ -66,6 +66,14 @@ export const projectConfigSchema = z.object({
   claims: z.object({
     ttl_minutes: z.number().int().positive(),
     enforce_on_commit: z.boolean(),
+    // When true, the pre-commit hook auto-creates a claim from the
+    // staged paths + branch name if no claim is currently active for
+    // the committed repo, instead of blocking the commit. Keeps the
+    // "every commit is tracked" invariant without forcing the user to
+    // run `backlog claim start` by hand. Defaults to true so new
+    // workspaces don't friction-bomb the user; existing workspaces
+    // pick up the same default on next config load (Zod default).
+    auto_claim_on_commit: z.boolean().default(true),
   }),
   // Optional + defaulted: existing config.toml files without a [git]
   // section get the safe defaults (no auto-merge, cleanup on approve).

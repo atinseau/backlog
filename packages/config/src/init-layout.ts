@@ -101,6 +101,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
     claims: {
       ttl_minutes: 30,
       enforce_on_commit: true,
+      auto_claim_on_commit: true,
     },
     git: {
       branch_strategy: "isolated_worktree",
