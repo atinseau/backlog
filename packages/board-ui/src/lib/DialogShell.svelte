@@ -9,20 +9,20 @@
   // backdrop for free.
   interface Props {
     onClose: () => void;
-    // Optional ARIA label / class hooks so dialogs that need a custom
-    // wrapper class can pass it through (a few use "dialog" instead of
-    // "modal" for historical CSS reasons).
     ariaLabel?: string;
-    modalClass?: string;
+    // Per-dialog class so each consumer can target its modal with a
+    // unique :global() selector for sizing / padding tweaks. The base
+    // "modal" class is always applied alongside this extra one.
+    extraClass?: string;
     children?: Snippet;
   }
 
-  let { onClose, ariaLabel, modalClass = "modal", children }: Props = $props();
+  let { onClose, ariaLabel, extraClass, children }: Props = $props();
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
   <div
-    class={modalClass}
+    class={extraClass ? `modal ${extraClass}` : "modal"}
     onclick={(e) => e.stopPropagation()}
     role="dialog"
     aria-modal="true"
@@ -45,5 +45,16 @@
     justify-content: center;
     align-items: center;
     z-index: 200;
+  }
+  /* Base modal frame. Per-dialog overrides come from each consumer's
+     :global(.<extra-class>) rule. */
+  :global(.modal) {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    max-width: 460px;
+    width: 92%;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 </style>

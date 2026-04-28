@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogShell from "./DialogShell.svelte";
   import { t } from "./i18n.svelte.js";
   import { initProject, registerProjectByPath } from "./api.js";
   import type { ProjectEntry } from "./types.js";
@@ -39,94 +40,80 @@
   }
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
-    <header>
-      <h2>{t("create_project.title")}</h2>
-      <button class="close" onclick={onClose}>✕</button>
-    </header>
+<DialogShell {onClose} ariaLabel={t("create_project.title")} extraClass="create-project-modal">
+  <header>
+    <h2>{t("create_project.title")}</h2>
+    <button class="close" onclick={onClose}>✕</button>
+  </header>
 
-    <div class="content">
-      <div class="tabs">
-        <button class="tab" class:active={mode === "new"} onclick={() => (mode = "new")}>
-          {t("create_project.tab.new")}
-        </button>
-        <button class="tab" class:active={mode === "existing"} onclick={() => (mode = "existing")}>
-          {t("create_project.tab.existing")}
-        </button>
-      </div>
+  <div class="content">
+    <div class="tabs">
+      <button class="tab" class:active={mode === "new"} onclick={() => (mode = "new")}>
+        {t("create_project.tab.new")}
+      </button>
+      <button class="tab" class:active={mode === "existing"} onclick={() => (mode = "existing")}>
+        {t("create_project.tab.existing")}
+      </button>
+    </div>
 
-      {#if mode === "new"}
-        <p class="muted small">{t("create_project.hint.new")}</p>
-        <label class="field">
-          <span class="label">{t("create_project.field.path")}</span>
-          <input
-            type="text"
-            bind:value={path}
-            placeholder="/Users/jimmy/Dev/my-project"
-            autocomplete="off"
-          />
-          <small>{t("create_project.field.path_help")}</small>
-        </label>
-        <label class="field">
-          <span class="label">{t("create_project.field.name")}</span>
-          <input type="text" bind:value={name} placeholder="my-project" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span class="label">{t("create_project.field.default_branch")}</span>
-          <input type="text" bind:value={defaultBranch} placeholder="main" autocomplete="off" />
-        </label>
-      {:else}
-        <p class="muted small">{t("create_project.hint.existing")}</p>
-        <label class="field">
-          <span class="label">{t("create_project.field.path")}</span>
-          <input
-            type="text"
-            bind:value={path}
-            placeholder="/Users/jimmy/Dev/existing-project"
-            autocomplete="off"
-          />
-          <small>{t("create_project.field.path_existing_help")}</small>
-        </label>
-      {/if}
+    {#if mode === "new"}
+      <p class="muted small">{t("create_project.hint.new")}</p>
+      <label class="field">
+        <span class="label">{t("create_project.field.path")}</span>
+        <input
+          type="text"
+          bind:value={path}
+          placeholder="/Users/jimmy/Dev/my-project"
+          autocomplete="off"
+        />
+        <small>{t("create_project.field.path_help")}</small>
+      </label>
+      <label class="field">
+        <span class="label">{t("create_project.field.name")}</span>
+        <input type="text" bind:value={name} placeholder="my-project" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span class="label">{t("create_project.field.default_branch")}</span>
+        <input type="text" bind:value={defaultBranch} placeholder="main" autocomplete="off" />
+      </label>
+    {:else}
+      <p class="muted small">{t("create_project.hint.existing")}</p>
+      <label class="field">
+        <span class="label">{t("create_project.field.path")}</span>
+        <input
+          type="text"
+          bind:value={path}
+          placeholder="/Users/jimmy/Dev/existing-project"
+          autocomplete="off"
+        />
+        <small>{t("create_project.field.path_existing_help")}</small>
+      </label>
+    {/if}
 
-      {#if error}<div class="msg err">{error}</div>{/if}
+    {#if error}<div class="msg err">{error}</div>{/if}
 
-      <div class="row">
-        <button onclick={onClose}>{t("create_project.button.cancel")}</button>
-        <button
-          class="primary"
-          onclick={submit}
-          disabled={busy || !path.trim() || (mode === "new" && !name.trim())}
-        >
-          {#if busy}
-            {mode === "new" ? t("create_project.button.creating") : t("create_project.button.adding")}
-          {:else}
-            {mode === "new" ? t("create_project.button.create") : t("create_project.button.add")}
-          {/if}
-        </button>
-      </div>
+    <div class="row">
+      <button onclick={onClose}>{t("create_project.button.cancel")}</button>
+      <button
+        class="primary"
+        onclick={submit}
+        disabled={busy || !path.trim() || (mode === "new" && !name.trim())}
+      >
+        {#if busy}
+          {mode === "new" ? t("create_project.button.creating") : t("create_project.button.adding")}
+        {:else}
+          {mode === "new" ? t("create_project.button.create") : t("create_project.button.add")}
+        {/if}
+      </button>
     </div>
   </div>
-</div>
+</DialogShell>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(16, 24, 40, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  .modal {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+  /* Frame (.modal, .backdrop) lives in DialogShell. Per-dialog
+     sizing override goes through the extraClass + :global() pair. */
+  :global(.create-project-modal) {
     max-width: 540px;
-    width: 92%;
-    max-height: 85vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;

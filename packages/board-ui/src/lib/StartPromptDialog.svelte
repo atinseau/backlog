@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DialogShell from "./DialogShell.svelte";
   import { startOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
@@ -29,52 +30,36 @@
   }
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
-    <header>
-      <h2>{t("start_prompt.title")}</h2>
-    </header>
-    <div class="body">
-      {#if subTasksCreated === 0}
-        <p>{@html t("start_prompt.body.no_subtasks", { taskId: `<code>${taskId}</code>` })}</p>
-        <p class="muted">{t("start_prompt.help.empty")}</p>
-      {:else if subTasksCreated === 1}
-        <p>{@html t("start_prompt.body.with_subtasks_one", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
-        <p class="muted">{t("start_prompt.help.ready")}</p>
-      {:else}
-        <p>{@html t("start_prompt.body.with_subtasks_many", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
-        <p class="muted">{t("start_prompt.help.ready")}</p>
-      {/if}
-      {#if error}
-        <div class="error">{error}</div>
-      {/if}
-    </div>
-    <footer>
-      <button type="button" onclick={onClose} disabled={busy}>{t("start_prompt.button.later")}</button>
-      <button type="button" class="primary" onclick={startNow} disabled={busy}>
-        {busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}
-      </button>
-    </footer>
+<DialogShell {onClose} ariaLabel={t("start_prompt.title")}>
+  <header>
+    <h2>{t("start_prompt.title")}</h2>
+  </header>
+  <div class="body">
+    {#if subTasksCreated === 0}
+      <p>{@html t("start_prompt.body.no_subtasks", { taskId: `<code>${taskId}</code>` })}</p>
+      <p class="muted">{t("start_prompt.help.empty")}</p>
+    {:else if subTasksCreated === 1}
+      <p>{@html t("start_prompt.body.with_subtasks_one", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
+      <p class="muted">{t("start_prompt.help.ready")}</p>
+    {:else}
+      <p>{@html t("start_prompt.body.with_subtasks_many", { taskId: `<code>${taskId}</code>`, count: subTasksCreated })}</p>
+      <p class="muted">{t("start_prompt.help.ready")}</p>
+    {/if}
+    {#if error}
+      <div class="error">{error}</div>
+    {/if}
   </div>
-</div>
+  <footer>
+    <button type="button" onclick={onClose} disabled={busy}>{t("start_prompt.button.later")}</button>
+    <button type="button" class="primary" onclick={startNow} disabled={busy}>
+      {busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}
+    </button>
+  </footer>
+</DialogShell>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(16, 24, 40, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 110;
-  }
-  .modal {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
-    max-width: 460px;
-    width: 92%;
-  }
+  /* Frame (.modal, .backdrop) lives in DialogShell. Styles below
+     scope to the elements this component renders into the slot. */
   header { padding: 16px 20px; border-bottom: 1px solid #e4e7ec; }
   h2 { margin: 0; font-size: 16px; }
   .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
