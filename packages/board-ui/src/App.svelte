@@ -28,6 +28,7 @@
     moveWorkItem,
     reorderTask,
     setCurrentProjectId,
+    startRun,
     type CloudStatus,
   } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
@@ -267,6 +268,29 @@
     }
   }
 
+  async function handlePlayCard(card: TaskCard) {
+    error = null;
+    try {
+      const result = await startRun({ task_id: card.id, approve: true });
+      if (result.started.length === 0) {
+        // Server accepted the request (200/202) but nothing actually
+        // launched — usually because every subtask is blocked or
+        // waiting. Surface the reason so the user isn't left wondering.
+        const reason =
+          result.skipped[0]?.reasons[0] ??
+          result.blocked[0]?.reasons[0] ??
+          result.waiting[0]?.reasons[0];
+        error = reason
+          ? t("card.play_skipped", { reason })
+          : t("card.play_skipped_empty");
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      if (!connected) await refresh();
+    }
+  }
+
   onMount(() => {
     bootstrap();
   });
@@ -370,6 +394,7 @@
       onSplit={(card) => (splitTarget = card)}
       onAddTask={(card) => (createSubTaskTarget = card)}
       onOpen={(card) => (detailTarget = card)}
+      onPlay={handlePlayCard}
     />
   {/each}
 </main>

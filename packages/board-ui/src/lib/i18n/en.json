@@ -54,6 +54,7 @@
   "orchestrator.play.start": "Start the orchestrator",
   "orchestrator.play.running": "Orchestrator already running",
   "orchestrator.play.nothing": "Nothing to run — create a task first",
+  "orchestrator.play.no_agent": "No autonomous agent enabled — enable Codex or Claude in agents.yaml",
   "orchestrator.pause.title": "Pause (active runs keep going)",
   "orchestrator.stop.title": "Stop (wait for active runs to finish)",
   "orchestrator.mode.idle": "idle",
@@ -68,6 +69,9 @@
 
   "card.add_subtask": "Add a sub-task",
   "card.split": "Split into sub-tasks",
+  "card.play": "Start this task",
+  "card.play_skipped": "Start skipped: {reason}",
+  "card.play_skipped_empty": "Nothing started — check the available agents",
   "card.progress_aria": "task progress",
   "card.remaining": "{duration} left",
   "card.blocked": "blocked: {topic}",

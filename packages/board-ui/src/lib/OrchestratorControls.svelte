@@ -18,6 +18,7 @@
 
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
+  let blockedByAgent = $state(false);
   let busy = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -29,6 +30,14 @@
       ]);
       orchestrator = orchState;
       runnableCount = plan?.runnable_count ?? null;
+      // Distinguish "empty board" from "tasks exist but no enabled
+      // agent can run them" — they need different copy on the disabled
+      // Play button. The latter is the common case after `backlog init`
+      // since manual-default is the only seeded agent enabled, and
+      // manual is non-executable.
+      blockedByAgent = (plan?.blocked ?? []).some((d) =>
+        d.reasons.includes("no_compatible_agent"),
+      );
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     }
@@ -90,7 +99,9 @@
     isRunning
       ? t("orchestrator.play.running")
       : nothingToRun
-        ? t("orchestrator.play.nothing")
+        ? blockedByAgent
+          ? t("orchestrator.play.no_agent")
+          : t("orchestrator.play.nothing")
         : t("orchestrator.play.start"),
   );
   const modeLabel = $derived(t(`orchestrator.mode.${mode}`));

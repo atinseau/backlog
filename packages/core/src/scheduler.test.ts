@@ -21,10 +21,36 @@ function writeAgentsFile(backlogDir: string, contents: string): void {
   fs.writeFileSync(path.join(backlogDir, "agents.yaml"), contents, "utf8");
 }
 
+// initLayout seeds `manual-default` as the only enabled agent, but
+// the scheduler now (correctly) excludes manual providers from the
+// runnable plan since the run-launcher can't auto-execute them.
+// Tests that need a runnable plan use this helper to drop in an
+// executable stand-in.
+function writeExecutableAgent(backlogDir: string, capabilities: string[] = ["plan", "edit_code", "run_tests", "review"]): void {
+  writeAgentsFile(
+    backlogDir,
+    [
+      "version: 1",
+      "agents:",
+      "  - id: stub",
+      "    provider: custom",
+      "    command: /bin/true",
+      "    enabled: true",
+      "    max_concurrent_runs: 4",
+      "    allowed_repos: []",
+      "    allowed_risk: [low, medium, high]",
+      `    capabilities: [${capabilities.join(", ")}]`,
+      "    environment: {}",
+      "",
+    ].join("\n"),
+  );
+}
+
 describe("buildExecutionPlan", () => {
   it("marks dependency-blocked tasks as waiting", () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
+    writeExecutableAgent(backlogDir);
     const config = loadConfig(backlogDir);
 
     const work = createTask(backlogDir, { title: "Ship feature", repoTargets: [path.basename(root)] });
@@ -53,6 +79,7 @@ describe("buildExecutionPlan", () => {
   it("does not schedule overlapping runnable tasks in the same plan", () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
+    writeExecutableAgent(backlogDir);
     const config = loadConfig(backlogDir);
 
     const work = createTask(backlogDir, { title: "Split scheduler", repoTargets: [path.basename(root)] });
@@ -88,7 +115,8 @@ describe("buildExecutionPlan", () => {
         "version: 1",
         "agents:",
         "  - id: generic",
-        "    provider: manual",
+        "    provider: custom",
+        "    command: /bin/true",
         "    enabled: true",
         "    max_concurrent_runs: 1",
         "    allowed_repos: []",
@@ -96,7 +124,8 @@ describe("buildExecutionPlan", () => {
         "    capabilities: [plan, edit_code]",
         "    environment: {}",
         "  - id: preferred",
-        "    provider: manual",
+        "    provider: custom",
+        "    command: /bin/true",
         "    enabled: true",
         "    max_concurrent_runs: 1",
         "    allowed_repos: []",

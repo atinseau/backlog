@@ -195,8 +195,22 @@ export function healthForAgents(backlogDir: string): AgentHealth[] {
   });
 }
 
+// True for agents the orchestrator can actually launch. Manual /
+// unknown providers stay valid in agents.yaml for tracking-only flows
+// but never end up in the runnable plan — letting them through here
+// would mean clicking ▶ Play silently no-ops because the run-launcher
+// skips unsupported providers downstream.
+export function supportsAgentExecution(agent: Agent): boolean {
+  if (agent.provider === "claude" || agent.provider === "codex") return true;
+  if (agent.provider === "custom") return Boolean(agent.command);
+  return false;
+}
+
 export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">): boolean {
   if (!agent.enabled) {
+    return false;
+  }
+  if (!supportsAgentExecution(agent)) {
     return false;
   }
   if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
@@ -220,6 +234,9 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
       const reasons: string[] = [];
       if (!agent.enabled) {
         reasons.push("disabled");
+      }
+      if (!supportsAgentExecution(agent)) {
+        reasons.push(`unsupported_provider:${agent.provider}`);
       }
       if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
         reasons.push("repo_not_allowed");

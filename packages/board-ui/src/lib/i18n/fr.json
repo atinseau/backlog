@@ -54,6 +54,7 @@
   "orchestrator.play.start": "Démarrer l'orchestrateur",
   "orchestrator.play.running": "Orchestrateur déjà en cours",
   "orchestrator.play.nothing": "Rien à exécuter — créez une tâche d'abord",
+  "orchestrator.play.no_agent": "Aucun agent autonome activé — activez Codex ou Claude dans agents.yaml",
   "orchestrator.pause.title": "Pause (les runs actifs continuent)",
   "orchestrator.stop.title": "Stop (attend la fin des runs actifs)",
   "orchestrator.mode.idle": "idle",
@@ -68,6 +69,9 @@
 
   "card.add_subtask": "Ajouter une sous-tâche",
   "card.split": "Découper en sous-tâches",
+  "card.play": "Lancer cette tâche",
+  "card.play_skipped": "Lancement ignoré : {reason}",
+  "card.play_skipped_empty": "Rien n'a démarré — vérifie les agents disponibles",
   "card.progress_aria": "progression de la tâche",
   "card.remaining": "il reste {duration}",
   "card.blocked": "bloqué : {topic}",

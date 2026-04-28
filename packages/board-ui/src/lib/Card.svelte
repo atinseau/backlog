@@ -10,9 +10,10 @@
     onSplit?: (card: TaskCard) => void;
     onAddTask?: (card: TaskCard) => void;
     onOpen?: (card: TaskCard) => void;
+    onPlay?: (card: TaskCard) => Promise<void> | void;
   }
 
-  let { card, onSplit, onAddTask, onOpen }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -20,6 +21,18 @@
   const priorityClass = $derived(`pri pri-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
   const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
+  // Show the per-card ▶ only on cards that are actually startable. Status
+  // "ready" / "backlog" maps to the À FAIRE column minus blocked rows;
+  // anything already running, in review, or done shouldn't offer a Play.
+  // We also hide it once a subtask is running to avoid double-starting
+  // — the orchestrator panel is the right place to manage live runs.
+  const canPlay = $derived(
+    Boolean(onPlay) &&
+      (card.status === "ready" || card.status === "backlog") &&
+      runningCount === 0 &&
+      blockedCount === 0,
+  );
+  let starting = $state(false);
 
   function handleSplitClick(event: MouseEvent) {
     event.stopPropagation();
@@ -29,6 +42,17 @@
   function handleAddTaskClick(event: MouseEvent) {
     event.stopPropagation();
     onAddTask?.(card);
+  }
+
+  async function handlePlayClick(event: MouseEvent) {
+    event.stopPropagation();
+    if (!onPlay || starting) return;
+    starting = true;
+    try {
+      await onPlay(card);
+    } finally {
+      starting = false;
+    }
   }
 
   // Track press position so we don't open the dialog when the user actually
@@ -88,6 +112,15 @@
   <header>
     <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
+    {#if canPlay}
+      <button
+        class="icon-btn play"
+        onclick={handlePlayClick}
+        disabled={starting}
+        aria-label={t("card.play")}
+        title={t("card.play")}
+      >{starting ? "…" : "▶"}</button>
+    {/if}
     {#if onSplit && card.tasks.length === 0}
       <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
     {/if}
@@ -232,6 +265,19 @@
   .icon-btn:hover {
     background: #f2f4f7;
     border-color: #98a2b3;
+  }
+  .icon-btn.play {
+    background: #027a48;
+    border-color: #027a48;
+    color: white;
+  }
+  .icon-btn.play:hover:not(:disabled) {
+    background: #036a3e;
+    border-color: #036a3e;
+  }
+  .icon-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
   }
 
   .chips {
