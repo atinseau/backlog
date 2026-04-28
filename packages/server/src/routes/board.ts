@@ -85,8 +85,14 @@ function summarizeClaim(claim: ClaimRecord, blocking = false): ClaimSummary {
   };
 }
 
-function findActiveRun(runs: Run[], taskId: string): Run | null {
-  return runs.find((run) => run.task_id === taskId) ?? null;
+function findActiveRun(runs: Run[], subtaskId: string): Run | null {
+  // Run records carry both `subtask_id` (the executable unit) and
+  // `task_id` (the parent work item). The board card's task is a
+  // SubTask, so we must match on `subtask_id` — comparing against
+  // `task_id` would only ever match the parent and silently leave
+  // `active_run` null, which collapses the progress bar to the
+  // 50% status fallback while a run is in flight.
+  return runs.find((run) => run.subtask_id === subtaskId) ?? null;
 }
 
 function findActiveClaimForTask(
