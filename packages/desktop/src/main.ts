@@ -62,6 +62,23 @@ async function createWindow(): Promise<void> {
   await mainWindow.loadURL(serverHandle.url);
   mainWindow.show();
 
+  // Route any window.open(url) the renderer attempts to the OS default
+  // browser instead of spawning a child BrowserWindow. Critical for the
+  // OAuth flow (Google / GitHub / Apple sign-in) — the user needs to
+  // land in their actual browser where they're already signed in.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  // Same idea for in-page <a target="_blank">. Block any navigation
+  // away from the embedded server's origin.
+  mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+    if (!targetUrl.startsWith(serverHandle.url)) {
+      event.preventDefault();
+      void shell.openExternal(targetUrl);
+    }
+  });
+
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools({ mode: "detach" });
   }

@@ -350,6 +350,7 @@
   "account.error.invalid_credentials": "Wrong email or password.",
   "account.error.email_taken": "An account already exists for this email.",
   "account.error.cloud_unreachable": "Backlog Cloud unreachable. Try again in a moment.",
+  "account.error.rate_limited": "Too many attempts. Please wait a moment before trying again.",
   "account.signin_required": "Sign in to Backlog Cloud to use this flow.",
   "topbar.integrations": "🔌 Integrations",
   "integrations.title": "Integrations",

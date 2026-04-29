@@ -45,8 +45,9 @@
   function mapError(value: string | undefined): string {
     if (!value) return "";
     if (value === "invalid_credentials") return t("account.error.invalid_credentials");
-    if (value === "invalid_input") return t("account.error.invalid_input");
+    if (value === "invalid_input" || value === "invalid_body") return t("account.error.invalid_input");
     if (value === "cloud_unreachable") return t("account.error.cloud_unreachable");
+    if (value === "rate_limited") return t("account.error.rate_limited");
     return value;
   }
 
