@@ -6,22 +6,20 @@
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
-  import ActivityBanner from "./lib/ActivityBanner.svelte";
   import AgentsView from "./lib/AgentsView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
-  import OrchestratorChat from "./lib/OrchestratorChat.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
-  import OrchestratorPanel from "./lib/OrchestratorPanel.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
-  import RepoSelector from "./lib/RepoSelector.svelte";
   import ReposView from "./lib/ReposView.svelte";
-  import LocaleToggle from "./lib/LocaleToggle.svelte";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
-  import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import OnboardingBanner from "./lib/OnboardingBanner.svelte";
-  import ProjectSelector from "./lib/ProjectSelector.svelte";
+  import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
+  import RightPanel from "./lib/shell/RightPanel.svelte";
+  import BottomPanel, { type BottomTab } from "./lib/shell/BottomPanel.svelte";
+  import PanelToggles from "./lib/shell/PanelToggles.svelte";
+  import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
   import {
     fetchBoard,
@@ -49,7 +47,42 @@
 
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const WORKSPACE_STORAGE_KEY = "backlog.selected_project_id";
+  // Shell layout persistence — open/closed flags + pixel sizes for the
+  // three panels, plus the active section in the navigator and the
+  // active tab in the bottom console. Together these fully describe
+  // the user's chosen layout, restored on next launch.
+  const SHELL_LEFT_OPEN = "backlog.shell.left.open";
+  const SHELL_RIGHT_OPEN = "backlog.shell.right.open";
+  const SHELL_BOTTOM_OPEN = "backlog.shell.bottom.open";
+  const SHELL_LEFT_WIDTH = "backlog.shell.left.width";
+  const SHELL_RIGHT_WIDTH = "backlog.shell.right.width";
+  const SHELL_BOTTOM_HEIGHT = "backlog.shell.bottom.height";
+  const SHELL_BOTTOM_TAB = "backlog.shell.bottom.tab";
 
+  function readBool(key: string, fallback: boolean): boolean {
+    if (typeof localStorage === "undefined") return fallback;
+    const raw = localStorage.getItem(key);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return fallback;
+  }
+  function writeBool(key: string, value: boolean): void {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(key, value ? "1" : "0");
+  }
+  function readNum(key: string, fallback: number, min: number, max: number): number {
+    if (typeof localStorage === "undefined") return fallback;
+    const raw = localStorage.getItem(key);
+    const n = raw ? Number.parseFloat(raw) : NaN;
+    if (Number.isFinite(n)) return Math.max(min, Math.min(max, n));
+    return fallback;
+  }
+  function writeNum(key: string, value: number): void {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(key, String(Math.round(value)));
+  }
+
+  // ---- board / data state ----
   let board = $state<BoardResponse | null>(null);
   let workspaceRepos = $state<Repo[]>([]);
   let workspaces = $state<ProjectEntry[]>([]);
@@ -59,22 +92,52 @@
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
+  let cloudStatus = $state<CloudStatus | null>(null);
+
+  // ---- modal / dialog state ----
   let claimsViewOpen = $state(false);
   let commitsViewOpen = $state(false);
   let integrationsOpen = $state(false);
   let reposViewOpen = $state(false);
   let createProjectOpen = $state(false);
+  let permissionsViewOpen = $state(false);
+  let agentsViewOpen = $state(false);
+  let createTaskOpen = $state(false);
+  let createSubTaskTarget = $state<TaskCard | null>(null);
+  let splitTarget = $state<TaskCard | null>(null);
+  let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
+  let integrationsTab = $state<"account" | "github" | "jira" | "sources">("account");
+
+  // ---- shell layout state ----
+  let leftOpen = $state(readBool(SHELL_LEFT_OPEN, true));
+  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, false));
+  let bottomOpen = $state(readBool(SHELL_BOTTOM_OPEN, false));
+  let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
+  let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 320, 220, 560));
+  let bottomHeight = $state(readNum(SHELL_BOTTOM_HEIGHT, 240, 120, 600));
+  let leftSection = $state<SectionKey>("board");
+  let bottomTab = $state<BottomTab>(
+    (typeof localStorage !== "undefined"
+      ? (localStorage.getItem(SHELL_BOTTOM_TAB) as BottomTab | null)
+      : null) ?? "activity",
+  );
+  let selectedTaskId = $state<string | null>(null);
+  let diffTarget = $state<{ runId: string; file: string } | null>(null);
+
+  // ---- onboarding ----
   const ONBOARDING_STORAGE_KEY = "backlog.onboarding.dismissed";
   let onboardingDismissed = $state(
     typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1",
   );
-
   function dismissOnboarding() {
     onboardingDismissed = true;
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
   }
-  let cloudStatus = $state<CloudStatus | null>(null);
-  let integrationsTab = $state<"account" | "github" | "jira" | "sources">("account");
+
+  // ---- runtime infra ----
+  let pollFallback: ReturnType<typeof setInterval> | null = null;
+  let sse: BoardSseClient | null = null;
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function loadCloudStatus() {
     try {
@@ -84,45 +147,14 @@
     }
   }
 
-  function userInitials(email: string): string {
-    const local = email.split("@")[0] ?? "";
-    return local.slice(0, 2).toUpperCase() || "?";
-  }
-
   function openProfile() {
     integrationsTab = "account";
     integrationsOpen = true;
+    leftSection = "integrations";
   }
-  let permissionsViewOpen = $state(false);
-  let agentsViewOpen = $state(false);
-  let createTaskOpen = $state(false);
-  let createSubTaskTarget = $state<TaskCard | null>(null);
-  let panelOpen = $state(false);
-  // Persist the chat drawer's open/closed state across reloads — most users
-  // either want it always-on (operations dashboard mode) or always-off
-  // (focused execution mode), so toggling it once should stick.
-  const CHAT_STORAGE_KEY = "backlog.chat.open";
-  let chatOpen = $state(typeof localStorage !== "undefined" && localStorage.getItem(CHAT_STORAGE_KEY) === "1");
-  // Open DiffPanel target — set when the user clicks a file link in
-  // the ActivityBanner. Single-panel; clicking another file replaces.
-  let diffTarget = $state<{ runId: string; file: string } | null>(null);
 
-  function toggleChat() {
-    chatOpen = !chatOpen;
-    if (typeof localStorage !== "undefined") {
-      if (chatOpen) localStorage.setItem(CHAT_STORAGE_KEY, "1");
-      else localStorage.removeItem(CHAT_STORAGE_KEY);
-    }
-  }
-  let splitTarget = $state<TaskCard | null>(null);
-  let detailTarget = $state<TaskCard | null>(null);
-  let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
-  let pollFallback: ReturnType<typeof setInterval> | null = null;
-  let sse: BoardSseClient | null = null;
-  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Repos visible in the kanban — the "fallback" set when the workspace has no
-  // configured repos yet (we surface whatever the cards reference).
+  // Repos visible in the kanban — the "fallback" set when the workspace
+  // has no configured repos yet (we surface whatever the cards reference).
   const boardRepoIds = $derived.by(() => {
     if (!board) return [] as string[];
     const set = new Set<string>();
@@ -134,15 +166,10 @@
     }
     return [...set].sort();
   });
-
-  // Repo dropdown source — workspace repos when known, otherwise reverse-engineered
-  // from the board cards.
   const repoOptions = $derived.by<Repo[]>(() => {
     if (workspaceRepos.length > 0) return workspaceRepos;
     return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
-
-  // The string-only `repos` prop fed to the modals/dialogs that just need a list of repo ids.
   const repos = $derived(repoOptions.map((r) => r.id));
 
   async function refresh() {
@@ -223,12 +250,11 @@
     selectedWorkspaceId = id;
     setCurrentProjectId(id);
     localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
-    // Reset per-workspace selection — repo ids belong to the previous
-    // workspace and almost certainly don't match the new one.
     selectedRepoId = null;
     localStorage.removeItem(REPO_STORAGE_KEY);
     board = null;
     workspaceRepos = [];
+    selectedTaskId = null;
     refresh();
     refreshRepos();
     connectSse();
@@ -239,14 +265,12 @@
     let preferred = localStorage.getItem(WORKSPACE_STORAGE_KEY);
     const known = new Set(workspaces.map((w) => w.id));
     if (preferred && !known.has(preferred)) {
-      // The remembered workspace was unregistered — fall back to current.
       localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       preferred = null;
     }
     if (!preferred) {
       try {
         const current = await fetchCurrentProject();
-        // /workspaces/current returns paths; match against the registry to find the id.
         const match = workspaces.find((w) => w.path === current.root);
         preferred = match?.id ?? workspaces[0]?.id ?? null;
       } catch {
@@ -308,11 +332,6 @@
     try {
       const result = await startRun({ task_id: card.id, approve: true });
       if (result.started.length === 0) {
-        // Server accepted the request (200/202) but nothing actually
-        // launched. Pick the most actionable explanation: a 0-subtask
-        // task needs to be split first (the scheduler can only run
-        // executable subtasks); otherwise surface whatever skipped /
-        // blocked / waiting reason the server returned.
         const reason =
           result.skipped[0]?.reasons[0] ??
           result.blocked[0]?.reasons[0] ??
@@ -332,51 +351,201 @@
     }
   }
 
+  // ---- shell behaviours ----
+  function toggleLeft() {
+    leftOpen = !leftOpen;
+    writeBool(SHELL_LEFT_OPEN, leftOpen);
+  }
+  function toggleRight() {
+    rightOpen = !rightOpen;
+    writeBool(SHELL_RIGHT_OPEN, rightOpen);
+  }
+  function toggleBottom() {
+    bottomOpen = !bottomOpen;
+    writeBool(SHELL_BOTTOM_OPEN, bottomOpen);
+  }
+  function setBottomTab(tab: BottomTab) {
+    bottomTab = tab;
+    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_BOTTOM_TAB, tab);
+    if (!bottomOpen) toggleBottom();
+  }
+  function commitLeftWidth() { writeNum(SHELL_LEFT_WIDTH, leftWidth); }
+  function commitRightWidth() { writeNum(SHELL_RIGHT_WIDTH, rightWidth); }
+  function commitBottomHeight() { writeNum(SHELL_BOTTOM_HEIGHT, bottomHeight); }
+
+  function applySection(key: SectionKey) {
+    leftSection = key;
+    // "board" closes any modal that a previous section had opened so the
+    // user lands back on the kanban. Other sections open the existing
+    // modal view for that area; when the modal closes we snap back to
+    // board so the highlight stays consistent.
+    closeAllSectionModals();
+    if (key === "activity") claimsViewOpen = true;
+    else if (key === "commits") commitsViewOpen = true;
+    else if (key === "agents") agentsViewOpen = true;
+    else if (key === "integrations") integrationsOpen = true;
+    else if (key === "permissions") permissionsViewOpen = true;
+    else if (key === "repos") reposViewOpen = true;
+  }
+  function closeAllSectionModals() {
+    claimsViewOpen = false;
+    commitsViewOpen = false;
+    agentsViewOpen = false;
+    integrationsOpen = false;
+    permissionsViewOpen = false;
+    reposViewOpen = false;
+  }
+  function onSectionModalClosed() {
+    leftSection = "board";
+  }
+
+  function selectCard(card: TaskCard) {
+    selectedTaskId = card.id;
+    if (!rightOpen) toggleRight();
+  }
+
+  // The right-panel split/add-subtask actions need the full TaskCard
+  // (not just an id), so look it up from the current board snapshot.
+  function findCardById(id: string): TaskCard | null {
+    if (!board) return null;
+    for (const column of Object.values(board.columns)) {
+      const found = column.find((c) => c.id === id);
+      if (found) return found;
+    }
+    return null;
+  }
+
   onMount(() => {
     bootstrap();
   });
-
   onDestroy(() => {
     teardownSse();
     if (refreshTimer) clearTimeout(refreshTimer);
   });
 </script>
 
-<header class="topbar">
-  <div class="topbar-left">
-    <h1>Backlog</h1>
-    {#if workspaces.length > 0 && selectedWorkspaceId}
-      <ProjectSelector
-        projects={workspaces}
-        selectedId={selectedWorkspaceId}
-        onSelect={applyWorkspace}
-      />
-    {/if}
-    <button class="topbar-add-project" onclick={() => (createProjectOpen = true)} title={t("selector.new_project")}>
-      +
-    </button>
-    <RepoSelector
-      repos={repoOptions}
-      selectedId={selectedRepoId}
-      projectScoped={false}
-      onSelect={persistRepo}
-      onManage={() => (reposViewOpen = true)}
-    />
-    <OrchestratorControls
-      onError={(message) => (error = message)}
-    />
-  </div>
-  <div class="meta">
-    {#if board}
-      {#if board.total_remaining_seconds > 0}
-        <span class="eta-pill">{t("topbar.remaining", { duration: formatDuration(board.total_remaining_seconds) })}</span>
-        <span class="dot">·</span>
+<div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1>Backlog</h1>
+      <OrchestratorControls onError={(message) => (error = message)} />
+    </div>
+    <div class="topbar-right">
+      {#if board}
+        {#if board.total_remaining_seconds > 0}
+          <span class="eta-pill">{t("topbar.remaining", { duration: formatDuration(board.total_remaining_seconds) })}</span>
+        {/if}
+        <span class:on={connected} class:off={!connected} class="conn">
+          {connected ? t("topbar.live") : t("topbar.polling")}
+        </span>
       {/if}
+      <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+      <PanelToggles
+        leftOpen={leftOpen}
+        bottomOpen={bottomOpen}
+        rightOpen={rightOpen}
+        onToggleLeft={toggleLeft}
+        onToggleBottom={toggleBottom}
+        onToggleRight={toggleRight}
+      />
+    </div>
+  </header>
+
+  {#if error}
+    <div class="error">{error}</div>
+  {/if}
+
+  <div class="grid">
+    {#if leftOpen}
+      <div class="left-host">
+        <LeftPanel
+          workspaces={workspaces}
+          selectedWorkspaceId={selectedWorkspaceId}
+          onSelectWorkspace={applyWorkspace}
+          onCreateProject={() => (createProjectOpen = true)}
+          repos={repoOptions}
+          selectedRepoId={selectedRepoId}
+          onSelectRepo={persistRepo}
+          onManageRepos={() => (reposViewOpen = true)}
+          section={leftSection}
+          onSelectSection={applySection}
+          cloudStatus={cloudStatus}
+          onOpenProfile={openProfile}
+        />
+      </div>
+      <Splitter orientation="vertical" onResize={(d) => (leftWidth = Math.max(180, Math.min(480, leftWidth + d)))} onCommit={commitLeftWidth} />
+    {/if}
+
+    <div class="center">
+      <div class="center-main">
+        <OnboardingBanner
+          workspaces={workspaces}
+          workspaceRepos={workspaceRepos}
+          board={board}
+          dismissed={onboardingDismissed}
+          onCreateProject={() => (createProjectOpen = true)}
+          onManageRepos={() => (reposViewOpen = true)}
+          onCreateTask={() => (createTaskOpen = true)}
+          onDismiss={dismissOnboarding}
+        />
+        <main class="board">
+          {#each COLUMN_ORDER as key (key)}
+            <Column
+              columnKey={key}
+              cards={board?.columns[key] ?? []}
+              onMove={handleMove}
+              onReorder={handleReorder}
+              onSplit={(card) => (splitTarget = card)}
+              onAddTask={(card) => (createSubTaskTarget = card)}
+              onOpen={selectCard}
+              onPlay={handlePlayCard}
+              onApprove={handleApproveCard}
+            />
+          {/each}
+        </main>
+      </div>
+
+      {#if bottomOpen}
+        <Splitter
+          orientation="horizontal"
+          onResize={(d) => (bottomHeight = Math.max(120, Math.min(600, bottomHeight - d)))}
+          onCommit={commitBottomHeight}
+        />
+        <div class="bottom-host">
+          <BottomPanel
+            workspaceId={selectedWorkspaceId}
+            tab={bottomTab}
+            onSelectTab={setBottomTab}
+            onOpenDiff={(runId, file) => (diffTarget = { runId, file })}
+          />
+        </div>
+      {/if}
+    </div>
+
+    {#if rightOpen}
+      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(220, Math.min(560, rightWidth - d)))} onCommit={commitRightWidth} />
+      <div class="right-host">
+        <RightPanel
+          selectedTaskId={selectedTaskId}
+          onClearSelection={() => (selectedTaskId = null)}
+          onSplit={() => {
+            if (!selectedTaskId) return;
+            const card = findCardById(selectedTaskId);
+            if (card) splitTarget = card;
+          }}
+          onAddSubTask={() => {
+            if (!selectedTaskId) return;
+            const card = findCardById(selectedTaskId);
+            if (card) createSubTaskTarget = card;
+          }}
+        />
+      </div>
+    {/if}
+  </div>
+
+  <div class="status">
+    {#if board}
       <span>{t("topbar.runs", { count: board.active_runs_count })}</span>
-      <span class="dot">·</span>
-      <span class:on={connected} class:off={!connected} class="conn">
-        {connected ? t("topbar.live") : t("topbar.polling")}
-      </span>
       {#if lastUpdated}
         <span class="dot">·</span>
         <span>{t("topbar.last_update", { time: lastUpdated })}</span>
@@ -386,63 +555,10 @@
         <span class="moving">{t("topbar.moving")}</span>
       {/if}
     {/if}
-    <LocaleToggle />
-    <button onclick={() => (claimsViewOpen = true)} title={t("topbar.activity")}>📋 {t("topbar.activity")}</button>
-    <button onclick={() => (commitsViewOpen = true)} title={t("topbar.commits")}>{t("topbar.commits")}</button>
-    <button onclick={() => (integrationsOpen = true)} title={t("topbar.integrations")}>{t("topbar.integrations")}</button>
-    <button onclick={() => (agentsViewOpen = true)}>{t("topbar.agents")}</button>
-    <button onclick={() => (permissionsViewOpen = true)}>{t("topbar.permissions")}</button>
-    <button onclick={toggleChat} class:active={chatOpen} title={t("chat.title")}>{t("topbar.chat")}</button>
-    <button onclick={() => (panelOpen = !panelOpen)}>{t("topbar.plan")}</button>
-    <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
-    <button onclick={refresh} aria-label={t("topbar.refresh")}>{t("topbar.refresh")}</button>
-    <button
-      class="user-avatar"
-      class:signed-in={cloudStatus?.signed_in}
-      onclick={openProfile}
-      title={cloudStatus?.user?.email ?? t("topbar.profile_signed_out")}
-      aria-label={t("topbar.profile")}
-    >
-      {#if cloudStatus?.signed_in && cloudStatus.user}
-        {userInitials(cloudStatus.user.email)}
-      {:else}
-        ☺
-      {/if}
-    </button>
   </div>
-</header>
+</div>
 
-{#if error}
-  <div class="error">{error}</div>
-{/if}
-
-<OnboardingBanner
-  workspaces={workspaces}
-  workspaceRepos={workspaceRepos}
-  board={board}
-  dismissed={onboardingDismissed}
-  onCreateProject={() => (createProjectOpen = true)}
-  onManageRepos={() => (reposViewOpen = true)}
-  onCreateTask={() => (createTaskOpen = true)}
-  onDismiss={dismissOnboarding}
-/>
-
-<main class="board">
-  {#each COLUMN_ORDER as key (key)}
-    <Column
-      columnKey={key}
-      cards={board?.columns[key] ?? []}
-      onMove={handleMove}
-      onReorder={handleReorder}
-      onSplit={(card) => (splitTarget = card)}
-      onAddTask={(card) => (createSubTaskTarget = card)}
-      onOpen={(card) => (detailTarget = card)}
-      onPlay={handlePlayCard}
-      onApprove={handleApproveCard}
-    />
-  {/each}
-</main>
-
+<!-- Modals retain their existing behaviour; section nav opens them on demand. -->
 {#if createProjectOpen}
   <CreateProjectDialog
     onClose={() => (createProjectOpen = false)}
@@ -458,7 +574,7 @@
 
 {#if reposViewOpen}
   <ReposView
-    onClose={() => (reposViewOpen = false)}
+    onClose={() => { reposViewOpen = false; onSectionModalClosed(); }}
     onChanged={() => {
       refreshRepos();
       if (!connected) refresh();
@@ -468,15 +584,13 @@
 
 {#if claimsViewOpen}
   <ClaimsView
-    onClose={() => (claimsViewOpen = false)}
-    onChanged={() => {
-      if (!connected) refresh();
-    }}
+    onClose={() => { claimsViewOpen = false; onSectionModalClosed(); }}
+    onChanged={() => { if (!connected) refresh(); }}
   />
 {/if}
 
 {#if commitsViewOpen}
-  <CommitsView onClose={() => (commitsViewOpen = false)} />
+  <CommitsView onClose={() => { commitsViewOpen = false; onSectionModalClosed(); }} />
 {/if}
 
 {#if integrationsOpen}
@@ -485,6 +599,7 @@
     onClose={() => {
       integrationsOpen = false;
       loadCloudStatus();
+      onSectionModalClosed();
     }}
     onChanged={() => {
       refreshRepos();
@@ -497,20 +612,16 @@
 {#if permissionsViewOpen}
   <PermissionsView
     availableRepos={repos}
-    onClose={() => (permissionsViewOpen = false)}
-    onChanged={() => {
-      if (!connected) refresh();
-    }}
+    onClose={() => { permissionsViewOpen = false; onSectionModalClosed(); }}
+    onChanged={() => { if (!connected) refresh(); }}
   />
 {/if}
 
 {#if agentsViewOpen}
   <AgentsView
     availableRepos={repos}
-    onClose={() => (agentsViewOpen = false)}
-    onChanged={() => {
-      if (!connected) refresh();
-    }}
+    onClose={() => { agentsViewOpen = false; onSectionModalClosed(); }}
+    onChanged={() => { if (!connected) refresh(); }}
   />
 {/if}
 
@@ -530,9 +641,7 @@
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
     onClose={() => (startPrompt = null)}
-    onStarted={() => {
-      if (!connected) refresh();
-    }}
+    onStarted={() => { if (!connected) refresh(); }}
   />
 {/if}
 
@@ -541,26 +650,8 @@
     workItem={createSubTaskTarget}
     availableRepos={repos}
     onClose={() => (createSubTaskTarget = null)}
-    onCreated={() => {
-      if (!connected) refresh();
-    }}
+    onCreated={() => { if (!connected) refresh(); }}
   />
-{/if}
-
-{#if panelOpen}
-  <OrchestratorPanel
-    onClose={() => (panelOpen = false)}
-  />
-{/if}
-
-<OrchestratorChat open={chatOpen} workspaceId={selectedWorkspaceId} onClose={toggleChat} />
-<ActivityBanner
-  workspaceId={selectedWorkspaceId}
-  onOpenDiff={(runId, file) => (diffTarget = { runId, file })}
-/>
-
-{#if diffTarget}
-  <DiffPanel runId={diffTarget.runId} file={diffTarget.file} onClose={() => (diffTarget = null)} />
 {/if}
 
 {#if splitTarget}
@@ -568,25 +659,12 @@
     workItem={splitTarget}
     availableRepos={repos}
     onClose={() => (splitTarget = null)}
-    onSplit={() => {
-      if (!connected) refresh();
-    }}
+    onSplit={() => { if (!connected) refresh(); }}
   />
 {/if}
 
-{#if detailTarget}
-  <TaskDetailDialog
-    taskId={detailTarget.id}
-    onClose={() => (detailTarget = null)}
-    onSplit={() => {
-      splitTarget = detailTarget;
-      detailTarget = null;
-    }}
-    onAddSubTask={() => {
-      createSubTaskTarget = detailTarget;
-      detailTarget = null;
-    }}
-  />
+{#if diffTarget}
+  <DiffPanel runId={diffTarget.runId} file={diffTarget.file} onClose={() => (diffTarget = null)} />
 {/if}
 
 <style>
@@ -595,37 +673,45 @@
     background: #f7f8fa;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     color: #1d2939;
+    overflow: hidden;
   }
+  :global(html), :global(body), :global(#app) { height: 100%; }
+
+  .shell {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .topbar, .error, .status { flex-shrink: 0; }
+
   .topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 24px;
+    padding: 8px 14px;
     background: white;
     border-bottom: 1px solid #e4e7ec;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    gap: 16px;
+    min-height: 44px;
   }
   .topbar-left {
     display: flex;
     align-items: center;
     gap: 16px;
   }
-  h1 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-  }
-  .meta {
+  .topbar-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-size: 12px;
     color: #667085;
   }
-  .dot { opacity: 0.5; }
-  .moving { color: #1570ef; }
+  h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
   .conn.on { color: #027a48; }
   .conn.off { color: #b54708; }
   .eta-pill {
@@ -635,70 +721,83 @@
     border-radius: 10px;
     font-weight: 500;
   }
-  button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
-    border-radius: 4px;
-    padding: 4px 10px;
-    cursor: pointer;
-    font-size: 14px;
-  }
-  button:hover { background: #e4e7ec; }
-  button.active {
-    background: #d1fadf;
-    border-color: #027a48;
-    color: #027a48;
-  }
-  button.active:hover { background: #c5f4d3; }
   button.primary {
     background: #1570ef;
     color: white;
-    border-color: #1570ef;
+    border: 1px solid #1570ef;
+    border-radius: 4px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 13px;
   }
-  button.topbar-add-project {
-    padding: 2px 10px;
-    font-size: 16px;
-    line-height: 1;
-    color: #475467;
-  }
-  button.topbar-add-project:hover { color: #1570ef; }
-  button.user-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    padding: 0;
-    margin-left: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    background: #f2f4f7;
-    color: #475467;
-    border: 1px solid #d0d5dd;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  button.user-avatar.signed-in {
-    background: #d1fadf;
-    color: #027a48;
-    border-color: #b6efbe;
-  }
-  button.user-avatar:hover { box-shadow: 0 0 0 3px rgba(21, 112, 239, 0.15); }
   button.primary:hover { background: #155eef; }
+
   .error {
     background: #fef0c7;
     color: #b54708;
     padding: 8px 24px;
     font-size: 13px;
   }
+
+  .grid {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: stretch;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .left-host {
+    width: var(--left-w);
+    flex-shrink: 0;
+    border-right: 1px solid #eef0f3;
+    overflow: hidden;
+  }
+  .right-host {
+    width: var(--right-w);
+    flex-shrink: 0;
+    border-left: 1px solid #eef0f3;
+    overflow: hidden;
+  }
+  .center {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .center-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .bottom-host {
+    height: var(--bottom-h);
+    flex-shrink: 0;
+    border-top: 1px solid #eef0f3;
+    overflow: hidden;
+  }
+
   .board {
     display: grid;
     grid-template-columns: repeat(4, minmax(240px, 1fr));
     gap: 12px;
     padding: 16px;
-    /* 26px is the always-visible ActivityBanner toggle bar at the
-       bottom — pad so nothing gets hidden behind it. */
-    padding-bottom: calc(16px + 26px);
     align-items: start;
-    min-height: calc(100vh - 60px);
   }
+
+  .status {
+    border-top: 1px solid #eef0f3;
+    background: #f9fafb;
+    padding: 4px 14px;
+    font-size: 11px;
+    color: #667085;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+  }
+  .dot { opacity: 0.5; }
+  .moving { color: #1570ef; }
 </style>

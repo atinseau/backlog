@@ -454,5 +454,15 @@
   "integrations.sources.button.syncing": "Syncing…",
   "integrations.sources.button.delete": "Delete",
   "integrations.sources.sync_result": "{created} created, {skipped} already present (out of {total})",
-  "integrations.button.close": "Close"
+  "integrations.button.close": "Close",
+  "nav.board": "Board",
+  "nav.commits": "Commits",
+  "nav.agents": "Agents",
+  "nav.integrations": "Integrations",
+  "nav.permissions": "Permissions",
+  "nav.repos": "Repos",
+  "bottom.activity": "Activity",
+  "bottom.chat": "Chat",
+  "inspector.empty_title": "No Selection",
+  "inspector.empty_hint": "Click a card to see its details here."
 }

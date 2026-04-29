@@ -6,9 +6,14 @@
   interface Props {
     workspaceId: string | null;
     onOpenDiff?: (runId: string, file: string) => void;
+    // When true (used by the BottomPanel host) the component drops its
+    // fixed-position toggle bar and just renders the events list flowing
+    // into whatever container it's mounted in. The host is responsible
+    // for the tab chrome.
+    embedded?: boolean;
   }
 
-  let { workspaceId, onOpenDiff }: Props = $props();
+  let { workspaceId, onOpenDiff, embedded = false }: Props = $props();
 
   // Pull a file path out of the activity event message when one is
   // present. Tool summaries follow the shape "Read foo/bar.rb" /
@@ -160,31 +165,33 @@
   });
 </script>
 
-<div class="bar" class:open>
-  <button
-    class="toggle"
-    onclick={toggle}
-    aria-expanded={open}
-    title={open ? t("activity.collapse") : t("activity.expand")}
-  >
-    <span class="chevron">{open ? "▾" : "▴"}</span>
-    <span class="label">{t("activity.title")}</span>
-    {#if !open && unread > 0}
-      <span class="badge">{unread}</span>
-    {/if}
+{#if !embedded}
+  <div class="bar" class:open>
+    <button
+      class="toggle"
+      onclick={toggle}
+      aria-expanded={open}
+      title={open ? t("activity.collapse") : t("activity.expand")}
+    >
+      <span class="chevron">{open ? "▾" : "▴"}</span>
+      <span class="label">{t("activity.title")}</span>
+      {#if !open && unread > 0}
+        <span class="badge">{unread}</span>
+      {/if}
+      {#if open}
+        <span class="count">{events.length}</span>
+      {/if}
+    </button>
     {#if open}
-      <span class="count">{events.length}</span>
+      <div class="actions">
+        <button onclick={clearAll} disabled={events.length === 0} title={t("activity.clear")}>↺</button>
+      </div>
     {/if}
-  </button>
-  {#if open}
-    <div class="actions">
-      <button onclick={clearAll} disabled={events.length === 0} title={t("activity.clear")}>↺</button>
-    </div>
-  {/if}
-</div>
+  </div>
+{/if}
 
-{#if open}
-  <section class="panel" aria-label={t("activity.title")}>
+{#if open || embedded}
+  <section class="panel" class:embedded aria-label={t("activity.title")}>
     <div class="scroll" bind:this={scrollEl} onscroll={handleScroll}>
       {#if events.length === 0}
         <p class="muted">{t("activity.empty")}</p>
@@ -298,6 +305,14 @@
     flex-direction: column;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
+  }
+  /* Embedded into the BottomPanel host: drop the fixed positioning,
+     fill the parent container, and let the host handle the chrome. */
+  .panel.embedded {
+    position: relative;
+    height: 100%;
+    border-top: none;
+    background: #0c111d;
   }
   .scroll {
     flex: 1;

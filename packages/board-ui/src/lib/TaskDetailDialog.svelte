@@ -8,9 +8,13 @@
     onClose: () => void;
     onSplit?: () => void;
     onAddSubTask?: () => void;
+    // When true, the component renders inline (no backdrop, no modal
+    // chrome) so it can be embedded into the RightPanel inspector.
+    // The host is responsible for the surrounding chrome.
+    embedded?: boolean;
   }
 
-  let { taskId, onClose, onSplit, onAddSubTask }: Props = $props();
+  let { taskId, onClose, onSplit, onAddSubTask, embedded = false }: Props = $props();
 
   let task = $state<TaskDetail | null>(null);
   let subtasks = $state<SubTaskDetail[]>([]);
@@ -39,19 +43,20 @@
   load();
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
-    <header>
-      <div class="title-block">
-        {#if task}
-          <span class="pri pri-{task.priority.toLowerCase()}">{task.priority}</span>
-          <h2>{task.title}</h2>
-        {:else}
-          <h2>{t("task_detail.title")}</h2>
-        {/if}
-      </div>
+{#snippet body()}
+  <header class="detail-header">
+    <div class="title-block">
+      {#if task}
+        <span class="pri pri-{task.priority.toLowerCase()}">{task.priority}</span>
+        <h2>{task.title}</h2>
+      {:else}
+        <h2>{t("task_detail.title")}</h2>
+      {/if}
+    </div>
+    {#if !embedded}
       <button class="close" onclick={onClose}>✕</button>
-    </header>
+    {/if}
+  </header>
 
     {#if error}
       <div class="error">{error}</div>
@@ -215,8 +220,19 @@
         </footer>
       </div>
     {/if}
+{/snippet}
+
+{#if embedded}
+  <div class="inspector">
+    {@render body()}
   </div>
-</div>
+{:else}
+  <div class="backdrop" onclick={onClose} role="presentation">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+      {@render body()}
+    </div>
+  </div>
+{/if}
 
 <style>
   .backdrop {
@@ -235,6 +251,16 @@
     max-width: 720px;
     width: 92%;
     max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* Embedded into the RightPanel inspector — no backdrop, no shadow,
+     fills the host. */
+  .inspector {
+    background: white;
+    height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;

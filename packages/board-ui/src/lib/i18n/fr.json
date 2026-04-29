@@ -454,5 +454,15 @@
   "integrations.sources.button.syncing": "Sync…",
   "integrations.sources.button.delete": "Supprimer",
   "integrations.sources.sync_result": "{created} créées, {skipped} déjà présentes (sur {total})",
-  "integrations.button.close": "Fermer"
+  "integrations.button.close": "Fermer",
+  "nav.board": "Tableau",
+  "nav.commits": "Commits",
+  "nav.agents": "Agents",
+  "nav.integrations": "Intégrations",
+  "nav.permissions": "Permissions",
+  "nav.repos": "Repos",
+  "bottom.activity": "Activité",
+  "bottom.chat": "Chat",
+  "inspector.empty_title": "Aucune sélection",
+  "inspector.empty_hint": "Clique sur une carte pour voir ses détails ici."
 }

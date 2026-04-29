@@ -7,9 +7,14 @@
     open: boolean;
     workspaceId: string | null;
     onClose: () => void;
+    // When embedded into the BottomPanel, the drawer chrome is dropped
+    // (no fixed positioning, no close button — the host's tab bar
+    // handles dismissal). The panel stays mounted so SSE subscriptions
+    // and history persist across tab switches.
+    embedded?: boolean;
   }
 
-  let { open, workspaceId, onClose }: Props = $props();
+  let { open, workspaceId, onClose, embedded = false }: Props = $props();
 
   // Fetched on mount + refreshed whenever an orchestrator.changed SSE
   // event lands. Drives the visibility / enabled state of the emergency
@@ -315,32 +320,34 @@
   const isLive = $derived(orchestratorMode === "running" || orchestratorMode === "paused");
 </script>
 
-{#if open}
-  <aside class="drawer" aria-label={t("chat.title")}>
-    <header>
-      <h2>{t("chat.title")}</h2>
-      <div class="actions">
-        {#if isLive}
-          <!-- Emergency pause/stop. The full surface (Play, settings) lives in
-               the topbar OrchestratorControls — these are just the brakes
-               for when something looks wrong and the user wants out fast. -->
-          <button
-            class="emergency"
-            onclick={() => emergency("pause")}
-            disabled={actionBusy !== null || orchestratorMode !== "running"}
-            title={t("chat.action_pause")}
-          >{actionBusy === "pause" ? "…" : "⏸"}</button>
-          <button
-            class="emergency stop"
-            onclick={() => emergency("stop")}
-            disabled={actionBusy !== null || orchestratorMode === "idle"}
-            title={t("chat.action_stop")}
-          >{actionBusy === "stop" ? "…" : "⏹"}</button>
-        {/if}
-        <button onclick={clearHistory} title={t("chat.clear")} disabled={history.length === 0 || busy}>↺</button>
-        <button onclick={onClose} aria-label={t("chat.close")} title={t("chat.close_hint")}>✕</button>
-      </div>
-    </header>
+{#if open || embedded}
+  <aside class="drawer" class:embedded aria-label={t("chat.title")}>
+    {#if !embedded}
+      <header>
+        <h2>{t("chat.title")}</h2>
+        <div class="actions">
+          {#if isLive}
+            <!-- Emergency pause/stop. The full surface (Play, settings) lives in
+                 the topbar OrchestratorControls — these are just the brakes
+                 for when something looks wrong and the user wants out fast. -->
+            <button
+              class="emergency"
+              onclick={() => emergency("pause")}
+              disabled={actionBusy !== null || orchestratorMode !== "running"}
+              title={t("chat.action_pause")}
+            >{actionBusy === "pause" ? "…" : "⏸"}</button>
+            <button
+              class="emergency stop"
+              onclick={() => emergency("stop")}
+              disabled={actionBusy !== null || orchestratorMode === "idle"}
+              title={t("chat.action_stop")}
+            >{actionBusy === "stop" ? "…" : "⏹"}</button>
+          {/if}
+          <button onclick={clearHistory} title={t("chat.clear")} disabled={history.length === 0 || busy}>↺</button>
+          <button onclick={onClose} aria-label={t("chat.close")} title={t("chat.close_hint")}>✕</button>
+        </div>
+      </header>
+    {/if}
 
     <div class="conversation" bind:this={scrollEl}>
       {#if history.length === 0}
@@ -418,6 +425,16 @@
     z-index: 50;
     display: flex;
     flex-direction: column;
+  }
+  /* Embedded into the BottomPanel: drop the fixed-position drawer
+     chrome and let the host's flex layout drive height. */
+  .drawer.embedded {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-left: none;
+    box-shadow: none;
+    z-index: auto;
   }
   header {
     display: flex;
