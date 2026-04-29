@@ -8,7 +8,15 @@ All notable changes to the `backlog` CLI are documented here.
 
 ## [1.3.0] - 2026-04-29
 
-The first release on the restored 1.x line. Functionally a superset of the 1.2.0 codebase plus everything that was sitting in Unreleased on the branch (and the brief `0.1.0` snapshot on npm).
+The first release on the restored 1.x line. Functionally a superset of the 1.2.0 codebase plus everything that was sitting in Unreleased on the branch (and the brief `0.1.0` snapshot on npm), plus the open-core split and the Desktop preview.
+
+### Highlights
+
+- **Backlog Desktop** ([backlog.so/desktop](https://backlog.so/desktop), `packages/desktop/`) is now the recommended way to run the kanban for non-terminal users. Electron shell around the same `@backlog/server` + `@backlog/board-ui` the CLI already runs — one engine, one feature surface. The macOS DMG (Apple Silicon + Intel) is in Apple notarisation; Windows + Linux follow via the same `electron-builder` config. Free, Apache-2.0, full feature parity with `backlog serve`.
+- **Open-core boundary made explicit.** CLI + Desktop + SDK are free forever under Apache-2.0. Backlog Cloud (private development, [waitlist](https://backlog.so/cloud)) only adds features that genuinely need infrastructure we run: SMTP for invites and digests, hosted auth & SSO (SAML/OIDC, SCIM), multi-tenant collaboration with real-time sync, hosted run executors (managed agents, ephemeral sandboxes), retention beyond local disk, audit log export. The boundary maps to *infrastructure we run*, not features we artificially gate.
+- **Marketing surface refreshed** at [backlog.so](https://backlog.so): dedicated `/cli`, `/desktop`, `/sdk`, `/cloud` pages, an anonymous waitlist for Desktop and Cloud, and a flesh-out `/docs` covering quickstart, concepts, full CLI reference, workspace layout, configuration, the orchestrator, claims & the pre-commit hook, agents, connectors, the API, self-hosting, and troubleshooting.
+- **Embedded server port fix** (`packages/server/src/index.ts`). `startServer({ port: 0 })` now returns the actually-bound port (read from `server.address()`) instead of echoing the requested `0`. Required for Electron's random-port boot; the CLI gets the fix for free, so `backlog serve --port 0` no longer reports the wrong URL.
+- **`backlog hooks pause` / `backlog hooks resume`** are now first-class subcommands (previously only documented as escape-hatches). Pausing covers a 30-minute window so you can do a sequence of commits without the per-commit `BACKLOG_SKIP_HOOK=1` dance; resume re-enables on the spot.
 
 ### Workspace & projects
 
