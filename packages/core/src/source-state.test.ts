@@ -37,6 +37,7 @@ function importedItem(title: string): Task {
     acceptance_criteria: [],
     dependencies: [],
     planning: { split_status: "pending", risk: "medium" },
+    execution_defaults: { manual_approval_required: false, auto_commit: true },
     sync: { source_of_truth: "external", push_status: false, push_comments: false },
     created_at: now,
     updated_at: now,

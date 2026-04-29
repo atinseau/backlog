@@ -85,6 +85,7 @@ export function runsRoutes(): Hono<AppEnv> {
                 repo: repoId,
                 risk: task.planning?.risk ?? "medium",
                 plannerOrigin: "manual",
+                manualApprovalRequired: task.execution_defaults?.manual_approval_required ?? false,
               };
               createSubTask(workspace.backlogDir, subInput);
             }

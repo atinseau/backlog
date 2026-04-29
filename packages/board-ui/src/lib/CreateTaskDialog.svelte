@@ -25,6 +25,11 @@
   let repoTargets = $state<string[]>([]);
   let error = $state<string | null>(null);
 
+  // Execution defaults the user picks at task creation time. Inherited
+  // by the sub-task auto-shim and (eventually) by AI-split sub-tasks.
+  let manualApproval = $state(false);
+  let autoSplit = $state(false); // ask AI to split into sub-tasks
+
   let createdTask = $state<CreatedTask | null>(null);
   let proposalTasks = $state<ProposedTask[]>([]);
   let proposalRationale = $state("");
@@ -49,11 +54,13 @@
       };
       if (description.trim()) input.description = description.trim();
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
+      input.manual_approval_required = manualApproval;
       const task = await createTask(input);
       createdTask = task;
-      // Kick the AI splitter only when we have at least one repo to split
-      // into; otherwise there's nothing to scope sub-tasks on.
-      if ((repoTargets.length > 0 || availableRepos.length > 0)) {
+      // Only kick the AI splitter when the user explicitly opts in.
+      // Most tasks (one HTML file, one fix, one PR) shouldn't be split;
+      // splitting is for genuinely parallel-able multi-repo work.
+      if (autoSplit && (repoTargets.length > 0 || availableRepos.length > 0)) {
         phase = "splitting";
         const result = await suggestSplit(task.id);
         if (result.ok) {
@@ -164,6 +171,25 @@
           </div>
         {/if}
 
+        <fieldset class="execution">
+          <legend>{t("create_task.execution.title")}</legend>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={autoSplit} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.auto_split")}</span>
+              <span class="toggle-desc">{t("create_task.execution.auto_split_desc")}</span>
+            </span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={manualApproval} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
+              <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
+            </span>
+          </label>
+          <p class="hint">{t("create_task.execution.worktree_note")}</p>
+        </fieldset>
+
         <footer>
           <button type="button" onclick={onClose}>{t("create_task.button.cancel")}</button>
           <button type="submit" class="primary" disabled={phase === "creating" || !title.trim()}>
@@ -244,6 +270,45 @@
 </div>
 
 <style>
+  .execution {
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 8px 12px 6px;
+    background: var(--bg-elevated);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .execution legend {
+    padding: 0 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .toggle {
+    display: flex; align-items: flex-start; gap: 8px;
+    cursor: pointer;
+  }
+  .toggle input[type="checkbox"] {
+    width: 14px; height: 14px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .toggle-label {
+    display: block; font-size: 13px; color: var(--text-primary);
+  }
+  .toggle-desc {
+    display: block; font-size: 11px; color: var(--text-muted); margin-top: 1px;
+  }
+  .hint {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: var(--text-subtle);
+    font-style: italic;
+  }
   .backdrop {
     position: fixed;
     inset: 0;

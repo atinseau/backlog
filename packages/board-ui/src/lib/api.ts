@@ -330,6 +330,8 @@ export interface CreateTaskInput {
   labels?: string[];
   acceptance_criteria?: string[];
   estimated_duration_seconds?: number;
+  manual_approval_required?: boolean;
+  auto_commit?: boolean;
 }
 
 export interface CreatedTask {

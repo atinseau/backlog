@@ -36,6 +36,8 @@ const createBodySchema = z.object({
   labels: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.array(z.string().min(1)).optional(),
   estimated_duration_seconds: z.number().int().positive().optional(),
+  manual_approval_required: z.boolean().optional(),
+  auto_commit: z.boolean().optional(),
 });
 
 const reorderBodySchema = z.object({
@@ -103,6 +105,8 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.acceptance_criteria !== undefined) input.acceptanceCriteria = parsed.data.acceptance_criteria;
+      if (parsed.data.manual_approval_required !== undefined) input.manualApprovalRequired = parsed.data.manual_approval_required;
+      if (parsed.data.auto_commit !== undefined) input.autoCommit = parsed.data.auto_commit;
       let workItem = createTask(workspace.backlogDir, input);
       if (parsed.data.estimated_duration_seconds) {
         workItem = setTaskEstimate(workspace.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);

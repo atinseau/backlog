@@ -12,6 +12,8 @@ export interface CreateWorkItemInput {
   labels?: string[];
   acceptanceCriteria?: string[];
   sourceLinks?: SourceLink[];
+  manualApprovalRequired?: boolean;
+  autoCommit?: boolean;
 }
 
 export interface UpdateWorkItemInput {
@@ -46,6 +48,10 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
     planning: {
       split_status: "pending",
       risk: "medium",
+    },
+    execution_defaults: {
+      manual_approval_required: input.manualApprovalRequired ?? false,
+      auto_commit: input.autoCommit ?? true,
     },
     sync: {
       source_of_truth: "backlog",

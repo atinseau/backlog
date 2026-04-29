@@ -84,6 +84,10 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
       split_status: "pending",
       risk: "medium",
     },
+    execution_defaults: {
+      manual_approval_required: false,
+      auto_commit: true,
+    },
     sync: {
       source_of_truth: source.sync.source_of_truth,
       push_status: source.sync.push_status,

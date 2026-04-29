@@ -49,6 +49,17 @@ export const taskSchema = z.object({
     risk: z.enum(["low", "medium", "high"]).default("medium"),
     preferred_lane: z.string().optional(),
   }),
+  // Per-task execution preferences applied to the run when this task is
+  // launched. Inherited by sub-tasks (auto-shim or split) unless the
+  // sub-task overrides them. Optional + defaulted so existing tasks
+  // load without migration.
+  execution_defaults: z.object({
+    manual_approval_required: z.boolean().default(false),
+    auto_commit: z.boolean().default(true),
+  }).default({
+    manual_approval_required: false,
+    auto_commit: true,
+  }),
   sync: z.object({
     source_of_truth: z.enum(["external", "backlog"]).default("backlog"),
     push_status: z.boolean().default(false),

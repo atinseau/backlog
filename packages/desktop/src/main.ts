@@ -21,21 +21,18 @@ ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
 });
 ipcMain.handle("backlog:pick-folder", async (event, opts: unknown) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  const options = (opts && typeof opts === "object" ? opts : {}) as {
+  const raw = (opts && typeof opts === "object" ? opts : {}) as {
     title?: string;
     defaultPath?: string;
   };
+  const dialogOptions: Electron.OpenDialogOptions = {
+    properties: ["openDirectory", "createDirectory"],
+  };
+  if (raw.title) dialogOptions.title = raw.title;
+  if (raw.defaultPath) dialogOptions.defaultPath = raw.defaultPath;
   const result = win
-    ? await dialog.showOpenDialog(win, {
-        title: options.title,
-        defaultPath: options.defaultPath,
-        properties: ["openDirectory", "createDirectory"],
-      })
-    : await dialog.showOpenDialog({
-        title: options.title,
-        defaultPath: options.defaultPath,
-        properties: ["openDirectory", "createDirectory"],
-      });
+    ? await dialog.showOpenDialog(win, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });
@@ -97,8 +94,9 @@ async function createWindow(): Promise<void> {
   });
   // Same idea for in-page <a target="_blank">. Block any navigation
   // away from the embedded server's origin.
+  const localOrigin = serverHandle.url;
   mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
-    if (!targetUrl.startsWith(serverHandle.url)) {
+    if (!targetUrl.startsWith(localOrigin)) {
       event.preventDefault();
       void shell.openExternal(targetUrl);
     }
