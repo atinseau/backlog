@@ -398,12 +398,43 @@
     return null;
   }
 
+  // Re-pull workspace + board state when the window comes back into focus
+  // or the tab becomes visible again. Catches changes made by the CLI in
+  // another terminal (a new workspace, a task move, a hook install, …) —
+  // SSE handles in-workspace state but not the registry, and background
+  // tabs sometimes drop the connection. Debounced so a quick alt-tab
+  // doesn't spam the API.
+  let focusRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  function refreshOnFocus() {
+    if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
+    focusRefreshTimer = setTimeout(() => {
+      focusRefreshTimer = null;
+      void refreshWorkspaces();
+      void refreshRepos();
+      void refresh();
+      void loadCloudStatus();
+      // Re-establish SSE if the connection died while backgrounded.
+      if (!connected) connectSse();
+    }, 80);
+  }
+  function handleFocus() {
+    refreshOnFocus();
+  }
+  function handleVisibility() {
+    if (document.visibilityState === "visible") refreshOnFocus();
+  }
+
   onMount(() => {
     bootstrap();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
   });
   onDestroy(() => {
     teardownSse();
     if (refreshTimer) clearTimeout(refreshTimer);
+    if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
+    window.removeEventListener("focus", handleFocus);
+    document.removeEventListener("visibilitychange", handleVisibility);
   });
 </script>
 
