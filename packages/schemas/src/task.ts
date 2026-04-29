@@ -55,7 +55,16 @@ export const taskSchema = z.object({
   // load without migration.
   execution_defaults: z.object({
     manual_approval_required: z.boolean().default(false),
+    // Auto-commit any changes the agent leaves in the worktree right
+    // after the executor finishes. Off → the agent's edits stay
+    // uncommitted and get torn down with the worktree on approve, so
+    // the work is lost. Defaulted to true.
     auto_commit: z.boolean().default(true),
+    // Push the run's branch to `origin` after auto-commit. Skipped
+    // silently when the repo has no `origin` remote (local-only).
+    // Defaulted to true so collaborators can pull the work without
+    // an extra step.
+    push_when_done: z.boolean().default(true),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a
     // specific agent (claude-code, codex, etc.) or a user. The
@@ -64,6 +73,7 @@ export const taskSchema = z.object({
   }).default({
     manual_approval_required: false,
     auto_commit: true,
+    push_when_done: true,
     preferred_agents: [],
   }),
   sync: z.object({

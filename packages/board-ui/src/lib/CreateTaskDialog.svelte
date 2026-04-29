@@ -32,6 +32,13 @@
   // by the sub-task auto-shim and (eventually) by AI-split sub-tasks.
   let manualApproval = $state(false);
   let autoSplit = $state(false); // ask AI to split into sub-tasks
+  // Auto-commit + auto-push: defaulted ON because that's what users
+  // expect when they click Play — "do the work AND save it." Without
+  // commit, the agent's edits live in the worktree and disappear with
+  // it on approve. Push is best-effort (skipped silently for repos
+  // with no `origin` remote).
+  let commitWhenDone = $state(true);
+  let pushWhenDone = $state(true);
 
   // Assignee for the (future) sub-task. Empty = "auto" (let the
   // orchestrator rank). Otherwise either an AI agent id or a human
@@ -78,6 +85,8 @@
       if (description.trim()) input.description = description.trim();
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = manualApproval;
+      input.auto_commit = commitWhenDone;
+      input.push_when_done = pushWhenDone;
       // Empty assignee = "auto" (orchestrator picks). Anything else
       // (agent id or user id) goes into preferred_agents and is
       // inherited by the auto-shim sub-task or by split sub-tasks.
@@ -236,6 +245,20 @@
             <span>
               <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
               <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
+            </span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={commitWhenDone} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.commit_when_done")}</span>
+              <span class="toggle-desc">{t("create_task.execution.commit_when_done_desc")}</span>
+            </span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={pushWhenDone} disabled={!commitWhenDone} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
+              <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
             </span>
           </label>
           <p class="hint">{t("create_task.execution.worktree_note")}</p>

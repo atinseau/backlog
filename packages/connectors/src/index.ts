@@ -87,6 +87,7 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
     execution_defaults: {
       manual_approval_required: false,
       auto_commit: true,
+      push_when_done: true,
       preferred_agents: [],
     },
     sync: {

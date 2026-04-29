@@ -14,6 +14,7 @@ export interface CreateWorkItemInput {
   sourceLinks?: SourceLink[];
   manualApprovalRequired?: boolean;
   autoCommit?: boolean;
+  pushWhenDone?: boolean;
   // Default assignee for sub-tasks generated from this task. Single
   // agent / user id, or empty for "auto". Threaded into the auto-shim
   // sub-task in POST /runs.
@@ -56,6 +57,7 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
     execution_defaults: {
       manual_approval_required: input.manualApprovalRequired ?? false,
       auto_commit: input.autoCommit ?? true,
+      push_when_done: input.pushWhenDone ?? true,
       preferred_agents: input.preferredAgents ?? [],
     },
     sync: {

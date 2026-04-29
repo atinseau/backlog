@@ -112,6 +112,72 @@ export async function mergeRunBranch(input: {
   return { ok: true, strategy: opts.strategy, target: opts.target, branch };
 }
 
+// Stage every change in the worktree and create a commit. Returns
+// { ok, sha } on success or an error message. Idempotent: if there's
+// nothing to commit, ok=true with sha=null.
+//
+// This is what makes the "agent edited files but the work survives"
+// invariant true. Without it, claude-code writes files in the
+// worktree, the run finishes, the worktree gets torn down on approve,
+// and the work is lost (the branch SHA never moved past initial).
+export async function commitWorktreeChanges(input: {
+  worktreePath: string;
+  message: string;
+  authorName?: string;
+  authorEmail?: string;
+}): Promise<{ ok: boolean; sha: string | null; error?: string; detail?: string }> {
+  const cwd = input.worktreePath;
+  // Stage everything (new files, modifications, deletions). The
+  // worktree starts clean so we don't risk picking up stale state.
+  const add = await safeRun(["add", "-A"], cwd);
+  if (add.exitCode !== 0) {
+    return { ok: false, sha: null, error: "git add failed", detail: add.stderr.trim().slice(0, 400) };
+  }
+  // Anything to commit? `diff --cached --quiet` exits 1 when staged
+  // changes exist, 0 when the index is clean.
+  const diff = await safeRun(["diff", "--cached", "--quiet"], cwd);
+  if (diff.exitCode === 0) {
+    return { ok: true, sha: null };
+  }
+  const args = ["commit", "-m", input.message];
+  if (input.authorName) args.push("-c", `user.name=${input.authorName}`);
+  if (input.authorEmail) args.push("-c", `user.email=${input.authorEmail}`);
+  // Skip the project's own pre-commit hook on the agent's commit —
+  // we're committing inside an agent's isolated worktree, the human
+  // will review the diff at approve time.
+  args.push("--no-verify");
+  const commit = await safeRun(args, cwd);
+  if (commit.exitCode !== 0) {
+    return { ok: false, sha: null, error: "git commit failed", detail: (commit.stderr || commit.stdout).trim().slice(0, 400) };
+  }
+  const rev = await safeRun(["rev-parse", "HEAD"], cwd);
+  return { ok: true, sha: rev.stdout.trim() || null };
+}
+
+// Push the worktree's current branch to origin. Returns ok=false
+// (with a reason) when the repo has no `origin` remote — that's
+// expected for local-only repos and shouldn't crash the run.
+export async function pushWorktreeBranch(input: {
+  worktreePath: string;
+  branch: string;
+}): Promise<{ ok: boolean; error?: string; detail?: string }> {
+  const cwd = input.worktreePath;
+  // Probe origin first. Avoids a noisy "remote not found" stderr.
+  const remotes = await safeRun(["remote"], cwd);
+  if (remotes.exitCode !== 0 || !remotes.stdout.split("\n").includes("origin")) {
+    return { ok: false, error: "no_origin_remote" };
+  }
+  const push = await safeRun(["push", "-u", "origin", input.branch], cwd);
+  if (push.exitCode !== 0) {
+    return {
+      ok: false,
+      error: `git push failed (exit ${push.exitCode})`,
+      detail: (push.stderr || push.stdout).trim().slice(0, 400),
+    };
+  }
+  return { ok: true };
+}
+
 // Tear down a worktree + optionally delete its branch. Best-effort:
 // failures are reported but don't throw, because approve has already
 // done its work and we don't want one stale lock to break the flow.
