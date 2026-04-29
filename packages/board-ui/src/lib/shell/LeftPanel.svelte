@@ -24,6 +24,7 @@
     selectedRepoId: string | null;
     onSelectRepo: (id: string | null) => void;
     onManageRepos: () => void;
+    onCreateRepo?: () => void;
     section: SectionKey;
     onSelectSection: (key: SectionKey) => void;
   }
@@ -33,6 +34,7 @@
     selectedRepoId,
     onSelectRepo,
     onManageRepos,
+    onCreateRepo,
     section,
     onSelectSection,
   }: Props = $props();
@@ -58,6 +60,7 @@
       projectScoped={false}
       onSelect={onSelectRepo}
       onManage={onManageRepos}
+      onCreate={onCreateRepo}
     />
   </div>
 

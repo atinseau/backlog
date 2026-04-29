@@ -132,7 +132,7 @@ export async function executeCodexAgentRun(params: {
   try {
     const subprocess = execa(executable, args, {
       cwd: params.run.worktree_path,
-      env: buildProviderEnv(params.agent, params.run, params.task, params.workItem),
+      env: buildProviderEnv(params.agent, params.run, params.task, params.workItem, params.backlogDir),
       input: prompt,
       reject: false,
     });

@@ -158,7 +158,7 @@
     border-radius: 4px;
     cursor: pointer;
     font: inherit;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
   }

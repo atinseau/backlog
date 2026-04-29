@@ -9,6 +9,7 @@
   interface BacklogBridge {
     openPath: (path: string) => Promise<string>;
     showInFolder: (path: string) => Promise<void>;
+    pickFolder: (opts?: { title?: string }) => Promise<string | null>;
   }
   declare global { interface Window { backlog?: BacklogBridge } }
   const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
@@ -274,10 +275,20 @@
               <label>Id<input bind:value={newId} placeholder="frontend" required pattern="[a-zA-Z0-9_-]+" /></label>
               <label>Branche par défaut<input bind:value={newBranch} placeholder="main" /></label>
             </div>
-            <label class="full">
-              Chemin (absolu ou relatif au workspace)
-              <input bind:value={newPath} placeholder="/Users/jimmy/Dev/twoody/twoody-frontend" required />
-            </label>
+            <div class="full">
+              <span class="hint-label">Dossier du repository</span>
+              {#if isElectron}
+                <button class="picker" type="button" onclick={async () => {
+                  const picked = await window.backlog!.pickFolder({ title: "Choisir le repository" });
+                  if (picked) newPath = picked;
+                }}>
+                  <span class="picker-icon">📂</span>
+                  <span class="picker-value">{newPath || "Choisir un dossier…"}</span>
+                </button>
+              {:else}
+                <input bind:value={newPath} placeholder="/Users/jimmy/Dev/twoody/twoody-frontend" required />
+              {/if}
+            </div>
           {/if}
 
           <label class="full">
@@ -419,6 +430,28 @@
   .hook-warn    { background: var(--warning-bg); color: var(--warning); }
   .hook-off     { background: var(--bg-hover); color: var(--text-muted); }
   .hook-missing { background: var(--danger-bg); color: var(--danger); }
+  .hint-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .picker {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    cursor: pointer; text-align: left;
+    color: var(--text-secondary);
+    font: inherit; font-size: 13px;
+  }
+  .picker:hover {
+    border-style: solid; border-color: var(--accent);
+    color: var(--text-primary);
+  }
+  .picker-icon { flex-shrink: 0; }
+  .picker-value {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+    font-family: ui-monospace, monospace; font-size: 11.5px;
+  }
   button.ghost {
     background: transparent;
     border: 1px solid var(--border-strong);

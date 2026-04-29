@@ -16,6 +16,11 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let savingAgentId = $state<string | null>(null);
+  let expandedId = $state<string | null>(null);
+
+  function toggleExpanded(id: string) {
+    expandedId = expandedId === id ? null : id;
+  }
 
   // Per-provider model suggestions. Free-text input — these are just
   // hints in a datalist, the user can type whatever they want.
@@ -152,11 +157,19 @@
     {:else}
       <ul class="agents">
         {#each agents as agent (agent.id)}
-          <li class:disabled={!agent.enabled} class:not-executable={!isExecutable(agent)}>
-            <header class="agent-header">
+          {@const isExpanded = expandedId === agent.id}
+          <li class:disabled={!agent.enabled} class:not-executable={!isExecutable(agent)} class:expanded={isExpanded}>
+            <button
+              class="agent-header"
+              type="button"
+              onclick={() => toggleExpanded(agent.id)}
+              aria-expanded={isExpanded}
+            >
+              <span class="chev" aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
               <div class="ident">
                 <strong>{agent.id}</strong>
                 <span class="provider provider-{agent.provider}">{agent.provider}</span>
+                {#if agent.model}<span class="model-pill">{agent.model}</span>{/if}
                 {#if !isExecutable(agent)}
                   <span class="warn">{t("agents_view.not_executable")}</span>
                 {/if}
@@ -164,7 +177,7 @@
                   <span class="active">▶ {agent.active_runs} actif{agent.active_runs > 1 ? "s" : ""}</span>
                 {/if}
               </div>
-              <label class="toggle">
+              <label class="toggle" onclick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
                   checked={agent.enabled}
@@ -173,8 +186,9 @@
                 />
                 {agent.enabled ? t("agents_view.enabled") : t("agents_view.disabled")}
               </label>
-            </header>
+            </button>
 
+            {#if isExpanded}
             <div class="grid">
               <label class="field">
                 <span class="lbl">{t("agents_view.field_model")}</span>
@@ -287,6 +301,7 @@
                 </div>
               </details>
             </div>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -379,20 +394,53 @@
   }
   ul.agents li {
     border: 1px solid var(--border-default);
-    border-radius: 8px;
-    padding: 12px;
+    border-radius: 6px;
     background: var(--bg-surface);
+    overflow: hidden;
   }
-  ul.agents li.disabled { background: var(--bg-muted); opacity: 0.7; }
-  ul.agents li.not-executable { border-color: var(--warning-bg); background: var(--warning-bg); }
+  ul.agents li.disabled { background: var(--bg-elevated); }
+  ul.agents li.not-executable { border-color: var(--warning); }
+  ul.agents li.expanded { background: var(--bg-elevated); }
 
-  .agent-header {
+  /* Compact clickable row. Default state: 40px tall, just essentials. */
+  button.agent-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    gap: 10px;
+    width: 100%;
+    background: transparent;
     border: none;
-    padding: 0;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-primary);
+    font: inherit;
+  }
+  button.agent-header:hover { background: var(--bg-hover); }
+  .chev {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 12px;
+  }
+  ul.agents li.expanded > button.agent-header {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  ul.agents li.expanded > .grid,
+  ul.agents li.expanded > .chips-row,
+  ul.agents li.expanded > .caps-row {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  ul.agents li.expanded > .grid { padding-top: 12px; }
+  ul.agents li.expanded > .caps-row { padding-bottom: 12px; }
+  .model-pill {
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    padding: 1px 6px;
+    border-radius: 3px;
   }
   .ident { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .ident strong { font-size: 14px; color: var(--text-primary); }

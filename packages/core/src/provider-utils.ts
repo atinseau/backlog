@@ -2,9 +2,39 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Agent, Artifact, Run, SubTask, Task } from "@backlog/schemas";
 import { execa } from "execa";
+import { getSecret } from "@backlog/config";
 
-export function buildProviderEnv(agent: Agent, run: Run, task: SubTask, workItem: Task): NodeJS.ProcessEnv {
+// Provider env vars sourced from the workspace's encrypted secrets
+// store. Each entry maps a workspace secret key → the env var the
+// provider's CLI expects. We only inject when the env var isn't
+// already set (process.env wins so users can still override per-run
+// via shell). Anthropic / OpenAI are the active set; add others here
+// when new providers ship.
+const PROVIDER_SECRET_ENV_MAP: Record<string, string> = {
+  ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY",
+  OPENAI_API_KEY: "OPENAI_API_KEY",
+};
+
+export function buildProviderEnv(
+  agent: Agent,
+  run: Run,
+  task: SubTask,
+  workItem: Task,
+  backlogDir?: string,
+): NodeJS.ProcessEnv {
+  // Workspace secrets layered before process.env so they're picked up
+  // when the user set their key via the UI (Settings → Project → API
+  // keys) or `backlog secrets set`. process.env still wins so a shell
+  // override remains possible for one-off debugging.
+  const secretsEnv: NodeJS.ProcessEnv = {};
+  if (backlogDir) {
+    for (const [secretKey, envVar] of Object.entries(PROVIDER_SECRET_ENV_MAP)) {
+      const value = getSecret(backlogDir, secretKey);
+      if (value) secretsEnv[envVar] = value;
+    }
+  }
   return {
+    ...secretsEnv,
     ...process.env,
     ...agent.environment,
     BACKLOG_RUN_ID: run.id,

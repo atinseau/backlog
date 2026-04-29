@@ -492,6 +492,7 @@
           selectedRepoId={selectedRepoId}
           onSelectRepo={persistRepo}
           onManageRepos={() => (leftSection = "repos")}
+          onCreateRepo={() => (leftSection = "repos")}
           section={leftSection}
           onSelectSection={applySection}
         />

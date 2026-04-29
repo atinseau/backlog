@@ -18,6 +18,21 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
+  // Optional bridge exposed by the Electron preload. When running in a
+  // pure browser (backlog serve), it's undefined and we fall back to a
+  // text input.
+  interface BacklogBridge {
+    pickFolder(opts?: { title?: string }): Promise<string | null>;
+  }
+  declare global { interface Window { backlog?: BacklogBridge } }
+  const isElectron = typeof window !== "undefined" && Boolean(window.backlog?.pickFolder);
+
+  async function pickPath() {
+    if (!isElectron) return;
+    const picked = await window.backlog!.pickFolder({ title: t("create_project.pick_folder") });
+    if (picked) path = picked;
+  }
+
   async function submit() {
     if (!path.trim()) return;
     if (mode === "new" && !name.trim()) return;
@@ -58,16 +73,18 @@
 
     {#if mode === "new"}
       <p class="muted small">{t("create_project.hint.new")}</p>
-      <label class="field">
+      <div class="field">
         <span class="label">{t("create_project.field.path")}</span>
-        <input
-          type="text"
-          bind:value={path}
-          placeholder="/Users/jimmy/Dev/my-project"
-          autocomplete="off"
-        />
+        {#if isElectron}
+          <button class="picker" onclick={pickPath} type="button">
+            <span class="picker-icon">📂</span>
+            <span class="picker-value">{path || t("create_project.choose_folder")}</span>
+          </button>
+        {:else}
+          <input type="text" bind:value={path} placeholder="/Users/jimmy/Dev/my-project" autocomplete="off" />
+        {/if}
         <small>{t("create_project.field.path_help")}</small>
-      </label>
+      </div>
       <label class="field">
         <span class="label">{t("create_project.field.name")}</span>
         <input type="text" bind:value={name} placeholder="my-project" autocomplete="off" />
@@ -78,16 +95,18 @@
       </label>
     {:else}
       <p class="muted small">{t("create_project.hint.existing")}</p>
-      <label class="field">
+      <div class="field">
         <span class="label">{t("create_project.field.path")}</span>
-        <input
-          type="text"
-          bind:value={path}
-          placeholder="/Users/jimmy/Dev/existing-project"
-          autocomplete="off"
-        />
+        {#if isElectron}
+          <button class="picker" onclick={pickPath} type="button">
+            <span class="picker-icon">📂</span>
+            <span class="picker-value">{path || t("create_project.choose_folder")}</span>
+          </button>
+        {:else}
+          <input type="text" bind:value={path} placeholder="/Users/jimmy/Dev/existing-project" autocomplete="off" />
+        {/if}
         <small>{t("create_project.field.path_existing_help")}</small>
-      </label>
+      </div>
     {/if}
 
     {#if error}<div class="msg err">{error}</div>{/if}
@@ -166,6 +185,32 @@
     font-family: inherit;
   }
   small { color: var(--text-subtle); font-size: 11px; }
+  .picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 13px;
+  }
+  .picker:hover {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+  .picker-icon { flex-shrink: 0; }
+  .picker-value {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+  }
   .muted { color: var(--text-subtle); }
   .small { font-size: 12px; }
   .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }

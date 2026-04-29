@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from "electron";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
 import { resolveWorkspace } from "./workspace-picker.js";
@@ -18,6 +18,26 @@ ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
   if (typeof url !== "string" || !url) return;
   if (!/^https?:\/\//.test(url)) return; // never let renderer open file:// or shell URLs
   await shell.openExternal(url);
+});
+ipcMain.handle("backlog:pick-folder", async (event, opts: unknown) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const options = (opts && typeof opts === "object" ? opts : {}) as {
+    title?: string;
+    defaultPath?: string;
+  };
+  const result = win
+    ? await dialog.showOpenDialog(win, {
+        title: options.title,
+        defaultPath: options.defaultPath,
+        properties: ["openDirectory", "createDirectory"],
+      })
+    : await dialog.showOpenDialog({
+        title: options.title,
+        defaultPath: options.defaultPath,
+        properties: ["openDirectory", "createDirectory"],
+      });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 });
 
 // Set the user-facing name early so app.getPath('userData') resolves to a

@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld("backlog", {
   openExternal(url: string): Promise<void> {
     return ipcRenderer.invoke("backlog:open-external", url);
   },
+  // Native folder picker — replaces typed paths everywhere we used to
+  // ask the user for one. Returns the picked absolute path, or null
+  // if the user cancelled.
+  pickFolder(opts?: { title?: string; defaultPath?: string }): Promise<string | null> {
+    return ipcRenderer.invoke("backlog:pick-folder", opts ?? {});
+  },
 });
