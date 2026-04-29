@@ -16,9 +16,10 @@
   interface Props {
     onError?: (message: string) => void;
     onStarted?: () => void;
+    onPlay?: () => Promise<void> | void;
   }
 
-  let { onError, onStarted }: Props = $props();
+  let { onError, onStarted, onPlay }: Props = $props();
 
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
@@ -45,7 +46,15 @@
   async function handleStart() {
     busy = true;
     try {
-      orchestrator = await startOrchestrator({});
+      // The parent owns the "what to start" decision (it has the
+      // board state). Fall back to the orchestrator-level start when
+      // no callback is provided so this component keeps working in
+      // isolation (tests / standalone usage).
+      if (onPlay) {
+        await onPlay();
+      } else {
+        orchestrator = await startOrchestrator({});
+      }
       onStarted?.();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));

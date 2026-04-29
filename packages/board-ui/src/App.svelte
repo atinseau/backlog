@@ -33,6 +33,7 @@
     fetchCloudStatus,
     fetchCurrentProject,
     fetchRepos,
+    fetchAgents,
     fetchProjectsList,
     approveRun,
     moveWorkItem,
@@ -41,6 +42,7 @@
     setCurrentProjectId,
     startRun,
     type CloudStatus,
+    type AgentSummary,
   } from "./lib/api.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
@@ -100,6 +102,10 @@
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
   let cloudStatus = $state<CloudStatus | null>(null);
+  // Cached list of agents for preflight checks (banner that warns
+  // before Play if no AI agent is enabled). Refreshed on workspace
+  // switch and after the user closes the Agents section.
+  let agentsList = $state<AgentSummary[]>([]);
 
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations / Permissions
@@ -191,6 +197,17 @@
     }
   }
 
+  async function refreshAgents() {
+    try { agentsList = await fetchAgents(); }
+    catch { agentsList = []; }
+  }
+
+  // Preflight: any executable AI agent enabled? "manual" agents don't
+  // count — they're explicit human assignees, not run executors.
+  const hasEnabledAIAgent = $derived(
+    agentsList.some((a) => a.enabled && (a.provider === "claude" || a.provider === "codex" || a.provider === "custom")),
+  );
+
   async function refreshRepos() {
     try {
       workspaceRepos = await fetchRepos();
@@ -264,6 +281,7 @@
     selectedTaskId = null;
     refresh();
     refreshRepos();
+    refreshAgents();
     connectSse();
   }
 
@@ -291,6 +309,7 @@
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
     refresh();
     refreshRepos();
+    refreshAgents();
     connectSse();
     loadCloudStatus();
   }
@@ -351,17 +370,14 @@
           result.skipped[0]?.reasons[0] ??
           result.blocked[0]?.reasons[0] ??
           result.waiting[0]?.reasons[0];
-        if (reason) {
+        if (reason === "no_compatible_agent") {
+          // Translate the wire reason into a sentence the user can act
+          // on, and send them to the Agents view where the fix lives.
+          error = t("card.play_no_agent");
+          leftSection = "agents";
+        } else if (reason) {
           error = t("card.play_skipped", { reason });
-          // "no_compatible_agent" almost always means the user hasn't
-          // enabled Claude / Codex yet. Send them to the Agents view so
-          // the fix is one click away.
-          if (reason === "no_compatible_agent") leftSection = "agents";
         } else {
-          // Server auto-creates a default subtask when the parent task
-          // has none, so reaching this branch means something else is
-          // off (no agent enabled, all blocked, etc.). Show a generic
-          // skipped message; the user can dig in via Agents / details.
           error = t("card.play_skipped_empty");
         }
       }
@@ -370,6 +386,22 @@
     } finally {
       if (!connected) await refresh();
     }
+  }
+
+  async function handleTopbarPlay() {
+    // Topbar Play takes the next "À faire" card (the one at the top of
+    // the todo column — the user's chosen ordering) and starts it.
+    // Falls back to the global orchestrator if there's nothing to run
+    // so the action still toggles mode for advanced users.
+    error = null;
+    openActivityPanel();
+    if (!board) return;
+    const next = board.columns.todo?.[0];
+    if (!next) {
+      error = t("topbar.play_no_todo");
+      return;
+    }
+    await handlePlayCard(next);
   }
 
   // ---- shell behaviours ----
@@ -472,6 +504,7 @@
       <OrchestratorControls
         onError={(message) => (error = message)}
         onStarted={openActivityPanel}
+        onPlay={handleTopbarPlay}
       />
     </div>
     <div class="topbar-right">
@@ -546,6 +579,18 @@
             }}
           />
         {:else if leftSection === "board"}
+          {#if agentsList.length > 0 && !hasEnabledAIAgent}
+            <div class="preflight-banner" role="alert">
+              <span class="preflight-icon" aria-hidden="true">⚠</span>
+              <div class="preflight-text">
+                <strong>{t("preflight.no_agent.title")}</strong>
+                <span>{t("preflight.no_agent.body")}</span>
+              </div>
+              <button class="preflight-cta" onclick={() => (leftSection = "agents")}>
+                {t("preflight.no_agent.cta")}
+              </button>
+            </div>
+          {/if}
           <main class="board" style:--columns-count={visibleColumns.length}>
             {#each visibleColumns as key (key)}
               <Column
@@ -831,5 +876,43 @@
     padding: 16px;
     align-items: start;
   }
+
+  .preflight-banner {
+    margin: 12px 16px 0;
+    padding: 10px 14px;
+    border: 1px solid var(--warning);
+    background: var(--warning-bg);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .preflight-icon {
+    font-size: 18px;
+    color: var(--warning);
+    flex-shrink: 0;
+  }
+  .preflight-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .preflight-text strong {
+    color: var(--warning);
+    font-size: 13px;
+  }
+  .preflight-text span {
+    font-size: 12px;
+    color: var(--text-body);
+    line-height: 1.4;
+  }
+  .preflight-cta {
+    background: var(--warning);
+    color: var(--text-inverse);
+    border: 1px solid var(--warning);
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .preflight-cta:hover { opacity: 0.9; }
 
 </style>
