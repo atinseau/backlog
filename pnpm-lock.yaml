@@ -281,6 +281,9 @@ importers:
       '@backlog/git':
         specifier: workspace:*
         version: link:../git
+      '@backlog/hooks':
+        specifier: workspace:*
+        version: link:../hooks
       '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas

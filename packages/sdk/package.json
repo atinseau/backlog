@@ -1,7 +1,7 @@
 {
   "name": "backlog-sdk",
   "version": "0.2.0",
-  "description": "TypeScript SDK for Backlog Cloud (https://backlog.so) — talk to the backlog.so REST API or any self-hosted backlog backend.",
+  "description": "TypeScript SDK for Backlog Cloud (https://backlog.so) — typed client for the backlog.so REST API.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

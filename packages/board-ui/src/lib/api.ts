@@ -1160,3 +1160,24 @@ export async function syncSource(id: string): Promise<SyncResult> {
   }
   return json as SyncResult;
 }
+
+// --- Hooks ---
+export interface HookStatus {
+  repo_id: string;
+  repo_path: string;
+  git_dir: string;
+  hook_path: string;
+  exists: boolean;
+  managed: boolean;
+  points_to_backlog_bin: boolean;
+}
+export interface HooksOverview {
+  workspace_paused_until: string | null;
+  hooks: HookStatus[];
+}
+
+export async function fetchHooksStatus(): Promise<HooksOverview> {
+  const response = await fetch(apiUrl("/hooks/status"));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()) as HooksOverview;
+}

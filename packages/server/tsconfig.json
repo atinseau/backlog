@@ -10,6 +10,7 @@
       "@backlog/connectors": ["../connectors/src/index.ts"],
       "@backlog/core": ["../core/src/index.ts"],
       "@backlog/git": ["../git/src/index.ts"],
+      "@backlog/hooks": ["../hooks/src/index.ts"],
       "@backlog/schemas": ["../schemas/src/index.ts"]
     }
   },
@@ -20,6 +21,7 @@
     { "path": "../connectors" },
     { "path": "../core" },
     { "path": "../git" },
+    { "path": "../hooks" },
     { "path": "../schemas" }
   ]
 }

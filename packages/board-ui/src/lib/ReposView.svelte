@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
-  import { createRepo, deleteRepo, fetchRepos, updateRepo } from "./api.js";
+  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
   interface Props {
@@ -14,6 +14,31 @@
   let repos = $state<Repo[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let hooks = $state<HooksOverview | null>(null);
+  let hooksLoading = $state(false);
+
+  function hookStatusOf(repoId: string): HookStatus | undefined {
+    return hooks?.hooks.find((h) => h.repo_id === repoId);
+  }
+  function hookStatusLabel(status: HookStatus | undefined): { label: string; tone: "ok" | "warn" | "off" | "missing" } {
+    if (!status) return { label: t("hooks.status.unknown"), tone: "off" };
+    if (!status.git_dir) return { label: t("hooks.status.no_git"), tone: "missing" };
+    if (!status.exists) return { label: t("hooks.status.not_installed"), tone: "off" };
+    if (status.managed && status.points_to_backlog_bin) return { label: t("hooks.status.managed"), tone: "ok" };
+    if (status.exists && !status.managed) return { label: t("hooks.status.foreign"), tone: "warn" };
+    return { label: t("hooks.status.outdated"), tone: "warn" };
+  }
+
+  async function loadHooks() {
+    hooksLoading = true;
+    try {
+      hooks = await fetchHooksStatus();
+    } catch {
+      // best effort — leave previous state
+    } finally {
+      hooksLoading = false;
+    }
+  }
 
   let showCreate = $state(false);
   let createMode = $state<"local" | "clone">("local");
@@ -35,6 +60,7 @@
     } finally {
       loading = false;
     }
+    void loadHooks();
   }
 
   async function handleCreate(event: SubmitEvent) {
@@ -128,14 +154,38 @@
     {#if loading}
       <div class="loading">chargement…</div>
     {:else}
+      <section class="hooks-block">
+        <header class="hooks-head">
+          <h3>{t("hooks.title")}</h3>
+          <button class="ghost small" onclick={loadHooks} disabled={hooksLoading} title={t("hooks.refresh")}>
+            {hooksLoading ? "…" : "↻"}
+          </button>
+        </header>
+        <p class="hooks-hint">{t("hooks.hint")}</p>
+        {#if hooks?.workspace_paused_until}
+          <div class="hook-pause">⏸ {t("hooks.paused_until", { until: hooks.workspace_paused_until })}</div>
+        {/if}
+        <div class="hooks-cli">
+          <div><code>backlog hooks install</code> — {t("hooks.cli.install")}</div>
+          <div><code>backlog hooks status</code> — {t("hooks.cli.status")}</div>
+          <div><code>backlog hooks pause 30m</code> — {t("hooks.cli.pause")}</div>
+          <div><code>backlog hooks uninstall</code> — {t("hooks.cli.uninstall")}</div>
+        </div>
+      </section>
+
       <ul class="repos">
         {#each repos as repo (repo.id)}
+          {@const hookStatus = hookStatusOf(repo.id)}
+          {@const hookLabel = hookStatusLabel(hookStatus)}
           <li class:disabled={!repo.enabled}>
             <div class="info">
               <div class="title-row">
                 <strong>{repo.id}</strong>
                 {#if repo.role}<span class="role">{repo.role}</span>{/if}
                 {#if !repo.enabled}<span class="off">disabled</span>{/if}
+                <span class="hook-badge hook-{hookLabel.tone}" title={hookStatus?.hook_path ?? ""}>
+                  hook : {hookLabel.label}
+                </span>
               </div>
               <span class="path">{repo.path}</span>
               <span class="branch">branche par défaut : {repo.default_branch}</span>
@@ -276,6 +326,85 @@
     text-align: center;
     color: var(--text-muted);
   }
+  .hooks-block {
+    margin: 12px 16px 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-body);
+    flex-shrink: 0;
+  }
+  .hooks-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: none;
+    padding: 0;
+    margin-bottom: 4px;
+  }
+  .hooks-head h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .hooks-hint {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .hook-pause {
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 12px;
+  }
+  .hooks-cli {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .hooks-cli code {
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    color: var(--text-body);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+  }
+  .hook-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .hook-ok      { background: var(--success-bg); color: var(--success); }
+  .hook-warn    { background: var(--warning-bg); color: var(--warning); }
+  .hook-off     { background: var(--bg-hover); color: var(--text-muted); }
+  .hook-missing { background: var(--danger-bg); color: var(--danger); }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+  button.ghost.small {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+
   .repos {
     list-style: none;
     margin: 0;

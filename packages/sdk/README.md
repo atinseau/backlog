@@ -1,9 +1,11 @@
 # `backlog-sdk`
 
-TypeScript SDK for [Backlog Cloud](https://backlog.so) and any self-hosted Backlog backend.
+TypeScript SDK for [Backlog Cloud](https://backlog.so) — a typed client for the backlog.so REST API.
 
 [![npm version](https://img.shields.io/npm/v/backlog-sdk.svg)](https://www.npmjs.com/package/backlog-sdk)
 [![license](https://img.shields.io/npm/l/backlog-sdk.svg)](./LICENSE)
+
+> **Scope.** This SDK targets the **Backlog Cloud** backend (the hosted SaaS). It is **not** a client for the local `backlog serve` server bundled in the [`backlog`](https://www.npmjs.com/package/backlog) CLI — that server has its own evolving API and does not expose Cloud's auth, billing, or AI-proxy endpoints. If you self-host the Backlog Cloud Rails backend at your own URL, point the SDK at it via `baseUrl`.
 
 ## Install
 
@@ -85,17 +87,19 @@ console.log(`${usage.usage.ai_tokens} / ${usage.limits.ai_tokens_per_month} toke
 ### AI proxy
 - `aiMessages(workspaceId, { model, messages, max_tokens, system, temperature })` → `AiMessageResponse` — Anthropic Messages passthrough, billed against the workspace quota
 
-## Custom backend
+## Self-hosting the Backlog Cloud backend
 
-If you self-host the backlog backend, point at it via `baseUrl` or `BACKLOG_API_URL` env:
+If you run your own deployment of the Backlog Cloud Rails backend, point the SDK at it via `baseUrl` or the `BACKLOG_API_URL` env var:
 
 ```ts
-const backlog = new BacklogClient({ baseUrl: "http://localhost:3000/api/v1" });
+const backlog = new BacklogClient({ baseUrl: "https://backlog.example.com/api/v1" });
 ```
 
 ```sh
-export BACKLOG_API_URL=http://localhost:3000/api/v1
+export BACKLOG_API_URL=https://backlog.example.com/api/v1
 ```
+
+Note: this is **not** the same thing as `backlog serve` (the local kanban server bundled with the CLI). `backlog serve` exposes its own `/api/v1/*` shape that does not match this SDK.
 
 ## Token storage
 

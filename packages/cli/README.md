@@ -11,6 +11,8 @@ AI coding agents.
 
 ---
 
+> **Heads-up — version reset.** This package was briefly published as `1.0.0`–`1.2.0` in late April 2026. That `1.x` labeling implied a stability contract the project was not ready to honor, so it has been reset to `0.x` to reflect honest pre-1.0 status. If you have `"backlog": "^1.x"` pinned anywhere, switch to `"^0.1.0"` or `latest`. See [CHANGELOG.md](./CHANGELOG.md) and the [legacy changelog on GitHub](https://github.com/osmove/backlog/blob/main/CHANGELOG-LEGACY.md) for details.
+
 ## What is Backlog?
 
 Backlog is the engine that sits between your backlog and your agents.
