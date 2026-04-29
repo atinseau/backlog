@@ -27,3 +27,4 @@ export * from "./usage.js";
 export * from "./users.js";
 export * from "./worktrees.js";
 export * from "./task-service.js";
+export * from "./migrate-ids.js";
