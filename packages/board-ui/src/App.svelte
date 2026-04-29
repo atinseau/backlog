@@ -336,6 +336,14 @@
 
   async function handlePlayCard(card: TaskCard) {
     error = null;
+    // Open the bottom Activity panel before the run starts so the user
+    // immediately sees the orchestrator's events stream in: agent.start,
+    // agent.read, agent.edit, etc. Without this the click looked like a
+    // no-op because all the action was happening in a hidden surface.
+    if (!bottomOpen) {
+      bottomOpen = true;
+      writeBool(SHELL_BOTTOM_OPEN, true);
+    }
     try {
       const result = await startRun({ task_id: card.id, approve: true });
       if (result.started.length === 0) {
@@ -345,6 +353,10 @@
           result.waiting[0]?.reasons[0];
         if (reason) {
           error = t("card.play_skipped", { reason });
+          // "no_compatible_agent" almost always means the user hasn't
+          // enabled Claude / Codex yet. Send them to the Agents view so
+          // the fix is one click away.
+          if (reason === "no_compatible_agent") leftSection = "agents";
         } else if (card.tasks.length === 0) {
           error = t("card.play_no_subtasks");
         } else {
