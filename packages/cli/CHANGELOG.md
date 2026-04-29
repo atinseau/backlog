@@ -4,6 +4,38 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-29
+
+Sequential per-project IDs replace the legacy hex/timestamp format. **Breaking** — existing workspaces must run `backlog migrate ids` once after upgrading.
+
+### Highlights
+
+- **New ID format** — `task_001`, `subtask_001`, `run_001`, `claim_001`, `sync_001`, padded to three digits and growing past `task_999` naturally. Per-project counter: each workspace numbers its own entities starting from `001`.
+- **Counter file** — `<backlogDir>/id-counters.json` tracks the next number per type, written synchronously on every create.
+- **Migration tool** — `backlog migrate ids` walks the workspace, sorts entities by `created_at`, re-attributes IDs, and rewrites every cross-reference (subtask.task_id, run.task_id / subtask_id / claim_ids, run directories on disk, sync conflict references). Backs up `.backlog/` to `.backlog.pre-id-migration-<timestamp>/` before mutating. `--dry-run` and `--no-backup` available.
+- **`backlog run`** — top-level shorthand for `backlog orchestrator start --auto`. Same flags. The `runs` namespace stays for inspection and management (`runs list`, `runs show`, `runs interrupt`, etc.).
+- **Legacy ID prefixes dropped from the parser** — `TASK-`, `WI-`, `TK-`, `RUN-`, `RN-`, `ST-`, `SUB-`, `CLM-` no longer match in the `/commits` route or in the orchestrator chat tool descriptions. Run `backlog migrate ids` to regain auto-link in commit messages emitted post-migration. Pre-migration commit history keeps its original IDs as plain text — git history is not rewritten.
+
+### Upgrade flow
+
+```sh
+npm i -g backlog@latest          # 1.3.0 → 1.4.0
+cd <your project>
+backlog migrate ids --dry-run    # preview the rename map
+backlog migrate ids              # apply (auto-backup at .backlog.pre-id-migration-…/)
+```
+
+If you skip the migration, new entities will use the new format while existing ones keep their legacy IDs — both load fine, but the parser regex won't link old-format IDs in commit messages.
+
+### Touched
+
+- `@backlog/config` — new `id-counter.ts` module (formerly in core, moved to break a circular import for the claims package).
+- `@backlog/core` — `task-service`, `subtask-service`, `run-store`, `run-launcher`, `sync-conflicts` switch to `nextId(backlogDir, type)`. New `migrate-ids.ts` does the workspace walk + rewrite. `id.ts` (`makeId`) deleted.
+- `@backlog/claims` — `claim-store.ts` drops the bespoke `CLM-{ISO}-{hex}` format. New dep on `@backlog/config`.
+- `@backlog/connectors` — every connector class threads `backlogDir` so imported tasks are numbered into the importing workspace's counter. New dep on `@backlog/config`.
+- `@backlog/server` — `/commits` regex matches new format only. Orchestrator chat tool descriptions now hint `e.g. run_001` to the LLM.
+- `packages/cli` — new `migrate.ts` (registers `backlog migrate ids`) and `run-alias.ts` (registers top-level `backlog run`).
+
 ## [1.3.0] - 2026-04-29
 
 The natural follow-up to 1.2.0. Brings the open-core boundary, the Desktop preview, and everything that was sitting in Unreleased onto a stable 1.x release.
