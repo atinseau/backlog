@@ -334,16 +334,16 @@
     }
   }
 
-  async function handlePlayCard(card: TaskCard) {
-    error = null;
-    // Open the bottom Activity panel before the run starts so the user
-    // immediately sees the orchestrator's events stream in: agent.start,
-    // agent.read, agent.edit, etc. Without this the click looked like a
-    // no-op because all the action was happening in a hidden surface.
+  function openActivityPanel() {
     if (!bottomOpen) {
       bottomOpen = true;
       writeBool(SHELL_BOTTOM_OPEN, true);
     }
+  }
+
+  async function handlePlayCard(card: TaskCard) {
+    error = null;
+    openActivityPanel();
     try {
       const result = await startRun({ task_id: card.id, approve: true });
       if (result.started.length === 0) {
@@ -357,9 +357,11 @@
           // enabled Claude / Codex yet. Send them to the Agents view so
           // the fix is one click away.
           if (reason === "no_compatible_agent") leftSection = "agents";
-        } else if (card.tasks.length === 0) {
-          error = t("card.play_no_subtasks");
         } else {
+          // Server auto-creates a default subtask when the parent task
+          // has none, so reaching this branch means something else is
+          // off (no agent enabled, all blocked, etc.). Show a generic
+          // skipped message; the user can dig in via Agents / details.
           error = t("card.play_skipped_empty");
         }
       }
@@ -467,7 +469,10 @@
           }
         }}
       />
-      <OrchestratorControls onError={(message) => (error = message)} />
+      <OrchestratorControls
+        onError={(message) => (error = message)}
+        onStarted={openActivityPanel}
+      />
     </div>
     <div class="topbar-right">
       {#if board}

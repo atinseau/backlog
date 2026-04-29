@@ -15,9 +15,10 @@
 
   interface Props {
     onError?: (message: string) => void;
+    onStarted?: () => void;
   }
 
-  let { onError }: Props = $props();
+  let { onError, onStarted }: Props = $props();
 
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
@@ -45,6 +46,7 @@
     busy = true;
     try {
       orchestrator = await startOrchestrator({});
+      onStarted?.();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {

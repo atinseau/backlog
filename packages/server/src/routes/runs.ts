@@ -2,7 +2,11 @@ import { loadConfig } from "@backlog/config";
 import {
   approveRun,
   buildExecutionPlan,
+  createSubTask,
   listActiveRuns,
+  listRepos,
+  listSubTasks,
+  listTasks,
   loadRun,
   startRunsForPlan,
 } from "@backlog/core";
@@ -53,6 +57,39 @@ export function runsRoutes(): Hono<AppEnv> {
           },
           403,
         );
+      }
+
+      // Auto-shim: if the user clicked Play on a task that has no
+      // sub-tasks yet, create one covering the whole work and run it.
+      // The "split first" workflow stays available via the ✂ button
+      // for genuinely multi-step work; for "create one file" tasks
+      // the auto-shim keeps the Play button honest.
+      if (body.task_id && !body.subtask_id) {
+        const existing = listSubTasks(workspace.backlogDir).filter(
+          (s) => s.task_id === body.task_id,
+        );
+        if (existing.length === 0) {
+          const task = listTasks(workspace.backlogDir).find((t) => t.id === body.task_id);
+          if (task) {
+            const repos = listRepos(workspace.backlogDir);
+            // Pick a target repo: first explicit repo_target, else first
+            // enabled workspace repo, else the only repo if there is one.
+            const repoId =
+              task.repo_targets[0] ??
+              repos.find((r) => r.enabled)?.id ??
+              repos[0]?.id;
+            if (repoId) {
+              const subInput: Parameters<typeof createSubTask>[1] = {
+                workItemId: task.id,
+                title: task.title,
+                repo: repoId,
+                risk: task.planning?.risk ?? "medium",
+                plannerOrigin: "manual",
+              };
+              createSubTask(workspace.backlogDir, subInput);
+            }
+          }
+        }
       }
 
       const planOpts: { workItemId?: string; taskId?: string } = {};
