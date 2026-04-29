@@ -1,8 +1,22 @@
 <script lang="ts">
   import DialogShell from "./DialogShell.svelte";
   import { t } from "./i18n.svelte.js";
-  import { initProject, registerProjectByPath } from "./api.js";
+  import { initProject, registerProjectByPath, inspectFolder, type FolderInspect } from "./api.js";
   import type { ProjectEntry } from "./types.js";
+
+  // Turn a directory basename into a readable project name. Splits on
+  // separators, strips noise (dot-prefixes), title-cases each token.
+  // "claire-sophie" → "Claire Sophie", "myAwesome.app" → "My Awesome App".
+  function humanizeFolderName(basename: string): string {
+    if (!basename) return "";
+    const cleaned = basename.replace(/^\./, "");
+    const parts = cleaned
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .split(/[-_.\s]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return parts.map((p) => p[0]!.toUpperCase() + p.slice(1)).join(" ");
+  }
 
   interface Props {
     onClose: () => void;
@@ -15,8 +29,30 @@
   let name = $state("");
   let path = $state("");
   let defaultBranch = $state("main");
+  let nameTouched = $state(false);
+  let inspection = $state<FolderInspect | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
+
+  async function inspectAndPrefill(absolutePath: string) {
+    try {
+      inspection = await inspectFolder(absolutePath);
+    } catch {
+      inspection = null;
+    }
+    if (!inspection) return;
+    // Auto-fill name from the folder basename, but only if the user
+    // hasn't typed something already.
+    if (!nameTouched) {
+      const guess = humanizeFolderName(inspection.basename);
+      if (guess) name = guess;
+    }
+    // Use the folder's current branch when it's a git repo, otherwise
+    // keep "main" as the conventional default.
+    if (inspection.is_git_repo && inspection.current_branch) {
+      defaultBranch = inspection.current_branch;
+    }
+  }
 
   // Optional bridge exposed by the Electron preload. When running in a
   // pure browser (backlog serve), it's undefined and we fall back to a
@@ -30,7 +66,10 @@
   async function pickPath() {
     if (!isElectron) return;
     const picked = await window.backlog!.pickFolder({ title: t("create_project.pick_folder") });
-    if (picked) path = picked;
+    if (picked) {
+      path = picked;
+      void inspectAndPrefill(picked);
+    }
   }
 
   async function submit() {
@@ -79,6 +118,7 @@
           <button class="picker" onclick={pickPath} type="button">
             <span class="picker-icon">📂</span>
             <span class="picker-value">{path || t("create_project.choose_folder")}</span>
+            {#if inspection?.is_git_repo}<span class="git-badge">⎇ {inspection.current_branch ?? "git"}</span>{/if}
           </button>
         {:else}
           <input type="text" bind:value={path} placeholder="/Users/jimmy/Dev/my-project" autocomplete="off" />
@@ -87,11 +127,25 @@
       </div>
       <label class="field">
         <span class="label">{t("create_project.field.name")}</span>
-        <input type="text" bind:value={name} placeholder="my-project" autocomplete="off" />
+        <input
+          type="text"
+          bind:value={name}
+          oninput={() => (nameTouched = true)}
+          placeholder="my-project"
+          autocomplete="off"
+        />
       </label>
       <label class="field">
         <span class="label">{t("create_project.field.default_branch")}</span>
-        <input type="text" bind:value={defaultBranch} placeholder="main" autocomplete="off" />
+        {#if inspection?.is_git_repo && inspection.branches.length > 0}
+          <select bind:value={defaultBranch}>
+            {#each inspection.branches as branch (branch)}
+              <option value={branch}>{branch}{branch === inspection.current_branch ? " (actuelle)" : ""}</option>
+            {/each}
+          </select>
+        {:else}
+          <input type="text" bind:value={defaultBranch} placeholder="main" autocomplete="off" />
+        {/if}
       </label>
     {:else}
       <p class="muted small">{t("create_project.hint.existing")}</p>
@@ -101,6 +155,7 @@
           <button class="picker" onclick={pickPath} type="button">
             <span class="picker-icon">📂</span>
             <span class="picker-value">{path || t("create_project.choose_folder")}</span>
+            {#if inspection?.has_backlog_dir}<span class="git-badge ok">.backlog ✓</span>{/if}
           </button>
         {:else}
           <input type="text" bind:value={path} placeholder="/Users/jimmy/Dev/existing-project" autocomplete="off" />
@@ -210,6 +265,25 @@
     flex: 1; min-width: 0;
     font-family: ui-monospace, monospace;
     font-size: 11.5px;
+  }
+  .git-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--accent-bg);
+    color: var(--accent-text);
+    flex-shrink: 0;
+    font-family: ui-monospace, monospace;
+  }
+  .git-badge.ok { background: var(--success-bg); color: var(--success); }
+  select {
+    padding: 6px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
   }
   .muted { color: var(--text-subtle); }
   .small { font-size: 12px; }

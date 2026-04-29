@@ -1176,6 +1176,22 @@ export async function syncSource(id: string): Promise<SyncResult> {
   return json as SyncResult;
 }
 
+// --- Folder inspector (used by the create-project / add-repo flows) ---
+export interface FolderInspect {
+  exists: boolean;
+  is_directory: boolean;
+  is_git_repo: boolean;
+  has_backlog_dir: boolean;
+  basename: string;
+  current_branch: string | null;
+  branches: string[];
+}
+export async function inspectFolder(absolutePath: string): Promise<FolderInspect> {
+  const response = await fetch(apiUrl("/folders/inspect", { path: absolutePath }));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()) as FolderInspect;
+}
+
 // --- Secrets (API keys) ---
 export type SecretKey = "ANTHROPIC_API_KEY" | "OPENAI_API_KEY";
 

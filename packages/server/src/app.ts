@@ -19,6 +19,7 @@ import { runDiffRoutes } from "./routes/run-diff.js";
 import { reposRoutes } from "./routes/repos.js";
 import { hooksRoutes } from "./routes/hooks.js";
 import { secretsRoutes } from "./routes/secrets.js";
+import { foldersRoutes } from "./routes/folders.js";
 import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
@@ -106,6 +107,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", reposRoutes());
   app.route("/api/v1", hooksRoutes());
   app.route("/api/v1", secretsRoutes());
+  app.route("/api/v1", foldersRoutes());
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", projectRoutes());
   app.route("/api/v1", projectsRoutes(options.workspace));
