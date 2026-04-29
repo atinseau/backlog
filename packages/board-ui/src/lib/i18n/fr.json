@@ -123,6 +123,7 @@
   "column.review": "EN REVUE",
   "column.done": "TERMINÉ",
 
+  "card.priority": "Priorité {value}",
   "card.add_subtask": "Ajouter une sous-tâche",
   "card.split": "Découper en sous-tâches",
   "card.play": "Lancer cette tâche",

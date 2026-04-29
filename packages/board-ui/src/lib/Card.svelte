@@ -20,6 +20,8 @@
   onDestroy(() => timer.release());
 
   const priorityClass = $derived(`pri pri-${card.priority.toLowerCase()}`);
+  // Used on the <article> to colour-code the left border by priority.
+  const cardPriorityClass = $derived(`prio-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
   const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
   // Subtasks that the scheduler could pick up if asked to start now.
@@ -131,7 +133,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <article
-  class="card"
+  class="card {cardPriorityClass}"
   class:clickable={Boolean(onOpen)}
   onpointerdown={handlePointerDown}
   onclick={handleClick}
@@ -140,17 +142,15 @@
   tabindex={onOpen ? 0 : undefined}
 >
   <header>
-    <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
   </header>
 
-  {#if card.repo_targets.length > 0}
-    <div class="chips">
-      {#each card.repo_targets as repo (repo)}
-        <span class="chip repo">{repo}</span>
-      {/each}
-    </div>
-  {/if}
+  <div class="meta">
+    <span class={priorityClass} title={t("card.priority", { value: card.priority })}>{card.priority}</span>
+    {#each card.repo_targets as repo (repo)}
+      <span class="chip repo">{repo}</span>
+    {/each}
+  </div>
 
   {#if card.tasks.length > 0}
     <ul class="tasks">
@@ -260,10 +260,17 @@
     padding: 10px 12px;
     margin-bottom: 8px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    border-left: 3px solid var(--border-strong);
+    /* Left border colour conveys priority at a glance during a column
+       scan; the textual P0/P1/… pill in the meta row is the
+       a11y-friendly fallback. */
+    border-left: 3px solid var(--card-accent, var(--border-strong));
     cursor: grab;
     transition: box-shadow 120ms ease, transform 120ms ease;
   }
+  .card.prio-p0 { --card-accent: #d92d20; }
+  .card.prio-p1 { --card-accent: #f79009; }
+  .card.prio-p2 { --card-accent: #2e90fa; }
+  .card.prio-p3 { --card-accent: var(--text-subtle); }
   .card.clickable:hover {
     box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
     transform: translateY(-1px);
@@ -273,24 +280,31 @@
     outline-offset: 2px;
   }
   header {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
     margin-bottom: 6px;
   }
   h3 {
     margin: 0;
     font-size: 14px;
     line-height: 1.3;
-    flex: 1;
+    /* Title takes full width — priority moved out to .meta. */
+    overflow-wrap: anywhere;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+    font-size: 10px;
   }
   .pri {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
     border-radius: 3px;
     color: white;
     flex-shrink: 0;
+    letter-spacing: 0.04em;
   }
   .pri-p0 { background: #d92d20; }
   .pri-p1 { background: #f79009; }
@@ -345,18 +359,12 @@
     cursor: wait;
   }
 
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
-  }
   .chip {
-    font-size: 11px;
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 1px 6px;
     border-radius: 3px;
-    background: var(--bg-hover);
-    color: var(--text-body);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
   }
 
   .tasks, .blockers {

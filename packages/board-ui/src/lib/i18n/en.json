@@ -123,6 +123,7 @@
   "column.review": "IN REVIEW",
   "column.done": "DONE",
 
+  "card.priority": "Priority {value}",
   "card.add_subtask": "Add a sub-task",
   "card.split": "Split into sub-tasks",
   "card.play": "Start this task",
