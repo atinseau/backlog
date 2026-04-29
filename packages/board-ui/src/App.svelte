@@ -454,11 +454,6 @@
         </span>
       {/if}
       <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
-      <ProfileMenu
-        cloudStatus={cloudStatus}
-        onOpenProfile={(mode) => (profileOpen = mode)}
-        onChanged={loadCloudStatus}
-      />
       <PanelToggles
         leftOpen={leftOpen}
         bottomOpen={bottomOpen}
@@ -466,6 +461,11 @@
         onToggleLeft={toggleLeft}
         onToggleBottom={toggleBottom}
         onToggleRight={toggleRight}
+      />
+      <ProfileMenu
+        cloudStatus={cloudStatus}
+        onOpenProfile={(mode) => (profileOpen = mode)}
+        onChanged={loadCloudStatus}
       />
     </div>
   </header>

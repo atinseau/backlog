@@ -1,9 +1,12 @@
 <script lang="ts">
+  // Minimal orchestrator surface in the topbar: just Play and Stop.
+  // Pause moved to the OrchestratorChat emergency-controls panel since
+  // it's a "we're already running, slow it down" action — not a primary
+  // user gesture from the header.
   import { onDestroy, onMount } from "svelte";
   import {
     fetchOrchestratePlan,
     fetchOrchestratorState,
-    pauseOrchestrator,
     startOrchestrator,
     stopOrchestrator,
   } from "./api.js";
@@ -30,11 +33,6 @@
       ]);
       orchestrator = orchState;
       runnableCount = plan?.runnable_count ?? null;
-      // Distinguish "empty board" from "tasks exist but no enabled
-      // agent can run them" — they need different copy on the disabled
-      // Play button. The latter is the common case after `backlog init`
-      // since manual-default is the only seeded agent enabled, and
-      // manual is non-executable.
       blockedByAgent = (plan?.blocked ?? []).some((d) =>
         d.reasons.includes("no_compatible_agent"),
       );
@@ -47,17 +45,6 @@
     busy = true;
     try {
       orchestrator = await startOrchestrator({});
-    } catch (err) {
-      onError?.(err instanceof Error ? err.message : String(err));
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function handlePause() {
-    busy = true;
-    try {
-      orchestrator = await pauseOrchestrator();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
@@ -78,10 +65,8 @@
 
   onMount(() => {
     refresh();
-    // Poll every 5s as a safety net; SSE handles the live updates.
     pollTimer = setInterval(refresh, 5000);
   });
-
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
   });
@@ -91,10 +76,9 @@
   }
 
   const mode = $derived(orchestrator?.mode ?? "idle");
-  const isRunning = $derived(mode === "running");
-  const isPaused = $derived(mode === "paused");
-  const isStopping = $derived(mode === "stopping");
+  const isRunning = $derived(mode === "running" || mode === "paused" || mode === "stopping");
   const nothingToRun = $derived(runnableCount !== null && runnableCount === 0);
+
   const playTitle = $derived(
     isRunning
       ? t("orchestrator.play.running")
@@ -104,108 +88,75 @@
           : t("orchestrator.play.nothing")
         : t("orchestrator.play.start"),
   );
-  const modeLabel = $derived(t(`orchestrator.mode.${mode}`));
+  const stopTitle = $derived(
+    isRunning ? t("orchestrator.stop.title") : t("orchestrator.stop.idle"),
+  );
 </script>
 
 <div class="controls" role="toolbar" aria-label="Orchestrator controls">
   <button
     class="ctrl play"
-    class:active={isRunning}
+    class:running={isRunning}
     onclick={handleStart}
     disabled={busy || isRunning || nothingToRun}
     title={playTitle}
     aria-label="Play"
-  >
-    ▶
-  </button>
-  <button
-    class="ctrl pause"
-    class:active={isPaused}
-    onclick={handlePause}
-    disabled={busy || !isRunning}
-    title={t("orchestrator.pause.title")}
-    aria-label="Pause"
-  >
-    ⏸
-  </button>
+  >▶</button>
   <button
     class="ctrl stop"
-    class:active={isStopping}
     onclick={handleStop}
-    disabled={busy || mode === "idle"}
-    title={t("orchestrator.stop.title")}
+    disabled={busy || !isRunning}
+    title={stopTitle}
     aria-label="Stop"
-  >
-    ⏹
-  </button>
-  <span class="state state-{mode}">{modeLabel}</span>
-  {#if runnableCount !== null && runnableCount > 0 && !isRunning}
-    <span class="ready">{t(runnableCount === 1 ? "topbar.ready_count_one" : "topbar.ready_count_many", { count: runnableCount })}</span>
-  {/if}
-  {#if orchestrator?.last_started_count !== undefined && orchestrator.last_started_count > 0}
-    <span class="count">+{orchestrator.last_started_count}</span>
-  {/if}
+  >⏹</button>
 </div>
 
 <style>
+  /* Frameless — the buttons live alongside the title with no surrounding
+     box or background. Each button is a circle of constant size; state
+     is conveyed by colour + the disabled visual. */
   .controls {
     display: inline-flex;
     align-items: center;
-    background: var(--bg-hover);
-    border: 1px solid var(--border-strong);
-    border-radius: 6px;
-    padding: 2px;
-    gap: 1px;
+    gap: 4px;
   }
   .ctrl {
-    background: transparent;
+    width: 28px;
+    height: 28px;
     border: none;
-    padding: 4px 10px;
+    border-radius: 50%;
+    background: transparent;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1;
     color: var(--text-secondary);
-    border-radius: 4px;
-    transition: background-color 120ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background 120ms ease, color 120ms ease;
   }
   .ctrl:hover:not(:disabled) {
-    background: var(--bg-surface);
+    background: var(--bg-hover);
     color: var(--text-primary);
   }
   .ctrl:disabled {
     opacity: 0.35;
     cursor: not-allowed;
   }
-  .ctrl.play.active { background: var(--success-bg); color: var(--success); }
-  .ctrl.pause.active { background: var(--warning-bg); color: var(--warning); }
-  .ctrl.stop.active { background: var(--danger-bg); color: var(--danger); }
-
-  .state {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 10px;
-    margin-left: 4px;
-    color: white;
-  }
-  .state-idle { background: var(--text-subtle); }
-  .state-running { background: var(--success); }
-  .state-paused { background: #f79009; }
-  .state-stopping { background: var(--danger); }
-  .ready {
-    font-size: 10px;
-    color: var(--accent);
-    font-weight: 600;
-    margin-left: 4px;
-    padding: 2px 6px;
-    background: var(--accent-bg);
-    border-radius: 10px;
-  }
-  .count {
-    font-size: 10px;
+  /* Play is the affirmative action — green when active. */
+  .ctrl.play:not(:disabled) {
     color: var(--success);
-    font-weight: 600;
-    margin-left: 2px;
+  }
+  .ctrl.play.running {
+    color: var(--success);
+    background: var(--success-bg);
+  }
+  /* Stop is the corrective action — red when active. */
+  .ctrl.stop:not(:disabled) {
+    color: var(--danger);
+  }
+  .ctrl.stop:not(:disabled):hover {
+    background: var(--danger-bg);
   }
 </style>

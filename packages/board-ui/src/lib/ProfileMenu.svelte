@@ -5,6 +5,7 @@
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { cloudLogout, type CloudStatus } from "./api.js";
+  import { deriveInitials } from "./settings.svelte.js";
 
   interface Props {
     cloudStatus: CloudStatus | null;
@@ -46,10 +47,6 @@
     window.removeEventListener("keydown", handleKey);
   });
 
-  function userInitials(email: string): string {
-    const local = email.split("@")[0] ?? "";
-    return local.slice(0, 2).toUpperCase() || "?";
-  }
 
   async function logout() {
     close();
@@ -68,9 +65,13 @@
     aria-expanded={open}
   >
     {#if cloudStatus?.signed_in && cloudStatus.user}
-      {userInitials(cloudStatus.user.email)}
+      <span class="initials">{deriveInitials(cloudStatus.user.email)}</span>
     {:else}
-      ☺
+      <!-- Outline user icon — neutral signed-out state -->
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="5.5" r="2.75" stroke="currentColor" stroke-width="1.4" />
+        <path d="M2.5 13.5c.7-2.4 3-3.5 5.5-3.5s4.8 1.1 5.5 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      </svg>
     {/if}
   </button>
 

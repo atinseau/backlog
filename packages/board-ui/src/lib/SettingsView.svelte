@@ -10,6 +10,7 @@
   import {
     getShowReviewColumn, setShowReviewColumn,
     getNotifyOnRunComplete, setNotifyOnRunComplete,
+    getDisplayName, setDisplayName, deriveInitials,
     resetOnboarding,
     clearChatHistory,
     resetAllLocalSettings,
@@ -30,6 +31,7 @@
 
   const showReview = $derived(getShowReviewColumn());
   const notifyRuns = $derived(getNotifyOnRunComplete());
+  const displayName = $derived(getDisplayName());
 
   let health = $state<{ ok: boolean; workspace: string; version: string } | null>(null);
   let currentProject = $state<{ root: string; backlog_dir: string; resolved_from: string } | null>(null);
@@ -112,6 +114,22 @@
       <div class="row">
         <label>{t("settings.locale")}</label>
         <LocaleToggle />
+      </div>
+    </section>
+
+    <!-- Identité affichée -->
+    <section class="block">
+      <h3>{t("settings.identity.title")}</h3>
+      <p class="hint">{t("settings.identity.hint")}</p>
+      <div class="identity-row">
+        <input
+          type="text"
+          class="text-input"
+          placeholder={t("settings.identity.placeholder")}
+          value={displayName}
+          oninput={(e) => setDisplayName((e.currentTarget as HTMLInputElement).value)}
+        />
+        <span class="preview-pill" aria-hidden="true">{deriveInitials(displayName ? `${displayName}@local` : "")}</span>
       </div>
     </section>
 
@@ -464,5 +482,38 @@
     border-radius: 10px;
     font-size: 11px;
     font-weight: 500;
+  }
+
+  .identity-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .text-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+  .text-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .preview-pill {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
   }
 </style>
