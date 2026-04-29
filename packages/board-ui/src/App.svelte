@@ -502,6 +502,12 @@
 
     <div class="center">
       <div class="center-main">
+        <!-- Wrap on selectedWorkspaceId so switching projects forces every
+             section view to remount. Each view fetches its data on mount,
+             which is what we want — the API calls now hit the new
+             project. Without this, AgentsView / CommitsView / etc. keep
+             showing stale data from the previous project. -->
+        {#key selectedWorkspaceId}
         {#if selectedTaskId}
           <TaskDetailDialog
             taskId={selectedTaskId}
@@ -580,6 +586,7 @@
         {:else if leftSection === "settings"}
           <SettingsView embedded={true} onClose={() => (leftSection = "board")} />
         {/if}
+        {/key}
       </div>
 
       {#if bottomOpen}
