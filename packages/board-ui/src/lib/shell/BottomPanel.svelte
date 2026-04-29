@@ -1,58 +1,30 @@
 <script lang="ts">
-  // Console-area panel — Xcode debug-area style. Tabbed: Activity feed
-  // (agent runs, tool calls, file edits) and Chat (orchestrator chat).
-  // Both children are kept mounted so SSE subscriptions stay alive when
-  // the user switches tabs.
+  // Console-area panel — Xcode debug-area style. Now Activity-only:
+  // the orchestrator chat moved to the right panel as a tab next to
+  // the inspector, so this surface stays focused on the live event
+  // feed (agent runs, tool calls, file edits).
   import ActivityBanner from "../ActivityBanner.svelte";
-  import OrchestratorChat from "../OrchestratorChat.svelte";
   import { t } from "../i18n.svelte.js";
 
-  export type BottomTab = "activity" | "chat";
+  // Type retained for callsites that persist the active tab; today
+  // there is only one tab but keeping the type keeps the storage key
+  // backward-compatible and the door open for future expansion.
+  export type BottomTab = "activity";
 
   interface Props {
     workspaceId: string | null;
-    tab: BottomTab;
-    onSelectTab: (tab: BottomTab) => void;
     onOpenDiff?: (runId: string, file: string) => void;
   }
 
-  let { workspaceId, tab, onSelectTab, onOpenDiff }: Props = $props();
+  let { workspaceId, onOpenDiff }: Props = $props();
 </script>
 
 <section class="bottom-panel" aria-label="Console">
   <div class="tabs" role="tablist">
-    <button
-      class="tab"
-      class:active={tab === "activity"}
-      onclick={() => onSelectTab("activity")}
-      role="tab"
-      aria-selected={tab === "activity"}
-    >
-      {t("bottom.activity")}
-    </button>
-    <button
-      class="tab"
-      class:active={tab === "chat"}
-      onclick={() => onSelectTab("chat")}
-      role="tab"
-      aria-selected={tab === "chat"}
-    >
-      {t("bottom.chat")}
-    </button>
+    <button class="tab active" role="tab" aria-selected="true">{t("bottom.activity")}</button>
   </div>
-
   <div class="content">
-    <div class="pane" hidden={tab !== "activity"}>
-      <ActivityBanner workspaceId={workspaceId} onOpenDiff={onOpenDiff} embedded={true} />
-    </div>
-    <div class="pane" hidden={tab !== "chat"}>
-      <OrchestratorChat
-        open={true}
-        workspaceId={workspaceId}
-        onClose={() => {}}
-        embedded={true}
-      />
-    </div>
+    <ActivityBanner workspaceId={workspaceId} onOpenDiff={onOpenDiff} embedded={true} />
   </div>
 </section>
 
@@ -77,37 +49,20 @@
     background: transparent;
     border: none;
     padding: 6px 14px;
-    cursor: pointer;
-    color: var(--text-muted);
+    cursor: default;
+    color: var(--accent);
     font-size: 12px;
     font-weight: 500;
-    border-bottom: 2px solid transparent;
+    border-bottom: 2px solid var(--accent);
     margin-bottom: -1px;
-  }
-  .tab:hover {
-    color: var(--text-body);
-  }
-  .tab.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
   }
   .content {
     flex: 1 1 auto;
     min-height: 0;
-    position: relative;
-  }
-  .pane {
-    position: absolute;
-    inset: 0;
     display: flex;
     overflow: hidden;
   }
-  .pane[hidden] {
-    /* Keep mounted (so SSE subs survive) but visually + a11y hidden. */
-    display: none;
-  }
-  .pane :global(.drawer.embedded),
-  .pane :global(.panel.embedded) {
+  .content :global(.panel.embedded) {
     flex: 1 1 auto;
     min-height: 0;
   }

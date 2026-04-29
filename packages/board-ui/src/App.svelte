@@ -16,8 +16,8 @@
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import OnboardingBanner from "./lib/OnboardingBanner.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
-  import RightPanel from "./lib/shell/RightPanel.svelte";
-  import BottomPanel, { type BottomTab } from "./lib/shell/BottomPanel.svelte";
+  import RightPanel, { type RightTab } from "./lib/shell/RightPanel.svelte";
+  import BottomPanel from "./lib/shell/BottomPanel.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
@@ -57,7 +57,7 @@
   const SHELL_LEFT_WIDTH = "backlog.shell.left.width";
   const SHELL_RIGHT_WIDTH = "backlog.shell.right.width";
   const SHELL_BOTTOM_HEIGHT = "backlog.shell.bottom.height";
-  const SHELL_BOTTOM_TAB = "backlog.shell.bottom.tab";
+  const SHELL_RIGHT_TAB = "backlog.shell.right.tab";
 
   function readBool(key: string, fallback: boolean): boolean {
     if (typeof localStorage === "undefined") return fallback;
@@ -108,16 +108,16 @@
 
   // ---- shell layout state ----
   let leftOpen = $state(readBool(SHELL_LEFT_OPEN, true));
-  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, false));
+  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, true));
   let bottomOpen = $state(readBool(SHELL_BOTTOM_OPEN, false));
   let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
-  let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 320, 220, 560));
+  let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, 260, 600));
   let bottomHeight = $state(readNum(SHELL_BOTTOM_HEIGHT, 240, 120, 600));
   let leftSection = $state<SectionKey>("board");
-  let bottomTab = $state<BottomTab>(
+  let rightTab = $state<RightTab>(
     (typeof localStorage !== "undefined"
-      ? (localStorage.getItem(SHELL_BOTTOM_TAB) as BottomTab | null)
-      : null) ?? "activity",
+      ? (localStorage.getItem(SHELL_RIGHT_TAB) as RightTab | null)
+      : null) ?? "inspector",
   );
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
@@ -361,10 +361,10 @@
     bottomOpen = !bottomOpen;
     writeBool(SHELL_BOTTOM_OPEN, bottomOpen);
   }
-  function setBottomTab(tab: BottomTab) {
-    bottomTab = tab;
-    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_BOTTOM_TAB, tab);
-    if (!bottomOpen) toggleBottom();
+  function setRightTab(tab: RightTab) {
+    rightTab = tab;
+    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_RIGHT_TAB, tab);
+    if (!rightOpen) toggleRight();
   }
   function commitLeftWidth() { writeNum(SHELL_LEFT_WIDTH, leftWidth); }
   function commitRightWidth() { writeNum(SHELL_RIGHT_WIDTH, rightWidth); }
@@ -376,6 +376,11 @@
 
   function selectCard(card: TaskCard) {
     selectedTaskId = card.id;
+    // Show the inspector tab so the user sees the details for what they
+    // just clicked (rather than landing on a chat thread that's about
+    // something else). Open the right panel if it was collapsed.
+    rightTab = "inspector";
+    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_RIGHT_TAB, rightTab);
     if (!rightOpen) toggleRight();
   }
 
@@ -533,8 +538,6 @@
         <div class="bottom-host">
           <BottomPanel
             workspaceId={selectedWorkspaceId}
-            tab={bottomTab}
-            onSelectTab={setBottomTab}
             onOpenDiff={(runId, file) => (diffTarget = { runId, file })}
           />
         </div>
@@ -542,7 +545,7 @@
     </div>
 
     {#if rightOpen}
-      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(220, Math.min(560, rightWidth - d)))} onCommit={commitRightWidth} />
+      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(260, Math.min(600, rightWidth - d)))} onCommit={commitRightWidth} />
       <div class="right-host">
         <RightPanel
           selectedTaskId={selectedTaskId}
@@ -557,6 +560,9 @@
             const card = findCardById(selectedTaskId);
             if (card) createSubTaskTarget = card;
           }}
+          workspaceId={selectedWorkspaceId}
+          tab={rightTab}
+          onSelectTab={setRightTab}
         />
       </div>
     {/if}
