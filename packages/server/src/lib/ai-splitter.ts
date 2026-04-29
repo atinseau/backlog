@@ -103,6 +103,135 @@ interface SuggestOptions {
   model?: string;
 }
 
+// ---- Title suggestion ----------------------------------------------------
+//
+// Given a free-form description, ask the LLM for a short imperative-mood
+// title. The user types only the description in CreateTaskDialog; the
+// title is generated server-side at task creation. Falls back to a
+// trimmed first sentence of the description when the AI provider is
+// unavailable so task creation never blocks on credentials.
+
+const TITLE_SYSTEM_PROMPT = `You generate concise, action-oriented titles for software backlog tasks.
+
+Rules:
+- Output ONLY the title, no quotes, no trailing period, nothing else
+- Start with an imperative verb in English: "Add", "Fix", "Update", "Remove", "Refactor", "Document", "Migrate", "Wire", "Investigate", "Replace", "Rename", "Disable", "Enable", "Inline", "Extract", "Test"
+- Maximum 70 characters
+- Be specific about WHAT and WHERE — avoid vague verbs like "Improve", "Handle", "Manage"
+- No conjunctions like "and" / "or" — split into multiple tasks would be the answer; here we want one crisp action
+
+Examples:
+description: "the user dropdown in the topbar is broken when the avatar is missing"
+title: Fix topbar user dropdown when avatar is missing
+
+description: "add a hello.html with a basic h1 and link to the homepage at the repo root"
+title: Add hello.html with h1 and homepage link at repo root
+
+description: "configure GitHub Actions to run tests on every push to main"
+title: Wire GitHub Actions to run tests on every push to main`;
+
+export async function suggestTitle(
+  description: string,
+  options: SuggestOptions = {},
+): Promise<{ title: string; model: string }> {
+  const text = description.trim();
+  if (!text) {
+    throw new Error("Description is empty — cannot suggest a title.");
+  }
+  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
+  if (provider === "anthropic") return suggestTitleAnthropic(text, options);
+  if (provider === "openai" || provider === "codex") return suggestTitleOpenAi(text, options);
+  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
+}
+
+async function suggestTitleAnthropic(
+  description: string,
+  options: SuggestOptions,
+): Promise<{ title: string; model: string }> {
+  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
+  }
+  const client = new Anthropic({ apiKey });
+  // Haiku is plenty for a 70-char generation — fast, cheap, no
+  // thinking budget needed. The user types a description and the
+  // title pops back in under a second.
+  const model = options.model ?? "claude-haiku-4-5";
+  const response = await client.messages.create({
+    model,
+    max_tokens: 60,
+    system: TITLE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: `Description: ${description}` }],
+  });
+  const textBlock = response.content.find(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  );
+  if (!textBlock) {
+    throw new Error("Anthropic response had no text block.");
+  }
+  return { title: cleanupTitle(textBlock.text), model };
+}
+
+async function suggestTitleOpenAi(
+  description: string,
+  options: SuggestOptions & { isCodex?: boolean } = {},
+): Promise<{ title: string; model: string }> {
+  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new AiSplitterUnavailableError("OPENAI_API_KEY is not set.");
+  }
+  const model = options.model ?? "gpt-5-mini";
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 60,
+      messages: [
+        { role: "system", content: TITLE_SYSTEM_PROMPT },
+        { role: "user", content: `Description: ${description}` },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`OpenAI title call failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const text = json.choices?.[0]?.message?.content ?? "";
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty title.");
+  }
+  return { title: cleanupTitle(text), model };
+}
+
+function cleanupTitle(raw: string): string {
+  // Strip surrounding quotes / trailing period the model sometimes
+  // adds despite the system prompt. Cap at 80 chars as a hard
+  // safeguard against unexpected verbosity.
+  let out = raw.trim();
+  if ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("«") && out.endsWith("»"))) {
+    out = out.slice(1, -1).trim();
+  }
+  if (out.endsWith(".")) out = out.slice(0, -1).trim();
+  if (out.length > 80) out = out.slice(0, 77).trimEnd() + "…";
+  return out;
+}
+
+// Last-resort title when the AI provider is unavailable or fails.
+// Takes the first sentence of the description, capitalises it, caps
+// it at 70 chars. Not as good as the LLM output but never empty.
+export function fallbackTitle(description: string): string {
+  const trimmed = description.trim();
+  if (!trimmed) return "New task";
+  const firstSentence = trimmed.split(/[.\n!?]/)[0]!.trim();
+  const capitalised = firstSentence.charAt(0).toUpperCase() + firstSentence.slice(1);
+  return capitalised.length > 70 ? capitalised.slice(0, 67).trimEnd() + "…" : capitalised;
+}
+
 export async function suggestSplit(
   workItem: Task,
   repos: string[],
