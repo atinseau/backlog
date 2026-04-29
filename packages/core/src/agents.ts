@@ -4,7 +4,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { hasSecret } from "@backlog/config";
 import { agentsFileSchema, type Agent, type AgentsFile, type SubTask } from "@backlog/schemas";
-import { listActiveRuns } from "./run-store.js";
+import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
 
 // Map a provider id → the secret key its executor needs at run time.
 // Returns null when no key is required (custom agents own their env;
@@ -318,9 +318,15 @@ export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk
 }
 
 export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo" | "risk" | "execution">): AgentSelection[] {
-  const activeRuns = listActiveRuns(backlogDir);
+  // Only count runs that are actually keeping the agent CPU busy
+  // (queued / preparing / running / interrupted). A run in
+  // awaiting_review is parked waiting for a human and shouldn't
+  // count against the agent's concurrency budget — otherwise
+  // max_concurrent_runs=1 wedges the agent until the user clicks
+  // Approve.
+  const busyRuns = listActiveRuns(backlogDir).filter((run) => isAgentBusyStatus(run.status));
   const activeRunCounts = new Map<string, number>();
-  for (const run of activeRuns) {
+  for (const run of busyRuns) {
     activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);
   }
 

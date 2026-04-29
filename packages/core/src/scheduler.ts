@@ -203,6 +203,21 @@ export function buildExecutionPlan(
     const compatibleAgents = rankedAgents.filter((candidate) => candidate.available).map((candidate) => candidate.agent);
     if (compatibleAgents.length === 0) {
       reasons.push("no_compatible_agent");
+      // Surface the per-agent rejection reasons so the UI can give a
+      // helpful message ("claude-code is at capacity") instead of the
+      // generic "no AI agent enabled". Format:
+      //   agent_blocked:<agent-id>:<reason>
+      // We include up to 3 agents, prioritising executable providers
+      // — manual / unsupported_provider noise gets filtered out so
+      // the user sees what's actually fixable.
+      for (const candidate of rankedAgents.slice(0, 3)) {
+        const filtered = candidate.reasons.filter(
+          (r) => r !== "compatible" && !r.startsWith("unsupported_provider:") && r !== "preferred_agent",
+        );
+        for (const r of filtered) {
+          reasons.push(`agent_blocked:${candidate.agent.id}:${r}`);
+        }
+      }
     }
 
     if (reasons.length === 0) {

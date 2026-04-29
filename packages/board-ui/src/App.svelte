@@ -505,19 +505,36 @@
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         // Look across all returned decisions for the most actionable
-        // reason. missing_api_key wins because it has a one-click fix
-        // (open the API keys dialog); fall back to the first reason
-        // we find on skipped / blocked / waiting decisions.
+        // reason. Priority: missing_api_key (one-click fix → open
+        // the dialog) → at_capacity (the agent is busy on another
+        // run) → missing_capabilities / risk_not_allowed / repo_*
+        // → generic.
         const allReasons = [
           ...(result.skipped[0]?.reasons ?? []),
           ...(result.blocked[0]?.reasons ?? []),
           ...(result.waiting[0]?.reasons ?? []),
         ];
-        const apiKeyReason = allReasons.find((r) => r.startsWith("missing_api_key:"));
+        // Strip the agent_blocked: prefix to get the underlying reason.
+        const directReasons = allReasons.flatMap((r) => {
+          const m = r.match(/^agent_blocked:[^:]+:(.+)$/);
+          return m ? [m[1]!] : [r];
+        });
+        const apiKeyReason = directReasons.find((r) => r.startsWith("missing_api_key:"));
+        const atCapacity = directReasons.includes("at_capacity");
         if (apiKeyReason) {
           error = t("card.play_no_api_key");
           apiKeysOpen = true;
-        } else if (allReasons.includes("no_compatible_agent")) {
+        } else if (atCapacity) {
+          error = t("card.play_at_capacity");
+        } else if (directReasons.includes("risk_not_allowed")) {
+          error = t("card.play_risk_not_allowed");
+        } else if (directReasons.some((r) => r.startsWith("missing_capabilities:"))) {
+          error = t("card.play_missing_capabilities");
+        } else if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) {
+          error = t("card.play_repo_blocked");
+        } else if (directReasons.includes("no_compatible_agent")) {
+          // Genuinely no agent at all — likely the workspace has no
+          // claude/codex/custom configured. Send the user to Agents.
           error = t("card.play_no_agent");
           leftSection = "agents";
         } else if (allReasons.length > 0) {

@@ -1,8 +1,24 @@
 import { type Run, type SubTask } from "@backlog/schemas";
-import { listArchivedRuns } from "./run-store.js";
+import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 import { listSubTasks } from "./state-files.js";
 
-export const FALLBACK_TASK_DURATION_SECONDS = 30 * 60;
+// Default estimates when we have no historical data. Calibrated to
+// match the kind of work that actually lands here: small HTML / config
+// edits typically run in 1-3 minutes; medium-risk refactors in 5-10;
+// high-risk migrations in 20-30. The previous flat 30-min fallback
+// over-estimated everything by an order of magnitude and made the
+// "il reste …" pill useless. Once a workspace has 3+ archived runs
+// the median takes over per-repo.
+const FALLBACK_LOW_RISK_SECONDS = 2 * 60;
+const FALLBACK_MEDIUM_RISK_SECONDS = 5 * 60;
+const FALLBACK_HIGH_RISK_SECONDS = 20 * 60;
+export const FALLBACK_TASK_DURATION_SECONDS = FALLBACK_MEDIUM_RISK_SECONDS;
+
+function fallbackForRisk(risk: SubTask["risk"]): number {
+  if (risk === "low") return FALLBACK_LOW_RISK_SECONDS;
+  if (risk === "high") return FALLBACK_HIGH_RISK_SECONDS;
+  return FALLBACK_MEDIUM_RISK_SECONDS;
+}
 
 export interface TaskEstimate {
   seconds: number;
@@ -22,7 +38,12 @@ function median(values: number[]): number | null {
 
 function runDurationSeconds(run: Run): number | null {
   if (!run.started_at || !run.finished_at) return null;
-  if (run.status !== "succeeded") return null;
+  // Count both succeeded and awaiting_review runs — the executor has
+  // finished its work in both cases, the difference is whether a
+  // human has approved. Treating awaiting_review as "done" lets us
+  // start improving estimates as soon as the agent finishes a task,
+  // not only after the user clicks ✓.
+  if (run.status !== "succeeded" && run.status !== "awaiting_review") return null;
   const startedMs = Date.parse(run.started_at);
   const finishedMs = Date.parse(run.finished_at);
   if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs)) return null;
@@ -36,7 +57,13 @@ export interface EstimatorContext {
 }
 
 function loadContext(backlogDir: string, ctx?: EstimatorContext): Required<EstimatorContext> {
-  const archivedRuns = ctx?.archivedRuns ?? listArchivedRuns(backlogDir);
+  // Pull from BOTH archived and active runs. An awaiting_review run
+  // sits in active until approved, but its duration is meaningful as
+  // soon as the executor finishes — including it in the data set lets
+  // the estimator improve immediately on the first successful run
+  // instead of waiting for the human to click approve.
+  const archivedRuns =
+    ctx?.archivedRuns ?? [...listArchivedRuns(backlogDir), ...listActiveRuns(backlogDir)];
   const tasksById = ctx?.tasksById ?? new Map(listSubTasks(backlogDir).map((task) => [task.id, task]));
   return { archivedRuns, tasksById };
 }
@@ -69,8 +96,11 @@ export function estimateSubTask(
     }
   }
 
-  const tightMedian = sameLaneSameRepo.length >= 3 ? median(sameLaneSameRepo) : null;
-  const looseMedian = sameRepo.length >= 3 ? median(sameRepo) : null;
+  // Lowered the threshold from 3 → 1: even a single run is a much
+  // better signal than a generic risk-keyed fallback. The median of
+  // one is just that run's duration; subsequent runs converge fast.
+  const tightMedian = sameLaneSameRepo.length >= 1 ? median(sameLaneSameRepo) : null;
+  const looseMedian = sameRepo.length >= 1 ? median(sameRepo) : null;
 
   if (tightMedian !== null) {
     return { seconds: Math.round(tightMedian), source: "auto", sample_size: sameLaneSameRepo.length };
@@ -83,7 +113,10 @@ export function estimateSubTask(
     return { seconds: task.estimated_duration_seconds, source: task.estimate_source ?? "auto" };
   }
 
-  return { seconds: FALLBACK_TASK_DURATION_SECONDS, source: "auto", sample_size: 0 };
+  // No history yet → fall back to a risk-keyed default. Keeps the
+  // initial "il reste 2 min" / "5 min" / "20 min" pills realistic
+  // until enough runs land to compute a per-repo median.
+  return { seconds: fallbackForRisk(task.risk), source: "auto", sample_size: 0 };
 }
 
 export function estimateWorkItem(

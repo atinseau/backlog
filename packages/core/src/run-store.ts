@@ -132,6 +132,15 @@ export function isTerminalRunStatus(status: Run["status"]): boolean {
   return status === "succeeded" || status === "failed" || status === "blocked" || status === "canceled";
 }
 
+// "Holding the agent slot" — runs that are still doing something on
+// the agent's CPU/CLI side, as opposed to awaiting human review.
+// Used by the planner to compute concurrency: a run sitting in
+// awaiting_review doesn't keep the agent busy, so it shouldn't block
+// the next task from being scheduled to the same agent.
+export function isAgentBusyStatus(status: Run["status"]): boolean {
+  return status === "queued" || status === "preparing" || status === "running" || status === "interrupted";
+}
+
 export function listAllRuns(backlogDir: string): Run[] {
   const directories = [
     activeRunsDir(backlogDir),
