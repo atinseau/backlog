@@ -42,7 +42,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: "object",
       properties: {
-        run_id: { type: "string", description: "Run id, e.g. RUN-abc123" },
+        run_id: { type: "string", description: "Run id, e.g. run_001" },
         tail: {
           type: "integer",
           description: "Number of lines from the end (default 30, max 200).",
@@ -130,8 +130,8 @@ const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         confirmed: { type: "boolean" },
-        subtask_id: { type: "string", description: "Specific subtask, e.g. TASK-4ae54ffa." },
-        task_id: { type: "string", description: "Parent task id, e.g. TASK-8e43acdd. Scheduler picks one of its ready subtasks." },
+        subtask_id: { type: "string", description: "Specific subtask, e.g. subtask_001." },
+        task_id: { type: "string", description: "Parent task id, e.g. task_001. Scheduler picks one of its ready subtasks." },
         agent_id: { type: "string", description: "Optional: force a specific agent (claude-default, codex-default, …). Defaults to the scheduler's pick." },
       },
       required: [],
@@ -331,7 +331,7 @@ If the user's first message is itself an explicit approval ("oui démarre l'orch
 ## Style
 - Match the user's language (French → French, English → English).
 - Be concise. The drawer is narrow — short paragraphs, no headings unless the answer is genuinely multi-section.
-- When you cite a run or subtask, use its id verbatim (RUN-…, TASK-…).
+- When you cite a run or subtask, use its id verbatim (run_…, task_…, subtask_…).
 - After executing a write tool, summarize what happened in one sentence and stop — don't follow up with a tool call unless the user asks.`;
 
 export interface ChatMessage {

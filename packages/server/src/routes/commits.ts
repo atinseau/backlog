@@ -18,9 +18,14 @@ export interface CommitEntry {
   links: CommitLink[];
 }
 
-const TASK_RE = /\b(TASK|WI|TK)-[0-9a-f]{8}\b/gi;
-const SUBTASK_RE = /\b(ST|SUB)-[0-9a-f]{8}\b/gi;
-const CLAIM_RE = /\bCLM-[0-9TZ:.\-]+-[0-9a-f]{4}\b/g;
+// Sequential per-project ID format introduced in 1.4. The legacy hex
+// formats (TASK-c4bdf6ac, ST-9a2f, CLM-…) are no longer recognised —
+// existing workspaces are renamed once via `backlog migrate ids` so
+// the parser stays simple. Three-or-more digits to allow growth past
+// task_999.
+const TASK_RE = /\btask_\d{3,}\b/g;
+const SUBTASK_RE = /\bsubtask_\d{3,}\b/g;
+const CLAIM_RE = /\bclaim_\d{3,}\b/g;
 
 function detectLinks(message: string): CommitLink[] {
   const links: CommitLink[] = [];
