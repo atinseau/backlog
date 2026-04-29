@@ -1,9 +1,9 @@
 # Backlog
 
-**Turn planning inputs into safe agent execution.**
+**The orchestrator for AI coding agents.**
 
-Vendor-neutral orchestration with claims, worktrees, and parallel runs for
-AI coding agents.
+Run Claude Code, Codex, and your own CLIs across isolated git worktrees,
+with claims, retries, and review. Local by default — no account required.
 
 [![npm version](https://img.shields.io/npm/v/backlog.svg)](https://www.npmjs.com/package/backlog)
 [![license](https://img.shields.io/npm/l/backlog.svg)](https://github.com/osmove/backlog/blob/main/LICENSE)
@@ -11,23 +11,36 @@ AI coding agents.
 
 ---
 
-> **Heads-up — version reset.** This package was briefly published as `1.0.0`–`1.2.0` in late April 2026. That `1.x` labeling implied a stability contract the project was not ready to honor, so it has been reset to `0.x` to reflect honest pre-1.0 status. If you have `"backlog": "^1.x"` pinned anywhere, switch to `"^0.1.0"` or `latest`. See [CHANGELOG.md](./CHANGELOG.md) and the [legacy changelog on GitHub](https://github.com/osmove/backlog/blob/main/CHANGELOG-LEGACY.md) for details.
+## The product family
+
+| Surface | Install | Use case |
+|---------|---------|----------|
+| **CLI** (`backlog`) | `npm i -g backlog` | Headless, scriptable, the binary you put in CI |
+| **Desktop** | [backlog.so/desktop](https://backlog.so/desktop) | Native kanban + run inspector + agent fleet (macOS first) |
+| **SDK** (`@backlog/sdk`) | `npm i @backlog/sdk` | Embed the orchestrator in your own tool, TypeScript-first |
+
+CLI, Desktop, and SDK are all **Apache-2.0, free forever**. Backlog Cloud
+(managed hosted backend) is in private development and only adds features
+that genuinely need infrastructure we run — SMTP, hosted auth & SSO,
+multi-tenant collaboration, hosted run executors, retention beyond local
+disk, audit log export. See [backlog.so/cloud](https://backlog.so/cloud).
 
 ## What is Backlog?
 
 Backlog is the engine that sits between your backlog and your agents.
 
-It ingests work from sources you already use (Markdown, CSV, Jira — more
-coming), decomposes work items into scoped, executable tasks, and runs each
-task in an isolated git worktree under a file-scope claim so multiple agents
-can work in parallel without stepping on each other.
+It ingests work from sources you already use (Markdown, CSV, Jira, GitHub
+Issues — more on the [roadmap](docs/ROADMAP.md)), decomposes work items
+into scoped, executable tasks, and runs each task in an isolated git
+worktree under a file-scope claim so multiple agents can work in parallel
+without stepping on each other.
 
-When a run finishes, you review it, approve it, request changes, or hand it
-off — and the next eligible task can start immediately.
+When a run finishes, you review it, approve it, request changes, or hand
+it off — and the next eligible task can start immediately.
 
-Backlog runs end-to-end on your machine by default. Remote sources, remote
-repos, remote sandboxes, remote executors, and deploy targets are part of
-the [multi-target roadmap](docs/ROADMAP.md).
+Backlog runs end-to-end on your machine by default. Remote sources,
+remote repos, remote sandboxes, remote executors, and deploy targets are
+part of the [multi-target roadmap](docs/ROADMAP.md).
 
 ## How it works
 
@@ -92,11 +105,21 @@ backlog sources resolve --work-item WI-xxxx --use local
 
 ## Run the kanban board
 
+You have two options for the same kanban experience — same engine, same
+Svelte UI, same `@backlog/server`:
+
 ```bash
+# Option A — CLI: serves the board in your browser.
 backlog serve
 ```
 
-Opens a local Jira-like board in your browser at `http://127.0.0.1:7878`.
+```bash
+# Option B — Desktop: native window, no browser tab. macOS first.
+# Download from https://backlog.so/desktop (DMG, currently in
+# Apple notarisation; Windows + Linux follow via electron-builder).
+```
+
+Both open at `http://127.0.0.1:7878` (Desktop picks a random port).
 The topbar carries:
 
 - **Project selector** + ⚙ Projets modal (CRUD)
@@ -318,8 +341,7 @@ supports:
 
 End users only ever install `backlog` — every workspace package is
 inlined into the published CLI tarball at build time. The split exists
-for development clarity and per-package licensing (the server is BSL
-1.1; everything else is Apache).
+for development clarity and per-package licensing.
 
 ## Roadmap
 
@@ -340,8 +362,10 @@ Issues, PRs, and design discussions welcome.
 
 ## Sister projects
 
+- [Backlog Desktop](https://backlog.so/desktop) — native kanban for the same orchestrator engine, currently in Apple notarisation (waitlist)
+- [`@backlog/sdk`](https://www.npmjs.com/package/@backlog/sdk) — TypeScript client generated from the OpenAPI 3.0.3 spec
+- [Backlog Cloud](https://backlog.so/cloud) — managed hosted backend (private development, waitlist)
 - [`lint`](https://www.npmjs.com/package/lint) — universal linter CLI with AI-powered code review
-- Backlog Cloud — managed hosted backend (coming)
 
 ## License
 
