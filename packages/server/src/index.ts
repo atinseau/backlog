@@ -31,10 +31,14 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     });
   });
 
+  // When the caller passed port: 0, the OS picked a free port — read it back
+  // from the bound socket so the returned url reflects reality.
+  const address = server.address();
+  const boundPort = typeof address === "object" && address ? address.port : port;
   const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
   return {
-    url: `http://${displayHost}:${port}`,
-    port,
+    url: `http://${displayHost}:${boundPort}`,
+    port: boundPort,
     host,
     workspace,
     close: () =>

@@ -1,0 +1,30 @@
+appId: com.osmove.backlog
+productName: Backlog
+copyright: Copyright © 2026 Jimmy Douieb
+directories:
+  output: release
+  buildResources: assets
+files:
+  - dist/**/*
+  - package.json
+  - "!**/*.map"
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  icon: assets/icon.png
+dmg:
+  contents:
+    - x: 130
+      y: 220
+      type: link
+      path: /Applications
+    - x: 410
+      y: 220
+      type: file
+asar: true

@@ -1,0 +1,38 @@
+{
+  "name": "@backlog/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backlog desktop app (Electron) — embeds the local Hono server and kanban UI in a native window.",
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup && NODE_ENV=development electron dist/main.mjs",
+    "start": "electron dist/main.mjs",
+    "dist:mac": "pnpm build && electron-builder --mac --x64 --arm64"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@backlog/claims": "workspace:*",
+    "@backlog/config": "workspace:*",
+    "@backlog/connectors": "workspace:*",
+    "@backlog/core": "workspace:*",
+    "@backlog/git": "workspace:*",
+    "@backlog/schemas": "workspace:*",
+    "@backlog/server": "workspace:*",
+    "@hono/node-server": "^1.13.7",
+    "@iarna/toml": "^2.2.5",
+    "execa": "^9.6.0",
+    "hono": "^4.6.13",
+    "picomatch": "^4.0.2",
+    "yaml": "^2.8.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  }
+}

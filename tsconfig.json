@@ -9,6 +9,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/connectors" },
     { "path": "./packages/server" },
-    { "path": "./packages/cli" }
+    { "path": "./packages/cli" },
+    { "path": "./packages/desktop" }
   ]
 }
