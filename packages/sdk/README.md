@@ -1,23 +1,23 @@
-# `backlog-sdk`
+# `@backlog/sdk`
 
 TypeScript SDK for [Backlog Cloud](https://backlog.so) — a typed client for the backlog.so REST API.
 
-[![npm version](https://img.shields.io/npm/v/backlog-sdk.svg)](https://www.npmjs.com/package/backlog-sdk)
-[![license](https://img.shields.io/npm/l/backlog-sdk.svg)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@backlog/sdk.svg)](https://www.npmjs.com/package/@backlog/sdk)
+[![license](https://img.shields.io/npm/l/@backlog/sdk.svg)](./LICENSE)
 
 > **Scope.** This SDK targets the **Backlog Cloud** backend (the hosted SaaS). It is **not** a client for the local `backlog serve` server bundled in the [`backlog`](https://www.npmjs.com/package/backlog) CLI — that server has its own evolving API and does not expose Cloud's auth, billing, or AI-proxy endpoints. If you self-host the Backlog Cloud Rails backend at your own URL, point the SDK at it via `baseUrl`.
 
 ## Install
 
 ```sh
-npm install backlog-sdk
+npm install @backlog/sdk
 # or pnpm/yarn/bun
 ```
 
 ## Quickstart
 
 ```ts
-import { BacklogClient } from "backlog-sdk";
+import { BacklogClient } from "@backlog/sdk";
 
 const backlog = new BacklogClient({
   baseUrl: "https://backlog.so/api/v1", // or your self-hosted URL

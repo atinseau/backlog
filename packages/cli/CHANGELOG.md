@@ -1,14 +1,12 @@
 # Changelog
 
-All notable changes to the `backlog` CLI are documented here.
-
-> **Versioning note.** The `backlog` package was briefly relabelled `0.1.0` on 2026-04-28 in an attempt to flag pre-1.0 status. That broke `^1.x` pins more than it helped, so the next release re-establishes the 1.x line at `1.3.0`. If you had `"backlog": "^0.1.0"` pinned, switch back to `^1.3.0` or `latest`. The 1.0.0–1.2.0 history is archived in [`CHANGELOG-LEGACY.md`](./CHANGELOG-LEGACY.md).
+All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 history lives in [`CHANGELOG-LEGACY.md`](./CHANGELOG-LEGACY.md).
 
 ## [Unreleased]
 
 ## [1.3.0] - 2026-04-29
 
-The first release on the restored 1.x line. Functionally a superset of the 1.2.0 codebase plus everything that was sitting in Unreleased on the branch (and the brief `0.1.0` snapshot on npm), plus the open-core split and the Desktop preview.
+The natural follow-up to 1.2.0. Brings the open-core boundary, the Desktop preview, and everything that was sitting in Unreleased onto a stable 1.x release.
 
 ### Highlights
 
@@ -59,8 +57,7 @@ The first release on the restored 1.x line. Functionally a superset of the 1.2.0
 - pnpm monorepo: `cli`, `core`, `claims`, `connectors`, `config`, `git`, `hooks`, `schemas`, `server`, `board-ui`. `schemas` is the source of truth (Zod) for cross-boundary types. tsup bundles everything into the published tarball.
 - Apache-2.0 (CLI). `@backlog/board-ui` is Apache-2.0; `@backlog/server` is BUSL-1.1 (commercial license for hosted use).
 
-### Notes for users coming from `0.1.0`
+### Notes for users coming from 1.2.0
 
-- npm `latest` now points to `1.3.0`. If you had `"backlog": "^0.1.0"` in `package.json` or a Dockerfile, switch to `"^1.3.0"` (or pin to `latest`).
+- npm `latest` now points to `1.3.0`. Reinstall with `npm i -g backlog@latest`.
 - No data migration is required; the workspace format hasn't changed since 1.2.0.
-- The deprecated `0.1.0` tag remains on npm but won't receive updates.
