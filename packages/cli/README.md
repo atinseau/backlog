@@ -80,16 +80,16 @@ Create a work item, split it into tasks, and run the scheduler:
 
 ```bash
 backlog work add --title "Build the scheduler"
-backlog work split WI-xxxx --repo backlog \
+backlog work split task_001 --repo backlog \
   --scope backlog=packages/core/src/**
 backlog task add \
-  --work-item WI-xxxx \
+  --work-item task_001 \
   --title "Implement scheduler" \
   --repo backlog \
   --preferred-agent manual-default \
   --require-capability edit_code
 backlog schedule simulate
-backlog schedule explain --work-item WI-xxxx
+backlog schedule explain --work-item task_001
 backlog schedule run --approve
 ```
 
@@ -100,7 +100,7 @@ backlog sources add markdown --id notes --path backlog.md
 backlog sources sync
 backlog work import
 backlog sources conflicts
-backlog sources resolve --work-item WI-xxxx --use local
+backlog sources resolve --work-item task_001 --use local
 ```
 
 ## Run the kanban board
@@ -209,8 +209,8 @@ backlog project add --slug shipping --name "Shipping" --repo web --repo api
 
 # Create a ticket scoped to the project, split it, and let the orchestrator run.
 backlog work add --title "Stripe integration" --priority P1
-backlog work assign-project WI-xxxx shipping
-backlog work split WI-xxxx --repo web --repo api
+backlog work assign-project task_001 shipping
+backlog work split task_001 --repo web --repo api
 backlog orchestrator start --auto --project shipping
 ```
 
