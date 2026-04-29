@@ -75,15 +75,21 @@ export const taskSchema = z.object({
     // merge button is clicked.
     merge_pr: z.boolean().default(false),
     // Where the agent does its work:
-    //   isolated_worktree (default) — safe, parallel-friendly, the
-    //                                 only mode the executor wires
-    //                                 today.
-    //   direct                       — work directly in the user's
-    //                                 main checkout. Future-looking;
-    //                                 the executor still falls back
-    //                                 to a worktree until this is
-    //                                 wired downstream.
-    worktree_mode: z.enum(["isolated_worktree", "direct"]).default("isolated_worktree"),
+    //   direct (default)            — work directly in the user's
+    //                                 main checkout. Matches what
+    //                                 most users expect for a single
+    //                                 quick task.
+    //   isolated_worktree           — safe, parallel-friendly. Use
+    //                                 when running multiple agents
+    //                                 simultaneously or when you
+    //                                 don't want the agent touching
+    //                                 your working copy at all.
+    //                                 (Note: until "direct" is wired
+    //                                 in run-launcher, the executor
+    //                                 still uses a worktree under
+    //                                 the hood — the user's intent
+    //                                 is recorded for that follow-up.)
+    worktree_mode: z.enum(["isolated_worktree", "direct"]).default("direct"),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a
     // specific agent (claude-code, codex, etc.) or a user. The
@@ -95,7 +101,7 @@ export const taskSchema = z.object({
     push_when_done: true,
     create_pr: false,
     merge_pr: false,
-    worktree_mode: "isolated_worktree",
+    worktree_mode: "direct",
     preferred_agents: [],
   }),
   sync: z.object({

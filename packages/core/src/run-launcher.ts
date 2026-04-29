@@ -1,4 +1,4 @@
-import { createClaim, writeContextFile } from "@backlog/claims";
+import { archiveClaim, createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
 import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
@@ -128,13 +128,32 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
 
     const branch = buildRunBranchName(task.id, task.title);
     const runId = nextRunId();
-    const worktreePath = await ensureWorktree({
-      backlogDir,
-      repoId: repo.id,
-      repoPath: repo.path,
-      branch,
-      runId,
-    });
+    let worktreePath: string;
+    try {
+      worktreePath = await ensureWorktree({
+        backlogDir,
+        repoId: repo.id,
+        repoPath: repo.path,
+        branch,
+        runId,
+      });
+    } catch (worktreeError) {
+      // Worktree creation failed — most often because the branch
+      // already exists from a previous run that didn't clean up. The
+      // claim we just created would otherwise leak forever (no run
+      // record points at it, so releaseRunClaims never runs). Archive
+      // it inline + report a typed skip so the planner doesn't keep
+      // re-trying every tick.
+      try {
+        archiveClaim(backlogDir, claim.id);
+      } catch {
+        // best-effort: if even archive fails, the user has bigger
+        // problems. Don't shadow the original error.
+      }
+      const message = worktreeError instanceof Error ? worktreeError.message : String(worktreeError);
+      skipped.push({ taskId: task.id, reasons: [`worktree_failed:${message.slice(0, 200)}`] });
+      continue;
+    }
     const run = createRun({
       backlogDir,
       runId,

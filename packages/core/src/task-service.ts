@@ -63,7 +63,7 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
       push_when_done: input.pushWhenDone ?? true,
       create_pr: input.createPr ?? false,
       merge_pr: input.mergePr ?? false,
-      worktree_mode: input.worktreeMode ?? "isolated_worktree",
+      worktree_mode: input.worktreeMode ?? "direct",
       preferred_agents: input.preferredAgents ?? [],
     },
     sync: {

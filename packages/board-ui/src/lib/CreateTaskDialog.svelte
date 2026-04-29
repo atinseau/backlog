@@ -45,11 +45,12 @@
   let pushWhenDone = $state(true);
   let createPr = $state(false);
   let mergePr = $state(false);
-  // Where the agent works. isolated_worktree (default) keeps the
-  // user's main checkout untouched and lets multiple runs go in
-  // parallel; "direct" is for the rare case where the user wants
-  // the changes in their working copy without an extra git switch.
-  let worktreeMode = $state<"isolated_worktree" | "direct">("isolated_worktree");
+  // Where the agent works. "direct" lands the edits straight in the
+  // user's working copy — what most users actually expect when they
+  // click Play on a single quick task. "isolated_worktree" is for
+  // multi-agent parallelism / longer runs where they want their main
+  // branch protected.
+  let worktreeMode = $state<"isolated_worktree" | "direct">("direct");
 
   // AI splitter / estimator — both opt-in. Splitter is conditional
   // ("only if needed"); estimator runs an LLM once to ballpark the
@@ -262,6 +263,24 @@
         <fieldset class="execution">
           <legend>{t("create_task.execution.title")}</legend>
 
+          <!-- Worktree mode first — it's the single biggest decision
+               for this task: do you want the agent to touch your
+               working copy directly, or do its thing in an isolated
+               git worktree? Default is direct (matches the most
+               common single-task expectation). -->
+          <label class="select-row">
+            <span class="select-label">{t("create_task.execution.worktree_mode")}</span>
+            <select bind:value={worktreeMode}>
+              <option value="direct">{t("create_task.execution.worktree_direct")}</option>
+              <option value="isolated_worktree">{t("create_task.execution.worktree_isolated")}</option>
+            </select>
+            <span class="select-hint">
+              {worktreeMode === "direct"
+                ? t("create_task.execution.worktree_direct_hint")
+                : t("create_task.execution.worktree_isolated_hint")}
+            </span>
+          </label>
+
           <!-- End-of-run pipeline, in order: commit → push → PR → merge.
                Each step gates the next visually so the user knows the
                sequence (push only matters if there's a commit; PR only
@@ -300,21 +319,6 @@
             <span>
               <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
               <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
-            </span>
-          </label>
-
-          <!-- Worktree mode — direct vs isolated. The note used to
-               apologise for "always worktree"; now it's a real choice. -->
-          <label class="select-row">
-            <span class="select-label">{t("create_task.execution.worktree_mode")}</span>
-            <select bind:value={worktreeMode}>
-              <option value="isolated_worktree">{t("create_task.execution.worktree_isolated")}</option>
-              <option value="direct">{t("create_task.execution.worktree_direct")}</option>
-            </select>
-            <span class="select-hint">
-              {worktreeMode === "direct"
-                ? t("create_task.execution.worktree_direct_hint")
-                : t("create_task.execution.worktree_isolated_hint")}
             </span>
           </label>
         </fieldset>

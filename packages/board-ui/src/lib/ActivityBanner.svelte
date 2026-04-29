@@ -97,19 +97,16 @@
     busSource?.close();
     activitySource?.close();
 
-    busSource = new EventSource(apiUrl("/events"));
-    const busTypes = [
-      "subtask.changed",
-      "task.changed",
-      "run.changed",
-      "claim.changed",
-      "orchestrator.changed",
-    ];
-    for (const type of busTypes) {
-      busSource.addEventListener(type, () => {
-        pushEvent({ kind: "bus", type, ts: new Date().toISOString() });
-      });
-    }
+    // Bus events drove the activity log to flood with naked
+    // "claim.changed" / "subtask.changed" lines that carried no
+    // actionable info — they're a hint to the BOARD that something
+    // changed, not user-visible activity. The activity SSE below
+    // already surfaces every meaningful event with run_id + message
+    // (executor.start, agent.bash, run.committed, etc.) so we drop
+    // the bus subscription from this feed. App.svelte still listens
+    // to /events for board-refresh purposes.
+    busSource?.close();
+    busSource = null;
 
     activitySource = new EventSource(apiUrl("/activity/stream"));
     activitySource.addEventListener("activity", (raw) => {

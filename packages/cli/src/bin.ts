@@ -30,7 +30,7 @@ const program = new Command();
 
 program
   .name("backlog")
-  .description("Backlog — turns planning inputs into safe agent execution.")
+  .description("Backlog — orchestrator for AI coding agents. Claims, isolated worktrees, parallel runs.")
   .version(VERSION, "-v, --version");
 
 registerInitCommand(program);

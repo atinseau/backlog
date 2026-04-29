@@ -34,6 +34,18 @@ function isTerminal(status: SubTask["status"]): boolean {
   return status === "completed" || status === "canceled";
 }
 
+// "Already scheduled / in flight" — the planner must skip these.
+// `running` is obvious (a run is in progress).
+// `review` means a previous run hit awaiting_review and is parked
+// for human approval; launching a NEW run on the same sub-task would
+// create a duplicate worktree (branch already exists → ensureWorktree
+// throws → orphaned claim → activity log floods with claim.changed).
+// Until the human clicks ✓ Approve or × Cancel, this sub-task is
+// done as far as the scheduler is concerned.
+function isAlreadyHandled(status: SubTask["status"]): boolean {
+  return status === "running" || status === "review";
+}
+
 function taskPriorityWeight(workItem: Task): number {
   switch (workItem.priority) {
     case "P0":
@@ -133,7 +145,9 @@ export function buildExecutionPlan(
   config: ProjectConfig,
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
-  const tasks = listSubTasks(backlogDir).filter((task) => !isTerminal(task.status));
+  const tasks = listSubTasks(backlogDir).filter(
+    (task) => !isTerminal(task.status) && !isAlreadyHandled(task.status),
+  );
   const workItems = listTasks(backlogDir);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));

@@ -278,7 +278,7 @@
   "create_task.execution.create_pr": "Open a pull request",
   "create_task.execution.create_pr_desc": "After push, run `gh pr create` (GitHub today) to open a PR. Skipped with a hint if `gh` isn't installed or authenticated.",
   "create_task.execution.merge_pr": "Auto-merge the PR",
-  "create_task.execution.merge_pr_desc": "Queue the PR for `gh pr merge --squash --auto`. Branch protection / required checks (if set) still apply.",
+  "create_task.execution.merge_pr_desc": "Squash-merge the PR as soon as it's green. If your branch has required CI checks or reviews, the merge waits for them.",
   "create_task.execution.worktree_mode": "Where to work",
   "create_task.execution.worktree_isolated": "Isolated git worktree (recommended)",
   "create_task.execution.worktree_direct": "Direct in your checkout",
