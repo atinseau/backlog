@@ -43,17 +43,18 @@
   interface Props {
     onClose: () => void;
     onChanged?: () => void;
-    defaultTab?: "account" | "github" | "jira" | "sources";
+    defaultTab?: "github" | "jira" | "sources";
     embedded?: boolean;
+    onOpenProfile?: () => void;
   }
 
-  let { onClose, onChanged, defaultTab = "account", embedded = false }: Props = $props();
+  let { onClose, onChanged, defaultTab = "github", embedded = false, onOpenProfile }: Props = $props();
 
   // Initial-from-prop: defaultTab seeds the active tab; user clicks
   // afterwards take precedence. Reactivity to prop changes here would
   // surprise the user (their selection would reset).
   // svelte-ignore state_referenced_locally
-  let tab = $state<"account" | "github" | "jira" | "sources">(defaultTab);
+  let tab = $state<"github" | "jira" | "sources">(defaultTab);
 
   // Cloud account state
   let cloudStatus = $state<CloudStatus | null>(null);
@@ -66,11 +67,6 @@
   async function loadCloudStatus() {
     try {
       cloudStatus = await fetchCloudStatus();
-      if (cloudStatus.signed_in && tab === "account") {
-        // Stay on account tab so user sees the connected state.
-      } else if (!cloudStatus.signed_in) {
-        tab = "account";
-      }
     } catch {
       // Ignore — local server might just be starting.
     }
@@ -563,9 +559,6 @@
       <div class="title-block">
         <h2>{t("integrations.title")}</h2>
         <div class="tabs">
-          <button class="tab" class:active={tab === "account"} onclick={() => (tab = "account")}>
-            {t("account.tab")}{cloudStatus?.signed_in ? " ✓" : ""}
-          </button>
           <button class="tab" class:active={tab === "github"} onclick={() => (tab = "github")}>
             {t("integrations.tab.github")}
           </button>
@@ -583,8 +576,8 @@
     </header>
 
     <div class="content">
-      {#if tab === "account"}
-        <section class="panel">
+      {#if false}
+        <section class="panel" hidden>
           {#if cloudStatus?.signed_in && cloudStatus.user}
             <div class="status ok">
               {t("account.signed_in_as", { email: cloudStatus.user.email })}
@@ -690,7 +683,7 @@
           {#if !cloudStatus?.signed_in}
             <div class="signin-banner">
               <p>{t("account.signin_required")}</p>
-              <button class="primary" onclick={() => (tab = "account")}>
+              <button class="primary" onclick={() => onOpenProfile?.()}>
                 {t("account.button.signin")}
               </button>
             </div>
@@ -875,7 +868,7 @@
           {#if !cloudStatus?.signed_in}
             <div class="signin-banner">
               <p>{t("account.signin_required")}</p>
-              <button class="primary" onclick={() => (tab = "account")}>
+              <button class="primary" onclick={() => onOpenProfile?.()}>
                 {t("account.button.signin")}
               </button>
             </div>

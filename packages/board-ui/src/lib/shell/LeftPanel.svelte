@@ -8,7 +8,6 @@
   import RepoSelector from "../RepoSelector.svelte";
   import ThemeToggle from "../ThemeToggle.svelte";
   import { t } from "../i18n.svelte.js";
-  import type { CloudStatus } from "../api.js";
   import type { ProjectEntry, Repo } from "../types.js";
 
   export type SectionKey =
@@ -32,8 +31,6 @@
     onManageRepos: () => void;
     section: SectionKey;
     onSelectSection: (key: SectionKey) => void;
-    cloudStatus: CloudStatus | null;
-    onOpenProfile: () => void;
   }
 
   let {
@@ -47,8 +44,6 @@
     onManageRepos,
     section,
     onSelectSection,
-    cloudStatus,
-    onOpenProfile,
   }: Props = $props();
 
   const SECTIONS: { key: SectionKey; label: () => string; icon: string }[] = [
@@ -62,10 +57,6 @@
     { key: "settings", label: () => t("nav.settings"), icon: "⚙" },
   ];
 
-  function userInitials(email: string): string {
-    const local = email.split("@")[0] ?? "";
-    return local.slice(0, 2).toUpperCase() || "?";
-  }
 </script>
 
 <aside class="left-panel">
@@ -103,19 +94,6 @@
   </nav>
 
   <div class="footer">
-    <button
-      class="avatar"
-      class:signed-in={cloudStatus?.signed_in}
-      onclick={onOpenProfile}
-      title={cloudStatus?.user?.email ?? t("topbar.profile_signed_out")}
-      aria-label={t("topbar.profile")}
-    >
-      {#if cloudStatus?.signed_in && cloudStatus.user}
-        {userInitials(cloudStatus.user.email)}
-      {:else}
-        ☺
-      {/if}
-    </button>
     <LocaleToggle />
     <ThemeToggle />
   </div>
@@ -207,24 +185,5 @@
     align-items: center;
     gap: 8px;
     background: var(--bg-muted);
-  }
-  .avatar {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 1px solid var(--border-strong);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .avatar.signed-in {
-    background: var(--success-bg);
-    color: var(--success);
-    border-color: var(--success);
   }
 </style>

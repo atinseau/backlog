@@ -21,6 +21,8 @@
   import RightPanel from "./lib/shell/RightPanel.svelte";
   import BottomPanel from "./lib/shell/BottomPanel.svelte";
   import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
+  import ProfileMenu from "./lib/ProfileMenu.svelte";
+  import ProfileView from "./lib/ProfileView.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
@@ -106,7 +108,7 @@
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let splitTarget = $state<TaskCard | null>(null);
   let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
-  let integrationsTab = $state<"account" | "github" | "jira" | "sources">("account");
+  let integrationsTab = $state<"github" | "jira" | "sources">("github");
 
   // ---- shell layout state ----
   let leftOpen = $state(readBool(SHELL_LEFT_OPEN, true));
@@ -118,6 +120,7 @@
   let leftSection = $state<SectionKey>("board");
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
+  let profileOpen = $state<"signin" | "signup" | null>(null);
 
   // ---- onboarding ----
   const ONBOARDING_STORAGE_KEY = "backlog.onboarding.dismissed";
@@ -142,10 +145,6 @@
     }
   }
 
-  function openProfile() {
-    integrationsTab = "account";
-    leftSection = "integrations";
-  }
 
   // Repos visible in the kanban — the "fallback" set when the workspace
   // has no configured repos yet (we surface whatever the cards reference).
@@ -424,6 +423,11 @@
         </span>
       {/if}
       <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+      <ProfileMenu
+        cloudStatus={cloudStatus}
+        onOpenProfile={(mode) => (profileOpen = mode)}
+        onChanged={loadCloudStatus}
+      />
       <PanelToggles
         leftOpen={leftOpen}
         bottomOpen={bottomOpen}
@@ -450,11 +454,9 @@
           repos={repoOptions}
           selectedRepoId={selectedRepoId}
           onSelectRepo={persistRepo}
-          onManageRepos={() => (reposViewOpen = true)}
+          onManageRepos={() => (leftSection = "repos")}
           section={leftSection}
           onSelectSection={applySection}
-          cloudStatus={cloudStatus}
-          onOpenProfile={openProfile}
         />
       </div>
       <Splitter orientation="vertical" onResize={(d) => (leftWidth = Math.max(180, Math.min(480, leftWidth + d)))} onCommit={commitLeftWidth} />
@@ -529,6 +531,7 @@
               if (!connected) refresh();
               loadCloudStatus();
             }}
+            onOpenProfile={() => (profileOpen = "signin")}
           />
         {:else if leftSection === "permissions"}
           <PermissionsView
@@ -633,6 +636,14 @@
 
 {#if diffTarget}
   <DiffPanel runId={diffTarget.runId} file={diffTarget.file} onClose={() => (diffTarget = null)} />
+{/if}
+
+{#if profileOpen}
+  <ProfileView
+    initialMode={profileOpen}
+    onClose={() => { profileOpen = null; loadCloudStatus(); }}
+    onChanged={loadCloudStatus}
+  />
 {/if}
 
 <style>
