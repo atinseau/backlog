@@ -416,6 +416,18 @@ export async function setSubTaskEstimate(id: string, seconds: number | null): Pr
   }
 }
 
+export async function setSubTaskAssignee(id: string, agentId: string | null): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}/assignee`), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agent_id: agentId }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Assign failed (${response.status}): ${detail}`);
+  }
+}
+
 export async function fetchHealth(): Promise<{ ok: boolean; workspace: string; version: string }> {
   const response = await fetch(apiUrl("/health"));
   if (!response.ok) throw new Error(`Health failed: ${response.status}`);
@@ -764,6 +776,12 @@ export interface SubTaskDetail {
   blockers: string[];
   estimated_duration_seconds?: number;
   progress_percent?: number;
+  execution?: {
+    lane?: string;
+    preferred_agents: string[];
+    required_capabilities: string[];
+    manual_approval_required: boolean;
+  };
 }
 
 export async function fetchTaskDetail(id: string): Promise<{ task: TaskDetail; subtasks: SubTaskDetail[] }> {

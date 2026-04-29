@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "./i18n.svelte.js";
-  import { fetchTaskDetail, type SubTaskDetail, type TaskDetail } from "./api.js";
+  import { fetchTaskDetail, fetchAgents, setSubTaskAssignee, type SubTaskDetail, type TaskDetail, type AgentSummary } from "./api.js";
   import { formatDuration } from "./timer.svelte.js";
 
   interface Props {
@@ -18,15 +19,21 @@
 
   let task = $state<TaskDetail | null>(null);
   let subtasks = $state<SubTaskDetail[]>([]);
+  let agents = $state<AgentSummary[]>([]);
   let loading = $state(true);
+  let assigningId = $state<string | null>(null);
   let error = $state<string | null>(null);
 
   async function load() {
     loading = true;
     try {
-      const result = await fetchTaskDetail(taskId);
-      task = result.task;
-      subtasks = result.subtasks;
+      const [detail, agentList] = await Promise.all([
+        fetchTaskDetail(taskId),
+        fetchAgents().catch(() => [] as AgentSummary[]),
+      ]);
+      task = detail.task;
+      subtasks = detail.subtasks;
+      agents = agentList;
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -38,6 +45,24 @@
   function formatDate(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  }
+
+  function currentAssignee(sub: SubTaskDetail): string {
+    return sub.execution?.preferred_agents?.[0] ?? "";
+  }
+  function isHumanAgent(agent: AgentSummary): boolean {
+    return agent.provider === "manual";
+  }
+  async function assign(subId: string, agentId: string) {
+    assigningId = subId;
+    try {
+      await setSubTaskAssignee(subId, agentId || null);
+      await load();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      assigningId = null;
+    }
   }
 
   load();
@@ -161,6 +186,32 @@
                       <span class="muted">· {sub.progress_percent}%</span>
                     {/if}
                   </div>
+                  {#if agents.length > 0}
+                    <div class="sub-line assignee-line">
+                      <span class="muted">{t("task_detail.subtask.assignee")}</span>
+                      <select
+                        class="assignee-select"
+                        value={currentAssignee(sub)}
+                        disabled={assigningId === sub.id}
+                        onchange={(e) => assign(sub.id, (e.currentTarget as HTMLSelectElement).value)}
+                      >
+                        <option value="">{t("task_detail.subtask.assignee_auto")}</option>
+                        <optgroup label={t("task_detail.subtask.humans")}>
+                          {#each agents.filter(isHumanAgent) as agent (agent.id)}
+                            <option value={agent.id}>{agent.id}</option>
+                          {/each}
+                        </optgroup>
+                        <optgroup label={t("task_detail.subtask.ai_agents")}>
+                          {#each agents.filter((a) => !isHumanAgent(a)) as agent (agent.id)}
+                            <option value={agent.id} disabled={!agent.enabled}>
+                              {agent.id}{agent.model ? ` · ${agent.model}` : ""}{!agent.enabled ? " (off)" : ""}
+                            </option>
+                          {/each}
+                        </optgroup>
+                      </select>
+                      {#if assigningId === sub.id}<span class="muted">…</span>{/if}
+                    </div>
+                  {/if}
                   {#if sub.scopes.length > 0}
                     <div class="sub-line">
                       <span class="muted">{t("task_detail.subtask.scopes")}:</span>
@@ -421,6 +472,20 @@
     font-size: 12px;
   }
   .sub-header { display: flex; align-items: center; gap: 8px; }
+  .assignee-line { gap: 6px; }
+  .assignee-select {
+    background: var(--bg-input);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    flex: 0 0 auto;
+    min-width: 180px;
+  }
+  .assignee-select:focus { outline: none; border-color: var(--accent); }
+  .assignee-select:disabled { opacity: 0.5; cursor: not-allowed; }
   .sub-title { flex: 1; font-weight: 500; color: var(--text-primary); }
   .sub-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; }
   .scope, .dep {

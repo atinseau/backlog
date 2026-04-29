@@ -4,6 +4,7 @@ import {
   reorderSubTask,
   setSubTaskEstimate,
   setSubTaskProgress,
+  updateSubTask,
   updateSubTaskStatus,
 } from "@backlog/core";
 import { Hono } from "hono";
@@ -148,6 +149,30 @@ export function subtasksRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "estimate_failed", detail: message }, 404);
+    }
+  });
+
+  // Assign a subtask to a specific agent (or none → orchestrator picks).
+  // Backed by SubTask.execution.preferred_agents — when this list is
+  // non-empty the scheduler restricts itself to those ids.
+  app.patch("/subtasks/:id/assignee", async (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = z
+      .object({ agent_id: z.string().min(1).nullable() })
+      .safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const next = parsed.data.agent_id
+        ? updateSubTask(workspace.backlogDir, id, { preferredAgents: [parsed.data.agent_id] })
+        : updateSubTask(workspace.backlogDir, id, { preferredAgents: [] });
+      return c.json({ task: next });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "assign_failed", detail: message }, 404);
     }
   });
 
