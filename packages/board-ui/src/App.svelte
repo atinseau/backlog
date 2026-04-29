@@ -126,6 +126,10 @@
   let profileOpen = $state<"signin" | "signup" | null>(null);
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
+  // When navigating to the Repos section via the "+ New repository"
+  // dropdown action, jump straight into the create form. Reset to
+  // false on any other path to the section.
+  let reposShowCreate = $state(false);
 
   // ---- runtime infra ----
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -491,8 +495,8 @@
           repos={repoOptions}
           selectedRepoId={selectedRepoId}
           onSelectRepo={persistRepo}
-          onManageRepos={() => (leftSection = "repos")}
-          onCreateRepo={() => (leftSection = "repos")}
+          onManageRepos={() => { reposShowCreate = false; leftSection = "repos"; }}
+          onCreateRepo={() => { reposShowCreate = true; leftSection = "repos"; }}
           section={leftSection}
           onSelectSection={applySection}
         />
@@ -577,7 +581,8 @@
         {:else if leftSection === "repos"}
           <ReposView
             embedded={true}
-            onClose={() => (leftSection = "board")}
+            initialShowCreate={reposShowCreate}
+            onClose={() => { reposShowCreate = false; leftSection = "board"; }}
             onChanged={() => {
               refreshRepos();
               if (!connected) refresh();

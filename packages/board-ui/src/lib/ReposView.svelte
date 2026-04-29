@@ -28,9 +28,10 @@
     onClose: () => void;
     onChanged?: () => void;
     embedded?: boolean;
+    initialShowCreate?: boolean;
   }
 
-  let { onClose, onChanged, embedded = false }: Props = $props();
+  let { onClose, onChanged, embedded = false, initialShowCreate = false }: Props = $props();
 
   let repos = $state<Repo[]>([]);
   let loading = $state(true);
@@ -61,7 +62,8 @@
     }
   }
 
-  let showCreate = $state(false);
+  // svelte-ignore state_referenced_locally
+  let showCreate = $state(initialShowCreate);
   let createMode = $state<"local" | "clone">("local");
   let newId = $state("");
   let newPath = $state("");

@@ -63,7 +63,6 @@
     onclick={toggle}
     aria-haspopup="listbox"
     aria-expanded={open}
-    disabled={repos.length === 0}
   >
     <span class="repo-icon" aria-hidden="true">📦</span>
     <span class="name">{triggerLabel}</span>
