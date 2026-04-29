@@ -94,6 +94,21 @@
 </script>
 
 <div class="controls" role="toolbar" aria-label="Orchestrator controls">
+  <!-- Stop on the left, Play on the right (DAW / tape-recorder convention
+       of "destructive action first"). Stop is greyed when nothing is
+       running; Play stays bright + clickable so the user always has a
+       way to launch. -->
+  <button
+    class="ctrl stop"
+    onclick={handleStop}
+    disabled={busy || !isRunning}
+    title={stopTitle}
+    aria-label="Stop"
+  >
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <rect x="2" y="2" width="10" height="10" rx="2" fill="currentColor" />
+    </svg>
+  </button>
   <button
     class="ctrl play"
     class:running={isRunning}
@@ -101,35 +116,30 @@
     disabled={busy || isRunning || nothingToRun}
     title={playTitle}
     aria-label="Play"
-  >▶</button>
-  <button
-    class="ctrl stop"
-    onclick={handleStop}
-    disabled={busy || !isRunning}
-    title={stopTitle}
-    aria-label="Stop"
-  >⏹</button>
+  >
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M3.7 2.6c0-.7.8-1.2 1.4-.8l6.4 4c.6.4.6 1.2 0 1.6l-6.4 4c-.6.4-1.4-.1-1.4-.8V2.6Z" fill="currentColor" />
+    </svg>
+  </button>
 </div>
 
 <style>
-  /* Frameless — the buttons live alongside the title with no surrounding
-     box or background. Each button is a circle of constant size; state
-     is conveyed by colour + the disabled visual. */
+  /* Frameless — sits alongside the project selector with no enclosing
+     box. Buttons are 32px circles (touch-target friendly) with 2px gap
+     so the pair reads as a single unit. */
   .controls {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
   }
   .ctrl {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border: none;
     border-radius: 50%;
     background: transparent;
     cursor: pointer;
-    font-size: 12px;
-    line-height: 1;
-    color: var(--text-secondary);
+    color: var(--text-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -138,21 +148,21 @@
   }
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);
-    color: var(--text-primary);
   }
   .ctrl:disabled {
-    opacity: 0.35;
+    color: var(--text-subtle);
     cursor: not-allowed;
   }
-  /* Play is the affirmative action — green when active. */
-  .ctrl.play:not(:disabled) {
-    color: var(--success);
-  }
+  /* Play stays bright (white text in dark mode, near-black in light)
+     and clickable until it's actually running. */
   .ctrl.play.running {
     color: var(--success);
     background: var(--success-bg);
   }
-  /* Stop is the corrective action — red when active. */
+  .ctrl.play.running:hover { background: var(--success-bg); }
+
+  /* Stop turns red when there's a run to interrupt, otherwise the
+     disabled style takes over (greyed, not interactive). */
   .ctrl.stop:not(:disabled) {
     color: var(--danger);
   }

@@ -4,11 +4,10 @@
   // modal view, until those views get inlined). Profile + locale at
   // the bottom mirror Xcode's status indicators on the navigator base.
   import LocaleToggle from "../LocaleToggle.svelte";
-  import ProjectSelector from "../ProjectSelector.svelte";
   import RepoSelector from "../RepoSelector.svelte";
   import ThemeToggle from "../ThemeToggle.svelte";
   import { t } from "../i18n.svelte.js";
-  import type { ProjectEntry, Repo } from "../types.js";
+  import type { Repo } from "../types.js";
 
   export type SectionKey =
     | "board"
@@ -21,10 +20,6 @@
     | "settings";
 
   interface Props {
-    workspaces: ProjectEntry[];
-    selectedWorkspaceId: string | null;
-    onSelectWorkspace: (id: string) => void;
-    onCreateProject: () => void;
     repos: Repo[];
     selectedRepoId: string | null;
     onSelectRepo: (id: string | null) => void;
@@ -34,10 +29,6 @@
   }
 
   let {
-    workspaces,
-    selectedWorkspaceId,
-    onSelectWorkspace,
-    onCreateProject,
     repos,
     selectedRepoId,
     onSelectRepo,
@@ -61,16 +52,6 @@
 
 <aside class="left-panel">
   <div class="selectors">
-    {#if workspaces.length > 0 && selectedWorkspaceId}
-      <div class="row">
-        <ProjectSelector
-          projects={workspaces}
-          selectedId={selectedWorkspaceId}
-          onSelect={onSelectWorkspace}
-        />
-        <button class="add" onclick={onCreateProject} title={t("selector.new_project")}>+</button>
-      </div>
-    {/if}
     <RepoSelector
       repos={repos}
       selectedId={selectedRepoId}

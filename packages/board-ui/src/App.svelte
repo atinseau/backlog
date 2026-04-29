@@ -23,6 +23,7 @@
   import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
   import ProfileMenu from "./lib/ProfileMenu.svelte";
   import ProfileView from "./lib/ProfileView.svelte";
+  import ProjectSelector from "./lib/ProjectSelector.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
@@ -112,7 +113,7 @@
 
   // ---- shell layout state ----
   let leftOpen = $state(readBool(SHELL_LEFT_OPEN, true));
-  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, true));
+  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, false));
   let bottomOpen = $state(readBool(SHELL_BOTTOM_OPEN, false));
   let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
   let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, 260, 600));
@@ -441,7 +442,14 @@
 <div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
   <header class="topbar">
     <div class="topbar-left">
-      <h1>Backlog</h1>
+      {#if workspaces.length > 0 && selectedWorkspaceId}
+        <ProjectSelector
+          projects={workspaces}
+          selectedId={selectedWorkspaceId}
+          onSelect={applyWorkspace}
+        />
+      {/if}
+      <button class="topbar-add-project" onclick={() => (createProjectOpen = true)} title={t("selector.new_project")} aria-label={t("selector.new_project")}>+</button>
       <OrchestratorControls onError={(message) => (error = message)} />
     </div>
     <div class="topbar-right">
@@ -478,10 +486,6 @@
     {#if leftOpen}
       <div class="left-host">
         <LeftPanel
-          workspaces={workspaces}
-          selectedWorkspaceId={selectedWorkspaceId}
-          onSelectWorkspace={applyWorkspace}
-          onCreateProject={() => (createProjectOpen = true)}
           repos={repoOptions}
           selectedRepoId={selectedRepoId}
           onSelectRepo={persistRepo}
@@ -719,11 +723,19 @@
     font-size: 12px;
     color: var(--text-muted);
   }
-  h1 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-strong);
+  button.topbar-add-project {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    padding: 2px 9px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  button.topbar-add-project:hover {
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .conn.on { color: var(--success); }
   .conn.off { color: var(--warning); }
