@@ -2,11 +2,14 @@
   import {
     applySplitProposal,
     createTask,
+    fetchAgents,
+    fetchUsers,
     suggestSplit,
     type CreatedTask,
     type ProposedTask,
   } from "./api.js";
   import { t } from "./i18n.svelte.js";
+  import type { AgentSummary, UserSummary } from "./types.js";
 
   interface Props {
     availableRepos: string[];
@@ -29,6 +32,26 @@
   // by the sub-task auto-shim and (eventually) by AI-split sub-tasks.
   let manualApproval = $state(false);
   let autoSplit = $state(false); // ask AI to split into sub-tasks
+
+  // Assignee for the (future) sub-task. Empty = "auto" (let the
+  // orchestrator rank). Otherwise either an AI agent id or a human
+  // user id (we treat them homogeneously — preferred_agents on the
+  // sub-task accepts either).
+  let assigneeId = $state<string>("");
+  let agentOptions = $state<AgentSummary[]>([]);
+  let userOptions = $state<UserSummary[]>([]);
+
+  // Load assignee candidates lazily on mount. Failures are silent —
+  // the dropdown just falls back to "Auto" only.
+  async function loadAssignees() {
+    const [agents, users] = await Promise.all([
+      fetchAgents().catch(() => []),
+      fetchUsers().catch(() => []),
+    ]);
+    agentOptions = agents.filter((a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom");
+    userOptions = users.filter((u) => u.status === "active");
+  }
+  loadAssignees();
 
   let createdTask = $state<CreatedTask | null>(null);
   let proposalTasks = $state<ProposedTask[]>([]);
@@ -55,6 +78,10 @@
       if (description.trim()) input.description = description.trim();
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = manualApproval;
+      // Empty assignee = "auto" (orchestrator picks). Anything else
+      // (agent id or user id) goes into preferred_agents and is
+      // inherited by the auto-shim sub-task or by split sub-tasks.
+      if (assigneeId) input.preferred_agents = [assigneeId];
       const task = await createTask(input);
       createdTask = task;
       // Only kick the AI splitter when the user explicitly opts in.
@@ -170,6 +197,30 @@
             {/each}
           </div>
         {/if}
+
+        <label>
+          {t("create_task.field.assignee")}
+          <select bind:value={assigneeId}>
+            <option value="">{t("create_task.assignee.auto")}</option>
+            {#if agentOptions.length > 0}
+              <optgroup label={t("create_task.assignee.group_ai")}>
+                {#each agentOptions as agent (agent.id)}
+                  <option value={agent.id} disabled={agent.needs_api_key}>
+                    {agent.id}{agent.needs_api_key ? " 🔑" : ""}
+                  </option>
+                {/each}
+              </optgroup>
+            {/if}
+            {#if userOptions.length > 0}
+              <optgroup label={t("create_task.assignee.group_human")}>
+                {#each userOptions as user (user.id)}
+                  <option value={user.id}>{user.display_name} · {user.email}</option>
+                {/each}
+              </optgroup>
+            {/if}
+          </select>
+          <span class="field-hint">{t("create_task.assignee.hint")}</span>
+        </label>
 
         <fieldset class="execution">
           <legend>{t("create_task.execution.title")}</legend>
@@ -308,6 +359,12 @@
     font-size: 11px;
     color: var(--text-subtle);
     font-style: italic;
+  }
+  .field-hint {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-muted);
   }
   .backdrop {
     position: fixed;

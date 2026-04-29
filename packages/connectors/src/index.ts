@@ -87,6 +87,7 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
     execution_defaults: {
       manual_approval_required: false,
       auto_commit: true,
+      preferred_agents: [],
     },
     sync: {
       source_of_truth: source.sync.source_of_truth,

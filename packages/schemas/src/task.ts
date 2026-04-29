@@ -56,9 +56,15 @@ export const taskSchema = z.object({
   execution_defaults: z.object({
     manual_approval_required: z.boolean().default(false),
     auto_commit: z.boolean().default(true),
+    // Default assignee for sub-tasks generated from this task. Empty
+    // means "let the orchestrator pick" (auto). A single id picks a
+    // specific agent (claude-code, codex, etc.) or a user. The
+    // sub-task can still override per-row.
+    preferred_agents: z.array(z.string()).default([]),
   }).default({
     manual_approval_required: false,
     auto_commit: true,
+    preferred_agents: [],
   }),
   sync: z.object({
     source_of_truth: z.enum(["external", "backlog"]).default("backlog"),

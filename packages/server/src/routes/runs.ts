@@ -87,6 +87,10 @@ export function runsRoutes(): Hono<AppEnv> {
                 plannerOrigin: "manual",
                 manualApprovalRequired: task.execution_defaults?.manual_approval_required ?? false,
               };
+              // Inherit the task's preferred assignee. Empty list =
+              // "auto pick" — the planner ranks all eligible agents.
+              const preferred = task.execution_defaults?.preferred_agents ?? [];
+              if (preferred.length > 0) subInput.preferredAgents = preferred;
               createSubTask(workspace.backlogDir, subInput);
             }
           }

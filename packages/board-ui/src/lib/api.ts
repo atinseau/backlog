@@ -431,6 +431,7 @@ export interface CreateTaskInput {
   estimated_duration_seconds?: number;
   manual_approval_required?: boolean;
   auto_commit?: boolean;
+  preferred_agents?: string[];
 }
 
 export interface CreatedTask {
