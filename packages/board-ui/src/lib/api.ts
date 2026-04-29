@@ -1176,6 +1176,37 @@ export async function syncSource(id: string): Promise<SyncResult> {
   return json as SyncResult;
 }
 
+// --- Secrets (API keys) ---
+export type SecretKey = "ANTHROPIC_API_KEY" | "OPENAI_API_KEY";
+
+export async function fetchSecretsList(): Promise<{ key: string; set: boolean }[]> {
+  const response = await fetch(apiUrl("/secrets"));
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const json = (await response.json()) as { keys: { key: string; set: boolean }[] };
+  return json.keys;
+}
+
+export async function setSecret(key: SecretKey, value: string): Promise<void> {
+  const response = await fetch(apiUrl(`/secrets/${encodeURIComponent(key)}`), {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ value }),
+  });
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(typeof json === "object" && json && "error" in json
+      ? String((json as { error: string }).error)
+      : `HTTP ${response.status}`);
+  }
+}
+
+export async function deleteSecret(key: SecretKey): Promise<void> {
+  const response = await fetch(apiUrl(`/secrets/${encodeURIComponent(key)}`), {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+
 // --- Hooks ---
 export interface HookStatus {
   repo_id: string;

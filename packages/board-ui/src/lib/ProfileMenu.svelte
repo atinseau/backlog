@@ -10,10 +10,11 @@
   interface Props {
     cloudStatus: CloudStatus | null;
     onOpenProfile: (mode: "signin" | "signup") => void;
+    onOpenSettings: () => void;
     onChanged: () => void;
   }
 
-  let { cloudStatus, onOpenProfile, onChanged }: Props = $props();
+  let { cloudStatus, onOpenProfile, onOpenSettings, onChanged }: Props = $props();
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
@@ -90,6 +91,10 @@
         <button class="item" role="menuitem" onclick={() => { close(); onOpenProfile("signin"); }}>
           {t("profile.menu.manage")}
         </button>
+        <button class="item" role="menuitem" onclick={() => { close(); onOpenSettings(); }}>
+          ⚙ {t("profile.menu.settings")}
+        </button>
+        <div class="separator"></div>
         <button class="item danger" role="menuitem" onclick={logout}>
           {t("profile.menu.logout")}
         </button>
@@ -103,6 +108,10 @@
         </button>
         <button class="item" role="menuitem" onclick={() => { close(); onOpenProfile("signup"); }}>
           {t("profile.menu.signup")}
+        </button>
+        <div class="separator"></div>
+        <button class="item" role="menuitem" onclick={() => { close(); onOpenSettings(); }}>
+          ⚙ {t("profile.menu.settings")}
         </button>
       {/if}
     </div>

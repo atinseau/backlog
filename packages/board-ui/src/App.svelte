@@ -13,6 +13,7 @@
   import ReposView from "./lib/ReposView.svelte";
   import SettingsView from "./lib/SettingsView.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
+  import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
@@ -35,6 +36,7 @@
     fetchProjectsList,
     approveRun,
     moveWorkItem,
+    renameProjectById,
     reorderTask,
     setCurrentProjectId,
     startRun,
@@ -123,6 +125,7 @@
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
   let profileOpen = $state<"signin" | "signup" | null>(null);
   let manageProjectsOpen = $state(false);
+  let generalSettingsOpen = $state(false);
 
   // ---- runtime infra ----
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -439,6 +442,14 @@
         onSelect={applyWorkspace}
         onCreateProject={() => (createProjectOpen = true)}
         onManageProjects={() => (manageProjectsOpen = true)}
+        onRename={async (id, name) => {
+          try {
+            await renameProjectById(id, name);
+            await refreshWorkspaces();
+          } catch (err) {
+            error = err instanceof Error ? err.message : String(err);
+          }
+        }}
       />
       <OrchestratorControls onError={(message) => (error = message)} />
     </div>
@@ -463,6 +474,7 @@
       <ProfileMenu
         cloudStatus={cloudStatus}
         onOpenProfile={(mode) => (profileOpen = mode)}
+        onOpenSettings={() => (generalSettingsOpen = true)}
         onChanged={loadCloudStatus}
       />
     </div>
@@ -667,6 +679,10 @@
     onSelect={(id) => applyWorkspace(id)}
     onCreateProject={() => (createProjectOpen = true)}
   />
+{/if}
+
+{#if generalSettingsOpen}
+  <GeneralSettingsView onClose={() => (generalSettingsOpen = false)} />
 {/if}
 
 <style>

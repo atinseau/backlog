@@ -15,12 +15,16 @@
     onSelect: (id: string) => void;
     onCreateProject?: () => void;
     onManageProjects?: () => void;
+    onRename?: (id: string, name: string) => Promise<void> | void;
   }
 
-  let { projects, selectedId, onSelect, onCreateProject, onManageProjects }: Props = $props();
+  let { projects, selectedId, onSelect, onCreateProject, onManageProjects, onRename }: Props = $props();
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
+  let editing = $state(false);
+  let editValue = $state("");
+  let editEl = $state<HTMLInputElement | null>(null);
 
   const selected = $derived(projects.find((p) => p.id === selectedId) ?? null);
 
@@ -52,20 +56,60 @@
     close();
     if (id !== selectedId) onSelect(id);
   }
+
+  function startEdit() {
+    if (!onRename || !selected) return;
+    open = false;
+    editing = true;
+    editValue = selected.name;
+    // Focus + select-all on next tick.
+    queueMicrotask(() => {
+      editEl?.focus();
+      editEl?.select();
+    });
+  }
+  function cancelEdit() {
+    editing = false;
+    editValue = "";
+  }
+  async function commitEdit() {
+    if (!selected || !onRename) { cancelEdit(); return; }
+    const next = editValue.trim();
+    if (!next || next === selected.name) { cancelEdit(); return; }
+    editing = false;
+    try { await onRename(selected.id, next); }
+    finally { editValue = ""; }
+  }
+  function handleEditKey(e: KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); void commitEdit(); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+  }
 </script>
 
 <div class="project-selector" bind:this={containerEl}>
-  <button
-    class="trigger"
-    type="button"
-    onclick={toggle}
-    aria-haspopup="listbox"
-    aria-expanded={open}
-    title={selected?.path ?? ""}
-  >
-    <span class="name">{selected?.name ?? t("selector.no_project")}</span>
-    <span class="chevron" aria-hidden="true">▾</span>
-  </button>
+  {#if editing}
+    <input
+      class="rename-input"
+      type="text"
+      bind:this={editEl}
+      bind:value={editValue}
+      onkeydown={handleEditKey}
+      onblur={commitEdit}
+    />
+  {:else}
+    <button
+      class="trigger"
+      type="button"
+      onclick={toggle}
+      ondblclick={(e) => { e.stopPropagation(); startEdit(); }}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      title={onRename ? t("selector.dblclick_rename") : (selected?.path ?? "")}
+    >
+      <span class="name">{selected?.name ?? t("selector.no_project")}</span>
+      <span class="chevron" aria-hidden="true">▾</span>
+    </button>
+  {/if}
 
   {#if open}
     <div class="menu" role="listbox">
@@ -128,10 +172,22 @@
     max-width: 200px;
   }
   .chevron {
-    font-size: 14px;
+    font-size: 18px;
     color: var(--text-muted);
     line-height: 1;
-    margin-left: 2px;
+    margin-left: 4px;
+  }
+  .rename-input {
+    background: var(--bg-input);
+    border: 1px solid var(--accent);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+    min-width: 200px;
   }
 
   .menu {

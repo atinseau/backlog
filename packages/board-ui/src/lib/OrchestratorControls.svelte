@@ -146,7 +146,7 @@
     padding: 0;
     transition: background 120ms ease, color 120ms ease;
   }
-  .ctrl + .ctrl { margin-left: -4px; }
+  .ctrl + .ctrl { margin-left: -10px; }
   .ctrl :global(svg) { width: 16px; height: 16px; }
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);

@@ -28,6 +28,11 @@
   let error = $state<string | null>(null);
   let removingId = $state<string | null>(null);
   let renamingId = $state<string | null>(null);
+  // Inline edit mode — replace the project name with a text input.
+  // window.prompt() is disabled in sandboxed Electron renderers, so
+  // the rename flow has to live inside the modal itself.
+  let editingId = $state<string | null>(null);
+  let editValue = $state("");
 
   async function load() {
     loading = true;
@@ -46,17 +51,38 @@
     }
   }
 
-  async function rename(project: ProjectEntry) {
-    const next = prompt(t("manage_projects.rename_prompt", { name: project.name }), project.name);
-    if (!next || !next.trim() || next === project.name) return;
+  function startEdit(project: ProjectEntry) {
+    editingId = project.id;
+    editValue = project.name;
+  }
+  function cancelEdit() {
+    editingId = null;
+    editValue = "";
+  }
+  async function commitEdit(project: ProjectEntry) {
+    const next = editValue.trim();
+    if (!next || next === project.name) {
+      cancelEdit();
+      return;
+    }
     renamingId = project.id;
+    editingId = null;
     try {
-      await renameProjectById(project.id, next.trim());
+      await renameProjectById(project.id, next);
       await load();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
       renamingId = null;
+    }
+  }
+  function handleEditKey(event: KeyboardEvent, project: ProjectEntry) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commitEdit(project);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEdit();
     }
   }
 
@@ -112,10 +138,26 @@
             <li class:current={isCurrent}>
               <div class="info">
                 <div class="row1">
-                  <button class="name-btn" onclick={() => pickAndClose(project.id)}>
-                    <strong>{project.name}</strong>
-                    {#if isCurrent}<span class="badge">{t("manage_projects.current")}</span>{/if}
-                  </button>
+                  {#if editingId === project.id}
+                    <input
+                      class="rename-input"
+                      type="text"
+                      bind:value={editValue}
+                      onkeydown={(e) => handleEditKey(e, project)}
+                      onblur={() => commitEdit(project)}
+                      autofocus
+                    />
+                  {:else}
+                    <button
+                      class="name-btn"
+                      onclick={() => pickAndClose(project.id)}
+                      ondblclick={(e) => { e.stopPropagation(); startEdit(project); }}
+                      title={t("manage_projects.dblclick_rename")}
+                    >
+                      <strong>{project.name}</strong>
+                      {#if isCurrent}<span class="badge">{t("manage_projects.current")}</span>{/if}
+                    </button>
+                  {/if}
                   <span class="loc-pill">{project.location === "user_level" ? "user-level" : "in-repo"}</span>
                 </div>
                 <button class="path-link" onclick={() => openInFinder(project.path)} title={t("repos_view.open_folder")}>
@@ -125,8 +167,8 @@
               <div class="actions">
                 <button
                   class="ghost"
-                  onclick={() => rename(project)}
-                  disabled={renamingId === project.id}
+                  onclick={() => startEdit(project)}
+                  disabled={renamingId === project.id || editingId === project.id}
                   title={t("manage_projects.rename")}
                 >
                   {renamingId === project.id ? "…" : "✎ " + t("manage_projects.rename")}
@@ -219,6 +261,19 @@
     display: inline-flex; align-items: center; gap: 6px;
   }
   .name-btn:hover { color: var(--accent); }
+  .rename-input {
+    flex: 0 0 auto;
+    min-width: 200px;
+    background: var(--bg-input);
+    border: 1px solid var(--accent);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    outline: none;
+  }
   .badge {
     background: var(--accent-bg); color: var(--accent-text);
     font-size: 10px; padding: 1px 6px; border-radius: 10px;
