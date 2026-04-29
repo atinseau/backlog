@@ -40,6 +40,7 @@
     fetchAgents,
     fetchProjectsList,
     approveRun,
+    cancelRun,
     moveWorkItem,
     renameProjectById,
     reorderTask,
@@ -340,6 +341,40 @@
     ),
   );
 
+  // True whenever any sub-task on the board has an active run in a
+  // status that's actually doing work (running / queued / preparing).
+  // Drives the topbar Stop/Play visual + the "all done" toast.
+  // awaiting_review doesn't count — the executor finished, the human
+  // owns the next move.
+  const hasInFlightRun = $derived.by(() => {
+    if (!board) return false;
+    for (const column of Object.values(board.columns)) {
+      for (const card of column) {
+        for (const sub of card.tasks) {
+          const status = sub.active_run?.status;
+          if (status === "running" || status === "queued" || status === "preparing") {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  });
+  // Track previous tick so we can fire the toast exactly once per
+  // running → idle transition.
+  let previousHasInFlight = $state(false);
+  $effect(() => {
+    const now = hasInFlightRun;
+    if (previousHasInFlight && !now) {
+      // We just transitioned from "something running" → "everything
+      // settled". Push the all-done toast (success), and refresh
+      // agents in case the run cleared an at_capacity slot.
+      toasts?.push("success", t("topbar.all_done"));
+      void refreshAgents();
+    }
+    previousHasInFlight = now;
+  });
+
   async function refreshRepos() {
     try {
       workspaceRepos = await fetchRepos();
@@ -487,6 +522,35 @@
     } finally {
       if (!connected) await refresh();
     }
+  }
+
+  // Cancel every in-flight run on the current board. Used by the
+  // topbar Stop button when the global orchestrator isn't running
+  // but individual runs are. Best-effort per run — one failure
+  // doesn't block the others.
+  async function handleStopActiveRuns() {
+    if (!board) return;
+    const runIds: string[] = [];
+    for (const column of Object.values(board.columns)) {
+      for (const card of column) {
+        for (const sub of card.tasks) {
+          const status = sub.active_run?.status;
+          if (sub.active_run && (status === "running" || status === "queued" || status === "preparing")) {
+            runIds.push(sub.active_run.id);
+          }
+        }
+      }
+    }
+    if (runIds.length === 0) return;
+    const results = await Promise.allSettled(runIds.map((id) => cancelRun(id, "Stopped from topbar")));
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      const first = failures[0];
+      error = first && first.status === "rejected" ? String((first as PromiseRejectedResult).reason) : "cancel failed";
+    } else {
+      toasts?.push("info", t("topbar.stop_done", { count: runIds.length }));
+    }
+    if (!connected) await refresh();
   }
 
   function openActivityPanel() {
@@ -680,6 +744,8 @@
         onError={(message) => (error = message)}
         onStarted={openActivityPanel}
         onPlay={handleTopbarPlay}
+        externalActive={hasInFlightRun}
+        onStopActiveRuns={handleStopActiveRuns}
       />
       <AgentPicker
         agents={agentsList}
@@ -928,7 +994,17 @@
 {/if}
 
 {#if diffTarget}
-  <DiffPanel runId={diffTarget.runId} file={diffTarget.file} onClose={() => (diffTarget = null)} />
+  <DiffPanel
+    runId={diffTarget.runId}
+    file={diffTarget.file}
+    onClose={() => (diffTarget = null)}
+    onApproved={() => {
+      // Refresh the board so the card moves out of IN REVIEW. SSE
+      // will fire run.changed too, but a direct refresh feels more
+      // responsive after the user explicitly clicked Continue.
+      void refresh();
+    }}
+  />
 {/if}
 
 {#if profileOpen}

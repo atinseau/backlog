@@ -2,6 +2,7 @@ import { loadConfig } from "@backlog/config";
 import {
   approveRun,
   buildExecutionPlan,
+  cancelRun,
   createSubTask,
   listActiveRuns,
   listRepos,
@@ -159,6 +160,38 @@ export function runsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "approve_failed", detail: message }, 500);
+    }
+  });
+
+  // Cancel an in-flight or queued run. The sub-task goes back to
+  // "planned" so the user can restart it; dependents are NOT
+  // cascade-blocked. Used by the topbar Stop button when individual
+  // runs (not the global orchestrator) need stopping.
+  const cancelBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
+  app.post("/runs/:id/cancel", async (c) => {
+    const workspace = c.get("workspace");
+    const runId = c.req.param("id");
+    const run = loadRun(workspace.backlogDir, runId);
+    if (!run) {
+      return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
+    }
+    if (run.status === "succeeded" || run.status === "failed" || run.status === "canceled") {
+      return c.json(
+        { error: "wrong_status", detail: `Run is '${run.status}', already terminal.` },
+        409,
+      );
+    }
+    const raw = await c.req.json().catch(() => undefined);
+    const parsed = cancelBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      await cancelRun(workspace.backlogDir, runId, parsed.data?.summary);
+      return c.json({ ok: true, run_id: runId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "cancel_failed", detail: message }, 500);
     }
   });
 

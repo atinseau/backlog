@@ -140,6 +140,18 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
   }
 }
 
+// User-initiated cancel. Differs from failRun in that the parent
+// sub-task goes back to "planned" (not blocked) so it can be picked
+// up again, and we never cascade-block dependents — the user said
+// "stop this one", not "give up on the chain".
+export async function cancelRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  const run = updateRunStatus(backlogDir, runId, "canceled", summary ?? "Canceled by operator");
+  updateSubTaskStatus(backlogDir, run.subtask_id, "planned");
+  updateTaskStatus(backlogDir, run.task_id, "ready");
+  await releaseRunClaims(backlogDir, runId);
+  archiveRun(backlogDir, runId);
+}
+
 export async function failRun(
   backlogDir: string,
   runId: string,

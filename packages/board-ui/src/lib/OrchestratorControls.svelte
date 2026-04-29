@@ -17,9 +17,19 @@
     onError?: (message: string) => void;
     onStarted?: () => void;
     onPlay?: () => Promise<void> | void;
+    // True when at least one run is in flight on the board, even if
+    // the global orchestrator mode is "idle" (the user can launch a
+    // single run via per-card Play without enabling autopilot).
+    // Treats us as "running" for the Stop/Play visual so the user
+    // can interrupt mid-flight.
+    externalActive?: boolean;
+    // Called when the user clicks Stop while a run is in flight but
+    // the global orchestrator isn't running. Lets the parent cancel
+    // those individual runs (or no-op).
+    onStopActiveRuns?: () => Promise<void> | void;
   }
 
-  let { onError, onStarted, onPlay }: Props = $props();
+  let { onError, onStarted, onPlay, externalActive = false, onStopActiveRuns }: Props = $props();
 
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
@@ -66,7 +76,14 @@
   async function handleStop() {
     busy = true;
     try {
-      orchestrator = await stopOrchestrator();
+      // Two cases: global orchestrator running → stop it. Otherwise
+      // the user has individual runs in flight and the parent owns
+      // how to cancel them.
+      if (orchestratorRunning) {
+        orchestrator = await stopOrchestrator();
+      } else if (externalActive) {
+        await onStopActiveRuns?.();
+      }
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
@@ -87,7 +104,10 @@
   }
 
   const mode = $derived(orchestrator?.mode ?? "idle");
-  const isRunning = $derived(mode === "running" || mode === "paused" || mode === "stopping");
+  const orchestratorRunning = $derived(mode === "running" || mode === "paused" || mode === "stopping");
+  // "Running" for the visual + button state = global orchestrator OR
+  // any per-card run still in flight on the board.
+  const isRunning = $derived(orchestratorRunning || externalActive);
   const nothingToRun = $derived(runnableCount !== null && runnableCount === 0);
 
   const playTitle = $derived(

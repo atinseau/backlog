@@ -1,18 +1,59 @@
 <script lang="ts">
-  import { fetchRunDiff, type RunDiff } from "./api.js";
+  import { approveRun, fetchRunDiff, type RunDiff } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
     runId: string;
     file: string;
     onClose: () => void;
+    onApproved?: () => void;
   }
 
-  let { runId, file, onClose }: Props = $props();
+  let { runId, file, onClose, onApproved }: Props = $props();
 
   let diff = $state<RunDiff | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let approving = $state(false);
+
+  // Resizable width persisted across launches. Default 720px, bounded
+  // 360..1400 so the panel can't be dragged off-screen on small
+  // displays. Drag handle sits on the left edge; pointer events run
+  // on window so the gesture doesn't drop when the cursor leaves the
+  // handle's 6px column.
+  const WIDTH_KEY = "backlog.diff_panel.width";
+  function readWidth(): number {
+    if (typeof localStorage === "undefined") return 720;
+    const raw = localStorage.getItem(WIDTH_KEY);
+    const n = raw ? Number.parseFloat(raw) : NaN;
+    if (Number.isFinite(n)) return Math.max(360, Math.min(1400, n));
+    return 720;
+  }
+  let panelWidth = $state(readWidth());
+  let resizing = $state(false);
+
+  function startResize(event: PointerEvent) {
+    event.preventDefault();
+    resizing = true;
+    const startX = event.clientX;
+    const startWidth = panelWidth;
+    function onMove(e: PointerEvent) {
+      // Drag handle is on the LEFT edge of a right-anchored panel,
+      // so pulling left grows the panel.
+      const next = startWidth + (startX - e.clientX);
+      panelWidth = Math.max(360, Math.min(1400, Math.min(window.innerWidth - 80, next)));
+    }
+    function onUp() {
+      resizing = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(WIDTH_KEY, String(Math.round(panelWidth)));
+      }
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   async function load() {
     loading = true;
@@ -35,6 +76,25 @@
     void load();
   });
 
+  // Continue / Merge button — approves the run (which triggers the
+  // workspace's merge_strategy, falling through to "keep the branch +
+  // tear down the worktree" when merge_strategy is "none"). Closes
+  // the panel after success.
+  async function handleApprove() {
+    if (approving) return;
+    approving = true;
+    error = null;
+    try {
+      await approveRun(runId, "Approved from diff panel");
+      onApproved?.();
+      onClose();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      approving = false;
+    }
+  }
+
   function colorFor(line: string): string {
     if (line.startsWith("+++") || line.startsWith("---")) return "head";
     if (line.startsWith("@@")) return "hunk";
@@ -50,7 +110,17 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<aside class="panel" aria-label={t("diff.title")}>
+<aside class="panel" class:resizing aria-label={t("diff.title")} style:width="{panelWidth}px">
+  <!-- 6px-wide grab handle on the left edge. Cursor changes to ew-resize
+       on hover so users discover the affordance. -->
+  <div
+    class="resize-handle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label={t("diff.resize")}
+    onpointerdown={startResize}
+  ></div>
+
   <header>
     <div class="title">
       <span class="prefix">📄</span>
@@ -75,6 +145,18 @@
       <pre>{#each diff.diff.split("\n") as line, i (i)}<span class="line line-{colorFor(line)}">{line || "​"}{"\n"}</span>{/each}</pre>
     {/if}
   </div>
+
+  <!-- Continue / Merge footer. Hidden when there's no diff or the
+       fetch is still loading; otherwise the button lets the user
+       approve the run inline. The actual merge / cleanup follows
+       the workspace's git.merge_strategy. -->
+  {#if diff && !diff.empty && !loading}
+    <footer>
+      <button class="primary" onclick={handleApprove} disabled={approving} title={t("diff.continue_hint")}>
+        {approving ? t("diff.continue_doing") : t("diff.continue")}
+      </button>
+    </footer>
+  {/if}
 </aside>
 
 <style>
@@ -83,7 +165,7 @@
     top: 0;
     right: 0;
     height: 100vh;
-    width: min(720px, 95vw);
+    /* width applied inline via style:width — driven by panelWidth. */
     background: var(--bg-surface);
     border-left: 1px solid var(--border-default);
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
@@ -92,6 +174,17 @@
     flex-direction: column;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  .panel.resizing { user-select: none; }
+  .resize-handle {
+    position: absolute;
+    top: 0;
+    left: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 1;
+  }
+  .resize-handle:hover { background: var(--accent-bg); }
   header {
     display: flex;
     align-items: center;
@@ -171,4 +264,28 @@
   .line-hunk { background: var(--accent-bg); color: var(--accent-text); }
   .line-head { color: var(--text-body); font-weight: 600; }
   .line-ctx { color: var(--text-secondary); }
+
+  footer {
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-muted);
+    padding: 10px 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  .primary {
+    background: var(--success);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .primary:disabled { opacity: 0.6; cursor: wait; }
 </style>

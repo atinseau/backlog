@@ -730,6 +730,18 @@ export async function fetchRunDiff(runId: string, file: string, base?: string): 
   return (await response.json()) as RunDiff;
 }
 
+export async function cancelRun(runId: string, summary?: string): Promise<void> {
+  const response = await fetch(apiUrl(`/runs/${encodeURIComponent(runId)}/cancel`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(summary ? { summary } : {}),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Cancel run failed (${response.status}): ${detail}`);
+  }
+}
+
 export async function approveRun(runId: string, summary?: string): Promise<void> {
   const response = await fetch(apiUrl(`/runs/${runId}/approve`), {
     method: "POST",
