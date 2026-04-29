@@ -419,8 +419,8 @@
     right: 0;
     width: min(380px, 92vw);
     height: 100vh;
-    background: white;
-    border-left: 1px solid #e4e7ec;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-default);
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
     z-index: 50;
     display: flex;
@@ -441,8 +441,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 14px;
-    border-bottom: 1px solid #e4e7ec;
-    background: white;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-surface);
     flex-shrink: 0;
   }
   h2 {
@@ -452,26 +452,26 @@
   }
   .actions { display: flex; gap: 4px; }
   .actions button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
   }
-  .actions button:hover:not(:disabled) { background: #e4e7ec; }
+  .actions button:hover:not(:disabled) { background: var(--border-default); }
   .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
   .actions button.emergency {
-    background: #fef0c7;
+    background: var(--warning-bg);
     border-color: #f79009;
-    color: #b54708;
+    color: var(--warning);
   }
   .actions button.emergency:hover:not(:disabled) { background: #fdb022; color: white; }
   .actions button.emergency.stop {
-    background: #fee4e2;
+    background: var(--danger-bg);
     border-color: #f04438;
-    color: #b42318;
+    color: var(--danger);
   }
   .actions button.emergency.stop:hover:not(:disabled) { background: #f04438; color: white; }
 
@@ -480,13 +480,13 @@
     display: flex;
     gap: 10px;
     padding: 4px 12px;
-    border-top: 1px solid #e4e7ec;
-    background: #fafafa;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-muted);
     font-size: 10px;
-    color: #667085;
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
-  .usage .cache { color: #027a48; }
+  .usage .cache { color: var(--success); }
 
   .conversation {
     flex: 1;
@@ -497,7 +497,7 @@
     gap: 10px;
     font-size: 13px;
   }
-  .placeholder { color: #98a2b3; font-style: italic; margin: 8px 0 0; line-height: 1.45; }
+  .placeholder { color: var(--text-subtle); font-style: italic; margin: 8px 0 0; line-height: 1.45; }
   .turn { display: flex; }
   .turn-user { justify-content: flex-end; }
   .bubble {
@@ -509,7 +509,7 @@
     word-wrap: break-word;
   }
   .turn-user .bubble { background: #2e90fa; color: white; border-top-right-radius: 2px; }
-  .turn-assistant .bubble { background: #f2f4f7; color: #1d2939; border-top-left-radius: 2px; }
+  .turn-assistant .bubble { background: var(--bg-hover); color: var(--text-primary); border-top-left-radius: 2px; }
   .text { white-space: pre-wrap; }
 
   .tools {
@@ -531,33 +531,33 @@
   }
   .tool code {
     font-family: ui-monospace, monospace;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .tool-icon { font-weight: 600; }
   .tool-running .tool-icon { color: #f79009; }
-  .tool-done .tool-icon { color: #027a48; }
-  .tool-error .tool-icon { color: #b42318; }
-  .tool-awaiting_confirmation .tool-icon { color: #b54708; }
+  .tool-done .tool-icon { color: var(--success); }
+  .tool-error .tool-icon { color: var(--danger); }
+  .tool-awaiting_confirmation .tool-icon { color: var(--warning); }
   .tool.write {
     border-left: 2px solid #d92d20;
     padding-left: 4px;
   }
   .tool.write.tool-done {
-    border-left-color: #027a48;
-    background: #d1fadf;
+    border-left-color: var(--success);
+    background: var(--success-bg);
   }
   .write-tag {
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #027a48;
+    color: var(--success);
     font-weight: 600;
   }
-  .tool-err { color: #b42318; font-size: 10px; }
+  .tool-err { color: var(--danger); font-size: 10px; }
 
   .error {
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     padding: 8px 10px;
     border-radius: 4px;
     font-size: 12px;
@@ -568,13 +568,13 @@
     display: flex;
     gap: 6px;
     padding: 10px 12px;
-    border-top: 1px solid #e4e7ec;
-    background: #fafafa;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-muted);
     flex-shrink: 0;
   }
   .composer textarea {
     flex: 1;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 6px 8px;
     font-family: inherit;
@@ -585,7 +585,7 @@
   .composer textarea:focus { outline: 2px solid #2e90fa; outline-offset: -1px; border-color: #2e90fa; }
   .composer textarea:disabled { opacity: 0.6; }
   .send {
-    background: #027a48;
+    background: var(--success);
     color: white;
     border: none;
     border-radius: 6px;
@@ -595,7 +595,7 @@
     font-weight: 600;
   }
   .send:hover:not(:disabled) { background: #036a3e; }
-  .send:disabled { background: #98a2b3; cursor: not-allowed; }
+  .send:disabled { background: var(--text-subtle); cursor: not-allowed; }
 
   /* The activity feed CSS that used to live here moved to
      ActivityBanner.svelte when we lifted the feed out of the drawer. */

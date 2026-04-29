@@ -60,37 +60,37 @@
 <style>
   /* Frame (.modal, .backdrop) lives in DialogShell. Styles below
      scope to the elements this component renders into the slot. */
-  header { padding: 16px 20px; border-bottom: 1px solid #e4e7ec; }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--border-default); }
   h2 { margin: 0; font-size: 16px; }
   .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
   p { margin: 0; line-height: 1.5; }
-  .muted { color: #98a2b3; font-size: 12px; }
+  .muted { color: var(--text-subtle); font-size: 12px; }
   .error {
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     border-radius: 4px;
     padding: 8px 10px;
     font-size: 12px;
   }
   footer {
     padding: 12px 20px;
-    border-top: 1px solid #e4e7ec;
+    border-top: 1px solid var(--border-default);
     display: flex;
     justify-content: flex-end;
     gap: 8px;
   }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 14px;
     cursor: pointer;
     font-size: 13px;
   }
   button.primary {
-    background: #027a48;
+    background: var(--success);
     color: white;
-    border-color: #027a48;
+    border-color: var(--success);
     font-weight: 500;
   }
   button.primary:hover:not(:disabled) { background: #036a3e; }

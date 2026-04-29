@@ -47,7 +47,7 @@
   }
   .tab:hover { color: #1d2939; }
   .tab.active {
-    background: white;
+    background: var(--bg-surface);
     color: #1d2939;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }

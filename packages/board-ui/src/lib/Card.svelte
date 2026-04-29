@@ -308,7 +308,7 @@
   }
   .icon-btn.play {
     background: #027a48;
-    border-color: #027a48;
+    border-color: var(--success);
     color: white;
   }
   .icon-btn.play:hover:not(:disabled) {
@@ -316,13 +316,13 @@
     border-color: #036a3e;
   }
   .icon-btn.approve {
-    background: #6941c6;
-    border-color: #6941c6;
+    background: #a78bfa;
+    border-color: #a78bfa;
     color: white;
   }
   .icon-btn.approve:hover:not(:disabled) {
-    background: #5a3aae;
-    border-color: #5a3aae;
+    background: #8b5cf6;
+    border-color: #8b5cf6;
   }
   .icon-btn:disabled {
     opacity: 0.5;

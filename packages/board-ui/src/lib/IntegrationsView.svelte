@@ -1107,7 +1107,7 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1118,7 +1118,7 @@
   .tabs {
     display: flex;
     gap: 4px;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     border-radius: 6px;
     padding: 2px;
   }
@@ -1128,12 +1128,12 @@
     padding: 4px 10px;
     cursor: pointer;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
     border-radius: 4px;
   }
   .tab.active {
-    background: white;
-    color: #1d2939;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
   .close {
@@ -1141,49 +1141,49 @@
     border: none;
     font-size: 18px;
     cursor: pointer;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .content { padding: 16px 20px; overflow-y: auto; flex: 1; }
   .panel { display: flex; flex-direction: column; gap: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
-  .label { font-size: 12px; color: #475467; font-weight: 500; }
+  .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
   input {
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 13px;
     font-family: inherit;
   }
-  small { color: #98a2b3; font-size: 11px; }
-  hr { border: none; border-top: 1px solid #e4e7ec; margin: 4px 0; }
-  .status { color: #1d2939; font-size: 13px; }
-  .status.ok { color: #027a48; display: flex; gap: 12px; align-items: center; }
+  small { color: var(--text-subtle); font-size: 11px; }
+  hr { border: none; border-top: 1px solid var(--border-default); margin: 4px 0; }
+  .status { color: var(--text-primary); font-size: 13px; }
+  .status.ok { color: var(--success); display: flex; gap: 12px; align-items: center; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .filter { flex: 1; min-width: 180px; }
-  .muted { color: #98a2b3; font-size: 12px; }
+  .muted { color: var(--text-subtle); font-size: 12px; }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 12px;
     cursor: pointer;
     font-size: 13px;
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button.primary { background: #1570ef; color: white; border-color: #1570ef; }
-  button.primary:hover:not(:disabled) { background: #155eef; }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   button.ghost { background: transparent; }
-  button.ghost.danger { color: #b42318; border-color: #fcd9d6; }
+  button.ghost.danger { color: var(--danger); border-color: #fcd9d6; }
   button.link {
     background: transparent;
     border: none;
-    color: #1570ef;
+    color: var(--accent);
     text-decoration: underline;
     padding: 0;
   }
   .repos, .sources { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .repos > li, .sources > li {
-    border: 1px solid #e4e7ec;
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 8px 10px;
     display: flex;
@@ -1192,27 +1192,27 @@
   }
   .repo-line, .src-line { display: flex; align-items: center; gap: 8px; }
   .repo-name {
-    color: #1570ef;
+    color: var(--accent);
     text-decoration: none;
     font-weight: 500;
   }
   .repo-name:hover { text-decoration: underline; }
   .badge {
-    background: #f2f4f7;
-    color: #475467;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 10px;
     text-transform: uppercase;
   }
-  .branch { font-family: ui-monospace, monospace; font-size: 11px; color: #98a2b3; }
-  .desc { font-size: 12px; color: #475467; }
+  .branch { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-subtle); }
+  .desc { font-size: 12px; color: var(--text-secondary); }
   .actions { display: flex; gap: 6px; }
   .msg { font-size: 12px; padding: 6px 10px; border-radius: 4px; }
-  .msg.ok { background: #d1fadf; color: #027a48; }
-  .msg.err { background: #fef0c7; color: #b54708; }
-  .empty { padding: 16px; text-align: center; color: #667085; }
-  .loading { padding: 16px; text-align: center; color: #667085; }
+  .msg.ok { background: var(--success-bg); color: var(--success); }
+  .msg.err { background: var(--warning-bg); color: var(--warning); }
+  .empty { padding: 16px; text-align: center; color: var(--text-muted); }
+  .loading { padding: 16px; text-align: center; color: var(--text-muted); }
   .connect-actions { gap: 8px; flex-wrap: wrap; }
   .device-flow {
     display: flex;
@@ -1221,27 +1221,27 @@
     padding: 12px;
     border: 1px solid #d6bbfb;
     border-radius: 6px;
-    background: #faf5ff;
+    background: var(--accent-bg);
   }
   .device-flow h3 { margin: 0; font-size: 14px; color: #5925dc; }
-  .device-flow p { margin: 0; font-size: 12px; color: #475467; }
+  .device-flow p { margin: 0; font-size: 12px; color: var(--text-secondary); }
   .device-code {
     align-self: flex-start;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 22px;
     letter-spacing: 0.18em;
     font-weight: 600;
-    color: #1d2939;
-    background: white;
+    color: var(--text-primary);
+    background: var(--bg-surface);
     border: 1px dashed #d6bbfb;
     border-radius: 6px;
     padding: 6px 14px;
     cursor: pointer;
   }
-  .device-code:hover { background: #f9fafb; }
+  .device-code:hover { background: var(--bg-muted); }
   .polling {
     font-size: 12px;
-    color: #6941c6;
+    color: #a78bfa;
   }
   button.link.inline {
     align-self: flex-start;
@@ -1250,16 +1250,16 @@
     margin-top: 2px;
   }
   .config-panel {
-    border: 1px solid #e4e7ec;
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     padding: 12px;
-    background: #f9fafb;
+    background: var(--bg-muted);
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
   .config-panel.guide { padding: 16px; gap: 14px; }
-  .guide-header h4 { margin: 0 0 4px; font-size: 14px; color: #1d2939; }
+  .guide-header h4 { margin: 0 0 4px; font-size: 14px; color: var(--text-primary); }
   .guide-header .muted { margin: 0; }
   .steps {
     list-style: none;
@@ -1272,25 +1272,25 @@
   }
   .steps > li {
     padding: 10px 12px;
-    background: white;
-    border: 1px solid #e4e7ec;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     font-size: 13px;
     line-height: 1.45;
   }
-  .steps > li > strong { display: block; margin-bottom: 4px; color: #1d2939; }
-  .steps > li > p { margin: 0 0 8px; color: #475467; font-size: 12px; }
+  .steps > li > strong { display: block; margin-bottom: 4px; color: var(--text-primary); }
+  .steps > li > p { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; }
   .steps > li > .field { margin-top: 8px; }
   .steps > li button.primary { margin-top: 4px; }
   .hints {
     list-style: disc;
     padding-left: 20px;
     margin: 6px 0 0;
-    color: #475467;
+    color: var(--text-secondary);
     font-size: 12px;
   }
   .hints code {
-    background: #f2f4f7;
+    background: var(--bg-hover);
     padding: 1px 6px;
     border-radius: 3px;
     font-family: ui-monospace, monospace;
@@ -1299,7 +1299,7 @@
   .callback-url {
     display: block;
     padding: 8px 10px;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     border-radius: 4px;
     font-family: ui-monospace, monospace;
     font-size: 11px;
@@ -1315,8 +1315,8 @@
     gap: 12px;
     padding: 10px 12px;
     border-radius: 6px;
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
     font-size: 12px;
     margin-bottom: 8px;
   }
@@ -1328,7 +1328,7 @@
     margin: 8px 0;
   }
   .meta-item { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-  .meta-label { font-size: 11px; color: #98a2b3; text-transform: uppercase; letter-spacing: 0.04em; }
+  .meta-label { font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
   .plan-pill {
     display: inline-block;
     padding: 2px 10px;
@@ -1337,10 +1337,10 @@
     font-size: 12px;
     width: fit-content;
   }
-  .plan-pill.plan-free { background: #f2f4f7; color: #475467; }
-  .plan-pill.plan-pro { background: #d1fadf; color: #027a48; }
-  .plan-pill.plan-enterprise { background: #f4ebff; color: #6941c6; }
-  .over { color: #b42318; font-weight: 600; }
+  .plan-pill.plan-free { background: var(--bg-hover); color: var(--text-secondary); }
+  .plan-pill.plan-pro { background: var(--success-bg); color: var(--success); }
+  .plan-pill.plan-enterprise { background: var(--accent-bg); color: #a78bfa; }
+  .over { color: var(--danger); font-weight: 600; }
   .oauth-buttons { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
   button.oauth {
     display: flex;
@@ -1351,13 +1351,13 @@
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
-    border: 1px solid #d0d5dd;
-    background: white;
-    color: #1d2939;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
+    color: var(--text-primary);
     cursor: pointer;
     transition: background-color 120ms;
   }
-  button.oauth:hover:not(:disabled) { background: #f9fafb; }
+  button.oauth:hover:not(:disabled) { background: var(--bg-muted); }
   button.oauth:disabled { opacity: 0.5; cursor: not-allowed; }
   button.oauth .oauth-icon {
     width: 18px;
@@ -1370,19 +1370,19 @@
     font-weight: 700;
   }
   button.oauth-google .oauth-icon { background: #4285f4; color: white; }
-  button.oauth-github .oauth-icon { background: #1d2939; color: white; }
+  button.oauth-github .oauth-icon { background: var(--text-primary); color: white; }
   button.oauth-apple .oauth-icon { background: black; color: white; font-size: 14px; }
   .divider {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 4px 0;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-size: 11px;
   }
   .divider::before, .divider::after {
     content: "";
     flex: 1;
-    border-top: 1px solid #e4e7ec;
+    border-top: 1px solid var(--border-default);
   }
 </style>

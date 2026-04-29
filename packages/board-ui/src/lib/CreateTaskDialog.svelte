@@ -254,7 +254,7 @@
     z-index: 100;
   }
   .modal {
-    background: white;
+    background: var(--bg-surface);
     border-radius: 8px;
     box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
     max-width: 640px;
@@ -266,14 +266,14 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #475467; }
-  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
+  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .body {
     padding: 16px 20px;
     display: flex;
@@ -288,22 +288,22 @@
   }
   .spinner {
     font-size: 32px;
-    color: #1570ef;
+    color: var(--accent);
     animation: spin 1.2s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .muted { color: #98a2b3; font-size: 12px; }
-  .success { color: #027a48; font-size: 16px; font-weight: 600; }
+  .muted { color: var(--text-subtle); font-size: 12px; }
+  .success { color: var(--success); font-size: 16px; font-weight: 600; }
   label {
     display: flex;
     flex-direction: column;
     gap: 4px;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   input, select, textarea {
     padding: 6px 8px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 13px;
     font-family: inherit;
@@ -315,7 +315,7 @@
     gap: 6px;
     align-items: center;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .repos .label { margin-right: 4px; }
   .chip {
@@ -323,17 +323,17 @@
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 3px;
     cursor: pointer;
   }
   .rationale {
-    background: #eff8ff;
+    background: var(--accent-bg);
     border-radius: 6px;
     padding: 10px 12px;
     font-size: 12px;
-    color: #155eef;
+    color: var(--accent-hover);
     margin: 0;
     line-height: 1.5;
   }
@@ -346,10 +346,10 @@
     gap: 8px;
   }
   .proposed-item {
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 8px 10px;
-    background: #fafafa;
+    background: var(--bg-muted);
   }
   .proposed-row {
     display: flex;
@@ -360,19 +360,19 @@
   .scopes {
     margin-top: 4px;
     font-size: 11px;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .remove {
     background: transparent;
     border: 1px solid #fda29b;
-    color: #b42318;
+    color: var(--danger);
     border-radius: 3px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 11px;
   }
-  .remove:hover { background: #fee4e2; }
+  .remove:hover { background: var(--danger-bg); }
   footer {
     margin-top: 8px;
     display: flex;
@@ -380,21 +380,21 @@
     gap: 8px;
   }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
   }
   button.primary {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
-    border-color: #1570ef;
+    border-color: var(--accent);
   }
   button.primary:disabled {
-    background: #98a2b3;
-    border-color: #98a2b3;
+    background: var(--text-subtle);
+    border-color: var(--text-subtle);
     cursor: not-allowed;
   }
 </style>

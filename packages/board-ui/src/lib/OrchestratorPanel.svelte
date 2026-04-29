@@ -305,8 +305,8 @@
     right: 0;
     height: 100vh;
     width: min(420px, 90vw);
-    background: white;
-    border-left: 1px solid #e4e7ec;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-default);
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
     z-index: 40;
     overflow-y: auto;
@@ -317,10 +317,10 @@
     justify-content: space-between;
     align-items: flex-start;
     padding: 14px 16px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     position: sticky;
     top: 0;
-    background: white;
+    background: var(--bg-surface);
   }
   h2 {
     margin: 0;
@@ -329,15 +329,15 @@
   .meta {
     margin: 4px 0 0;
     font-size: 12px;
-    color: #667085;
+    color: var(--text-muted);
   }
   .actions {
     display: flex;
     gap: 4px;
   }
   .actions button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 10px;
     cursor: pointer;
@@ -346,21 +346,21 @@
   .error {
     margin: 12px 16px;
     padding: 8px 10px;
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     font-size: 12px;
     border-radius: 4px;
   }
   .info {
     margin: 12px 16px;
     padding: 8px 10px;
-    background: #d1fadf;
-    color: #027a48;
+    background: var(--success-bg);
+    color: var(--success);
     font-size: 12px;
     border-radius: 4px;
   }
   .start {
-    background: #027a48;
+    background: var(--success);
     color: white;
     border: none;
     border-radius: 3px;
@@ -370,11 +370,11 @@
     flex-shrink: 0;
   }
   .start:hover { background: #036a3e; }
-  .start:disabled { background: #98a2b3; cursor: wait; }
+  .start:disabled { background: var(--text-subtle); cursor: wait; }
   .placeholder {
     padding: 32px 16px;
     text-align: center;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-size: 14px;
   }
   .placeholder.small {
@@ -392,10 +392,10 @@
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .size {
-    color: #98a2b3;
+    color: var(--text-subtle);
     text-transform: none;
     font-weight: 400;
   }
@@ -406,7 +406,7 @@
   }
   li {
     padding: 8px;
-    border: 1px solid #e4e7ec;
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     margin-bottom: 6px;
     font-size: 12px;
@@ -417,7 +417,7 @@
     gap: 6px;
   }
   .row.sub {
-    color: #667085;
+    color: var(--text-muted);
     margin-top: 4px;
     font-size: 11px;
     flex-wrap: wrap;
@@ -425,16 +425,16 @@
   .title {
     flex: 1;
     font-weight: 500;
-    color: #1d2939;
+    color: var(--text-primary);
   }
   .score {
-    color: #667085;
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     font-size: 11px;
   }
   .cost {
-    color: #475467;
-    background: #f2f4f7;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
     padding: 1px 6px;
     border-radius: 10px;
     font-size: 10px;
@@ -448,21 +448,21 @@
     color: white;
     text-transform: uppercase;
   }
-  .act-run    { background: #027a48; }
-  .act-wait   { background: #b54708; }
-  .act-block  { background: #b42318; }
-  .act-skip   { background: #98a2b3; }
+  .act-run    { background: var(--success); }
+  .act-wait   { background: var(--warning); }
+  .act-block  { background: var(--danger); }
+  .act-skip   { background: var(--text-subtle); }
   .repo, .parent, .agent {
-    background: #f2f4f7;
-    color: #344054;
+    background: var(--bg-hover);
+    color: var(--text-body);
     padding: 1px 6px;
     border-radius: 3px;
   }
-  .agent.muted { color: #98a2b3; background: transparent; padding-left: 0; }
+  .agent.muted { color: var(--text-subtle); background: transparent; padding-left: 0; }
   .reasons {
     margin-top: 4px;
     font-size: 11px;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .other.muted { opacity: 0.7; }
@@ -470,8 +470,8 @@
 
   .controls {
     padding: 12px 16px;
-    border-bottom: 1px solid #e4e7ec;
-    background: #fafafa;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-muted);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -481,7 +481,7 @@
     align-items: center;
     gap: 8px;
     font-size: 12px;
-    color: #667085;
+    color: var(--text-muted);
   }
   .state-pill {
     font-size: 10px;
@@ -491,27 +491,27 @@
     border-radius: 10px;
     color: white;
   }
-  .state-idle    { background: #98a2b3; }
-  .state-running { background: #027a48; }
+  .state-idle    { background: var(--text-subtle); }
+  .state-running { background: var(--success); }
   .state-paused  { background: #f79009; }
-  .state-stopping { background: #b42318; }
+  .state-stopping { background: var(--danger); }
   .control-row {
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  .control-row.settings { gap: 12px; font-size: 12px; color: #475467; }
+  .control-row.settings { gap: 12px; font-size: 12px; color: var(--text-secondary); }
   .control-row button {
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 13px;
     cursor: pointer;
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
   }
-  .control-row button.play { background: #027a48; color: white; border-color: #027a48; }
+  .control-row button.play { background: var(--success); color: white; border-color: var(--success); }
   .control-row button.play:hover:not(:disabled) { background: #036a3e; }
-  .control-row button.stop { background: #b42318; color: white; border-color: #b42318; }
+  .control-row button.stop { background: var(--danger); color: white; border-color: var(--danger); }
   .control-row button.stop:hover:not(:disabled) { background: #9a1d14; }
   .control-row button:disabled { opacity: 0.4; cursor: not-allowed; }
   .auto {
@@ -535,13 +535,13 @@
   .slider-val {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    color: #1d2939;
+    color: var(--text-primary);
     min-width: 16px;
     text-align: right;
   }
   .warn {
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
     padding: 6px 8px;
     border-radius: 4px;
     font-size: 11px;

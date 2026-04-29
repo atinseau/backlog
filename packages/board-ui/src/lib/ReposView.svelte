@@ -263,18 +263,18 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #475467; }
-  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
+  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .loading {
     padding: 32px;
     text-align: center;
-    color: #667085;
+    color: var(--text-muted);
   }
   .repos {
     list-style: none;
@@ -287,14 +287,14 @@
     display: flex;
     gap: 12px;
     padding: 10px 20px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-subtle);
     align-items: flex-start;
   }
   .repos li.disabled { opacity: 0.5; }
   .repos li.empty {
     padding: 24px 20px;
     text-align: center;
-    color: #98a2b3;
+    color: var(--text-subtle);
     border: none;
   }
   .info {
@@ -311,27 +311,27 @@
   }
   .role {
     font-size: 11px;
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     padding: 1px 6px;
     border-radius: 3px;
   }
   .off {
     font-size: 11px;
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     padding: 1px 6px;
     border-radius: 3px;
   }
   .path {
     font-family: ui-monospace, monospace;
     font-size: 11px;
-    color: #475467;
+    color: var(--text-secondary);
     word-break: break-all;
   }
   .branch {
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
   }
   .actions {
     display: flex;
@@ -339,22 +339,22 @@
     flex-shrink: 0;
   }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 8px;
     cursor: pointer;
     font-size: 12px;
   }
-  button.danger { color: #b42318; }
+  button.danger { color: var(--danger); }
   button.add {
     margin: 12px 20px;
     align-self: flex-start;
   }
   .create {
     padding: 16px 20px;
-    background: #f9fafb;
-    border-top: 1px solid #e4e7ec;
+    background: var(--bg-muted);
+    border-top: 1px solid var(--border-default);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -366,21 +366,21 @@
   }
   .tab {
     flex: 1;
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 10px;
     cursor: pointer;
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .tab.active {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
-    border-color: #1570ef;
+    border-color: var(--accent);
   }
   .hint {
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-weight: 400;
   }
   .row {
@@ -393,12 +393,12 @@
     flex-direction: column;
     gap: 4px;
     font-size: 11px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .create label.full { grid-column: 1 / -1; }
   .create input {
     padding: 6px 8px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 13px;
   }
@@ -408,9 +408,9 @@
     gap: 8px;
   }
   button.primary {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
-    border-color: #1570ef;
+    border-color: var(--accent);
   }
-  button.primary:hover { background: #155eef; }
+  button.primary:hover { background: var(--accent-hover); }
 </style>

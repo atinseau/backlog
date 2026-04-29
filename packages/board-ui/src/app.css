@@ -59,31 +59,33 @@
   --backdrop: rgba(16, 24, 40, 0.45);
 }
 
-/* Dark = neutral near-black grays, no blue cast. Tuned to match the
+/* Dark = neutral near-black greys, no blue cast. Tuned to match the
    contemporary "pro" dark look used by Linear / Vercel / GitHub dark
-   / Xcode dark — high text contrast on a near-pure-grey canvas, with
-   borders that are barely-visible against surfaces (depth comes from
-   value steps, not heavy lines). */
+   / Xcode dark.
+   The center canvas is the darkest (= the "void" the user works in),
+   sidebars are clearly lighter so they read as the chrome around it,
+   surfaces (cards, modals) sit one step above sidebars. Borders are
+   bright enough to delimit panels but never compete for attention. */
 [data-theme="dark"] {
-  --bg-app: #0a0a0a;        /* the canvas — almost black */
-  --bg-surface: #161616;    /* cards, panels, modals */
-  --bg-elevated: #1f1f1f;   /* elevated chips, hovers */
-  --bg-input: #161616;
-  --bg-muted: #121212;      /* sidebars, footer strips */
-  --bg-hover: #1f1f1f;
-  --bg-active: #262626;
+  --bg-app: #050507;        /* center canvas — near-pure black */
+  --bg-muted: #18181b;      /* sidebars, headers, footers */
+  --bg-surface: #1f1f23;    /* cards, modals, panels above the canvas */
+  --bg-elevated: #27272a;   /* hover states, chips, popovers */
+  --bg-input: #050507;      /* form fields fall back to canvas dark for depth */
+  --bg-hover: #27272a;
+  --bg-active: #2e2e34;
 
-  --text-primary: #ededed;
-  --text-strong: #fafafa;
-  --text-body: #d4d4d4;
-  --text-secondary: #a3a3a3;
-  --text-muted: #737373;
-  --text-subtle: #525252;
-  --text-inverse: #0a0a0a;
+  --text-primary: #f4f4f5;
+  --text-strong: #ffffff;
+  --text-body: #d4d4d8;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-subtle: #52525b;
+  --text-inverse: #09090b;
 
-  --border-strong: #2e2e2e;
-  --border-default: #232323;
-  --border-subtle: #1a1a1a;
+  --border-strong: #3f3f46;
+  --border-default: #2e2e35;
+  --border-subtle: #27272a;
 
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
@@ -98,11 +100,16 @@
   --danger: #f87171;
   --danger-bg: #450a0a;
 
-  --splitter: #232323;
+  --console-bg: #050507;
+  --console-text: #d4d4d8;
+  --console-border: #27272a;
+  --console-line: #27272a;
+
+  --splitter: #2e2e35;
   --splitter-hover: #3b82f6;
 
-  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.6);
-  --backdrop: rgba(0, 0, 0, 0.65);
+  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.7);
+  --backdrop: rgba(0, 0, 0, 0.7);
 }
 
 html, body, #app {

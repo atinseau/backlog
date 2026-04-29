@@ -221,15 +221,18 @@
 {/if}
 
 <style>
+  /* The activity surface intentionally uses the console palette
+     (kept dark in both light + dark modes) so it reads as a terminal
+     log, distinct from the document chrome. */
   .bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     height: 26px;
-    background: #1d2939;
-    color: #e4e7ec;
-    border-top: 1px solid #344054;
+    background: var(--console-bg);
+    color: var(--console-text);
+    border-top: 1px solid var(--console-border);
     display: flex;
     align-items: stretch;
     z-index: 30;
@@ -253,11 +256,11 @@
     text-align: left;
     justify-content: flex-start;
   }
-  .toggle:hover { background: #344054; }
-  .chevron { font-size: 10px; color: #98a2b3; }
+  .toggle:hover { background: var(--console-line); }
+  .chevron { font-size: 10px; color: var(--text-subtle); }
   .label { font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   .count {
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-variant-numeric: tabular-nums;
     margin-left: 4px;
   }
@@ -278,15 +281,15 @@
   }
   .actions button {
     background: transparent;
-    border: 1px solid #475467;
-    color: #98a2b3;
+    border: 1px solid var(--console-border);
+    color: var(--console-text);
     border-radius: 3px;
     padding: 1px 8px;
     cursor: pointer;
     font-size: 12px;
   }
   .actions button:hover:not(:disabled) {
-    background: #344054;
+    background: var(--console-line);
     color: white;
   }
   .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -297,9 +300,9 @@
     left: 0;
     right: 0;
     height: 280px;
-    background: #0c111d;
-    color: #d0d5dd;
-    border-top: 1px solid #344054;
+    background: var(--console-bg);
+    color: var(--console-text);
+    border-top: 1px solid var(--console-border);
     z-index: 29;
     display: flex;
     flex-direction: column;
@@ -312,14 +315,14 @@
     position: relative;
     height: 100%;
     border-top: none;
-    background: #0c111d;
+    background: var(--console-bg);
   }
   .scroll {
     flex: 1;
     overflow-y: auto;
     padding: 8px 12px;
   }
-  .muted { color: #667085; font-style: italic; margin: 0; padding: 16px 0; text-align: center; }
+  .muted { color: var(--text-muted); font-style: italic; margin: 0; padding: 16px 0; text-align: center; }
   ul { list-style: none; margin: 0; padding: 0; }
   .evt {
     display: flex;
@@ -330,12 +333,12 @@
     padding-left: 6px;
   }
   .evt-bus { opacity: 0.55; }
-  .evt-bus .type { color: #667085; }
-  .evt-activity { border-left-color: #027a48; }
+  .evt-bus .type { color: var(--text-muted); }
+  .evt-activity { border-left-color: var(--success); }
   .evt-activity .type { color: #6ce9a6; font-weight: 600; }
-  .ts { color: #667085; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .ts { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .run-pill {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
     padding: 0 5px;
     border-radius: 2px;
@@ -345,7 +348,7 @@
   }
   .type { flex-shrink: 0; }
   .msg {
-    color: #d0d5dd;
+    color: var(--console-text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

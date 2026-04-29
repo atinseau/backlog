@@ -90,17 +90,17 @@
     padding: 12px 20px;
     margin: 8px 16px 0;
     background: linear-gradient(90deg, #eff8ff, #f4ebff);
-    border: 1px solid #b2ddff;
+    border: 1px solid var(--accent);
     border-radius: 8px;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   }
   .onboarding.step-1 {
     background: linear-gradient(90deg, #fef0c7, #fef9f3);
-    border-color: #fdb022;
+    border-color: var(--warning);
   }
   .onboarding.step-final {
     background: linear-gradient(90deg, #d1fadf, #ecfdf3);
-    border-color: #6ce9a6;
+    border-color: var(--success);
   }
   .step-pill {
     background: var(--bg-surface);

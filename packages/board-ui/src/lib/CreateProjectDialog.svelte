@@ -120,7 +120,7 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -131,13 +131,13 @@
     border: none;
     font-size: 18px;
     cursor: pointer;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .content { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
   .tabs {
     display: flex;
     gap: 4px;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     border-radius: 6px;
     padding: 2px;
     align-self: flex-start;
@@ -148,38 +148,38 @@
     padding: 4px 12px;
     cursor: pointer;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
     border-radius: 4px;
   }
   .tab.active {
-    background: white;
-    color: #1d2939;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
   .field { display: flex; flex-direction: column; gap: 4px; }
-  .label { font-size: 12px; color: #475467; font-weight: 500; }
+  .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
   input {
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 13px;
     font-family: inherit;
   }
-  small { color: #98a2b3; font-size: 11px; }
-  .muted { color: #98a2b3; }
+  small { color: var(--text-subtle); font-size: 11px; }
+  .muted { color: var(--text-subtle); }
   .small { font-size: 12px; }
   .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 12px;
     cursor: pointer;
     font-size: 13px;
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button.primary { background: #1570ef; color: white; border-color: #1570ef; }
-  button.primary:hover:not(:disabled) { background: #155eef; }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   .msg { font-size: 12px; padding: 6px 10px; border-radius: 4px; }
-  .msg.err { background: #fef0c7; color: #b54708; }
+  .msg.err { background: var(--warning-bg); color: var(--warning); }
 </style>

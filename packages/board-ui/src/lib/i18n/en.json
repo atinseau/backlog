@@ -305,6 +305,7 @@
   "ai_provider.codex": "OpenAI Codex (gpt-5-codex)",
 
   "task_detail.title": "Task details",
+  "task_detail.back": "Back",
   "task_detail.section.description": "Description",
   "task_detail.section.acceptance_criteria": "Acceptance criteria",
   "task_detail.section.subtasks": "Sub-tasks",

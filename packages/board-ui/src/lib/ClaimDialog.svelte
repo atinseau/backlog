@@ -158,7 +158,7 @@
     z-index: 50;
   }
   .dialog {
-    background: white;
+    background: var(--bg-surface);
     border-radius: 8px;
     width: min(480px, 90vw);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
@@ -169,7 +169,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 14px 16px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
   }
   .dialog h2 { margin: 0; font-size: 16px; }
   .close {
@@ -177,7 +177,7 @@
     border: none;
     font-size: 22px;
     cursor: pointer;
-    color: #667085;
+    color: var(--text-muted);
   }
   form {
     padding: 16px;
@@ -190,12 +190,12 @@
     flex-direction: column;
     gap: 4px;
     font-size: 12px;
-    color: #344054;
+    color: var(--text-body);
   }
   input, select, textarea {
     font: inherit;
     padding: 6px 8px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     width: 100%;
   }
@@ -210,18 +210,18 @@
     gap: 12px;
   }
   .conflict {
-    background: #fef0c7;
+    background: var(--warning-bg);
     color: #7a2e0e;
     padding: 8px 10px;
     border-radius: 4px;
     font-size: 12px;
   }
   .conflict p { margin: 4px 0; }
-  .conflict .overdue { color: #b42318; font-weight: 600; }
-  .conflict .src { color: #667085; font-size: 11px; }
+  .conflict .overdue { color: var(--danger); font-weight: 600; }
+  .conflict .src { color: var(--text-muted); font-size: 11px; }
   .error {
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     padding: 8px 10px;
     border-radius: 4px;
     font-size: 12px;
@@ -233,20 +233,20 @@
     padding-top: 4px;
   }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 14px;
     cursor: pointer;
   }
   button.primary {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
-    border-color: #1570ef;
+    border-color: var(--accent);
   }
   button.primary:disabled {
-    background: #98a2b3;
-    border-color: #98a2b3;
+    background: var(--text-subtle);
+    border-color: var(--text-subtle);
     cursor: wait;
   }
 </style>

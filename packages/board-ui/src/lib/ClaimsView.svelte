@@ -301,7 +301,7 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -317,7 +317,7 @@
   .tabs {
     display: flex;
     gap: 4px;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     border-radius: 6px;
     padding: 2px;
   }
@@ -327,38 +327,38 @@
     padding: 4px 10px;
     cursor: pointer;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
     border-radius: 4px;
   }
-  .tab:hover { color: #1d2939; }
+  .tab:hover { color: var(--text-primary); }
   .tab.active {
-    background: white;
-    color: #1d2939;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
   .header-actions { display: flex; gap: 4px; }
   .refresh, .close {
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .close { border: none; font-size: 18px; }
-  .refresh:hover { background: #f2f4f7; }
-  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
-  .loading { padding: 32px; text-align: center; color: #667085; }
+  .refresh:hover { background: var(--bg-hover); }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
+  .loading { padding: 32px; text-align: center; color: var(--text-muted); }
   .empty {
     padding: 32px 20px;
     text-align: center;
-    color: #667085;
+    color: var(--text-muted);
     font-size: 13px;
   }
   .empty code {
     font-family: ui-monospace, monospace;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -371,12 +371,12 @@
   }
   .claims > li {
     padding: 12px 20px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
-  .claims > li.expired { background: #fef9f3; opacity: 0.7; }
+  .claims > li.expired { background: var(--warning-bg); opacity: 0.7; }
   .claims > li.archived { opacity: 0.85; }
   .claim-header {
     display: flex;
@@ -399,32 +399,32 @@
     border-radius: 3px;
     text-transform: uppercase;
   }
-  .mode-exclusive { background: #fee4e2; color: #b42318; }
-  .mode-shared { background: #d1fadf; color: #027a48; }
+  .mode-exclusive { background: var(--danger-bg); color: var(--danger); }
+  .mode-shared { background: var(--success-bg); color: var(--success); }
   .expired-tag, .archived-tag {
     font-size: 10px;
-    background: #f2f4f7;
-    color: #475467;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 3px;
   }
   .archived-tag {
-    background: #f4ebff;
-    color: #6941c6;
+    background: var(--accent-bg);
+    color: #a78bfa;
   }
   .finish {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 3px 10px;
     cursor: pointer;
     font-size: 12px;
-    color: #1d2939;
+    color: var(--text-primary);
     flex-shrink: 0;
   }
   .finish:hover:not(:disabled) {
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     border-color: #fcd9d6;
   }
   .row {
@@ -432,30 +432,30 @@
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     flex-wrap: wrap;
   }
   .repo {
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     padding: 1px 6px;
     border-radius: 3px;
   }
   .agent {
-    background: #f9f5ff;
-    color: #6941c6;
+    background: var(--accent-bg);
+    color: #a78bfa;
     padding: 1px 6px;
     border-radius: 3px;
   }
   .agent.unknown {
     background: transparent;
-    color: #98a2b3;
+    color: var(--text-subtle);
     padding-left: 0;
     font-style: italic;
   }
   .id {
     font-family: ui-monospace, monospace;
-    color: #98a2b3;
+    color: var(--text-subtle);
     margin-left: auto;
   }
   .paths {
@@ -464,17 +464,17 @@
     padding: 0;
     font-family: ui-monospace, monospace;
     font-size: 11px;
-    color: #344054;
-    background: #f9fafb;
+    color: var(--text-body);
+    background: var(--bg-muted);
     border-radius: 4px;
     padding: 6px 10px;
   }
   .paths li { padding: 1px 0; word-break: break-all; }
   .session-title {
     font-size: 12px;
-    color: #344054;
-    background: #fafafa;
-    border-left: 3px solid #6941c6;
+    color: var(--text-body);
+    background: var(--bg-muted);
+    border-left: 3px solid #a78bfa;
     padding: 4px 8px;
     border-radius: 3px;
     overflow: hidden;
@@ -489,8 +489,8 @@
     align-items: center;
   }
   .meta-chip {
-    background: #f4ebff;
-    color: #6941c6;
+    background: var(--accent-bg);
+    color: #a78bfa;
     padding: 2px 8px;
     border-radius: 3px;
     font-family: ui-monospace, monospace;
@@ -503,30 +503,30 @@
     margin-right: 2px;
   }
   .meta-chip.source {
-    background: #d1fadf;
-    color: #027a48;
+    background: var(--success-bg);
+    color: var(--success);
   }
   .meta-chip.model {
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
   }
   a.meta-chip.session,
   button.meta-chip.session {
-    background: #f4ebff;
-    color: #6941c6;
+    background: var(--accent-bg);
+    color: #a78bfa;
     text-decoration: none;
     cursor: pointer;
   }
   a.meta-chip.session:hover,
   button.meta-chip.session:hover {
-    background: #e9d7fe;
+    background: var(--accent-bg);
   }
   .meta {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
   }
   .dot { opacity: 0.5; }
 </style>

@@ -350,7 +350,7 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -361,29 +361,29 @@
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #475467;
+    color: var(--text-secondary);
   }
-  .size { color: #98a2b3; font-weight: 400; }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #475467; }
+  .size { color: var(--text-subtle); font-weight: 400; }
+  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
   .error {
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
     padding: 8px 20px;
     font-size: 12px;
   }
-  .loading { padding: 32px; text-align: center; color: #667085; }
+  .loading { padding: 32px; text-align: center; color: var(--text-muted); }
 
   .modal > section,
   .modal > .block {
     padding: 16px 20px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-subtle);
   }
   .modal > section:last-of-type,
   .modal > .block:last-child {
     border-bottom: none;
   }
   .block { overflow-y: auto; }
-  .hint { margin: 0 0 8px; color: #667085; font-size: 12px; }
+  .hint { margin: 0 0 8px; color: var(--text-muted); font-size: 12px; }
 
   .autonomy-grid {
     display: grid;
@@ -391,28 +391,28 @@
     gap: 8px;
   }
   .autonomy-card {
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 10px;
     text-align: left;
     cursor: pointer;
     transition: all 120ms ease;
   }
-  .autonomy-card:hover { border-color: #98a2b3; }
+  .autonomy-card:hover { border-color: var(--text-subtle); }
   .autonomy-card.active {
-    border-color: #1570ef;
-    background: #eff8ff;
-    box-shadow: 0 0 0 1px #1570ef inset;
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    box-shadow: 0 0 0 1px var(--accent) inset;
   }
   .autonomy-label {
     font-weight: 600;
     font-size: 13px;
-    color: #1d2939;
+    color: var(--text-primary);
   }
   .autonomy-desc {
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     margin-top: 2px;
   }
 
@@ -427,7 +427,7 @@
     flex-direction: column;
     gap: 4px;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .claims-row label.toggle {
     flex-direction: row;
@@ -437,7 +437,7 @@
   }
   .claims-row input[type="number"] {
     padding: 4px 8px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     width: 80px;
     font-size: 13px;
@@ -452,10 +452,10 @@
     gap: 12px;
   }
   .agents li {
-    border: 1px solid #e4e7ec;
+    border: 1px solid var(--border-default);
     border-radius: 6px;
     padding: 12px;
-    background: #fafafa;
+    background: var(--bg-muted);
   }
   .agents li.disabled { opacity: 0.5; }
   .agent-header {
@@ -468,7 +468,7 @@
   }
   .provider {
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     margin-left: 6px;
   }
   .toggle {
@@ -489,15 +489,15 @@
     flex-direction: column;
     gap: 4px;
     font-size: 11px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .agent-row input,
   .agent-row select {
     padding: 4px 6px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 12px;
-    background: white;
+    background: var(--bg-surface);
   }
 
   .chips-row {
@@ -509,30 +509,30 @@
     font-size: 12px;
   }
   .chips-label {
-    color: #667085;
+    color: var(--text-muted);
     margin-right: 4px;
   }
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
     border-radius: 3px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 11px;
   }
   .chip.on {
-    background: #eff8ff;
-    border-color: #1570ef;
-    color: #175cd3;
+    background: var(--accent-bg);
+    border-color: var(--accent);
+    color: var(--accent-text);
   }
-  .chip.readonly { cursor: default; background: #f2f4f7; color: #475467; }
+  .chip.readonly { cursor: default; background: var(--bg-hover); color: var(--text-secondary); }
   .chip input { display: none; }
-  .risk-low.on { background: #d1fadf; border-color: #027a48; color: #027a48; }
-  .risk-medium.on { background: #fef0c7; border-color: #b54708; color: #b54708; }
-  .risk-high.on { background: #fee4e2; border-color: #b42318; color: #b42318; }
+  .risk-low.on { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+  .risk-medium.on { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
+  .risk-high.on { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
   .capabilities {
     display: flex;
     flex-wrap: wrap;
@@ -541,7 +541,7 @@
   }
   code {
     font-family: ui-monospace, monospace;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 11px;

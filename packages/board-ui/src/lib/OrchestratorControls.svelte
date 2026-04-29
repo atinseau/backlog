@@ -151,8 +151,8 @@
   .controls {
     display: inline-flex;
     align-items: center;
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 2px;
     gap: 1px;
@@ -163,21 +163,21 @@
     padding: 4px 10px;
     cursor: pointer;
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
     border-radius: 4px;
     transition: background-color 120ms ease;
   }
   .ctrl:hover:not(:disabled) {
-    background: white;
-    color: #1d2939;
+    background: var(--bg-surface);
+    color: var(--text-primary);
   }
   .ctrl:disabled {
     opacity: 0.35;
     cursor: not-allowed;
   }
-  .ctrl.play.active { background: #d1fadf; color: #027a48; }
-  .ctrl.pause.active { background: #fef0c7; color: #b54708; }
-  .ctrl.stop.active { background: #fee4e2; color: #b42318; }
+  .ctrl.play.active { background: var(--success-bg); color: var(--success); }
+  .ctrl.pause.active { background: var(--warning-bg); color: var(--warning); }
+  .ctrl.stop.active { background: var(--danger-bg); color: var(--danger); }
 
   .state {
     font-size: 10px;
@@ -189,22 +189,22 @@
     margin-left: 4px;
     color: white;
   }
-  .state-idle { background: #98a2b3; }
-  .state-running { background: #027a48; }
+  .state-idle { background: var(--text-subtle); }
+  .state-running { background: var(--success); }
   .state-paused { background: #f79009; }
-  .state-stopping { background: #b42318; }
+  .state-stopping { background: var(--danger); }
   .ready {
     font-size: 10px;
-    color: #1570ef;
+    color: var(--accent);
     font-weight: 600;
     margin-left: 4px;
     padding: 2px 6px;
-    background: #eff8ff;
+    background: var(--accent-bg);
     border-radius: 10px;
   }
   .count {
     font-size: 10px;
-    color: #027a48;
+    color: var(--success);
     font-weight: 600;
     margin-left: 2px;
   }

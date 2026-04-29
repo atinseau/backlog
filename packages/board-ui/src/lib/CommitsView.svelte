@@ -129,30 +129,30 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  h2 { margin: 0; font-size: 16px; }
+  h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
   .header-actions { display: flex; gap: 4px; }
   .refresh, .close {
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .close { border: none; font-size: 18px; }
-  .refresh:hover { background: #f2f4f7; }
-  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
-  .loading { padding: 32px; text-align: center; color: #667085; }
+  .refresh:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
+  .loading { padding: 32px; text-align: center; color: var(--text-muted); }
   .empty {
     padding: 32px 20px;
     text-align: center;
-    color: #667085;
+    color: var(--text-muted);
     font-size: 13px;
   }
   .commits {
@@ -164,7 +164,7 @@
   }
   .commits > li {
     padding: 10px 20px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -176,8 +176,8 @@
     font-size: 13px;
   }
   .repo {
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 11px;
@@ -186,13 +186,13 @@
   .sha {
     font-family: ui-monospace, monospace;
     font-size: 11px;
-    color: #475467;
-    background: #f2f4f7;
+    color: var(--text-body);
+    background: var(--bg-elevated);
     padding: 1px 6px;
     border-radius: 3px;
   }
   .subject {
-    color: #1d2939;
+    color: var(--text-primary);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -203,7 +203,7 @@
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     flex-wrap: wrap;
   }
   .dot { opacity: 0.5; }
@@ -215,15 +215,15 @@
     font-size: 10px;
   }
   .link-task {
-    background: #d1fadf;
-    color: #027a48;
+    background: var(--success-bg);
+    color: var(--success);
   }
   .link-subtask {
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
   }
   .link-claim {
-    background: #f4ebff;
-    color: #6941c6;
+    background: var(--accent-bg);
+    color: var(--accent-text);
   }
 </style>

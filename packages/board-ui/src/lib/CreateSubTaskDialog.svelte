@@ -120,7 +120,7 @@
     z-index: 100;
   }
   .modal {
-    background: white;
+    background: var(--bg-surface);
     border-radius: 8px;
     box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
     max-width: 520px;
@@ -130,7 +130,7 @@
   }
   header {
     padding: 16px 20px;
-    border-bottom: 1px solid #e4e7ec;
+    border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: baseline;
     gap: 8px;
@@ -138,14 +138,14 @@
   h2 { margin: 0; font-size: 16px; flex-shrink: 0; }
   .task-title {
     flex: 1;
-    color: #667085;
+    color: var(--text-muted);
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #475467; }
-  .error { background: #fef0c7; color: #b54708; padding: 8px 20px; font-size: 12px; }
+  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .body {
     padding: 16px 20px;
     display: flex;
@@ -157,11 +157,11 @@
     flex-direction: column;
     gap: 4px;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   input, select, textarea {
     padding: 6px 8px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     font-size: 13px;
     font-family: inherit;
@@ -174,27 +174,27 @@
   }
   footer {
     padding: 12px 20px;
-    border-top: 1px solid #e4e7ec;
+    border-top: 1px solid var(--border-default);
     display: flex;
     justify-content: flex-end;
     gap: 8px;
   }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
   }
   button.primary {
-    background: #1570ef;
+    background: var(--accent);
     color: white;
-    border-color: #1570ef;
+    border-color: var(--accent);
   }
   button.primary:disabled {
-    background: #98a2b3;
-    border-color: #98a2b3;
+    background: var(--text-subtle);
+    border-color: var(--text-subtle);
     cursor: not-allowed;
   }
 </style>

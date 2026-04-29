@@ -16,8 +16,9 @@
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import OnboardingBanner from "./lib/OnboardingBanner.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
-  import RightPanel, { type RightTab } from "./lib/shell/RightPanel.svelte";
+  import RightPanel from "./lib/shell/RightPanel.svelte";
   import BottomPanel from "./lib/shell/BottomPanel.svelte";
+  import TaskDetailDialog from "./lib/TaskDetailDialog.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
@@ -57,7 +58,6 @@
   const SHELL_LEFT_WIDTH = "backlog.shell.left.width";
   const SHELL_RIGHT_WIDTH = "backlog.shell.right.width";
   const SHELL_BOTTOM_HEIGHT = "backlog.shell.bottom.height";
-  const SHELL_RIGHT_TAB = "backlog.shell.right.tab";
 
   function readBool(key: string, fallback: boolean): boolean {
     if (typeof localStorage === "undefined") return fallback;
@@ -114,11 +114,6 @@
   let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, 260, 600));
   let bottomHeight = $state(readNum(SHELL_BOTTOM_HEIGHT, 240, 120, 600));
   let leftSection = $state<SectionKey>("board");
-  let rightTab = $state<RightTab>(
-    (typeof localStorage !== "undefined"
-      ? (localStorage.getItem(SHELL_RIGHT_TAB) as RightTab | null)
-      : null) ?? "inspector",
-  );
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
 
@@ -361,11 +356,6 @@
     bottomOpen = !bottomOpen;
     writeBool(SHELL_BOTTOM_OPEN, bottomOpen);
   }
-  function setRightTab(tab: RightTab) {
-    rightTab = tab;
-    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_RIGHT_TAB, tab);
-    if (!rightOpen) toggleRight();
-  }
   function commitLeftWidth() { writeNum(SHELL_LEFT_WIDTH, leftWidth); }
   function commitRightWidth() { writeNum(SHELL_RIGHT_WIDTH, rightWidth); }
   function commitBottomHeight() { writeNum(SHELL_BOTTOM_HEIGHT, bottomHeight); }
@@ -376,12 +366,9 @@
 
   function selectCard(card: TaskCard) {
     selectedTaskId = card.id;
-    // Show the inspector tab so the user sees the details for what they
-    // just clicked (rather than landing on a chat thread that's about
-    // something else). Open the right panel if it was collapsed.
-    rightTab = "inspector";
-    if (typeof localStorage !== "undefined") localStorage.setItem(SHELL_RIGHT_TAB, rightTab);
-    if (!rightOpen) toggleRight();
+    // The detail view replaces the kanban in the center column, so leave
+    // the section as "board" — closing the detail returns to the kanban
+    // automatically without losing the user's place in navigation.
   }
 
   // The right-panel split/add-subtask actions need the full TaskCard
@@ -458,7 +445,23 @@
 
     <div class="center">
       <div class="center-main">
-        {#if leftSection === "board"}
+        {#if selectedTaskId}
+          <TaskDetailDialog
+            taskId={selectedTaskId}
+            embedded={true}
+            onClose={() => (selectedTaskId = null)}
+            onSplit={() => {
+              if (!selectedTaskId) return;
+              const card = findCardById(selectedTaskId);
+              if (card) splitTarget = card;
+            }}
+            onAddSubTask={() => {
+              if (!selectedTaskId) return;
+              const card = findCardById(selectedTaskId);
+              if (card) createSubTaskTarget = card;
+            }}
+          />
+        {:else if leftSection === "board"}
           <OnboardingBanner
             workspaces={workspaces}
             workspaceRepos={workspaceRepos}
@@ -547,40 +550,11 @@
     {#if rightOpen}
       <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(260, Math.min(600, rightWidth - d)))} onCommit={commitRightWidth} />
       <div class="right-host">
-        <RightPanel
-          selectedTaskId={selectedTaskId}
-          onClearSelection={() => (selectedTaskId = null)}
-          onSplit={() => {
-            if (!selectedTaskId) return;
-            const card = findCardById(selectedTaskId);
-            if (card) splitTarget = card;
-          }}
-          onAddSubTask={() => {
-            if (!selectedTaskId) return;
-            const card = findCardById(selectedTaskId);
-            if (card) createSubTaskTarget = card;
-          }}
-          workspaceId={selectedWorkspaceId}
-          tab={rightTab}
-          onSelectTab={setRightTab}
-        />
+        <RightPanel workspaceId={selectedWorkspaceId} />
       </div>
     {/if}
   </div>
 
-  <div class="status">
-    {#if board}
-      <span>{t("topbar.runs", { count: board.active_runs_count })}</span>
-      {#if lastUpdated}
-        <span class="dot">·</span>
-        <span>{t("topbar.last_update", { time: lastUpdated })}</span>
-      {/if}
-      {#if inFlightMove}
-        <span class="dot">·</span>
-        <span class="moving">{t("topbar.moving")}</span>
-      {/if}
-    {/if}
-  </div>
 </div>
 
 <!-- Genuinely-modal flows (creation forms, prompts) — not driven by the
@@ -660,7 +634,7 @@
     background: var(--bg-app);
     color: var(--text-primary);
   }
-  .topbar, .error, .status { flex-shrink: 0; }
+  .topbar, .error { flex-shrink: 0; }
 
   .topbar {
     display: flex;
@@ -765,17 +739,4 @@
     align-items: start;
   }
 
-  .status {
-    border-top: 1px solid var(--border-subtle);
-    background: var(--bg-muted);
-    padding: 4px 14px;
-    font-size: 11px;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 22px;
-  }
-  .dot { opacity: 0.5; }
-  .moving { color: var(--accent); }
 </style>

@@ -84,8 +84,8 @@
     right: 0;
     height: 100vh;
     width: min(720px, 95vw);
-    background: white;
-    border-left: 1px solid #e4e7ec;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-default);
     box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
     z-index: 60;
     display: flex;
@@ -98,15 +98,15 @@
     justify-content: space-between;
     gap: 12px;
     padding: 10px 14px;
-    border-bottom: 1px solid #e4e7ec;
-    background: #f9fafb;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-muted);
     flex-shrink: 0;
   }
   .title { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
   .prefix { font-size: 14px; }
   .path {
     font-size: 12px;
-    color: #1d2939;
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -114,39 +114,39 @@
   .meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .rev {
     font-size: 10px;
-    color: #667085;
-    background: #eaecf0;
+    color: var(--text-muted);
+    background: var(--bg-hover);
     padding: 2px 6px;
     border-radius: 3px;
   }
   .close {
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 8px;
     cursor: pointer;
-    color: #475467;
+    color: var(--text-secondary);
     font-family: inherit;
     font-size: 13px;
   }
-  .close:hover { background: #f2f4f7; }
+  .close:hover { background: var(--bg-hover); }
 
   .body {
     flex: 1;
     overflow: auto;
-    background: #fafbfc;
+    background: var(--bg-muted);
   }
   .muted {
     padding: 24px;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-style: italic;
     text-align: center;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   }
   .error {
     padding: 12px 16px;
-    background: #fee4e2;
-    color: #b42318;
+    background: var(--danger-bg);
+    color: var(--danger);
     font-size: 12px;
     margin: 12px;
     border-radius: 4px;
@@ -166,9 +166,9 @@
     /* Each diff line gets a faint left bar via the body color so the
        eye lands on +/- areas without scanning column 0. */
   }
-  .line-add { background: #ecfdf3; color: #027a48; }
-  .line-del { background: #fee4e2; color: #b42318; }
-  .line-hunk { background: #eff8ff; color: #175cd3; }
-  .line-head { color: #344054; font-weight: 600; }
-  .line-ctx { color: #475467; }
+  .line-add { background: var(--success-bg); color: var(--success); }
+  .line-del { background: var(--danger-bg); color: var(--danger); }
+  .line-hunk { background: var(--accent-bg); color: var(--accent-text); }
+  .line-head { color: var(--text-body); font-weight: 600; }
+  .line-ctx { color: var(--text-secondary); }
 </style>
