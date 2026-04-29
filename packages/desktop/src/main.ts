@@ -1,7 +1,19 @@
-import { app, BrowserWindow, Menu } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, shell } from "electron";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
 import { resolveWorkspace } from "./workspace-picker.js";
+
+// IPC handlers exposed to the renderer through the preload's
+// contextBridge (window.backlog.*). Keep the surface tiny — anything
+// the embedded Hono server can already do should go through HTTP.
+ipcMain.handle("backlog:open-path", async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== "string" || !targetPath) return "invalid_path";
+  return shell.openPath(targetPath);
+});
+ipcMain.handle("backlog:show-in-folder", async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== "string" || !targetPath) return;
+  shell.showItemInFolder(targetPath);
+});
 
 // Set the user-facing name early so app.getPath('userData') resolves to a
 // stable, branded directory (e.g. ~/Library/Application Support/Backlog/).

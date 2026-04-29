@@ -3,6 +3,26 @@
   import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
+  // Bridge exposed by packages/desktop's preload.ts. Optional so the
+  // board UI also works when served by `backlog serve` in a normal
+  // browser (no Electron, no IPC, no native file open).
+  interface BacklogBridge {
+    openPath: (path: string) => Promise<string>;
+    showInFolder: (path: string) => Promise<void>;
+  }
+  declare global { interface Window { backlog?: BacklogBridge } }
+  const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
+
+  function openInFinder(repoPath: string) {
+    if (isElectron) {
+      window.backlog!.openPath(repoPath).catch(() => undefined);
+    } else {
+      // Browser-only fallback — copy the path so the user can paste it
+      // into Finder / Explorer themselves.
+      navigator.clipboard?.writeText(repoPath).catch(() => undefined);
+    }
+  }
+
   interface Props {
     onClose: () => void;
     onChanged?: () => void;
@@ -187,7 +207,14 @@
                   hook : {hookLabel.label}
                 </span>
               </div>
-              <span class="path">{repo.path}</span>
+              <button
+                class="path-link"
+                onclick={(e) => { e.stopPropagation(); openInFinder(repo.path); }}
+                title={isElectron ? t("repos_view.open_folder") : t("repos_view.copy_path")}
+              >
+                <span class="path-icon">📂</span>
+                <span class="path-text">{repo.path}</span>
+              </button>
               <span class="branch">branche par défaut : {repo.default_branch}</span>
             </div>
             <div class="actions">
@@ -457,6 +484,30 @@
     font-size: 11px;
     color: var(--text-secondary);
     word-break: break-all;
+  }
+  .path-link {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: left;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    word-break: break-all;
+  }
+  .path-link:hover {
+    color: var(--accent);
+  }
+  .path-link:hover .path-text {
+    text-decoration: underline;
+  }
+  .path-icon {
+    flex-shrink: 0;
+    font-size: 12px;
   }
   .branch {
     font-size: 11px;

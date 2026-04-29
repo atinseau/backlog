@@ -226,6 +226,8 @@
   "permissions.success": "Permissions enregistrées",
   "repos_view.title": "Repositories du projet",
   "repos_view.empty": "Aucun repository configuré.",
+  "repos_view.open_folder": "Ouvrir le dossier dans le Finder",
+  "repos_view.copy_path": "Copier le chemin",
   "repos_view.column.id": "ID",
   "repos_view.column.path": "Chemin",
   "repos_view.column.branch": "Branche",
