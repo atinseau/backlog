@@ -61,9 +61,9 @@ describe("completeRun", () => {
       updated_at: new Date().toISOString(),
     });
 
-    const agent = getAgent(backlogDir, "manual-default");
+    const agent = getAgent(backlogDir, "claude-code");
     if (!agent) {
-      throw new Error("Expected manual-default agent");
+      throw new Error("Expected claude-code agent");
     }
 
     createRun({
@@ -111,9 +111,9 @@ describe("completeRun", () => {
       updated_at: new Date().toISOString(),
     });
 
-    const agent = getAgent(backlogDir, "manual-default");
+    const agent = getAgent(backlogDir, "claude-code");
     if (!agent) {
-      throw new Error("Expected manual-default agent");
+      throw new Error("Expected claude-code agent");
     }
 
     createRun({
@@ -148,9 +148,9 @@ describe("completeRun", () => {
       risk: "low",
     });
 
-    const agent = getAgent(backlogDir, "manual-default");
+    const agent = getAgent(backlogDir, "claude-code");
     if (!agent) {
-      throw new Error("Expected manual-default agent");
+      throw new Error("Expected claude-code agent");
     }
 
     createRun({

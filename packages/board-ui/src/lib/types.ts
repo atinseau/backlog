@@ -107,6 +107,30 @@ export interface AgentSummary {
   success_mode: "review" | "complete" | null;
   model: string | null;
   profile: string | null;
+  // Server-side credential probe — true when the executor needs an
+  // API key the workspace doesn't currently have. The UI surfaces a
+  // warning and grays the toggle so the user knows enabling it would
+  // not actually let the orchestrator pick this agent.
+  needs_api_key?: boolean;
+  // Which secret key is missing (e.g. "ANTHROPIC_API_KEY"). null when
+  // the provider doesn't require one (custom / manual).
+  required_secret_key?: string | null;
+}
+
+export type UserRole = "owner" | "admin" | "member" | "guest";
+export type UserStatus = "pending" | "active" | "removed";
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  status: UserStatus;
+  invited_at: string;
+  invited_by?: string;
+  confirmed_at?: string;
+  invitation_token?: string;
+  invitation_expires_at?: string;
 }
 
 export interface ProjectInfo {

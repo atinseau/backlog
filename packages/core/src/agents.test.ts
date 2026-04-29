@@ -38,7 +38,7 @@ describe("agents", () => {
   });
 
   it("updates mutable agent fields", () => {
-    const updated = updateAgent(backlogDir, "codex-default", {
+    const updated = updateAgent(backlogDir, "codex", {
       model: "gpt-5.4-mini",
       profile: "default",
       command: "/tmp/fake-codex",
@@ -68,21 +68,23 @@ describe("agents", () => {
   });
 
   it("can enable and disable seeded agents", () => {
-    expect(getAgent(backlogDir, "claude-default")?.enabled).toBe(false);
-    setAgentEnabled(backlogDir, "claude-default", true);
-    expect(getAgent(backlogDir, "claude-default")?.enabled).toBe(true);
-    setAgentEnabled(backlogDir, "claude-default", false);
-    expect(getAgent(backlogDir, "claude-default")?.enabled).toBe(false);
+    // codex is seeded disabled (so the user picks claude by default).
+    // Toggle it on then off to exercise both transitions cleanly.
+    expect(getAgent(backlogDir, "codex")?.enabled).toBe(false);
+    setAgentEnabled(backlogDir, "codex", true);
+    expect(getAgent(backlogDir, "codex")?.enabled).toBe(true);
+    setAgentEnabled(backlogDir, "codex", false);
+    expect(getAgent(backlogDir, "codex")?.enabled).toBe(false);
   });
 
   it("keeps validation working after an agent update", () => {
-    updateAgent(backlogDir, "manual-default", {
+    updateAgent(backlogDir, "claude-code", {
       capabilities: ["plan", "review"],
       allowedRisk: ["low"],
       enabled: true,
     });
 
-    const validation = validateAgents(backlogDir).find((result) => result.id === "manual-default");
+    const validation = validateAgents(backlogDir).find((result) => result.id === "claude-code");
     expect(validation?.ok).toBe(true);
   });
 
@@ -96,7 +98,7 @@ describe("agents", () => {
       requiredCapabilities: ["edit_code"],
     });
 
-    const selection = selectionForAgentTask(backlogDir, task, "codex-default");
+    const selection = selectionForAgentTask(backlogDir, task, "codex");
     expect(selection?.available).toBe(false);
     expect(selection?.reasons).toContain("disabled");
   });

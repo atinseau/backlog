@@ -7,6 +7,7 @@
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
   import AgentsView from "./lib/AgentsView.svelte";
+  import UsersView from "./lib/UsersView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
@@ -753,6 +754,11 @@
               void refreshAgents();
               if (!connected) refresh();
             }}
+          />
+        {:else if leftSection === "users"}
+          <UsersView
+            embedded={true}
+            onClose={() => (leftSection = "board")}
           />
         {:else if leftSection === "integrations"}
           <IntegrationsView

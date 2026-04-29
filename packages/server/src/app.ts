@@ -25,6 +25,7 @@ import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { subtasksRoutes } from "./routes/subtasks.js";
 import { workItemsRoutes } from "./routes/tasks.js";
+import { usersRoutes } from "./routes/users.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerProject } from "./project-context.js";
 import { type AppEnv, ProjectResolver } from "./project-resolver.js";
@@ -113,6 +114,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", projectsRoutes(options.workspace));
   app.route("/api/v1", commitsRoutes());
   app.route("/api/v1", integrationsRoutes());
+  app.route("/api/v1", usersRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 
   void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {

@@ -14,6 +14,7 @@
     | "activity"
     | "commits"
     | "agents"
+    | "users"
     | "integrations"
     | "permissions"
     | "repos"
@@ -44,6 +45,7 @@
     { key: "activity", label: () => t("topbar.activity"), icon: "⏱" },
     { key: "commits", label: () => t("nav.commits"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
+    { key: "users", label: () => t("nav.users"), icon: "👥" },
     { key: "integrations", label: () => t("nav.integrations"), icon: "🔌" },
     { key: "permissions", label: () => t("nav.permissions"), icon: "🔒" },
     { key: "repos", label: () => t("nav.repos"), icon: "📦" },

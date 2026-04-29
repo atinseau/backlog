@@ -53,7 +53,7 @@ describe("task-service", () => {
     const updated = updateSubTask(backlogDir, task.id, {
       title: "Updated task",
       scopes: ["packages/core/src/**"],
-      preferredAgents: ["codex-default"],
+      preferredAgents: ["codex"],
       requiredCapabilities: ["edit_code", "run_tests"],
       manualApprovalRequired: true,
       plannerLocked: true,
@@ -63,7 +63,7 @@ describe("task-service", () => {
     expect(updated.id).toBe(task.id);
     expect(updated.title).toBe("Updated task");
     expect(updated.scopes).toEqual(["packages/core/src/**"]);
-    expect(updated.execution.preferred_agents).toEqual(["codex-default"]);
+    expect(updated.execution.preferred_agents).toEqual(["codex"]);
     expect(updated.execution.required_capabilities).toEqual(["edit_code", "run_tests"]);
     expect(updated.execution.manual_approval_required).toBe(true);
     expect(updated.planner.locked).toBe(true);

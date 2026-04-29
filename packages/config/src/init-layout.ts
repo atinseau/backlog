@@ -117,14 +117,17 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.writeFileSync(path.join(backlogDir, "subtasks.yaml"), "version: 1\ntasks: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sources.yaml"), "version: 1\nsources: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sync-conflicts.json"), JSON.stringify({ version: 1, conflicts: [] }, null, 2) + "\n", "utf8");
+  // Default agents: Claude Code (enabled, sonnet) and Codex (disabled
+  // until the user adds an OPENAI_API_KEY). Model strings here are the
+  // family aliases — `sonnet`, `opus`, `haiku` for Claude Code and
+  // `gpt-5-codex` for Codex — which both CLIs accept and resolve to
+  // the latest version automatically. The Agents view exposes a model
+  // dropdown with curated alternatives + a free-text override.
   fs.writeFileSync(
     path.join(backlogDir, "agents.yaml"),
     [
       "version: 1",
       "agents:",
-      "  # Claude Code is the default — most users land here. Codex sits",
-      "  # alongside it disabled by default; flip enabled: true on it",
-      "  # (or via the Agents view in the UI) to use OpenAI's CLI.",
       "  - id: claude-code",
       "    provider: claude",
       "    model: sonnet",
@@ -138,7 +141,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "    environment: {}",
       "  - id: codex",
       "    provider: codex",
-      "    model: gpt-5.4",
+      "    model: gpt-5-codex",
       "    success_mode: review",
       "    enabled: false",
       "    max_concurrent_runs: 1",
@@ -149,6 +152,16 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "    environment: {}",
       "",
     ].join("\n"),
+    "utf8",
+  );
+
+  // Empty users.yaml so the Users view has a place to write to.
+  // Schema is minimal v1: list of human collaborators (real people who
+  // can be assigned tasks). Invitations live alongside the user entry
+  // (status: pending / active / removed) — there's no separate file.
+  fs.writeFileSync(
+    path.join(backlogDir, "users.yaml"),
+    "version: 1\nusers: []\n",
     "utf8",
   );
 

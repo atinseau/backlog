@@ -161,6 +161,103 @@ export async function patchAgent(id: string, input: UpdateAgentInput): Promise<u
   return response.json();
 }
 
+export interface CreateAgentInput {
+  id: string;
+  provider: "claude" | "codex" | "custom" | "manual";
+  model?: string;
+  profile?: string;
+  command?: string;
+  enabled?: boolean;
+  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access";
+  success_mode?: "review" | "complete";
+  max_concurrent_runs?: number;
+  allowed_risk?: Array<"low" | "medium" | "high">;
+  allowed_repos?: string[];
+  capabilities?: string[];
+}
+
+export async function createAgent(input: CreateAgentInput): Promise<unknown> {
+  const response = await fetch(apiUrl("/agents"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create agent failed (${response.status}): ${detail}`);
+  }
+  return response.json();
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/agents/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Delete agent failed (${response.status}): ${detail}`);
+  }
+}
+
+// Users (human collaborators) ------------------------------------------------
+
+export async function fetchUsers(): Promise<import("./types.js").UserSummary[]> {
+  const response = await fetch(apiUrl("/users"));
+  if (!response.ok) throw new Error(`Users fetch failed: ${response.status}`);
+  const json = (await response.json()) as { users: import("./types.js").UserSummary[] };
+  return json.users;
+}
+
+export interface InviteUserInput {
+  email: string;
+  display_name?: string;
+  role?: import("./types.js").UserRole;
+}
+
+export async function inviteUser(input: InviteUserInput): Promise<import("./types.js").UserSummary> {
+  const response = await fetch(apiUrl("/users/invite"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Invite failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { user: import("./types.js").UserSummary };
+  return json.user;
+}
+
+export async function patchUser(id: string, input: { display_name?: string; role?: import("./types.js").UserRole; status?: import("./types.js").UserStatus }): Promise<import("./types.js").UserSummary> {
+  const response = await fetch(apiUrl(`/users/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Update user failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { user: import("./types.js").UserSummary };
+  return json.user;
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/users/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Delete user failed (${response.status}): ${detail}`);
+  }
+}
+
+export async function refreshUserInvitation(id: string): Promise<import("./types.js").UserSummary> {
+  const response = await fetch(apiUrl(`/users/${encodeURIComponent(id)}/refresh-invitation`), { method: "POST" });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Refresh invitation failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { user: import("./types.js").UserSummary };
+  return json.user;
+}
+
 export async function fetchWorkspace(): Promise<ProjectInfo> {
   const response = await fetch(apiUrl("/workspace"));
   if (!response.ok) throw new Error(`Workspace fetch failed: ${response.status}`);

@@ -109,6 +109,74 @@ export function setAgentEnabled(backlogDir: string, id: string, enabled: boolean
   return updateAgent(backlogDir, id, { enabled });
 }
 
+export interface AddAgentInput {
+  id: string;
+  provider: string;
+  model?: string;
+  profile?: string;
+  command?: string;
+  sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+  successMode?: "review" | "complete";
+  enabled?: boolean;
+  maxConcurrentRuns?: number;
+  allowedRepos?: string[];
+  allowedRisk?: Array<"low" | "medium" | "high">;
+  capabilities?: string[];
+}
+
+// Seed a fresh agent in agents.yaml. The id must be unique within the
+// workspace; the provider is free-form (claude / codex / custom / manual)
+// to leave room for new runtimes without a schema migration. Defaults
+// mirror the init-layout seed so a brand-new agent is immediately
+// usable for "small task" runs (low/medium risk, single concurrent run,
+// the standard coding capabilities).
+export function addAgent(backlogDir: string, input: AddAgentInput): Agent {
+  const file = readAgentsFile(backlogDir);
+  if (file.agents.some((a) => a.id === input.id)) {
+    throw new Error(`Agent already exists: ${input.id}`);
+  }
+  const agent: Agent = {
+    id: input.id,
+    provider: input.provider,
+    enabled: input.enabled ?? true,
+    max_concurrent_runs: input.maxConcurrentRuns ?? 1,
+    allowed_repos: input.allowedRepos ?? [],
+    allowed_risk: input.allowedRisk ?? ["low", "medium"],
+    capabilities:
+      input.capabilities ??
+      ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"],
+    environment: {},
+    retry_policy: { mode: "none", max_attempts: 2, reuse_worktree: true },
+  };
+  if (input.model !== undefined) agent.model = input.model;
+  if (input.profile !== undefined) agent.profile = input.profile;
+  if (input.command !== undefined) agent.command = input.command;
+  if (input.sandboxMode !== undefined) agent.sandbox_mode = input.sandboxMode;
+  if (input.successMode !== undefined) agent.success_mode = input.successMode;
+  file.agents.push(agent);
+  writeAgentsFile(backlogDir, file);
+  return agent;
+}
+
+// Remove an agent. Refuses if a run is currently active for it — those
+// runs reference the agent id in their state and would be left dangling.
+// Stop / cancel the run first, then delete.
+export function deleteAgent(backlogDir: string, id: string): void {
+  const file = readAgentsFile(backlogDir);
+  const idx = file.agents.findIndex((a) => a.id === id);
+  if (idx < 0) {
+    throw new Error(`Unknown agent: ${id}`);
+  }
+  const activeForAgent = listActiveRuns(backlogDir).filter((run) => run.agent_id === id);
+  if (activeForAgent.length > 0) {
+    throw new Error(
+      `Agent ${id} has ${activeForAgent.length} active run(s); stop them before deleting.`,
+    );
+  }
+  file.agents.splice(idx, 1);
+  writeAgentsFile(backlogDir, file);
+}
+
 export interface AgentHealth {
   id: string;
   provider: string;

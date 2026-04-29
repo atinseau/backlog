@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { fetchAgents, patchAgent } from "./api.js";
+  import { createAgent, deleteAgent, fetchAgents, patchAgent } from "./api.js";
   import { t } from "./i18n.svelte.js";
+  import { MODEL_CATALOG, CUSTOM_MODEL_VALUE, type ModelChoice } from "./agent-models.js";
   import type { AgentSummary, SandboxMode } from "./types.js";
 
   interface Props {
@@ -17,22 +18,34 @@
   let error = $state<string | null>(null);
   let savingAgentId = $state<string | null>(null);
   let expandedId = $state<string | null>(null);
+  let confirmingDeleteId = $state<string | null>(null);
+  let creating = $state(false);
+
+  // Track which agents are in "custom model" mode (the dropdown
+  // shows "custom..." and a free-text input becomes editable).
+  // We seed from the loaded data — any model not in the catalog is
+  // automatically treated as custom.
+  let customModelMode = $state<Set<string>>(new Set());
+
+  // New-agent form state. When the user clicks "+ New agent", this
+  // becomes non-null and renders the inline form. We keep the form
+  // narrow (id, provider, model preset) — the full grid is available
+  // via the per-agent expanded panel after creation.
+  let newAgent = $state<{ id: string; provider: "claude" | "codex" | "custom"; model: string } | null>(null);
 
   function toggleExpanded(id: string) {
     expandedId = expandedId === id ? null : id;
+    confirmingDeleteId = null;
   }
 
-  // Per-provider model suggestions. Free-text input — these are just
-  // hints in a datalist, the user can type whatever they want.
-  // Keep current defaults conservative (sonnet over opus on claude,
-  // gpt-5.4 on codex) so picking from the list doesn't surprise the
-  // user with an order-of-magnitude cost change.
-  const MODEL_SUGGESTIONS: Record<string, string[]> = {
-    claude: ["claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
-    codex: ["gpt-5.4", "gpt-5-codex"],
-    custom: [],
-    manual: [],
-  };
+  function modelChoicesFor(provider: string): ModelChoice[] {
+    return MODEL_CATALOG[provider] ?? [];
+  }
+
+  function isKnownModel(provider: string, model: string | null): boolean {
+    if (!model) return false;
+    return modelChoicesFor(provider).some((choice) => choice.value === model);
+  }
 
   const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = [
     { value: "default", label: "(défaut provider)", help: "Reprend la valeur par défaut du provider" },
@@ -62,6 +75,73 @@
     } finally {
       loading = false;
     }
+  }
+
+  function selectModel(agent: AgentSummary, value: string) {
+    if (value === CUSTOM_MODEL_VALUE) {
+      // Switch to custom-input mode, leave the current model value as-is
+      // so the user sees what's currently configured and can edit it.
+      const next = new Set(customModelMode);
+      next.add(agent.id);
+      customModelMode = next;
+      return;
+    }
+    // Drop out of custom mode if the user picked a preset.
+    if (customModelMode.has(agent.id)) {
+      const next = new Set(customModelMode);
+      next.delete(agent.id);
+      customModelMode = next;
+    }
+    if (value === agent.model) return;
+    patchField(agent.id, { model: value });
+  }
+
+  async function handleDelete(agent: AgentSummary) {
+    if (confirmingDeleteId !== agent.id) {
+      confirmingDeleteId = agent.id;
+      return;
+    }
+    confirmingDeleteId = null;
+    savingAgentId = agent.id;
+    try {
+      await deleteAgent(agent.id);
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      savingAgentId = null;
+    }
+  }
+
+  async function handleCreate() {
+    if (!newAgent) return;
+    const id = newAgent.id.trim();
+    if (!id) {
+      error = t("agents_view.error_id_required");
+      return;
+    }
+    creating = true;
+    try {
+      const input: Parameters<typeof createAgent>[0] = {
+        id,
+        provider: newAgent.provider,
+        enabled: true,
+      };
+      if (newAgent.model.trim()) input.model = newAgent.model.trim();
+      await createAgent(input);
+      newAgent = null;
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      creating = false;
+    }
+  }
+
+  function startCreate() {
+    newAgent = { id: "", provider: "claude", model: "sonnet" };
   }
 
   async function patchField(id: string, input: Parameters<typeof patchAgent>[1]) {
@@ -141,9 +221,17 @@
         <h2>{t("agents_view.title")}</h2>
         <p class="subtitle">{t("agents_view.subtitle")}</p>
       </div>
-      {#if !embedded}
-        <button class="close" onclick={onClose} aria-label={t("agents_view.close")}>✕</button>
-      {/if}
+      <div class="header-actions">
+        <button
+          class="btn-primary"
+          onclick={startCreate}
+          disabled={newAgent !== null}
+          type="button"
+        >+ {t("agents_view.create_button")}</button>
+        {#if !embedded}
+          <button class="close" onclick={onClose} aria-label={t("agents_view.close")}>✕</button>
+        {/if}
+      </div>
     </header>
 
     {#if error}
@@ -173,6 +261,11 @@
                 {#if !isExecutable(agent)}
                   <span class="warn">{t("agents_view.not_executable")}</span>
                 {/if}
+                {#if agent.needs_api_key}
+                  <span class="warn" title={t("agents_view.needs_api_key_hint", { key: agent.required_secret_key ?? "" })}>
+                    {t("agents_view.needs_api_key")}
+                  </span>
+                {/if}
                 {#if agent.active_runs > 0}
                   <span class="active">▶ {agent.active_runs} actif{agent.active_runs > 1 ? "s" : ""}</span>
                 {/if}
@@ -192,18 +285,44 @@
             <div class="grid">
               <label class="field">
                 <span class="lbl">{t("agents_view.field_model")}</span>
-                <input
-                  list="models-{agent.id}"
-                  value={agent.model ?? ""}
-                  placeholder={t("agents_view.model_placeholder")}
-                  disabled={!isExecutable(agent) || savingAgentId === agent.id}
-                  onchange={(e) => commitModel(agent, (e.currentTarget as HTMLInputElement).value)}
-                />
-                <datalist id="models-{agent.id}">
-                  {#each MODEL_SUGGESTIONS[agent.provider] ?? [] as m (m)}
-                    <option value={m}></option>
-                  {/each}
-                </datalist>
+                {#if modelChoicesFor(agent.provider).length > 0}
+                  {#if customModelMode.has(agent.id) || (agent.model !== null && !isKnownModel(agent.provider, agent.model))}
+                    <select
+                      value={CUSTOM_MODEL_VALUE}
+                      disabled={!isExecutable(agent) || savingAgentId === agent.id}
+                      onchange={(e) => selectModel(agent, (e.currentTarget as HTMLSelectElement).value)}
+                    >
+                      {#each modelChoicesFor(agent.provider) as choice (choice.value)}
+                        <option value={choice.value} title={choice.description}>{choice.label}</option>
+                      {/each}
+                      <option value={CUSTOM_MODEL_VALUE}>{t("agents_view.model_custom")}</option>
+                    </select>
+                    <input
+                      value={agent.model ?? ""}
+                      placeholder={t("agents_view.model_placeholder")}
+                      disabled={!isExecutable(agent) || savingAgentId === agent.id}
+                      onchange={(e) => commitModel(agent, (e.currentTarget as HTMLInputElement).value)}
+                    />
+                  {:else}
+                    <select
+                      value={agent.model ?? ""}
+                      disabled={!isExecutable(agent) || savingAgentId === agent.id}
+                      onchange={(e) => selectModel(agent, (e.currentTarget as HTMLSelectElement).value)}
+                    >
+                      {#each modelChoicesFor(agent.provider) as choice (choice.value)}
+                        <option value={choice.value} title={choice.description}>{choice.label}</option>
+                      {/each}
+                      <option value={CUSTOM_MODEL_VALUE}>{t("agents_view.model_custom")}</option>
+                    </select>
+                  {/if}
+                {:else}
+                  <input
+                    value={agent.model ?? ""}
+                    placeholder={t("agents_view.model_placeholder")}
+                    disabled={!isExecutable(agent) || savingAgentId === agent.id}
+                    onchange={(e) => commitModel(agent, (e.currentTarget as HTMLInputElement).value)}
+                  />
+                {/if}
               </label>
               <label class="field">
                 <span class="lbl">{t("agents_view.field_profile")}</span>
@@ -301,10 +420,100 @@
                 </div>
               </details>
             </div>
+
+            <div class="danger-row">
+              {#if confirmingDeleteId === agent.id}
+                <span class="confirm-prompt">{t("agents_view.delete_confirm", { id: agent.id })}</span>
+                <button
+                  class="btn-danger"
+                  onclick={() => handleDelete(agent)}
+                  disabled={savingAgentId === agent.id}
+                  type="button"
+                >{t("agents_view.delete_yes")}</button>
+                <button
+                  class="btn-secondary"
+                  onclick={() => (confirmingDeleteId = null)}
+                  type="button"
+                >{t("agents_view.delete_cancel")}</button>
+              {:else}
+                <button
+                  class="btn-danger-outline"
+                  onclick={() => handleDelete(agent)}
+                  disabled={agent.active_runs > 0 || savingAgentId === agent.id}
+                  title={agent.active_runs > 0 ? t("agents_view.delete_blocked_running") : ""}
+                  type="button"
+                >{t("agents_view.delete_button")}</button>
+              {/if}
+            </div>
             {/if}
           </li>
         {/each}
       </ul>
+    {/if}
+
+    <!-- Inline create form. Trigger sits in the header so the button
+         is always visible regardless of how many agents exist. -->
+    {#if newAgent}
+      <div class="create-form">
+        <h3>{t("agents_view.create_title")}</h3>
+        <div class="create-grid">
+          <label class="field">
+            <span class="lbl">{t("agents_view.create_id")}</span>
+            <input
+              placeholder="claude-haiku"
+              value={newAgent.id}
+              oninput={(e) => (newAgent!.id = (e.currentTarget as HTMLInputElement).value)}
+            />
+          </label>
+          <label class="field">
+            <span class="lbl">{t("agents_view.create_provider")}</span>
+            <select
+              value={newAgent.provider}
+              onchange={(e) => {
+                if (!newAgent) return;
+                newAgent.provider = (e.currentTarget as HTMLSelectElement).value as "claude" | "codex" | "custom";
+                // Reset model to a sensible default for the new provider.
+                const first = MODEL_CATALOG[newAgent.provider]?.[0]?.value;
+                newAgent.model = first ?? "";
+              }}
+            >
+              <option value="claude">claude</option>
+              <option value="codex">codex</option>
+              <option value="custom">custom</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="lbl">{t("agents_view.field_model")}</span>
+            {#if (MODEL_CATALOG[newAgent.provider] ?? []).length > 0}
+              <select
+                value={newAgent.model}
+                onchange={(e) => (newAgent!.model = (e.currentTarget as HTMLSelectElement).value)}
+              >
+                {#each MODEL_CATALOG[newAgent.provider] as choice (choice.value)}
+                  <option value={choice.value} title={choice.description}>{choice.label}</option>
+                {/each}
+              </select>
+            {:else}
+              <input
+                placeholder={t("agents_view.model_placeholder")}
+                value={newAgent.model}
+                oninput={(e) => (newAgent!.model = (e.currentTarget as HTMLInputElement).value)}
+              />
+            {/if}
+          </label>
+        </div>
+        <div class="create-actions">
+          <button class="btn-secondary" onclick={() => (newAgent = null)} type="button">
+            {t("agents_view.create_cancel")}
+          </button>
+          <button
+            class="btn-primary"
+            onclick={handleCreate}
+            disabled={creating || !newAgent.id.trim()}
+            type="button"
+          >{creating ? "…" : t("agents_view.create_submit")}</button>
+        </div>
+      </div>
     {/if}
 
     <footer class="hint-footer">{t("agents_view.cli_hint")}</footer>
@@ -578,6 +787,105 @@
     color: var(--text-body);
   }
   .preset-list button:hover { background: var(--bg-hover); border-color: var(--text-subtle); }
+
+  .header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--bg-input);
+    color: var(--text-body);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { background: var(--bg-hover); }
+  .btn-danger {
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-danger-outline {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-danger-outline:hover:not(:disabled) {
+    background: var(--danger-bg);
+  }
+  .btn-danger-outline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .danger-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+    border-top: 1px dashed var(--border-subtle);
+    flex-wrap: wrap;
+  }
+  .confirm-prompt {
+    font-size: 12px;
+    color: var(--danger);
+    flex: 1;
+  }
+
+  .create-form {
+    margin: 12px 16px 16px;
+    padding: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .create-form h3 {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  .create-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .create-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
 
   .hint-footer {
     padding: 8px 20px;

@@ -24,5 +24,6 @@ export * from "./provider-usage.js";
 export * from "./retry.js";
 export * from "./split-service.js";
 export * from "./usage.js";
+export * from "./users.js";
 export * from "./worktrees.js";
 export * from "./task-service.js";

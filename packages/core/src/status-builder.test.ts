@@ -70,9 +70,9 @@ describe("buildWorkspaceStatus", () => {
       title: "Write docs",
       repo: "docs",
     });
-    const agent = getAgent(backlogDir, "manual-default");
+    const agent = getAgent(backlogDir, "claude-code");
     if (!agent) {
-      throw new Error("Expected manual-default agent");
+      throw new Error("Expected claude-code agent");
     }
     createRun({
       backlogDir,

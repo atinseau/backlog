@@ -21,7 +21,7 @@ function writeAgentsFile(backlogDir: string, contents: string): void {
   fs.writeFileSync(path.join(backlogDir, "agents.yaml"), contents, "utf8");
 }
 
-// initLayout seeds `manual-default` as the only enabled agent, but
+// initLayout seeds `claude-code` as the only enabled agent, but
 // the scheduler now (correctly) excludes manual providers from the
 // runnable plan since the run-launcher can't auto-execute them.
 // Tests that need a runnable plan use this helper to drop in an
@@ -163,7 +163,10 @@ describe("buildExecutionPlan", () => {
       repo: path.basename(root),
       scopes: ["README.md"],
       risk: "low",
-      requiredCapabilities: ["run_tests"],
+      // The seeded agents have a generous capability list (plan, edit_code,
+      // run_tests, review, shell, git_read, git_write). Pick something
+      // outside that set so we exercise the "blocked" code path.
+      requiredCapabilities: ["build_image"],
     });
 
     const plan = buildExecutionPlan(backlogDir, config);
