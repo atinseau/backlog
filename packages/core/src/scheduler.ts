@@ -1,7 +1,7 @@
 import { listActiveClaims, scopesOverlap } from "@backlog/claims";
 import type { SubTask, Task, ProjectConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
-import { listActiveRuns } from "./run-store.js";
+import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
 import { listSubTasks, listTasks } from "./state-files.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
@@ -149,7 +149,12 @@ export function buildExecutionPlan(
     return true;
   });
 
-  const activeRuns = listActiveRuns(backlogDir);
+  // Only count runs that are actually keeping the agent busy. Runs in
+  // awaiting_review are parked for human approval and shouldn't gate
+  // the next task — the same fix as in rankAgentsForTask, applied at
+  // the planner level too. Without this, the second-pass scheduling
+  // returned no_agent_capacity even though canAgentRunTask was happy.
+  const activeRuns = listActiveRuns(backlogDir).filter((run) => isAgentBusyStatus(run.status));
   const activeRunCounts = new Map<string, number>();
   for (const run of activeRuns) {
     activeRunCounts.set(run.agent_id, (activeRunCounts.get(run.agent_id) ?? 0) + 1);

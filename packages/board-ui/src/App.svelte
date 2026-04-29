@@ -504,11 +504,9 @@
       if (selectedAgentId) runInput.agent_id = selectedAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
-        // Look across all returned decisions for the most actionable
-        // reason. Priority: missing_api_key (one-click fix → open
-        // the dialog) → at_capacity (the agent is busy on another
-        // run) → missing_capabilities / risk_not_allowed / repo_*
-        // → generic.
+        // Pick the most actionable reason and translate it to a
+        // sentence the user can ACT on, not a wire-format string.
+        // Order matters: reasons with a one-click fix come first.
         const allReasons = [
           ...(result.skipped[0]?.reasons ?? []),
           ...(result.blocked[0]?.reasons ?? []),
@@ -520,11 +518,10 @@
           return m ? [m[1]!] : [r];
         });
         const apiKeyReason = directReasons.find((r) => r.startsWith("missing_api_key:"));
-        const atCapacity = directReasons.includes("at_capacity");
         if (apiKeyReason) {
           error = t("card.play_no_api_key");
           apiKeysOpen = true;
-        } else if (atCapacity) {
+        } else if (directReasons.includes("at_capacity") || directReasons.includes("no_agent_capacity")) {
           error = t("card.play_at_capacity");
         } else if (directReasons.includes("risk_not_allowed")) {
           error = t("card.play_risk_not_allowed");
@@ -532,12 +529,28 @@
           error = t("card.play_missing_capabilities");
         } else if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) {
           error = t("card.play_repo_blocked");
+        } else if (directReasons.includes("unknown_repo")) {
+          error = t("card.play_unknown_repo");
+        } else if (directReasons.includes("autonomy_mode_observe")) {
+          error = t("card.play_autonomy_observe");
+        } else if (directReasons.includes("manual_approval_required")) {
+          error = t("card.play_manual_approval");
+        } else if (directReasons.includes("high_risk_requires_higher_autonomy")) {
+          error = t("card.play_high_risk");
+        } else if (directReasons.includes("no_scheduler_capacity")) {
+          error = t("card.play_scheduler_capacity");
+        } else if (directReasons.some((r) => r.startsWith("scope_conflict_with"))) {
+          error = t("card.play_scope_conflict");
+        } else if (directReasons.some((r) => r.startsWith("waiting_on:"))) {
+          error = t("card.play_waiting_on");
+        } else if (directReasons.some((r) => r.startsWith("dependency_failed:"))) {
+          error = t("card.play_dependency_failed");
         } else if (directReasons.includes("no_compatible_agent")) {
-          // Genuinely no agent at all — likely the workspace has no
-          // claude/codex/custom configured. Send the user to Agents.
           error = t("card.play_no_agent");
           leftSection = "agents";
         } else if (allReasons.length > 0) {
+          // Fallback — should be unreachable for the common cases above.
+          // Show the raw wire reason but with a friendlier framing.
           error = t("card.play_skipped", { reason: allReasons[0] });
         } else {
           error = t("card.play_skipped_empty");
