@@ -211,7 +211,7 @@
   }
   .conflict {
     background: var(--warning-bg);
-    color: #7a2e0e;
+    color: var(--warning);
     padding: 8px 10px;
     border-radius: 4px;
     font-size: 12px;

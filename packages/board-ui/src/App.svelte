@@ -11,6 +11,8 @@
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import PermissionsView from "./lib/PermissionsView.svelte";
   import ReposView from "./lib/ReposView.svelte";
+  import SettingsView from "./lib/SettingsView.svelte";
+  import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
@@ -163,6 +165,21 @@
     return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
   const repos = $derived(repoOptions.map((r) => r.id));
+
+  // Column visibility — when In Review is hidden (default), review-status
+  // tasks are merged into the doing column so they remain visible. The
+  // user can still drop into review by editing the task explicitly.
+  const showReview = $derived(getShowReviewColumn());
+  const visibleColumns = $derived(
+    showReview ? COLUMN_ORDER : COLUMN_ORDER.filter((k) => k !== "review"),
+  );
+  function cardsFor(key: ColumnKey): TaskCard[] {
+    if (!board) return [];
+    if (key === "doing" && !showReview) {
+      return [...board.columns.doing, ...board.columns.review];
+    }
+    return board.columns[key] ?? [];
+  }
 
   async function refresh() {
     try {
@@ -472,11 +489,11 @@
             onCreateTask={() => (createTaskOpen = true)}
             onDismiss={dismissOnboarding}
           />
-          <main class="board">
-            {#each COLUMN_ORDER as key (key)}
+          <main class="board" style:--columns-count={visibleColumns.length}>
+            {#each visibleColumns as key (key)}
               <Column
                 columnKey={key}
-                cards={board?.columns[key] ?? []}
+                cards={cardsFor(key)}
                 onMove={handleMove}
                 onReorder={handleReorder}
                 onSplit={(card) => (splitTarget = card)}
@@ -529,6 +546,8 @@
               if (!connected) refresh();
             }}
           />
+        {:else if leftSection === "settings"}
+          <SettingsView embedded={true} onClose={() => (leftSection = "board")} />
         {/if}
       </div>
 
@@ -733,7 +752,7 @@
 
   .board {
     display: grid;
-    grid-template-columns: repeat(4, minmax(240px, 1fr));
+    grid-template-columns: repeat(var(--columns-count, 4), minmax(240px, 1fr));
     gap: 12px;
     padding: 16px;
     align-items: start;

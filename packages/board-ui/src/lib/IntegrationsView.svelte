@@ -1173,7 +1173,7 @@
   button.primary { background: var(--accent); color: white; border-color: var(--accent); }
   button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   button.ghost { background: transparent; }
-  button.ghost.danger { color: var(--danger); border-color: #fcd9d6; }
+  button.ghost.danger { color: var(--danger); border-color: var(--danger); }
   button.link {
     background: transparent;
     border: none;
@@ -1219,11 +1219,11 @@
     flex-direction: column;
     gap: 10px;
     padding: 12px;
-    border: 1px solid #d6bbfb;
+    border: 1px solid #a78bfa;
     border-radius: 6px;
     background: var(--accent-bg);
   }
-  .device-flow h3 { margin: 0; font-size: 14px; color: #5925dc; }
+  .device-flow h3 { margin: 0; font-size: 14px; color: #a78bfa; }
   .device-flow p { margin: 0; font-size: 12px; color: var(--text-secondary); }
   .device-code {
     align-self: flex-start;
@@ -1233,7 +1233,7 @@
     font-weight: 600;
     color: var(--text-primary);
     background: var(--bg-surface);
-    border: 1px dashed #d6bbfb;
+    border: 1px dashed #a78bfa;
     border-radius: 6px;
     padding: 6px 14px;
     cursor: pointer;

@@ -335,7 +335,7 @@
   .evt-bus { opacity: 0.55; }
   .evt-bus .type { color: var(--text-muted); }
   .evt-activity { border-left-color: var(--success); }
-  .evt-activity .type { color: #6ce9a6; font-weight: 600; }
+  .evt-activity .type { color: var(--success); font-weight: 600; }
   .ts { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .run-pill {
     background: var(--accent);
@@ -358,13 +358,13 @@
   .file-link {
     background: transparent;
     border: none;
-    color: #84caff;
+    color: var(--accent-text);
     text-decoration: underline;
     cursor: pointer;
     font: inherit;
     padding: 0;
   }
-  .file-link:hover { color: #b2ddff; }
+  .file-link:hover { color: var(--accent-text); }
 
   @media (max-width: 600px) {
     .bar.open { bottom: 200px; }

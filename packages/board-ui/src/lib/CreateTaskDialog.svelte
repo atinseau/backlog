@@ -365,7 +365,7 @@
   }
   .remove {
     background: transparent;
-    border: 1px solid #fda29b;
+    border: 1px solid var(--danger);
     color: var(--danger);
     border-radius: 3px;
     padding: 2px 8px;

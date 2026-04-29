@@ -134,8 +134,8 @@
 
 <style>
   .error {
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
     padding: 8px 24px;
     font-size: 13px;
   }
@@ -148,7 +148,7 @@
     min-height: calc(100vh - 60px);
   }
   .column {
-    background: #eef0f3;
+    background: var(--border-subtle);
     border-radius: 8px;
     padding: 10px;
     display: flex;
@@ -169,11 +169,11 @@
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .count {
-    background: #d0d5dd;
-    color: #344054;
+    background: var(--border-strong);
+    color: var(--text-body);
     font-size: 11px;
     padding: 1px 7px;
     border-radius: 10px;
@@ -189,7 +189,7 @@
   .empty {
     padding: 16px 0;
     text-align: center;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-size: 13px;
   }
 </style>

@@ -467,7 +467,7 @@
     border-color: #f79009;
     color: var(--warning);
   }
-  .actions button.emergency:hover:not(:disabled) { background: #fdb022; color: white; }
+  .actions button.emergency:hover:not(:disabled) { background: var(--warning); color: white; }
   .actions button.emergency.stop {
     background: var(--danger-bg);
     border-color: #f04438;

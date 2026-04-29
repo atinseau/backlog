@@ -493,7 +493,7 @@
     margin: 0;
     padding: 8px 10px;
     background: var(--accent-bg);
-    color: #0e4690;
+    color: var(--accent-text);
     border-radius: 4px;
     font-size: 12px;
     line-height: 1.4;
@@ -779,7 +779,7 @@
     padding: 8px 10px;
     border-left: 3px solid var(--border-strong);
   }
-  .plan-task.risk-low { border-left-color: #12b76a; }
+  .plan-task.risk-low { border-left-color: var(--success); }
   .plan-task.risk-medium { border-left-color: #f79009; }
   .plan-task.risk-high { border-left-color: #f04438; }
   .plan-task-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }

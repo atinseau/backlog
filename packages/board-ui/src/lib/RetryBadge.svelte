@@ -49,7 +49,7 @@
     border-radius: 3px;
     font-weight: 500;
   }
-  .active   { background: #d1fadf; color: #027a48; }
-  .blocking { background: #fef0c7; color: #b54708; }
-  .overdue  { background: #fee4e2; color: #b42318; }
+  .active   { background: var(--success-bg); color: var(--success); }
+  .blocking { background: var(--warning-bg); color: var(--warning); }
+  .overdue  { background: var(--danger-bg); color: var(--danger); }
 </style>

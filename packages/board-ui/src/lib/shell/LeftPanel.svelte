@@ -18,7 +18,8 @@
     | "agents"
     | "integrations"
     | "permissions"
-    | "repos";
+    | "repos"
+    | "settings";
 
   interface Props {
     workspaces: ProjectEntry[];
@@ -58,6 +59,7 @@
     { key: "integrations", label: () => t("nav.integrations"), icon: "🔌" },
     { key: "permissions", label: () => t("nav.permissions"), icon: "🔒" },
     { key: "repos", label: () => t("nav.repos"), icon: "📦" },
+    { key: "settings", label: () => t("nav.settings"), icon: "⚙" },
   ];
 
   function userInitials(email: string): string {

@@ -512,7 +512,7 @@
   .control-row button.play { background: var(--success); color: white; border-color: var(--success); }
   .control-row button.play:hover:not(:disabled) { background: #036a3e; }
   .control-row button.stop { background: var(--danger); color: white; border-color: var(--danger); }
-  .control-row button.stop:hover:not(:disabled) { background: #9a1d14; }
+  .control-row button.stop:hover:not(:disabled) { background: var(--danger); }
   .control-row button:disabled { opacity: 0.4; cursor: not-allowed; }
   .auto {
     display: inline-flex;

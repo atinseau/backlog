@@ -31,7 +31,7 @@
 <style>
   .toggle {
     display: inline-flex;
-    background: #f2f4f7;
+    background: var(--bg-hover);
     border-radius: 6px;
     padding: 2px;
     gap: 1px;
@@ -42,13 +42,13 @@
     padding: 4px 12px;
     cursor: pointer;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
     border-radius: 4px;
   }
-  .tab:hover { color: #1d2939; }
+  .tab:hover { color: var(--text-primary); }
   .tab.active {
     background: var(--bg-surface);
-    color: #1d2939;
+    color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
 </style>

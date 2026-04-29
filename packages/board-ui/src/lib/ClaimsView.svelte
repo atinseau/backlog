@@ -425,7 +425,7 @@
   .finish:hover:not(:disabled) {
     background: var(--danger-bg);
     color: var(--danger);
-    border-color: #fcd9d6;
+    border-color: var(--danger);
   }
   .row {
     display: flex;
