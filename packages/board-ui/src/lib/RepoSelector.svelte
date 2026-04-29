@@ -39,34 +39,34 @@
     gap: 4px;
   }
   select {
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 8px;
     font-size: 13px;
-    color: #1d2939;
+    color: var(--text-primary);
     cursor: pointer;
     max-width: 180px;
     text-overflow: ellipsis;
   }
   select:hover:not(:disabled) {
-    border-color: #98a2b3;
+    border-color: var(--text-subtle);
   }
   select:disabled {
-    background: #f9fafb;
-    color: #98a2b3;
+    background: var(--bg-muted);
+    color: var(--text-subtle);
     cursor: not-allowed;
   }
   .manage {
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 6px;
     cursor: pointer;
     font-size: 12px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   .manage:hover {
-    background: #f2f4f7;
+    background: var(--bg-hover);
   }
 </style>

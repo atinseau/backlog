@@ -68,10 +68,10 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 6px;
     padding: 2px;
-    background: #f9fafb;
+    background: var(--bg-muted);
   }
   .toggle {
     background: transparent;
@@ -79,7 +79,7 @@
     border-radius: 4px;
     padding: 4px 6px;
     cursor: pointer;
-    color: #98a2b3;
+    color: var(--text-subtle);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -87,13 +87,13 @@
     transition: background 120ms ease, color 120ms ease;
   }
   .toggle:hover {
-    background: #eef2f6;
-    color: #475467;
+    background: var(--bg-active);
+    color: var(--text-secondary);
   }
   .toggle.active {
-    color: #1570ef;
+    color: var(--accent);
   }
   .toggle.active:hover {
-    background: #eff8ff;
+    background: var(--accent-bg);
   }
 </style>

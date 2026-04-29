@@ -7,9 +7,10 @@
     availableRepos: string[];
     onClose: () => void;
     onChanged?: () => void;
+    embedded?: boolean;
   }
 
-  let { availableRepos, onClose, onChanged }: Props = $props();
+  let { availableRepos, onClose, onChanged, embedded = false }: Props = $props();
 
   let agents = $state<AgentSummary[]>([]);
   let loading = $state(true);
@@ -129,21 +130,15 @@
   load();
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div
-    class="modal"
-    onclick={(e) => e.stopPropagation()}
-    role="dialog"
-    aria-modal="true"
-    tabindex={-1}
-    onkeydown={(e) => { if (e.key === "Escape") onClose(); }}
-  >
+{#snippet body()}
     <header>
       <div>
         <h2>{t("agents_view.title")}</h2>
         <p class="subtitle">{t("agents_view.subtitle")}</p>
       </div>
-      <button class="close" onclick={onClose} aria-label={t("agents_view.close")}>✕</button>
+      {#if !embedded}
+        <button class="close" onclick={onClose} aria-label={t("agents_view.close")}>✕</button>
+      {/if}
     </header>
 
     {#if error}
@@ -298,26 +293,45 @@
     {/if}
 
     <footer class="hint-footer">{t("agents_view.cli_hint")}</footer>
+{/snippet}
+
+{#if embedded}
+  <div class="embedded">{@render body()}</div>
+{:else}
+  <div class="backdrop" onclick={onClose} role="presentation">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+      {@render body()}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
   }
   .modal {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 760px;
     width: 92%;
     max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .embedded {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;

@@ -249,12 +249,13 @@
 
 <style>
   .card {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 6px;
     padding: 10px 12px;
     margin-bottom: 8px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    border-left: 3px solid #ccc;
+    border-left: 3px solid var(--border-strong);
     cursor: grab;
     transition: box-shadow 120ms ease, transform 120ms ease;
   }
@@ -293,17 +294,17 @@
 
   .icon-btn {
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 1px 6px;
     font-size: 12px;
     cursor: pointer;
-    color: #475467;
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
   .icon-btn:hover {
-    background: #f2f4f7;
-    border-color: #98a2b3;
+    background: var(--bg-hover);
+    border-color: var(--text-subtle);
   }
   .icon-btn.play {
     background: #027a48;
@@ -338,8 +339,8 @@
     font-size: 11px;
     padding: 2px 6px;
     border-radius: 3px;
-    background: #f2f4f7;
-    color: #344054;
+    background: var(--bg-hover);
+    color: var(--text-body);
   }
 
   .tasks, .blockers {
@@ -350,10 +351,10 @@
   }
   .tasks li, .blockers li {
     padding: 4px 0;
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-subtle);
   }
-  .tasks li.running { background: #ecfdf3; }
-  .tasks li.claimed .task-title { color: #1d2939; font-weight: 500; }
+  .tasks li.running { background: var(--success-bg); }
+  .tasks li.claimed .task-title { color: var(--text-primary); font-weight: 500; }
   .task-line {
     display: flex;
     justify-content: space-between;
@@ -362,25 +363,25 @@
   }
   .task-eta {
     font-size: 10px;
-    color: #667085;
+    color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
   }
   .task-meta {
-    color: #667085;
+    color: var(--text-muted);
     font-size: 11px;
     display: block;
   }
   .progress-bar {
     height: 4px;
-    background: #e4e7ec;
+    background: var(--border-default);
     border-radius: 2px;
     overflow: hidden;
     margin-top: 4px;
   }
   .progress-fill {
     height: 100%;
-    background: var(--fill, #98a2b3);
+    background: var(--fill, var(--text-subtle));
     transition: width 0.4s ease-out;
   }
   .blockers li {
@@ -388,7 +389,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 6px;
-    color: #b54708;
+    color: var(--warning);
   }
   .card-footer {
     margin-top: 8px;
@@ -398,7 +399,7 @@
   }
   .card-progress {
     height: 6px;
-    background: #e4e7ec;
+    background: var(--border-default);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -412,7 +413,7 @@
     align-items: center;
     gap: 6px;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
   }
   .dot { opacity: 0.5; }
 
@@ -426,6 +427,6 @@
     padding: 2px 6px;
     border-radius: 3px;
   }
-  .badge.running { background: #d1fadf; color: #027a48; }
-  .badge.blocked { background: #fef0c7; color: #b54708; }
+  .badge.running { background: var(--success-bg); color: var(--success); }
+  .badge.blocked { background: var(--warning-bg); color: var(--warning); }
 </style>

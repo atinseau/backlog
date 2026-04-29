@@ -62,7 +62,7 @@
   .splitter.vertical {
     width: 1px;
     cursor: col-resize;
-    background: #e4e7ec;
+    background: var(--splitter);
     position: relative;
   }
   .splitter.vertical::after {
@@ -77,7 +77,7 @@
   .splitter.horizontal {
     height: 1px;
     cursor: row-resize;
-    background: #e4e7ec;
+    background: var(--splitter);
     position: relative;
   }
   .splitter.horizontal::after {
@@ -90,6 +90,6 @@
   }
   .splitter:hover,
   .splitter.dragging {
-    background: #1570ef;
+    background: var(--splitter-hover);
   }
 </style>

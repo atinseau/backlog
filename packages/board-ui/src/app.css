@@ -1,6 +1,119 @@
+/* Theme tokens. Light is the default; dark is opt-in via
+   <html data-theme="dark"> (set by lib/theme.svelte.ts).
+   Component CSS should consume tokens rather than hardcoding hex
+   values so swapping themes is a no-recompile reskin. */
+:root,
+[data-theme="light"] {
+  /* Surfaces */
+  --bg-app: #f7f8fa;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-input: #ffffff;
+  --bg-muted: #f9fafb;
+  --bg-hover: #f2f4f7;
+  --bg-active: #eef2f6;
+
+  /* Text */
+  --text-primary: #1d2939;
+  --text-strong: #101828;
+  --text-body: #344054;
+  --text-secondary: #475467;
+  --text-muted: #667085;
+  --text-subtle: #98a2b3;
+  --text-inverse: #ffffff;
+
+  /* Borders */
+  --border-strong: #d0d5dd;
+  --border-default: #e4e7ec;
+  --border-subtle: #eef0f3;
+
+  /* Accent (interactive blue) */
+  --accent: #1570ef;
+  --accent-hover: #155eef;
+  --accent-bg: #eff8ff;
+  --accent-text: #175cd3;
+  --accent-on: #ffffff;
+
+  /* Status */
+  --success: #027a48;
+  --success-bg: #d1fadf;
+  --warning: #b54708;
+  --warning-bg: #fef0c7;
+  --danger: #b42318;
+  --danger-bg: #fee4e2;
+
+  /* Console (bottom panel + agent activity) — kept dark in both
+     modes so the run output reads like a terminal regardless of OS
+     appearance. */
+  --console-bg: #0c111d;
+  --console-text: #d0d5dd;
+  --console-border: #344054;
+  --console-line: #1d2939;
+
+  /* Splitter */
+  --splitter: #e4e7ec;
+  --splitter-hover: #1570ef;
+
+  /* Shadow */
+  --shadow-modal: 0 20px 24px rgba(16, 24, 40, 0.18);
+  --backdrop: rgba(16, 24, 40, 0.45);
+}
+
+/* Dark = neutral near-black grays, no blue cast. Tuned to match the
+   contemporary "pro" dark look used by Linear / Vercel / GitHub dark
+   / Xcode dark — high text contrast on a near-pure-grey canvas, with
+   borders that are barely-visible against surfaces (depth comes from
+   value steps, not heavy lines). */
+[data-theme="dark"] {
+  --bg-app: #0a0a0a;        /* the canvas — almost black */
+  --bg-surface: #161616;    /* cards, panels, modals */
+  --bg-elevated: #1f1f1f;   /* elevated chips, hovers */
+  --bg-input: #161616;
+  --bg-muted: #121212;      /* sidebars, footer strips */
+  --bg-hover: #1f1f1f;
+  --bg-active: #262626;
+
+  --text-primary: #ededed;
+  --text-strong: #fafafa;
+  --text-body: #d4d4d4;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+  --text-subtle: #525252;
+  --text-inverse: #0a0a0a;
+
+  --border-strong: #2e2e2e;
+  --border-default: #232323;
+  --border-subtle: #1a1a1a;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-bg: #1e293b;
+  --accent-text: #93c5fd;
+  --accent-on: #ffffff;
+
+  --success: #4ade80;
+  --success-bg: #052e16;
+  --warning: #fbbf24;
+  --warning-bg: #422006;
+  --danger: #f87171;
+  --danger-bg: #450a0a;
+
+  --splitter: #232323;
+  --splitter-hover: #3b82f6;
+
+  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.6);
+  --backdrop: rgba(0, 0, 0, 0.65);
+}
+
 html, body, #app {
   height: 100%;
 }
 * {
   box-sizing: border-box;
 }
+
+/* Global overrides: catch-all for legacy components that still
+   hardcode `background: white` / `color: #1d2939`. Shifts them to
+   the theme palette without touching every file. Component-scoped
+   styles can opt out by being more specific. */
+[data-theme="dark"] body { background: var(--bg-app); color: var(--text-primary); }

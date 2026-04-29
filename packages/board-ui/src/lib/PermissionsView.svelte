@@ -13,9 +13,10 @@
     availableRepos: string[];
     onClose: () => void;
     onChanged?: () => void;
+    embedded?: boolean;
   }
 
-  let { availableRepos, onClose, onChanged }: Props = $props();
+  let { availableRepos, onClose, onChanged, embedded = false }: Props = $props();
 
   let workspace = $state<ProjectInfo | null>(null);
   let agents = $state<AgentSummary[]>([]);
@@ -143,11 +144,12 @@
   load();
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+{#snippet body()}
     <header>
       <h2>{t("permissions.title")}</h2>
-      <button class="close" onclick={onClose}>✕</button>
+      {#if !embedded}
+        <button class="close" onclick={onClose}>✕</button>
+      {/if}
     </header>
 
     {#if error}
@@ -303,23 +305,42 @@
         </ul>
       </section>
     {/if}
+{/snippet}
+
+{#if embedded}
+  <div class="embedded">{@render body()}</div>
+{:else}
+  <div class="backdrop" onclick={onClose} role="presentation">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+      {@render body()}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
   }
+  .embedded {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
   .modal {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 720px;
     width: 92%;
     max-height: 88vh;

@@ -37,7 +37,8 @@
   .right-panel {
     height: 100%;
     width: 100%;
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -50,13 +51,13 @@
     justify-content: center;
     padding: 24px;
     text-align: center;
-    color: #667085;
+    color: var(--text-muted);
   }
   .title {
     margin: 0 0 4px;
     font-size: 13px;
     font-weight: 500;
-    color: #344054;
+    color: var(--text-body);
   }
   .hint {
     margin: 0;

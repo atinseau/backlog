@@ -95,13 +95,11 @@
   let cloudStatus = $state<CloudStatus | null>(null);
 
   // ---- modal / dialog state ----
-  let claimsViewOpen = $state(false);
-  let commitsViewOpen = $state(false);
-  let integrationsOpen = $state(false);
-  let reposViewOpen = $state(false);
+  // Section views (Activity / Commits / Agents / Integrations / Permissions
+  // / Repos) used to be modals; they're now rendered inline in the center
+  // when their section is active. The remaining modal state below is for
+  // genuinely-modal flows (create / split / start prompt / project create).
   let createProjectOpen = $state(false);
-  let permissionsViewOpen = $state(false);
-  let agentsViewOpen = $state(false);
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let splitTarget = $state<TaskCard | null>(null);
@@ -149,7 +147,6 @@
 
   function openProfile() {
     integrationsTab = "account";
-    integrationsOpen = true;
     leftSection = "integrations";
   }
 
@@ -375,28 +372,6 @@
 
   function applySection(key: SectionKey) {
     leftSection = key;
-    // "board" closes any modal that a previous section had opened so the
-    // user lands back on the kanban. Other sections open the existing
-    // modal view for that area; when the modal closes we snap back to
-    // board so the highlight stays consistent.
-    closeAllSectionModals();
-    if (key === "activity") claimsViewOpen = true;
-    else if (key === "commits") commitsViewOpen = true;
-    else if (key === "agents") agentsViewOpen = true;
-    else if (key === "integrations") integrationsOpen = true;
-    else if (key === "permissions") permissionsViewOpen = true;
-    else if (key === "repos") reposViewOpen = true;
-  }
-  function closeAllSectionModals() {
-    claimsViewOpen = false;
-    commitsViewOpen = false;
-    agentsViewOpen = false;
-    integrationsOpen = false;
-    permissionsViewOpen = false;
-    reposViewOpen = false;
-  }
-  function onSectionModalClosed() {
-    leftSection = "board";
   }
 
   function selectCard(card: TaskCard) {
@@ -478,31 +453,75 @@
 
     <div class="center">
       <div class="center-main">
-        <OnboardingBanner
-          workspaces={workspaces}
-          workspaceRepos={workspaceRepos}
-          board={board}
-          dismissed={onboardingDismissed}
-          onCreateProject={() => (createProjectOpen = true)}
-          onManageRepos={() => (reposViewOpen = true)}
-          onCreateTask={() => (createTaskOpen = true)}
-          onDismiss={dismissOnboarding}
-        />
-        <main class="board">
-          {#each COLUMN_ORDER as key (key)}
-            <Column
-              columnKey={key}
-              cards={board?.columns[key] ?? []}
-              onMove={handleMove}
-              onReorder={handleReorder}
-              onSplit={(card) => (splitTarget = card)}
-              onAddTask={(card) => (createSubTaskTarget = card)}
-              onOpen={selectCard}
-              onPlay={handlePlayCard}
-              onApprove={handleApproveCard}
-            />
-          {/each}
-        </main>
+        {#if leftSection === "board"}
+          <OnboardingBanner
+            workspaces={workspaces}
+            workspaceRepos={workspaceRepos}
+            board={board}
+            dismissed={onboardingDismissed}
+            onCreateProject={() => (createProjectOpen = true)}
+            onManageRepos={() => (leftSection = "repos")}
+            onCreateTask={() => (createTaskOpen = true)}
+            onDismiss={dismissOnboarding}
+          />
+          <main class="board">
+            {#each COLUMN_ORDER as key (key)}
+              <Column
+                columnKey={key}
+                cards={board?.columns[key] ?? []}
+                onMove={handleMove}
+                onReorder={handleReorder}
+                onSplit={(card) => (splitTarget = card)}
+                onAddTask={(card) => (createSubTaskTarget = card)}
+                onOpen={selectCard}
+                onPlay={handlePlayCard}
+                onApprove={handleApproveCard}
+              />
+            {/each}
+          </main>
+        {:else if leftSection === "activity"}
+          <ClaimsView
+            embedded={true}
+            onClose={() => (leftSection = "board")}
+            onChanged={() => { if (!connected) refresh(); }}
+          />
+        {:else if leftSection === "commits"}
+          <CommitsView embedded={true} onClose={() => (leftSection = "board")} />
+        {:else if leftSection === "agents"}
+          <AgentsView
+            embedded={true}
+            availableRepos={repos}
+            onClose={() => (leftSection = "board")}
+            onChanged={() => { if (!connected) refresh(); }}
+          />
+        {:else if leftSection === "integrations"}
+          <IntegrationsView
+            embedded={true}
+            defaultTab={integrationsTab}
+            onClose={() => { leftSection = "board"; loadCloudStatus(); }}
+            onChanged={() => {
+              refreshRepos();
+              if (!connected) refresh();
+              loadCloudStatus();
+            }}
+          />
+        {:else if leftSection === "permissions"}
+          <PermissionsView
+            embedded={true}
+            availableRepos={repos}
+            onClose={() => (leftSection = "board")}
+            onChanged={() => { if (!connected) refresh(); }}
+          />
+        {:else if leftSection === "repos"}
+          <ReposView
+            embedded={true}
+            onClose={() => (leftSection = "board")}
+            onChanged={() => {
+              refreshRepos();
+              if (!connected) refresh();
+            }}
+          />
+        {/if}
       </div>
 
       {#if bottomOpen}
@@ -558,7 +577,10 @@
   </div>
 </div>
 
-<!-- Modals retain their existing behaviour; section nav opens them on demand. -->
+<!-- Genuinely-modal flows (creation forms, prompts) — not driven by the
+     left-panel section navigation. Section views (Activity / Commits /
+     Agents / Integrations / Permissions / Repos) render inline in the
+     center column above. -->
 {#if createProjectOpen}
   <CreateProjectDialog
     onClose={() => (createProjectOpen = false)}
@@ -566,62 +588,9 @@
       createProjectOpen = false;
       refreshWorkspaces().then(() => {
         applyWorkspace(project.id);
-        if (openRepos) reposViewOpen = true;
+        if (openRepos) leftSection = "repos";
       });
     }}
-  />
-{/if}
-
-{#if reposViewOpen}
-  <ReposView
-    onClose={() => { reposViewOpen = false; onSectionModalClosed(); }}
-    onChanged={() => {
-      refreshRepos();
-      if (!connected) refresh();
-    }}
-  />
-{/if}
-
-{#if claimsViewOpen}
-  <ClaimsView
-    onClose={() => { claimsViewOpen = false; onSectionModalClosed(); }}
-    onChanged={() => { if (!connected) refresh(); }}
-  />
-{/if}
-
-{#if commitsViewOpen}
-  <CommitsView onClose={() => { commitsViewOpen = false; onSectionModalClosed(); }} />
-{/if}
-
-{#if integrationsOpen}
-  <IntegrationsView
-    defaultTab={integrationsTab}
-    onClose={() => {
-      integrationsOpen = false;
-      loadCloudStatus();
-      onSectionModalClosed();
-    }}
-    onChanged={() => {
-      refreshRepos();
-      if (!connected) refresh();
-      loadCloudStatus();
-    }}
-  />
-{/if}
-
-{#if permissionsViewOpen}
-  <PermissionsView
-    availableRepos={repos}
-    onClose={() => { permissionsViewOpen = false; onSectionModalClosed(); }}
-    onChanged={() => { if (!connected) refresh(); }}
-  />
-{/if}
-
-{#if agentsViewOpen}
-  <AgentsView
-    availableRepos={repos}
-    onClose={() => { agentsViewOpen = false; onSectionModalClosed(); }}
-    onChanged={() => { if (!connected) refresh(); }}
   />
 {/if}
 
@@ -670,9 +639,9 @@
 <style>
   :global(body) {
     margin: 0;
-    background: #f7f8fa;
+    background: var(--bg-app);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    color: #1d2939;
+    color: var(--text-primary);
     overflow: hidden;
   }
   :global(html), :global(body), :global(#app) { height: 100%; }
@@ -682,6 +651,8 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: var(--bg-app);
+    color: var(--text-primary);
   }
   .topbar, .error, .status { flex-shrink: 0; }
 
@@ -690,8 +661,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 14px;
-    background: white;
-    border-bottom: 1px solid #e4e7ec;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
     gap: 16px;
     min-height: 44px;
   }
@@ -705,36 +676,37 @@
     align-items: center;
     gap: 10px;
     font-size: 12px;
-    color: #667085;
+    color: var(--text-muted);
   }
   h1 {
     margin: 0;
     font-size: 15px;
     font-weight: 600;
+    color: var(--text-strong);
   }
-  .conn.on { color: #027a48; }
-  .conn.off { color: #b54708; }
+  .conn.on { color: var(--success); }
+  .conn.off { color: var(--warning); }
   .eta-pill {
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     padding: 2px 8px;
     border-radius: 10px;
     font-weight: 500;
   }
   button.primary {
-    background: #1570ef;
-    color: white;
-    border: 1px solid #1570ef;
+    background: var(--accent);
+    color: var(--accent-on);
+    border: 1px solid var(--accent);
     border-radius: 4px;
     padding: 5px 12px;
     cursor: pointer;
     font-size: 13px;
   }
-  button.primary:hover { background: #155eef; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
   .error {
-    background: #fef0c7;
-    color: #b54708;
+    background: var(--warning-bg);
+    color: var(--warning);
     padding: 8px 24px;
     font-size: 13px;
   }
@@ -749,13 +721,13 @@
   .left-host {
     width: var(--left-w);
     flex-shrink: 0;
-    border-right: 1px solid #eef0f3;
+    border-right: 1px solid var(--border-subtle);
     overflow: hidden;
   }
   .right-host {
     width: var(--right-w);
     flex-shrink: 0;
-    border-left: 1px solid #eef0f3;
+    border-left: 1px solid var(--border-subtle);
     overflow: hidden;
   }
   .center {
@@ -775,7 +747,7 @@
   .bottom-host {
     height: var(--bottom-h);
     flex-shrink: 0;
-    border-top: 1px solid #eef0f3;
+    border-top: 1px solid var(--border-subtle);
     overflow: hidden;
   }
 
@@ -788,16 +760,16 @@
   }
 
   .status {
-    border-top: 1px solid #eef0f3;
-    background: #f9fafb;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg-muted);
     padding: 4px 14px;
     font-size: 11px;
-    color: #667085;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 6px;
     min-height: 22px;
   }
   .dot { opacity: 0.5; }
-  .moving { color: #1570ef; }
+  .moving { color: var(--accent); }
 </style>

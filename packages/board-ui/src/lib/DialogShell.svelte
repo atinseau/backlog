@@ -40,7 +40,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--backdrop);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -49,9 +49,10 @@
   /* Base modal frame. Per-dialog overrides come from each consumer's
      :global(.<extra-class>) rule. */
   :global(.modal) {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 460px;
     width: 92%;
     max-height: 90vh;

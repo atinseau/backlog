@@ -238,16 +238,17 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
   }
   .modal {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 720px;
     width: 92%;
     max-height: 85vh;
@@ -258,7 +259,8 @@
   /* Embedded into the RightPanel inspector — no backdrop, no shadow,
      fills the host. */
   .inspector {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     height: 100%;
     width: 100%;
     display: flex;

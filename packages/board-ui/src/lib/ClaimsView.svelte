@@ -8,9 +8,12 @@
   interface Props {
     onClose: () => void;
     onChanged?: () => void;
+    // When true, render inline (no backdrop, no close button) so the
+    // host can place the view in a panel rather than a modal.
+    embedded?: boolean;
   }
 
-  let { onClose, onChanged }: Props = $props();
+  let { onClose, onChanged, embedded = false }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -114,8 +117,7 @@
   load();
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+{#snippet body()}
     <header>
       <div class="title-block">
         <h2>{t("claims_view.title")}</h2>
@@ -130,7 +132,9 @@
       </div>
       <div class="header-actions">
         <button class="refresh" onclick={load} title="Rafraîchir">↻</button>
-        <button class="close" onclick={onClose}>✕</button>
+        {#if !embedded}
+          <button class="close" onclick={onClose}>✕</button>
+        {/if}
       </div>
     </header>
 
@@ -252,26 +256,45 @@
         {/each}
       </ul>
     {/if}
+{/snippet}
+
+{#if embedded}
+  <div class="embedded">{@render body()}</div>
+{:else}
+  <div class="backdrop" onclick={onClose} role="presentation">
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+      {@render body()}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
   }
   .modal {
-    background: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 640px;
     width: 92%;
     max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .embedded {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    height: 100%;
+    width: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;

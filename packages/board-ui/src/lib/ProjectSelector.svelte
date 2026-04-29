@@ -34,8 +34,8 @@
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
-    background: #f9fafb;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-muted);
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
   }
   .project-selector.single {
@@ -44,14 +44,14 @@
   }
   .label {
     font-size: 13px;
-    color: #475467;
+    color: var(--text-secondary);
   }
   select {
     background: transparent;
     border: none;
     padding: 2px 0;
     font-size: 13px;
-    color: #1d2939;
+    color: var(--text-primary);
     cursor: pointer;
     font-weight: 500;
   }
@@ -59,6 +59,6 @@
     cursor: default;
   }
   select:hover:not(:disabled) {
-    color: #155eef;
+    color: var(--accent-hover);
   }
 </style>

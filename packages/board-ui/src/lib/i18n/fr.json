@@ -464,5 +464,9 @@
   "bottom.activity": "Activité",
   "bottom.chat": "Chat",
   "inspector.empty_title": "Aucune sélection",
-  "inspector.empty_hint": "Clique sur une carte pour voir ses détails ici."
+  "inspector.empty_hint": "Clique sur une carte pour voir ses détails ici.",
+  "theme.label": "Apparence",
+  "theme.auto": "Système",
+  "theme.light": "Clair",
+  "theme.dark": "Sombre"
 }

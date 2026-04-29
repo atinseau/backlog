@@ -103,42 +103,59 @@
     border-color: #6ce9a6;
   }
   .step-pill {
-    background: white;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-strong);
     border-radius: 16px;
     padding: 2px 10px;
     font-size: 11px;
     font-weight: 600;
-    color: #475467;
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
   .content { flex: 1; min-width: 0; }
-  h3 { margin: 0 0 2px; font-size: 14px; color: #1d2939; }
-  p { margin: 0; font-size: 12px; color: #475467; line-height: 1.4; }
+  h3 { margin: 0 0 2px; font-size: 14px; color: var(--text-primary); }
+  p { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
   .actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   button {
-    background: #f2f4f7;
-    border: 1px solid #d0d5dd;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-strong);
+    color: var(--text-body);
     border-radius: 4px;
     padding: 4px 12px;
     cursor: pointer;
     font-size: 13px;
   }
   button.primary {
-    background: #1570ef;
-    color: white;
-    border-color: #1570ef;
+    background: var(--accent);
+    color: var(--accent-on);
+    border-color: var(--accent);
     font-weight: 500;
   }
-  button.primary:hover { background: #155eef; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
   button.link {
     background: transparent;
     border: none;
-    color: #98a2b3;
+    color: var(--text-subtle);
     font-size: 14px;
     cursor: pointer;
     padding: 4px 8px;
   }
-  button.link:hover { color: #475467; }
-  .muted { color: #475467; font-size: 12px; font-style: italic; }
+  button.link:hover { color: var(--text-secondary); }
+  .muted { color: var(--text-secondary); font-size: 12px; font-style: italic; }
+
+  /* In dark mode swap the pastel gradients for flat near-black
+     surfaces with a subtle tinted left border so the banner reads
+     as an inline chip rather than a sticky note. */
+  :global([data-theme="dark"]) .onboarding {
+    background: var(--bg-elevated);
+    border-color: var(--border-strong);
+  }
+  :global([data-theme="dark"]) .onboarding.step-1 {
+    background: var(--bg-elevated);
+    border-color: var(--warning);
+  }
+  :global([data-theme="dark"]) .onboarding.step-final {
+    background: var(--bg-elevated);
+    border-color: var(--success);
+  }
 </style>

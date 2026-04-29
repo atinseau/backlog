@@ -464,5 +464,9 @@
   "bottom.activity": "Activity",
   "bottom.chat": "Chat",
   "inspector.empty_title": "No Selection",
-  "inspector.empty_hint": "Click a card to see its details here."
+  "inspector.empty_hint": "Click a card to see its details here.",
+  "theme.label": "Appearance",
+  "theme.auto": "System",
+  "theme.light": "Light",
+  "theme.dark": "Dark"
 }

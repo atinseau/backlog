@@ -6,6 +6,7 @@
   import LocaleToggle from "../LocaleToggle.svelte";
   import ProjectSelector from "../ProjectSelector.svelte";
   import RepoSelector from "../RepoSelector.svelte";
+  import ThemeToggle from "../ThemeToggle.svelte";
   import { t } from "../i18n.svelte.js";
   import type { CloudStatus } from "../api.js";
   import type { ProjectEntry, Repo } from "../types.js";
@@ -114,6 +115,7 @@
       {/if}
     </button>
     <LocaleToggle />
+    <ThemeToggle />
   </div>
 </aside>
 
@@ -122,13 +124,14 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #fbfcfd;
+    background: var(--bg-muted);
     overflow: hidden;
     font-size: 13px;
+    color: var(--text-body);
   }
   .selectors {
     padding: 10px 10px 8px;
-    border-bottom: 1px solid #eef0f3;
+    border-bottom: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -146,17 +149,17 @@
   .add {
     flex: 0 0 auto;
     background: transparent;
-    border: 1px solid #d0d5dd;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 2px 8px;
-    color: #475467;
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 14px;
     line-height: 1.2;
   }
   .add:hover {
-    color: #1570ef;
-    border-color: #84caff;
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .sections {
     flex: 1 1 auto;
@@ -174,42 +177,42 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #344054;
+    color: var(--text-body);
     cursor: pointer;
     text-align: left;
     font-size: 13px;
   }
   .section:hover {
-    background: #eef2f6;
+    background: var(--bg-active);
   }
   .section.active {
-    background: #eff8ff;
-    color: #175cd3;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     font-weight: 500;
   }
   .section .icon {
     width: 18px;
     text-align: center;
-    color: #667085;
+    color: var(--text-muted);
   }
   .section.active .icon {
-    color: #1570ef;
+    color: var(--accent);
   }
   .footer {
-    border-top: 1px solid #eef0f3;
+    border-top: 1px solid var(--border-subtle);
     padding: 6px 10px;
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #f5f7fa;
+    background: var(--bg-muted);
   }
   .avatar {
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    border: 1px solid #d0d5dd;
-    background: #f2f4f7;
-    color: #475467;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 11px;
     font-weight: 600;
@@ -218,8 +221,8 @@
     justify-content: center;
   }
   .avatar.signed-in {
-    background: #d1fadf;
-    color: #027a48;
-    border-color: #b6efbe;
+    background: var(--success-bg);
+    color: var(--success);
+    border-color: var(--success);
   }
 </style>
