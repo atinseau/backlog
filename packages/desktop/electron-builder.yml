@@ -39,3 +39,13 @@ dmg:
       y: 220
       type: file
 asar: true
+
+# Auto-update: GitHub Releases is the cheapest reliable channel —
+# no infra, free bandwidth via GitHub's CDN, electron-updater reads
+# `latest-mac.yml` natively. Each release uploaded under v<version>
+# replaces the previous one for the auto-update channel.
+publish:
+  - provider: github
+    owner: osmove
+    repo: backlog
+    releaseType: release

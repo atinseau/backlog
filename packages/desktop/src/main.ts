@@ -1,7 +1,13 @@
 import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from "electron";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
+import pkg from "electron-updater";
 import { resolveWorkspace } from "./workspace-picker.js";
+
+// electron-updater ships as a CommonJS module — destructure on the
+// default export so the same import works under both Node CJS and the
+// ESM bundle tsup produces.
+const { autoUpdater } = pkg;
 
 // IPC handlers exposed to the renderer through the preload's
 // contextBridge (window.backlog.*). Keep the surface tiny — anything
@@ -183,6 +189,34 @@ app.whenReady().then(async () => {
       await createWindow();
     }
   });
+
+  // Auto-update check. electron-updater reads the publish config from
+  // electron-builder.yml at build time + the latest-mac.yml uploaded
+  // alongside each release. checkForUpdatesAndNotify shows a native
+  // notification when an update is downloaded; clicking it prompts to
+  // restart and install. Skipped in dev (no builder metadata bundled).
+  // Failures (no internet, GitHub rate-limited, malformed manifest)
+  // are logged and swallowed — never crash the app over an update
+  // check.
+  if (process.env.NODE_ENV !== "development") {
+    try {
+      // Auto-download is on by default; we only opt out of auto-install
+      // so the user keeps control over when the restart happens.
+      autoUpdater.autoInstallOnAppQuit = true;
+      autoUpdater.on("error", (err: Error) => {
+        console.warn("[auto-update] error:", err.message);
+      });
+      autoUpdater.on("update-available", (info: { version: string }) => {
+        console.log(`[auto-update] new version available: ${info.version}`);
+      });
+      autoUpdater.on("update-downloaded", (info: { version: string }) => {
+        console.log(`[auto-update] downloaded ${info.version} — will install on quit`);
+      });
+      void autoUpdater.checkForUpdatesAndNotify();
+    } catch (err) {
+      console.warn("[auto-update] init failed:", err instanceof Error ? err.message : err);
+    }
+  }
 });
 
 app.on("window-all-closed", () => {
