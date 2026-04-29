@@ -128,9 +128,10 @@
     max-width: 200px;
   }
   .chevron {
-    font-size: 10px;
+    font-size: 14px;
     color: var(--text-muted);
     line-height: 1;
+    margin-left: 2px;
   }
 
   .menu {

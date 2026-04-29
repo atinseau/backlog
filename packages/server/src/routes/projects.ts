@@ -2,7 +2,9 @@ import {
   type RegistryOptions,
   initLayout,
   listRegisteredProjects,
+  loadRegistry,
   registerProject,
+  saveRegistry,
   touchProject,
   unregisterProject,
 } from "@backlog/config";
@@ -101,6 +103,27 @@ export function projectsRoutes(
     const id = c.req.param("id");
     touchProject(id, registry);
     return c.json({ ok: true });
+  });
+
+  // Rename a registered project. We patch the registry's `name` field
+  // only; the on-disk config.toml's project_name stays unchanged
+  // (consistent with how `backlog project migrate --name X` is the
+  // canonical "fully rename including the slug" path). The dropdown
+  // and ProjectsView read from the registry so this is enough for the
+  // UI side.
+  app.patch("/projects/:id", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json().catch(() => null);
+    const parsed = z.object({ name: z.string().trim().min(1).max(80) }).safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    const reg = loadRegistry(registry);
+    const entry = reg.projects.find((p) => p.id === id);
+    if (!entry) return c.json({ error: "not_found" }, 404);
+    entry.name = parsed.data.name;
+    saveRegistry(reg, registry);
+    return c.json({ project: entry });
   });
 
   return app;

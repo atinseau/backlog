@@ -8,6 +8,7 @@
   import {
     fetchProjectsList,
     unregisterProjectById,
+    renameProjectById,
     type CurrentProject,
     fetchCurrentProject,
   } from "./api.js";
@@ -26,6 +27,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let removingId = $state<string | null>(null);
+  let renamingId = $state<string | null>(null);
 
   async function load() {
     loading = true;
@@ -41,6 +43,20 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function rename(project: ProjectEntry) {
+    const next = prompt(t("manage_projects.rename_prompt", { name: project.name }), project.name);
+    if (!next || !next.trim() || next === project.name) return;
+    renamingId = project.id;
+    try {
+      await renameProjectById(project.id, next.trim());
+      await load();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      renamingId = null;
     }
   }
 
@@ -107,6 +123,14 @@
                 </button>
               </div>
               <div class="actions">
+                <button
+                  class="ghost"
+                  onclick={() => rename(project)}
+                  disabled={renamingId === project.id}
+                  title={t("manage_projects.rename")}
+                >
+                  {renamingId === project.id ? "…" : "✎ " + t("manage_projects.rename")}
+                </button>
                 <button
                   class="danger"
                   onclick={() => remove(project)}
@@ -217,7 +241,21 @@
   .path-text {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .actions { flex-shrink: 0; }
+  .actions { flex-shrink: 0; display: flex; gap: 6px; }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button.ghost:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  button.ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   button.danger {
     background: transparent;
     border: 1px solid var(--danger);

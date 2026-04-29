@@ -104,6 +104,21 @@ export async function unregisterProjectById(id: string): Promise<void> {
   }
 }
 
+export async function renameProjectById(id: string, name: string): Promise<ProjectEntry> {
+  const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "error" in json
+      ? String((json as { error: string }).error)
+      : `Rename failed: ${response.status}`);
+  }
+  return (json as { project: ProjectEntry }).project;
+}
+
 export async function touchProjectById(id: string): Promise<void> {
   const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}/touch`), { method: "PUT" });
   if (!response.ok) {

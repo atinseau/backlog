@@ -32,6 +32,8 @@
   "manage_projects.remove": "Remove",
   "manage_projects.remove_confirm": "Remove \"{name}\" from the registry? The .backlog/ folder on disk is not deleted.",
   "manage_projects.cannot_remove_current": "You can't remove the current project.",
+  "manage_projects.rename": "Rename",
+  "manage_projects.rename_prompt": "New name for \"{name}\":",
   "onboarding.skip": "Skip onboarding",
   "onboarding.project.title": "Create your first project",
   "onboarding.project.body": "A project is a folder hosting a .backlog/ with your kanban, claims and orchestrator state. You can point at an existing folder or create a new one.",

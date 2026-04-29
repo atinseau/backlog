@@ -32,6 +32,8 @@
   "manage_projects.remove": "Retirer",
   "manage_projects.remove_confirm": "Retirer « {name} » du registre ? Le dossier .backlog/ n'est pas supprimé sur le disque.",
   "manage_projects.cannot_remove_current": "Tu ne peux pas retirer le projet actuel.",
+  "manage_projects.rename": "Renommer",
+  "manage_projects.rename_prompt": "Nouveau nom pour « {name} » :",
   "onboarding.skip": "Passer l'onboarding",
   "onboarding.project.title": "Crée ton premier projet",
   "onboarding.project.body": "Un projet est un dossier qui héberge un .backlog/ avec ton kanban, tes claims et l'état de l'orchestrateur. Tu peux pointer sur un dossier existant ou en créer un nouveau.",

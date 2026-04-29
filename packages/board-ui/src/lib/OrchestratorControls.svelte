@@ -113,7 +113,7 @@
     class="ctrl play"
     class:running={isRunning}
     onclick={handleStart}
-    disabled={busy || isRunning || nothingToRun}
+    disabled={busy || isRunning}
     title={playTitle}
     aria-label="Play"
   >
@@ -124,13 +124,13 @@
 </div>
 
 <style>
-  /* Frameless — sits alongside the project selector with no enclosing
-     box. Buttons are 32px circles (touch-target friendly) with 2px gap
-     so the pair reads as a single unit. */
+  /* Frameless transport pair. The two buttons overlap by 4px so they
+     read as a single tightly-paired control. The hover background is
+     a circle inside the button, so the overlap doesn't create visible
+     artefacts. */
   .controls {
     display: inline-flex;
     align-items: center;
-    gap: 0;
   }
   .ctrl {
     width: 38px;
@@ -146,24 +146,35 @@
     padding: 0;
     transition: background 120ms ease, color 120ms ease;
   }
+  .ctrl + .ctrl { margin-left: -4px; }
   .ctrl :global(svg) { width: 16px; height: 16px; }
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);
   }
-  .ctrl:disabled {
-    color: var(--text-subtle);
-    cursor: not-allowed;
+  /* Play is the affirmative action — always bright (var(--text-primary)
+     = white in dark mode) and always clickable when nothing is running.
+     The "nothing to run" condition no longer disables it visually; if
+     the user clicks with nothing queued, the orchestrator just no-ops. */
+  .ctrl.play {
+    color: var(--text-primary);
   }
-  /* Play stays bright (white text in dark mode, near-black in light)
-     and clickable until it's actually running. */
+  .ctrl.play:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
   .ctrl.play.running {
     color: var(--success);
     background: var(--success-bg);
+    opacity: 1;
   }
   .ctrl.play.running:hover { background: var(--success-bg); }
 
-  /* Stop turns red when there's a run to interrupt, otherwise the
-     disabled style takes over (greyed, not interactive). */
+  /* Stop turns red + interactive when something is running, otherwise
+     it sits greyed (visible but non-clickable). */
+  .ctrl.stop:disabled {
+    color: var(--text-subtle);
+    cursor: not-allowed;
+  }
   .ctrl.stop:not(:disabled) {
     color: var(--danger);
   }
