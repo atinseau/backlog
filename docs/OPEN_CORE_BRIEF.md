@@ -49,7 +49,7 @@ Free is the load-bearing tier. No asterisks: every feature in the desktop app to
 The site currently sells the CLI. Recast as a product family.
 
 **Hero (3 lines):**
-> **Backlog** — the orchestrator for AI coding agents.
+> **Backlog** — the task orchestrator for humans and AI coding agents.
 > Run Claude Code, Codex, and your own CLIs across isolated git worktrees, with claims, retries, and review.
 > Free and open-source for personal use. Desktop, CLI, and SDK — no account required.
 

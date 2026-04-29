@@ -1,6 +1,6 @@
 # Backlog
 
-**The orchestrator for AI coding agents.**
+**The task orchestrator for humans and AI coding agents.**
 
 Run Claude Code, Codex, and your own CLIs across isolated git worktrees,
 with claims, retries, and review. Local by default — no account required.
