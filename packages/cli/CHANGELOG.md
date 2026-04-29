@@ -2,13 +2,13 @@
 
 All notable changes to the `backlog` CLI are documented here.
 
-> **Versioning reset (2026-04-28).** The `backlog` package was previously published as 1.0.0–1.2.0. That `1.x` labeling implied a stability contract the project was not yet ready to honor. The package has been reset to `0.1.0` to reflect honest pre-1.0 status. Breaking changes are expected during the 0.x line; the 1.0.0 milestone has explicit criteria (see `docs/`). Pre-reset entries are archived in `CHANGELOG-LEGACY.md`.
+> **Versioning note.** The `backlog` package was briefly relabelled `0.1.0` on 2026-04-28 in an attempt to flag pre-1.0 status. That broke `^1.x` pins more than it helped, so the next release re-establishes the 1.x line at `1.3.0`. If you had `"backlog": "^0.1.0"` pinned, switch back to `^1.3.0` or `latest`. The 1.0.0–1.2.0 history is archived in [`CHANGELOG-LEGACY.md`](./CHANGELOG-LEGACY.md).
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-04-28
+## [1.3.0] - 2026-04-29
 
-First release after the version reset. Contains everything that was in 1.2.0 plus the work that was sitting in Unreleased on the branch.
+The first release on the restored 1.x line. Functionally a superset of the 1.2.0 codebase plus everything that was sitting in Unreleased on the branch (and the brief `0.1.0` snapshot on npm).
 
 ### Workspace & projects
 
@@ -41,7 +41,7 @@ First release after the version reset. Contains everything that was in 1.2.0 plu
 - `backlog agents {list|show|enable|disable|update|validate|health}`
 - `backlog sources {add|list|enable|disable|update|remove|validate|sync|push|conflicts|resolve}`
 - `backlog orchestrator {start|pause|stop|status|config}`
-- `backlog hooks {status|install|uninstall}` (pre-commit hook exports `BACKLOG_PROJECT_DIR` so `claim check` finds the workspace whether `in_repo` or `user_level`)
+- `backlog hooks {status|install|uninstall|pause|resume}` (pre-commit hook exports `BACKLOG_PROJECT_DIR` so `claim check` finds the workspace whether `in_repo` or `user_level`)
 - `backlog release snapshot`
 - `backlog worktree {list|gc}`
 
@@ -49,10 +49,10 @@ First release after the version reset. Contains everything that was in 1.2.0 plu
 
 - TypeScript + ESM, Node ≥ 20.
 - pnpm monorepo: `cli`, `core`, `claims`, `connectors`, `config`, `git`, `hooks`, `schemas`, `server`, `board-ui`. `schemas` is the source of truth (Zod) for cross-boundary types. tsup bundles everything into the published tarball.
-- Apache-2.0 (CLI). The `@backlog/server` package is BUSL-1.1 (commercial license for hosted use); `@backlog/board-ui` is Apache-2.0.
+- Apache-2.0 (CLI). `@backlog/board-ui` is Apache-2.0; `@backlog/server` is BUSL-1.1 (commercial license for hosted use).
 
-### Notes for users coming from 1.x
+### Notes for users coming from `0.1.0`
 
-- npm `latest` now points to 0.1.0. If you had `"backlog": "^1.x"` in `package.json` or a Dockerfile, switch to `"^0.1.0"` (or pin to `latest`).
+- npm `latest` now points to `1.3.0`. If you had `"backlog": "^0.1.0"` in `package.json` or a Dockerfile, switch to `"^1.3.0"` (or pin to `latest`).
 - No data migration is required; the workspace format hasn't changed since 1.2.0.
-- Older 1.x versions remain on npm but are deprecated. Reinstall with `npm i -g backlog@latest`.
+- The deprecated `0.1.0` tag remains on npm but won't receive updates.
