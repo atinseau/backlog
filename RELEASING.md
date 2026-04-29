@@ -122,39 +122,62 @@ npm deprecate backlog-sdk@'<2.0.0' \
 #    Bump BACKLOG_CLOUD_VERSION if you cut a coordinated cloud release.
 ```
 
-## Removing 0.1.0 from npm
+## Removing a stale version from npm
 
-The `backlog@0.1.0` snapshot from 2026-04-28 was a relabelling experiment that broke `^1.x` pins. We're going from 1.2.0 directly to 1.3.0 — 0.1.0 should look like it never happened.
+`npm unpublish` has **two stacking constraints** — both must be satisfied to actually pull a version off the registry:
 
-npm has a 72-hour window during which a package version can be **fully unpublished**. After that, only `npm deprecate` (which keeps the version on the registry but flags it as deprecated) is available.
+1. **Within 72 h of publish.** After 72 h, only `npm deprecate` is allowed.
+2. **No package on the registry depends on it.** Even at 5 minutes after publish, if any other npm package has the version in its `dependencies` / `peerDependencies` / `optionalDependencies`, npm refuses the unpublish with `E405 — has dependent packages in the registry`. This is non-negotiable and not advertised by the 72-h policy page.
 
-Check first whether you're still inside the window:
+In practice: assume `unpublish` won't work and plan for `deprecate`. Try unpublish anyway — if it works, great; if it fails with `E405`, fall through to deprecate.
 
-```sh
-npm view backlog time --json | grep '0.1.0'
-# "0.1.0": "2026-04-28T13:49:50.665Z"
-date -u  # compare to current UTC time
-```
-
-### If within 72 h — unpublish
+### Deprecate flow (the realistic default)
 
 ```sh
 npm whoami                                     # confirm you're logged in
-npm unpublish backlog@0.1.0
+npm owner ls <package>                         # confirm you're a maintainer
+
+# Use a message that tells the installer what to do — generic
+# "this package has been deprecated" wastes the warning slot.
+npm deprecate '<package>@<version>' \
+  "Use <package>@^<replacement>. <one-sentence reason>. <link>"
+
+# Verify
+npm view <package>@<version> deprecated
+# Should print your message back exactly.
 ```
 
-After unpublishing, `npm view backlog versions` should no longer list `0.1.0`. Note: npm **forbids re-publishing the same version number for 24 hours** after an unpublish — but that doesn't matter here because we're moving forward to `1.3.0`, not back.
+`npm deprecate` is **idempotent** — re-running with a different message just overwrites. Pass an empty string to clear: `npm deprecate '<package>@<version>' ""`.
 
-If unpublish fails with `EPRIVATE` or similar, double-check you're authenticated and that the package owner is your account (`npm owner ls backlog`).
-
-### If beyond 72 h — deprecate
+### Concrete example: the 0.1.0 relabelling experiment
 
 ```sh
-npm deprecate backlog@0.1.0 \
-  "Use 1.3.0 or later. The 0.1.0 tag was a brief relabelling experiment; the project never left the 1.x line."
+# Tried this — failed because of a dependent package (E405):
+npm unpublish backlog@0.1.0
+
+# This is the working path:
+npm deprecate 'backlog@0.1.0' \
+  "Use backlog@^1.3.0 instead. The 0.1.0 tag was a brief relabelling experiment; backlog stayed on the 1.x line. See https://www.npmjs.com/package/backlog"
+
+npm view backlog@0.1.0 deprecated
 ```
 
-`backlog@0.1.0` will stay installable but show a deprecation warning to anyone who installs it. `npm i backlog` (without a version) will pick `latest` (1.3.0) so most users won't see anything.
+After deprecation, `backlog@0.1.0` stays installable but `npm i backlog@0.1.0` prints the warning. Most users running `npm i backlog` (no version) get `latest` = `1.3.0` and see nothing — the deprecation only fires if someone explicitly pins to `0.1.0`.
+
+### Finding what depends on the stale version
+
+If `unpublish` fails with `E405` and you'd like to know who's blocking it:
+
+```sh
+# Browse the dependents on npmjs.com:
+open "https://www.npmjs.com/browse/depended/<package>"
+
+# Programmatic query via npms.io (third-party index):
+curl -s "https://api.npms.io/v2/search?q=dependencies:<package>&size=10" \
+  | jq '.results[].package | {name, version, links}'
+```
+
+If the dependent is one of your own packages (e.g., a workspace tarball you accidentally published, or a sister package), bump its dependency to a current version and re-publish it; the dependency lock disappears once no published manifest references the stale version. Then `npm unpublish` becomes available again (still inside its own 72-h window of the dependent's last publish).
 
 ### What stays on npm regardless
 
