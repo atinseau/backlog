@@ -5,3 +5,4 @@ dist/
 .claude/
 .DS_Store
 packages/cli/backlog-*.tgz
+.env

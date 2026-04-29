@@ -1,10 +1,10 @@
 # Changelog
 
-All notable changes to `@backlog/sdk` are documented here.
+All notable changes to `@osmove/backlog-sdk` are documented here.
 
 ## [1.3.0] - 2026-04-29
 
-First release under the `@backlog/sdk` scope, aligned with the wider 1.3.0 ecosystem (CLI + Desktop + SDK).
+First release under the `@osmove/backlog-sdk` scope, aligned with the wider 1.3.0 ecosystem (CLI + Desktop + SDK). The unscoped `backlog-sdk` package on npm (versions 0.1.0 / 0.2.0) is deprecated with a redirect to this package.
 
 ### Added
 

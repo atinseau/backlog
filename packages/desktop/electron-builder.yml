@@ -17,6 +17,17 @@ mac:
       arch: [arm64, x64]
   hardenedRuntime: true
   gatekeeperAssess: false
+  # Notarization is required for the DMG to open on someone else's
+  # Mac without the "unidentified developer" friction. Credentials
+  # are read entirely from env: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
+  # APPLE_TEAM_ID. Setting `notarize: true` here just turns the step
+  # on; `false` (or omitting) skips it for dev builds.
+  notarize: true
+  # entitlements.mac.plist below grants only what the app needs:
+  # network access (the embedded Hono server), JIT (V8 + Electron),
+  # child-process spawning (claude / codex CLIs), worktree git ops.
+  entitlements: assets/entitlements.mac.plist
+  entitlementsInherit: assets/entitlements.mac.plist
   icon: assets/icon.png
 dmg:
   contents:

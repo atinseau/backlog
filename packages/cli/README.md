@@ -17,7 +17,7 @@ with claims, retries, and review. Local by default — no account required.
 |---------|---------|----------|
 | **CLI** (`backlog`) | `npm i -g backlog` | Headless, scriptable, the binary you put in CI |
 | **Desktop** | [backlog.so/desktop](https://backlog.so/desktop) | Native kanban + run inspector + agent fleet (macOS first) |
-| **SDK** (`@backlog/sdk`) | `npm i @backlog/sdk` | Embed the orchestrator in your own tool, TypeScript-first |
+| **SDK** (`@osmove/backlog-sdk`) | `npm i @osmove/backlog-sdk` | Embed the orchestrator in your own tool, TypeScript-first |
 
 CLI, Desktop, and SDK are all **Apache-2.0, free forever**. Backlog Cloud
 (managed hosted backend) is in private development and only adds features
@@ -363,7 +363,7 @@ Issues, PRs, and design discussions welcome.
 ## Sister projects
 
 - [Backlog Desktop](https://backlog.so/desktop) — native kanban for the same orchestrator engine, currently in Apple notarisation (waitlist)
-- [`@backlog/sdk`](https://www.npmjs.com/package/@backlog/sdk) — TypeScript client generated from the OpenAPI 3.0.3 spec
+- [`@osmove/backlog-sdk`](https://www.npmjs.com/package/@osmove/backlog-sdk) — TypeScript client generated from the OpenAPI 3.0.3 spec
 - [Backlog Cloud](https://backlog.so/cloud) — managed hosted backend (private development, waitlist)
 - [`lint`](https://www.npmjs.com/package/lint) — universal linter CLI with AI-powered code review
 
