@@ -109,14 +109,23 @@ You have two options for the same kanban experience — same engine, same
 Svelte UI, same `@backlog/server`:
 
 ```bash
-# Option A — CLI: serves the board in your browser.
+# Option A — CLI: smart shortcut that opens the kanban in your browser.
+#   - If a server is already running, just opens the URL.
+#   - Otherwise spawns `backlog serve` and blocks until Ctrl+C.
+backlog board
+```
+
+```bash
+# Same engine, longer form — keeps the foreground process attached so
+# you can read agent stdout. Use this when scripting / running under a
+# process supervisor.
 backlog serve
 ```
 
 ```bash
-# Option B — Desktop: native window, no browser tab. macOS first.
-# Download from https://backlog.so/desktop (DMG, currently in
-# Apple notarisation; Windows + Linux follow via electron-builder).
+# Option B — Desktop: native window, no browser tab. macOS shipping today
+# (signed + notarised); Windows + Linux follow via electron-builder.
+# Download: https://backlog.so/desktop
 ```
 
 Both open at `http://127.0.0.1:7878` (Desktop picks a random port).
@@ -156,6 +165,7 @@ backlog init                                          Initialize a workspace
 backlog doctor [--repo <id>] [--json]                 Inspect workspace health
 backlog status [--repo <id>]                          Workspace overview
 
+backlog board    [--url <url>]                        Open the kanban (smart wrapper around serve)
 backlog serve    [--port 7878] [--host 127.0.0.1]
                  [--workspace <path>] [--no-open]     Launch the kanban board
 backlog project  add|list|show|update|archive|remove  Manage projects (groups of repos)
