@@ -308,6 +308,7 @@ export interface CreateRepoInput {
   default_branch?: string;
   role?: string;
   enabled?: boolean;
+  access_mode?: import("./types.js").RepoAccessMode;
   git_url?: string;
   clone_into?: string;
 }
@@ -331,6 +332,7 @@ export interface UpdateRepoInput {
   default_branch?: string;
   role?: string | null;
   enabled?: boolean;
+  access_mode?: import("./types.js").RepoAccessMode;
 }
 
 export async function updateRepo(id: string, input: UpdateRepoInput): Promise<Repo> {

@@ -3,6 +3,7 @@ import { supportsAgentExecution } from "./agents.js";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { executeCustomAgentRun } from "./custom-executor.js";
+import { getRepo } from "./repo-service.js";
 
 export { supportsAgentExecution };
 
@@ -21,7 +22,29 @@ export interface ExecuteAgentRunParams {
   attemptNumber?: number;
 }
 
-export async function executeAgentRun(params: ExecuteAgentRunParams): Promise<boolean> {
+// Repo-level access policy (config.repos[].access_mode) takes
+// precedence over the agent's own sandbox_mode setting. Read-only and
+// no-access repos coerce / refuse the run regardless of what the
+// agent thinks it's allowed to do — the policy lives with the
+// resource being touched, not with the runner.
+function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunParams {
+  const repo = getRepo(params.backlogDir, params.task.repo);
+  const accessMode = repo?.access_mode ?? "read-write";
+  if (accessMode === "no-access") {
+    throw new Error(`Repo ${params.task.repo} is set to no-access; runs are not allowed.`);
+  }
+  if (accessMode === "read-only") {
+    // Replace the sandbox_mode with read-only on a shallow copy of the
+    // agent. Keeps the persisted agent config untouched (the user's
+    // chosen sandbox_mode is a default, not a guarantee).
+    const agent: Agent = { ...params.agent, sandbox_mode: "read-only" };
+    return { ...params, agent };
+  }
+  return params;
+}
+
+export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise<boolean> {
+  const params = applyRepoAccessPolicy(rawParams);
   if (params.agent.provider === "custom" && params.agent.command) {
     await executeCustomAgentRun(params);
     return true;

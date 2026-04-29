@@ -161,12 +161,18 @@ export interface CurrentProject {
   resolved_from: string;
 }
 
+export type RepoAccessMode = "read-write" | "read-only" | "no-access";
+
 export interface Repo {
   id: string;
   path: string;
   default_branch: string;
   role?: string;
   enabled: boolean;
+  // Defaults to "read-write" server-side. Existing config.toml files
+  // load with this default applied, so the field is always set on the
+  // wire — but we mark it optional so older clients don't choke.
+  access_mode?: RepoAccessMode;
   git_url?: string;
   provider?: RepoProvider;
 }

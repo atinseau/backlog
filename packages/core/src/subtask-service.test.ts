@@ -23,6 +23,7 @@ async function createWorkspace(): Promise<string> {
         path: root,
         default_branch: "main",
         enabled: true,
+        access_mode: "read-write",
       },
     ],
   });

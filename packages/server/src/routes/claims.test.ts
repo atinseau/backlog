@@ -31,7 +31,7 @@ async function makeWorkspaceWithRepo(): Promise<{
   initLayout({
     root,
     projectName: "claims-route-test",
-    repos: [{ id: repoId, path: root, default_branch: "main", enabled: true }],
+    repos: [{ id: repoId, path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
   });
   const backlogDir = path.join(root, ".backlog");
   return {

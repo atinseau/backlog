@@ -71,6 +71,11 @@
   let newCloneInto = $state("");
   let newBranch = $state("main");
   let newRole = $state("");
+  // Default to read-write because that's what most users want when
+  // adding a repository they own. Switch to read-only for vendored
+  // dependencies / context-only repos that the agent should be able
+  // to inspect but not edit.
+  let newAccessMode = $state<"read-write" | "read-only" | "no-access">("read-write");
   let creating = $state(false);
 
   async function load() {
@@ -94,6 +99,7 @@
       if (newId.trim()) input.id = newId.trim();
       if (newRole.trim()) input.role = newRole.trim();
       if (newBranch.trim()) input.default_branch = newBranch.trim();
+      input.access_mode = newAccessMode;
 
       if (createMode === "clone") {
         if (!newGitUrl.trim()) throw new Error("URL Git requise");
@@ -113,6 +119,7 @@
       newCloneInto = "";
       newBranch = "main";
       newRole = "";
+      newAccessMode = "read-write";
       showCreate = false;
       await load();
       onChanged?.();
@@ -126,6 +133,17 @@
   async function handleToggleEnabled(repo: Repo) {
     try {
       await updateRepo(repo.id, { enabled: !repo.enabled });
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleAccessModeChange(repo: Repo, mode: "read-write" | "read-only" | "no-access") {
+    if (mode === (repo.access_mode ?? "read-write")) return;
+    try {
+      await updateRepo(repo.id, { access_mode: mode });
       await load();
       onChanged?.();
     } catch (err) {
@@ -200,11 +218,15 @@
         {#each repos as repo (repo.id)}
           {@const hookStatus = hookStatusOf(repo.id)}
           {@const hookLabel = hookStatusLabel(hookStatus)}
+          {@const accessMode = repo.access_mode ?? "read-write"}
           <li class:disabled={!repo.enabled}>
             <div class="info">
               <div class="title-row">
                 <strong>{repo.id}</strong>
                 {#if repo.role}<span class="role">{repo.role}</span>{/if}
+                <span class="access-pill access-{accessMode}" title={t(`repos_view.access_hint_${accessMode.replace("-", "_")}`)}>
+                  {t(`repos_view.access_${accessMode.replace("-", "_")}`)}
+                </span>
                 {#if !repo.enabled}<span class="off">disabled</span>{/if}
                 <span class="hook-badge hook-{hookLabel.tone}" title={hookStatus?.hook_path ?? ""}>
                   hook : {hookLabel.label}
@@ -221,6 +243,15 @@
               <span class="branch">branche par défaut : {repo.default_branch}</span>
             </div>
             <div class="actions">
+              <select
+                value={accessMode}
+                onchange={(e) => handleAccessModeChange(repo, (e.currentTarget as HTMLSelectElement).value as "read-write" | "read-only" | "no-access")}
+                title={t("repos_view.access_change_title")}
+              >
+                <option value="read-write">{t("repos_view.access_read_write")}</option>
+                <option value="read-only">{t("repos_view.access_read_only")}</option>
+                <option value="no-access">{t("repos_view.access_no_access")}</option>
+              </select>
               <button onclick={() => handleRename(repo)} title="Renommer">✎</button>
               <button onclick={() => handleToggleEnabled(repo)}>
                 {repo.enabled ? "désactiver" : "activer"}
@@ -293,10 +324,18 @@
             </div>
           {/if}
 
-          <label class="full">
-            Rôle (optionnel)
-            <input bind:value={newRole} placeholder="api / web / firmware" />
-          </label>
+          <div class="row">
+            <label>
+              {t("repos_view.access_mode")}
+              <select bind:value={newAccessMode}>
+                <option value="read-write">{t("repos_view.access_read_write")}</option>
+                <option value="read-only">{t("repos_view.access_read_only")}</option>
+                <option value="no-access">{t("repos_view.access_no_access")}</option>
+              </select>
+              <span class="hint">{t(`repos_view.access_hint_${newAccessMode.replace("-", "_")}`)}</span>
+            </label>
+            <label>Rôle (optionnel)<input bind:value={newRole} placeholder="api / web / firmware" /></label>
+          </div>
           <div class="form-actions">
             <button type="button" onclick={() => (showCreate = false)}>annuler</button>
             <button class="primary" type="submit" disabled={creating}>
@@ -513,6 +552,26 @@
     color: var(--danger);
     padding: 1px 6px;
     border-radius: 3px;
+  }
+  .access-pill {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+  .access-read-write {
+    background: var(--success-bg);
+    color: var(--success);
+  }
+  .access-read-only {
+    background: var(--warning-bg);
+    color: var(--warning);
+  }
+  .access-no-access {
+    background: var(--bg-hover);
+    color: var(--text-muted);
   }
   .path {
     font-family: ui-monospace, monospace;

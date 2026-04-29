@@ -3,12 +3,15 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
+const accessModeSchema = z.enum(["read-write", "read-only", "no-access"]);
+
 const createBodySchema = z.object({
   id: z.string().min(1).optional(),
   path: z.string().min(1).optional(),
   default_branch: z.string().min(1).optional(),
   role: z.string().optional(),
   enabled: z.boolean().optional(),
+  access_mode: accessModeSchema.optional(),
   git_url: z.string().min(1).optional(),
   clone_into: z.string().min(1).optional(),
 });
@@ -20,6 +23,7 @@ const updateBodySchema = z
     default_branch: z.string().min(1).optional(),
     role: z.string().nullable().optional(),
     enabled: z.boolean().optional(),
+    access_mode: accessModeSchema.optional(),
   })
   .strict();
 
@@ -54,6 +58,7 @@ export function reposRoutes(): Hono<AppEnv> {
         if (parsed.data.default_branch) cloneInput.defaultBranch = parsed.data.default_branch;
         if (parsed.data.role !== undefined) cloneInput.role = parsed.data.role;
         if (parsed.data.enabled !== undefined) cloneInput.enabled = parsed.data.enabled;
+        if (parsed.data.access_mode !== undefined) cloneInput.accessMode = parsed.data.access_mode;
         const repo = await cloneAndAddRepo(workspace.backlogDir, cloneInput);
         return c.json({ repo, cloned: true }, 201);
       }
@@ -71,6 +76,7 @@ export function reposRoutes(): Hono<AppEnv> {
       };
       if (parsed.data.role !== undefined) input.role = parsed.data.role;
       if (parsed.data.enabled !== undefined) input.enabled = parsed.data.enabled;
+      if (parsed.data.access_mode !== undefined) input.accessMode = parsed.data.access_mode;
       const repo = addRepo(workspace.backlogDir, input);
       return c.json({ repo, cloned: false }, 201);
     } catch (error) {
@@ -93,6 +99,7 @@ export function reposRoutes(): Hono<AppEnv> {
     if (parsed.data.role === null) input.clearRole = true;
     else if (parsed.data.role !== undefined) input.role = parsed.data.role;
     if (parsed.data.enabled !== undefined) input.enabled = parsed.data.enabled;
+    if (parsed.data.access_mode !== undefined) input.accessMode = parsed.data.access_mode;
 
     try {
       const repo = updateRepo(workspace.backlogDir, c.req.param("id"), input);

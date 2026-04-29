@@ -2,12 +2,27 @@ import { z } from "zod";
 
 export const repoProviderSchema = z.enum(["local", "github", "gitlab", "bitbucket", "other"]);
 
+// What an agent run is allowed to do against this repo.
+//   read-write — full access (default; matches existing behaviour)
+//   read-only  — agent can read files, run shell, inspect git, but can't
+//                edit or commit. The launcher coerces sandbox_mode to
+//                "read-only" regardless of the agent's own setting.
+//   no-access  — repo is hidden from the orchestrator; effectively
+//                equivalent to enabled=false but lets you keep the
+//                repo registered (e.g. for browsing) without exposing
+//                it to runs. Plans never assign tasks against it.
+export const repoAccessModeSchema = z.enum(["read-write", "read-only", "no-access"]);
+
 export const repoConfigSchema = z.object({
   id: z.string().min(1),
   path: z.string().min(1),
   default_branch: z.string().min(1),
   role: z.string().optional(),
   enabled: z.boolean().default(true),
+  // Access policy for agent runs on this repo. Optional so existing
+  // config.toml files load unchanged; treat missing as "read-write" at
+  // every read site (the runtime helpers default explicitly).
+  access_mode: repoAccessModeSchema.optional(),
   git_url: z.string().optional(),
   provider: repoProviderSchema.optional(),
 });
@@ -88,6 +103,7 @@ export const projectConfigSchema = z.object({
 
 export type RepoConfig = z.infer<typeof repoConfigSchema>;
 export type RepoProvider = z.infer<typeof repoProviderSchema>;
+export type RepoAccessMode = z.infer<typeof repoAccessModeSchema>;
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type ProjectLocation = z.infer<typeof projectLocationSchema>;
 export type GitMergeStrategy = z.infer<typeof gitMergeStrategySchema>;

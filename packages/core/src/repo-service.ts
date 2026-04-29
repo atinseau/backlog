@@ -3,7 +3,7 @@ import path from "node:path";
 import { listActiveClaims } from "@backlog/claims";
 import { loadConfig, saveConfig } from "@backlog/config";
 import { cloneRepo, detectGitProvider, repoIdFromGitUrl } from "@backlog/git";
-import type { RepoConfig, RepoProvider } from "@backlog/schemas";
+import type { RepoAccessMode, RepoConfig, RepoProvider } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { deriveTaskStatusFromSubTasks } from "./task-service.js";
@@ -15,6 +15,7 @@ export interface AddRepoInput {
   defaultBranch: string;
   role?: string;
   enabled?: boolean;
+  accessMode?: RepoAccessMode;
   gitUrl?: string;
   provider?: RepoProvider;
 }
@@ -26,6 +27,7 @@ export interface CloneAndAddRepoInput {
   defaultBranch?: string;
   role?: string;
   enabled?: boolean;
+  accessMode?: RepoAccessMode;
 }
 
 export interface UpdateRepoInput {
@@ -35,6 +37,7 @@ export interface UpdateRepoInput {
   role?: string;
   clearRole?: boolean;
   enabled?: boolean;
+  accessMode?: RepoAccessMode;
   gitUrl?: string;
   clearGitUrl?: boolean;
   provider?: RepoProvider;
@@ -81,6 +84,7 @@ export function addRepo(backlogDir: string, input: AddRepoInput): RepoConfig {
     default_branch: input.defaultBranch,
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
+    access_mode: input.accessMode ?? "read-write",
     ...(input.gitUrl ? { git_url: input.gitUrl } : {}),
     ...(input.provider ? { provider: input.provider } : {}),
   };
@@ -120,6 +124,7 @@ export async function cloneAndAddRepo(
     defaultBranch: input.defaultBranch ?? config.default_branch,
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
+    ...(input.accessMode ? { accessMode: input.accessMode } : {}),
     gitUrl: input.url,
     provider,
   });
@@ -217,6 +222,9 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   }
   if (input.enabled !== undefined) {
     repo.enabled = input.enabled;
+  }
+  if (input.accessMode !== undefined) {
+    repo.access_mode = input.accessMode;
   }
   if (input.gitUrl !== undefined) {
     repo.git_url = input.gitUrl;

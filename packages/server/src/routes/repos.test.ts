@@ -14,8 +14,8 @@ function makeWorkspace(): ServerProject {
     root,
     projectName: "repos-route-test",
     repos: [
-      { id: "alpha", path: path.join(root, "alpha"), default_branch: "main", enabled: true },
-      { id: "beta", path: path.join(root, "beta"), default_branch: "main", enabled: false },
+      { id: "alpha", path: path.join(root, "alpha"), default_branch: "main", enabled: true, access_mode: "read-write" },
+      { id: "beta", path: path.join(root, "beta"), default_branch: "main", enabled: false, access_mode: "read-write" },
     ],
   });
   // Pre-create the local repo dirs that POST/PATCH would normally
