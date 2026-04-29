@@ -20,7 +20,7 @@
   const allLabel = $derived(t("selector.all_repos", { count: repos.length }));
 </script>
 
-<div class="repo-selector">
+<div class="repository-selector">
   <select value={selectedId ?? ""} onchange={handleChange} disabled={repos.length === 0}>
     <option value="">{allLabel}</option>
     {#each repos as repo (repo.id)}
@@ -33,7 +33,7 @@
 </div>
 
 <style>
-  .repo-selector {
+  .repository-selector {
     display: inline-flex;
     align-items: center;
     gap: 4px;

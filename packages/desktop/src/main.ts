@@ -14,6 +14,11 @@ ipcMain.handle("backlog:show-in-folder", async (_event, targetPath: unknown) => 
   if (typeof targetPath !== "string" || !targetPath) return;
   shell.showItemInFolder(targetPath);
 });
+ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
+  if (typeof url !== "string" || !url) return;
+  if (!/^https?:\/\//.test(url)) return; // never let renderer open file:// or shell URLs
+  await shell.openExternal(url);
+});
 
 // Set the user-facing name early so app.getPath('userData') resolves to a
 // stable, branded directory (e.g. ~/Library/Application Support/Backlog/).

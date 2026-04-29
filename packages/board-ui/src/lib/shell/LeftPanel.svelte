@@ -4,7 +4,7 @@
   // modal view, until those views get inlined). Profile + locale at
   // the bottom mirror Xcode's status indicators on the navigator base.
   import LocaleToggle from "../LocaleToggle.svelte";
-  import RepoSelector from "../RepoSelector.svelte";
+  import RepositorySelector from "../RepositorySelector.svelte";
   import ThemeToggle from "../ThemeToggle.svelte";
   import { t } from "../i18n.svelte.js";
   import type { Repo } from "../types.js";
@@ -52,7 +52,7 @@
 
 <aside class="left-panel">
   <div class="selectors">
-    <RepoSelector
+    <RepositorySelector
       repos={repos}
       selectedId={selectedRepoId}
       projectScoped={false}
@@ -103,7 +103,7 @@
     gap: 6px;
   }
   .row :global(.project-selector),
-  .selectors :global(.repo-selector) {
+  .selectors :global(.repository-selector) {
     flex: 1;
     min-width: 0;
   }

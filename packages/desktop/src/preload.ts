@@ -14,4 +14,10 @@ contextBridge.exposeInMainWorld("backlog", {
   showInFolder(targetPath: string): Promise<void> {
     return ipcRenderer.invoke("backlog:show-in-folder", targetPath);
   },
+  // Open an external URL in the OS default browser. Used by the OAuth
+  // sign-in flows so the user lands in their real browser (with their
+  // session cookies) instead of a sandboxed Electron window.
+  openExternal(url: string): Promise<void> {
+    return ipcRenderer.invoke("backlog:open-external", url);
+  },
 });

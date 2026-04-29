@@ -130,11 +130,11 @@
   .controls {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 0;
   }
   .ctrl {
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     border: none;
     border-radius: 50%;
     background: transparent;
@@ -146,6 +146,7 @@
     padding: 0;
     transition: background 120ms ease, color 120ms ease;
   }
+  .ctrl :global(svg) { width: 16px; height: 16px; }
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);
   }

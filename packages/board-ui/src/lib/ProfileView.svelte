@@ -52,6 +52,11 @@
   }
 
   function openInNewTab(url: string) {
+    const bridge = (window as unknown as { backlog?: { openExternal: (u: string) => Promise<void> } }).backlog;
+    if (bridge?.openExternal) {
+      void bridge.openExternal(url);
+      return;
+    }
     window.open(url, "_blank", "noopener,noreferrer");
   }
 

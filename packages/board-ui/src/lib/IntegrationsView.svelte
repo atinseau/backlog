@@ -254,6 +254,14 @@
   }
 
   function openInNewTab(url: string) {
+    // Prefer the Electron IPC bridge so OAuth flows always land in the
+    // user's actual default browser (with their session cookies). Fall
+    // back to window.open for plain-browser usage of `backlog serve`.
+    const bridge = (window as unknown as { backlog?: { openExternal: (u: string) => Promise<void> } }).backlog;
+    if (bridge?.openExternal) {
+      void bridge.openExternal(url);
+      return;
+    }
     window.open(url, "_blank", "noopener,noreferrer");
   }
 

@@ -12,11 +12,11 @@
   import PermissionsView from "./lib/PermissionsView.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SettingsView from "./lib/SettingsView.svelte";
+  import ProjectsView from "./lib/ProjectsView.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
-  import OnboardingBanner from "./lib/OnboardingBanner.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
   import RightPanel from "./lib/shell/RightPanel.svelte";
   import BottomPanel from "./lib/shell/BottomPanel.svelte";
@@ -122,16 +122,7 @@
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
   let profileOpen = $state<"signin" | "signup" | null>(null);
-
-  // ---- onboarding ----
-  const ONBOARDING_STORAGE_KEY = "backlog.onboarding.dismissed";
-  let onboardingDismissed = $state(
-    typeof localStorage !== "undefined" && localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1",
-  );
-  function dismissOnboarding() {
-    onboardingDismissed = true;
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-  }
+  let manageProjectsOpen = $state(false);
 
   // ---- runtime infra ----
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -442,14 +433,13 @@
 <div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
   <header class="topbar">
     <div class="topbar-left">
-      {#if workspaces.length > 0 && selectedWorkspaceId}
-        <ProjectSelector
-          projects={workspaces}
-          selectedId={selectedWorkspaceId}
-          onSelect={applyWorkspace}
-        />
-      {/if}
-      <button class="topbar-add-project" onclick={() => (createProjectOpen = true)} title={t("selector.new_project")} aria-label={t("selector.new_project")}>+</button>
+      <ProjectSelector
+        projects={workspaces}
+        selectedId={selectedWorkspaceId}
+        onSelect={applyWorkspace}
+        onCreateProject={() => (createProjectOpen = true)}
+        onManageProjects={() => (manageProjectsOpen = true)}
+      />
       <OrchestratorControls onError={(message) => (error = message)} />
     </div>
     <div class="topbar-right">
@@ -516,16 +506,6 @@
             }}
           />
         {:else if leftSection === "board"}
-          <OnboardingBanner
-            workspaces={workspaces}
-            workspaceRepos={workspaceRepos}
-            board={board}
-            dismissed={onboardingDismissed}
-            onCreateProject={() => (createProjectOpen = true)}
-            onManageRepos={() => (leftSection = "repos")}
-            onCreateTask={() => (createTaskOpen = true)}
-            onDismiss={dismissOnboarding}
-          />
           <main class="board" style:--columns-count={visibleColumns.length}>
             {#each visibleColumns as key (key)}
               <Column
@@ -681,6 +661,14 @@
   />
 {/if}
 
+{#if manageProjectsOpen}
+  <ProjectsView
+    onClose={() => { manageProjectsOpen = false; void refreshWorkspaces(); }}
+    onSelect={(id) => applyWorkspace(id)}
+    onCreateProject={() => (createProjectOpen = true)}
+  />
+{/if}
+
 <style>
   :global(body) {
     margin: 0;
@@ -722,20 +710,6 @@
     gap: 10px;
     font-size: 12px;
     color: var(--text-muted);
-  }
-  button.topbar-add-project {
-    background: transparent;
-    border: 1px solid var(--border-strong);
-    color: var(--text-secondary);
-    border-radius: 4px;
-    padding: 2px 9px;
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  button.topbar-add-project:hover {
-    color: var(--accent);
-    border-color: var(--accent);
   }
   .conn.on { color: var(--success); }
   .conn.off { color: var(--warning); }
