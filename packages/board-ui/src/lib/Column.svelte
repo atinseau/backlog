@@ -45,6 +45,14 @@
     localCards = event.detail.items;
   }
 
+  function isLocked(card: TaskCard): boolean {
+    // A card with an active run on any of its subtasks is "in flight"
+    // for the executor; letting the user drag it to another column
+    // would create a confusing race between the agent's status updates
+    // and the manual move. Reject the drop and snap back instead.
+    return card.tasks.some((t) => t.active_run !== null);
+  }
+
   function handleFinalize(event: CustomEvent<{ items: TaskCard[]; info: { id: string; trigger: string } }>) {
     const nextItems = event.detail.items;
     const trigger = event.detail.info.trigger;
@@ -55,6 +63,15 @@
 
     const droppedId = event.detail.info.id;
     const wasAlreadyInColumn = cards.some((card) => card.id === droppedId);
+    const droppedCard = nextItems.find((c) => c.id === droppedId);
+
+    // Reject drops on locked cards — revert the optimistic UI without
+    // calling onMove / onReorder. svelte-dnd-action animates the card
+    // back to its origin via the FLIP transition.
+    if (droppedCard && isLocked(droppedCard)) {
+      localCards = cards;
+      return;
+    }
 
     if (!wasAlreadyInColumn) {
       // Cross-column drop → status change.

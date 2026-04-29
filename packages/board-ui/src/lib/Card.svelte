@@ -24,6 +24,11 @@
   const cardPriorityClass = $derived(`prio-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
   const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
+  // A card is "locked" while any of its subtasks has an active run —
+  // the executor owns its status, dragging is blocked at the dndzone
+  // level (Column.svelte), and we surface the state visually with a
+  // not-allowed cursor + faded outline.
+  const locked = $derived(runningCount > 0);
   // Subtasks that the scheduler could pick up if asked to start now.
   // "queued" and "planned" both mean "ready, just hasn't been launched
   // yet"; "waiting" still has unmet deps so we don't count it.
@@ -135,6 +140,8 @@
 <article
   class="card {cardPriorityClass}"
   class:clickable={Boolean(onOpen)}
+  class:locked
+  title={locked ? t("card.locked_running") : undefined}
   onpointerdown={handlePointerDown}
   onclick={handleClick}
   onkeydown={handleKeydown}
@@ -271,6 +278,12 @@
   .card.prio-p1 { --card-accent: #f79009; }
   .card.prio-p2 { --card-accent: #2e90fa; }
   .card.prio-p3 { --card-accent: var(--text-subtle); }
+  /* Locked = a run is in flight on one of its subtasks. The cursor
+     hint prevents the user from expecting drag-to-move behaviour;
+     the actual reject lives in Column.svelte's handleFinalize so the
+     drop just snaps back. */
+  .card.locked { cursor: not-allowed; }
+  .card.locked.clickable:hover { transform: none; }
   .card.clickable:hover {
     box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
     transform: translateY(-1px);

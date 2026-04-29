@@ -15,6 +15,7 @@
   import ProjectsView from "./lib/ProjectsView.svelte";
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
   import AgentPicker from "./lib/AgentPicker.svelte";
+  import Toasts from "./lib/Toasts.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
@@ -148,6 +149,21 @@
   let sse: BoardSseClient | null = null;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Toast surface — run lifecycle notifications. Bound after the
+  // <Toasts/> component mounts; null guards on first render.
+  let toasts = $state<{ push: (kind: "info" | "success" | "warning" | "error", message: string) => void } | null>(null);
+
+  // Run-status snapshot for diffing across refreshes. Key is the
+  // sub-task id; value is the most recently seen {runId, status, label}.
+  // We diff this map after each refresh() to detect transitions and
+  // emit toasts (start / completed / failed / awaiting_review).
+  //
+  // `runStatePrimed` defers the first emission so we don't toast for
+  // runs that were already in flight when the user opened the project.
+  type RunSnap = { runId: string | null; status: string | null; label: string };
+  const runState = new Map<string, RunSnap>();
+  let runStatePrimed = false;
+
   async function loadCloudStatus() {
     try {
       cloudStatus = await fetchCloudStatus();
@@ -198,9 +214,84 @@
       board = await fetchBoard(opts);
       error = null;
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
+      diffRunState(board);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  // Walk the freshly-fetched board, build a snapshot of currently-active
+  // runs (subtaskId → {runId, status}), and compare against the previous
+  // snapshot stored in runState. Emit one toast per detected transition:
+  //
+  //   prev=null/queued, curr=running               → "started"
+  //   prev=running,     curr=awaiting_review       → "review"
+  //   prev=running,     curr=failed/cancelled      → "failed"
+  //   prev=running,     curr=∅ (run cleared)       → "completed"
+  //
+  // The "completed" inference comes from the fact that the board only
+  // surfaces the *active* run; once it terminates successfully, the
+  // subtask's active_run drops to null. Failures show up explicitly
+  // for one tick before clearing — we catch them in the explicit branch.
+  function diffRunState(b: BoardResponse): void {
+    const next = new Map<string, RunSnap>();
+    for (const column of Object.values(b.columns)) {
+      for (const card of column) {
+        for (const sub of card.tasks) {
+          const label = sub.title?.trim() ? sub.title : card.title;
+          const runId = sub.active_run?.id ?? null;
+          const status = sub.active_run?.status ?? null;
+          next.set(sub.id, { runId, status, label });
+        }
+      }
+    }
+
+    if (!runStatePrimed) {
+      // First refresh after mount or workspace switch — seed the map
+      // without emitting. The user just landed on the page; existing
+      // runs are not "starting" from their point of view.
+      runState.clear();
+      for (const [id, snap] of next) runState.set(id, snap);
+      runStatePrimed = true;
+      return;
+    }
+
+    for (const [id, curr] of next) {
+      const prev = runState.get(id);
+      const prevRunning = prev?.status === "running" || prev?.status === "queued";
+      const currRunning = curr.status === "running" || curr.status === "queued";
+
+      if (!prev && currRunning) {
+        // Brand new sub-task already running — rare but possible if a
+        // split + auto-approve fires between refreshes. Treat as start.
+        toasts?.push("info", t("run.toast.started", { title: curr.label }));
+      } else if (prev && curr.runId && prev.runId !== curr.runId && currRunning) {
+        // A new run replaced the previous one (retry or fresh attempt).
+        toasts?.push("info", t("run.toast.started", { title: curr.label }));
+      } else if (prev && !prevRunning && currRunning) {
+        toasts?.push("info", t("run.toast.started", { title: curr.label }));
+      } else if (prev && prevRunning && curr.status === "awaiting_review") {
+        toasts?.push("warning", t("run.toast.review", { title: curr.label }));
+      } else if (prev && prevRunning && (curr.status === "failed" || curr.status === "cancelled")) {
+        toasts?.push("error", t("run.toast.failed", { title: curr.label }));
+      }
+    }
+
+    // Sub-tasks present last tick but with active_run cleared this tick
+    // → completion. Iterate over prev so we catch ids that disappeared
+    // from `next` entirely (e.g. card moved to Done and dropped off the
+    // board's task aggregation).
+    for (const [id, prev] of runState) {
+      const prevRunning = prev.status === "running" || prev.status === "queued" || prev.status === "awaiting_review";
+      if (!prevRunning) continue;
+      const curr = next.get(id);
+      if (!curr || curr.runId === null) {
+        toasts?.push("success", t("run.toast.completed", { title: prev.label }));
+      }
+    }
+
+    runState.clear();
+    for (const [id, snap] of next) runState.set(id, snap);
   }
 
   async function refreshAgents() {
@@ -306,6 +397,10 @@
     board = null;
     workspaceRepos = [];
     selectedTaskId = null;
+    // Reset the run-status snapshot — the new project's currently-active
+    // runs aren't transitions from the user's POV.
+    runState.clear();
+    runStatePrimed = false;
     refresh();
     refreshRepos();
     refreshAgents();
@@ -797,6 +892,11 @@
 {#if generalSettingsOpen}
   <GeneralSettingsView onClose={() => (generalSettingsOpen = false)} />
 {/if}
+
+<!-- Toast surface — fixed bottom-right. Always mounted so we can push
+     into it from anywhere (run lifecycle transitions in diffRunState,
+     handlePlayCard, etc.). The bind:this exposes its push() method. -->
+<Toasts bind:this={toasts} />
 
 <style>
   :global(body) {
