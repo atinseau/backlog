@@ -109,6 +109,9 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       cleanup_worktree_on_approve: true,
       delete_branch_after_merge: true,
     },
+    review: {
+      show_review_column: false,
+    },
     repos: options.repos ?? [],
   };
 

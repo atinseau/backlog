@@ -98,6 +98,19 @@ export const projectConfigSchema = z.object({
     cleanup_worktree_on_approve: true,
     delete_branch_after_merge: true,
   }),
+  // Review-mode policy. Only relevant when an agent's success_mode is
+  // "review" (the run terminates in awaiting_review instead of
+  // completing). When auto_reviewer_agent_id is set, the orchestrator
+  // dispatches a follow-up read-only review run using that agent
+  // before the human is asked to approve. The reviewer leaves a
+  // recommendation (approve / request changes + notes) visible in the
+  // run inspector. Empty string = manual review only.
+  review: z.object({
+    show_review_column: z.boolean().default(false),
+    auto_reviewer_agent_id: z.string().optional(),
+  }).default({
+    show_review_column: false,
+  }),
   repos: z.array(repoConfigSchema).default([]),
 });
 

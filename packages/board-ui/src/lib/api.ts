@@ -293,6 +293,24 @@ export async function setClaimsConfig(input: {
   }
 }
 
+export interface ReviewConfig {
+  show_review_column?: boolean;
+  auto_reviewer_agent_id?: string | null;
+}
+
+export async function setReviewConfig(input: ReviewConfig): Promise<{ review: { show_review_column: boolean; auto_reviewer_agent_id?: string } }> {
+  const response = await fetch(apiUrl("/workspace/review"), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Review config update failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as { review: { show_review_column: boolean; auto_reviewer_agent_id?: string } };
+}
+
 // Repos ---------------------------------------------------------------------
 
 export async function fetchRepos(): Promise<Repo[]> {

@@ -15,6 +15,14 @@ const claimsBodySchema = z
   })
   .strict();
 
+const reviewBodySchema = z
+  .object({
+    show_review_column: z.boolean().optional(),
+    // Empty string clears the auto-reviewer (= manual review only).
+    auto_reviewer_agent_id: z.string().nullable().optional(),
+  })
+  .strict();
+
 export function projectRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
@@ -30,6 +38,7 @@ export function projectRoutes(): Hono<AppEnv> {
         autonomy_mode: config.autonomy_mode,
         max_agents: config.max_agents,
         claims: config.claims,
+        review: config.review,
       },
     });
   });
@@ -60,6 +69,30 @@ export function projectRoutes(): Hono<AppEnv> {
     if (parsed.data.auto_claim_on_commit !== undefined) config.claims.auto_claim_on_commit = parsed.data.auto_claim_on_commit;
     saveConfig(workspace.backlogDir, config);
     return c.json({ claims: config.claims });
+  });
+
+  app.patch("/workspace/review", async (c) => {
+    const workspace = c.get("workspace");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = reviewBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    const config = loadConfig(workspace.backlogDir);
+    if (parsed.data.show_review_column !== undefined) {
+      config.review.show_review_column = parsed.data.show_review_column;
+    }
+    if (parsed.data.auto_reviewer_agent_id !== undefined) {
+      // null or empty string clears the field; an id sets it.
+      const id = parsed.data.auto_reviewer_agent_id;
+      if (id === null || id === "") {
+        delete config.review.auto_reviewer_agent_id;
+      } else {
+        config.review.auto_reviewer_agent_id = id;
+      }
+    }
+    saveConfig(workspace.backlogDir, config);
+    return c.json({ review: config.review });
   });
 
   return app;

@@ -14,7 +14,8 @@
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
-  import { fetchHealth } from "./api.js";
+  import { fetchAgents, fetchHealth, fetchWorkspace, setReviewConfig } from "./api.js";
+  import type { AgentSummary } from "./types.js";
 
   interface Props {
     onClose: () => void;
@@ -28,8 +29,42 @@
 
   let health = $state<{ ok: boolean; workspace: string; version: string } | null>(null);
 
+  // Workspace-scoped review settings (auto-reviewer agent). Loaded
+  // alongside the agents catalog so the dropdown can render labels.
+  let reviewerAgentId = $state<string>("");
+  let agentOptions = $state<AgentSummary[]>([]);
+  let reviewerSaving = $state(false);
+
   async function load() {
     try { health = await fetchHealth(); } catch { /* best-effort */ }
+    try {
+      const [agents, workspace] = await Promise.all([
+        fetchAgents().catch(() => []),
+        fetchWorkspace().catch(() => null),
+      ]);
+      agentOptions = agents.filter(
+        (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
+      );
+      // ProjectInfo doesn't expose review yet, so reach into the raw
+      // workspace object via a side fetch — for v1 we just default to
+      // "" if the value isn't present client-side.
+      reviewerAgentId = (workspace as unknown as { review?: { auto_reviewer_agent_id?: string } } | null)?.review?.auto_reviewer_agent_id ?? "";
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  async function saveReviewer(event: Event) {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    reviewerSaving = true;
+    try {
+      await setReviewConfig({ auto_reviewer_agent_id: value === "" ? null : value });
+      reviewerAgentId = value;
+    } catch {
+      /* surface via toast later — for now silent */
+    } finally {
+      reviewerSaving = false;
+    }
   }
 
   function copy(text: string): void {
@@ -104,6 +139,23 @@
             <span class="toggle-desc">{t("settings.board.show_review_desc")}</span>
           </span>
         </label>
+
+        {#if showReview}
+          <div class="review-pick">
+            <label class="reviewer-label">
+              {t("settings.board.review_agent")}
+              <select value={reviewerAgentId} disabled={reviewerSaving} onchange={saveReviewer}>
+                <option value="">{t("settings.board.review_agent_manual")}</option>
+                {#each agentOptions as agent (agent.id)}
+                  <option value={agent.id} disabled={agent.needs_api_key}>
+                    {agent.id}{agent.needs_api_key ? " 🔑" : ""}
+                  </option>
+                {/each}
+              </select>
+            </label>
+            <p class="hint sub">{t("settings.board.review_agent_hint")}</p>
+          </div>
+        {/if}
       </section>
 
       <!-- Notifications -->
@@ -227,6 +279,24 @@
   }
   .toggle-label { display: block; font-size: 13px; color: var(--text-primary); }
   .toggle-desc { display: block; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .review-pick {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-subtle);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .reviewer-label {
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 13px; color: var(--text-primary);
+  }
+  .reviewer-label select {
+    padding: 5px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    font: inherit;
+  }
+  .hint.sub { font-size: 11px; }
   button.ghost {
     align-self: flex-start;
     background: transparent;
