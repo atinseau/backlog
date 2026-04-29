@@ -8,6 +8,7 @@ import {
   touchProject,
   unregisterProject,
 } from "@backlog/config";
+import { discoverRepoForWorkspace } from "@backlog/git";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ServerProject } from "../project-context.js";
@@ -75,15 +76,23 @@ export function projectsRoutes(
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
+      // Mirror the CLI's `backlog init` behaviour: if the chosen folder
+      // (or any direct child) is a git repository, auto-register it as
+      // a repo so the user lands on a usable project. Without this,
+      // creating a project from the GUI left repos: [] and the user had
+      // to make a separate "Add repository" trip just to actually use
+      // the kanban.
+      const repos = await discoverRepoForWorkspace(parsed.data.path, parsed.data.name);
       const initOptions: Parameters<typeof initLayout>[0] = {
         root: parsed.data.path,
         projectName: parsed.data.name,
+        repos,
       };
       if (parsed.data.default_branch) initOptions.defaultBranch = parsed.data.default_branch;
       if (parsed.data.force) initOptions.force = parsed.data.force;
       initLayout(initOptions);
       const entry = registerProject({ projectRoot: parsed.data.path }, registry);
-      return c.json({ project: entry }, 201);
+      return c.json({ project: entry, repos }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "init_failed", message }, 400);
