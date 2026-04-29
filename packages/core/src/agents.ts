@@ -2,8 +2,26 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import YAML from "yaml";
+import { hasSecret } from "@backlog/config";
 import { agentsFileSchema, type Agent, type AgentsFile, type SubTask } from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
+
+// Map a provider id → the secret key its executor needs at run time.
+// Returns null when no key is required (custom agents own their env;
+// manual is non-executable so the question doesn't apply).
+function requiredSecretKeyForProvider(provider: string): string | null {
+  if (provider === "claude") return "ANTHROPIC_API_KEY";
+  if (provider === "codex") return "OPENAI_API_KEY";
+  return null;
+}
+
+// True when the agent's provider needs an API key that isn't currently
+// in the workspace's secrets store. Used to filter the planner so a
+// "Codex but no OPENAI_API_KEY" agent can't be picked silently.
+function agentNeedsApiKey(backlogDir: string, agent: Agent): boolean {
+  const key = requiredSecretKeyForProvider(agent.provider);
+  return key !== null && !hasSecret(backlogDir, key);
+}
 
 function agentsPath(backlogDir: string): string {
   return path.join(backlogDir, "agents.yaml");
@@ -274,11 +292,20 @@ export function supportsAgentExecution(agent: Agent): boolean {
   return false;
 }
 
-export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">): boolean {
-  if (!agent.enabled) {
+// Compatibility check that ignores `agent.enabled`. The "enabled"
+// concept was removed from the UX (it confused users — an agent was
+// either configured and ready, or it wasn't). The field stays in the
+// schema for backward compat but doesn't gate scheduling.
+//
+// API-key presence (workspace secret) is checked here so the planner
+// won't pick a Claude agent when ANTHROPIC_API_KEY isn't set — that
+// previously surfaced as a runtime "no api token" error after the
+// run was already in flight.
+export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">, backlogDir?: string): boolean {
+  if (!supportsAgentExecution(agent)) {
     return false;
   }
-  if (!supportsAgentExecution(agent)) {
+  if (backlogDir && agentNeedsApiKey(backlogDir, agent)) {
     return false;
   }
   if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
@@ -300,11 +327,15 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
   return listAgents(backlogDir)
     .map((agent) => {
       const reasons: string[] = [];
-      if (!agent.enabled) {
-        reasons.push("disabled");
-      }
       if (!supportsAgentExecution(agent)) {
         reasons.push(`unsupported_provider:${agent.provider}`);
+      }
+      // API key presence is the new "is this agent ready?" gate.
+      // Surfaces "missing_api_key:ANTHROPIC_API_KEY" / "OPENAI_API_KEY"
+      // so the UI can route the user straight to the API keys dialog.
+      if (agentNeedsApiKey(backlogDir, agent)) {
+        const key = requiredSecretKeyForProvider(agent.provider);
+        reasons.push(`missing_api_key:${key}`);
       }
       if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
         reasons.push("repo_not_allowed");
@@ -348,7 +379,7 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
         score,
         reasons,
         activeRuns: activeRunsForAgent,
-        available: canAgentRunTask(agent, task) && activeRunsForAgent < agent.max_concurrent_runs,
+        available: canAgentRunTask(agent, task, backlogDir) && activeRunsForAgent < agent.max_concurrent_runs,
       };
     })
     .sort((left, right) => {

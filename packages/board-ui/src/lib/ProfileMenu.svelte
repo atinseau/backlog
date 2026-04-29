@@ -11,10 +11,11 @@
     cloudStatus: CloudStatus | null;
     onOpenProfile: (mode: "signin" | "signup") => void;
     onOpenSettings: () => void;
+    onOpenApiKeys: () => void;
     onChanged: () => void;
   }
 
-  let { cloudStatus, onOpenProfile, onOpenSettings, onChanged }: Props = $props();
+  let { cloudStatus, onOpenProfile, onOpenSettings, onOpenApiKeys, onChanged }: Props = $props();
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
@@ -90,6 +91,9 @@
         <div class="separator"></div>
         <button class="item" role="menuitem" onclick={() => { close(); onOpenProfile("signin"); }}>
           {t("profile.menu.manage")}
+        </button>
+        <button class="item" role="menuitem" onclick={() => { close(); onOpenApiKeys(); }}>
+          🔑 {t("profile.api_keys")}
         </button>
         <button class="item" role="menuitem" onclick={() => { close(); onOpenSettings(); }}>
           ⚙ {t("profile.menu.settings")}

@@ -25,7 +25,16 @@
   function isExecutable(a: AgentSummary): boolean {
     return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
   }
-  const executable = $derived(agents.filter(isExecutable));
+  // Sort: ready agents first (no API key issue), then the ones still
+  // waiting for credentials. The picker stays open to all so the user
+  // can see they exist + click through to the key dialog if needed.
+  const executable = $derived(
+    agents.filter(isExecutable).slice().sort((a, b) => {
+      const aReady = !a.needs_api_key ? 0 : 1;
+      const bReady = !b.needs_api_key ? 0 : 1;
+      return aReady - bReady;
+    }),
+  );
   const selected = $derived(executable.find((a) => a.id === selectedId) ?? null);
   const triggerLabel = $derived(
     selected ? selected.id : executable.length === 0 ? t("agent_picker.none") : t("agent_picker.choose"),
@@ -85,14 +94,14 @@
           <button
             class="item"
             class:active={agent.id === selectedId}
-            class:dim={!agent.enabled}
+            class:dim={agent.needs_api_key}
             onclick={() => pick(agent.id)}
-            title={agent.enabled ? "" : t("agent_picker.disabled_hint")}
+            title={agent.needs_api_key ? t("agent_picker.needs_api_key_hint", { key: agent.required_secret_key ?? "" }) : ""}
           >
             <span class="provider provider-{agent.provider}">{agent.provider}</span>
             <span class="item-name">{agent.id}</span>
             {#if agent.model}<span class="item-model">{agent.model}</span>{/if}
-            {#if !agent.enabled}<span class="off">off</span>{/if}
+            {#if agent.needs_api_key}<span class="off">🔑 key</span>{/if}
             {#if agent.id === selectedId}<span class="check">✓</span>{/if}
           </button>
         {/each}

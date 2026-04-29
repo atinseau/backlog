@@ -99,7 +99,10 @@ describe("agents", () => {
     });
 
     const selection = selectionForAgentTask(backlogDir, task, "codex");
+    // codex is seeded without an OPENAI_API_KEY in the workspace
+    // secrets store, so the planner refuses to schedule it. The
+    // "disabled" reason was retired alongside the enabled toggle.
     expect(selection?.available).toBe(false);
-    expect(selection?.reasons).toContain("disabled");
+    expect(selection?.reasons).toContain("missing_api_key:OPENAI_API_KEY");
   });
 });

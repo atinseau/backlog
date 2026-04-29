@@ -15,6 +15,7 @@
   import SettingsView from "./lib/SettingsView.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
+  import ApiKeysDialog from "./lib/ApiKeysDialog.svelte";
   import AgentPicker from "./lib/AgentPicker.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
@@ -140,6 +141,7 @@
   let profileOpen = $state<"signin" | "signup" | null>(null);
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
+  let apiKeysOpen = $state(false);
   // When navigating to the Repos section via the "+ New repository"
   // dropdown action, jump straight into the create form. Reset to
   // false on any other path to the section.
@@ -307,10 +309,15 @@
       selectedAgentId = stored;
       return;
     }
-    const firstEnabled = agentsList.find(
-      (a) => a.enabled && (a.provider === "claude" || a.provider === "codex" || a.provider === "custom"),
+    // Auto-pick the first ready AI agent (executable provider, has
+    // its API key) so the topbar Play button works without forcing
+    // the user to open the picker on first launch.
+    const firstReady = agentsList.find(
+      (a) =>
+        !a.needs_api_key &&
+        (a.provider === "claude" || a.provider === "codex" || a.provider === "custom"),
     );
-    selectedAgentId = firstEnabled?.id ?? null;
+    selectedAgentId = firstReady?.id ?? null;
   }
 
   function persistAgentChoice(id: string | null) {
@@ -321,10 +328,16 @@
     else localStorage.removeItem(key);
   }
 
-  // Preflight: any executable AI agent enabled? "manual" agents don't
-  // count — they're explicit human assignees, not run executors.
-  const hasEnabledAIAgent = $derived(
-    agentsList.some((a) => a.enabled && (a.provider === "claude" || a.provider === "codex" || a.provider === "custom")),
+  // Preflight: is there at least one AI agent ready to run? The old
+  // "enabled" toggle is gone — readiness now means "executable provider
+  // and the API key is set". The banner directs the user to the API
+  // keys dialog when nothing's ready, which is the most common cause.
+  const hasReadyAIAgent = $derived(
+    agentsList.some(
+      (a) =>
+        (a.provider === "claude" || a.provider === "codex" || a.provider === "custom") &&
+        !a.needs_api_key,
+    ),
   );
 
   async function refreshRepos() {
@@ -491,17 +504,24 @@
       if (selectedAgentId) runInput.agent_id = selectedAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
-        const reason =
-          result.skipped[0]?.reasons[0] ??
-          result.blocked[0]?.reasons[0] ??
-          result.waiting[0]?.reasons[0];
-        if (reason === "no_compatible_agent") {
-          // Translate the wire reason into a sentence the user can act
-          // on, and send them to the Agents view where the fix lives.
+        // Look across all returned decisions for the most actionable
+        // reason. missing_api_key wins because it has a one-click fix
+        // (open the API keys dialog); fall back to the first reason
+        // we find on skipped / blocked / waiting decisions.
+        const allReasons = [
+          ...(result.skipped[0]?.reasons ?? []),
+          ...(result.blocked[0]?.reasons ?? []),
+          ...(result.waiting[0]?.reasons ?? []),
+        ];
+        const apiKeyReason = allReasons.find((r) => r.startsWith("missing_api_key:"));
+        if (apiKeyReason) {
+          error = t("card.play_no_api_key");
+          apiKeysOpen = true;
+        } else if (allReasons.includes("no_compatible_agent")) {
           error = t("card.play_no_agent");
           leftSection = "agents";
-        } else if (reason) {
-          error = t("card.play_skipped", { reason });
+        } else if (allReasons.length > 0) {
+          error = t("card.play_skipped", { reason: allReasons[0] });
         } else {
           error = t("card.play_skipped_empty");
         }
@@ -660,6 +680,7 @@
         cloudStatus={cloudStatus}
         onOpenProfile={(mode) => (profileOpen = mode)}
         onOpenSettings={() => (generalSettingsOpen = true)}
+        onOpenApiKeys={() => (apiKeysOpen = true)}
         onChanged={loadCloudStatus}
       />
     </div>
@@ -710,15 +731,15 @@
             }}
           />
         {:else if leftSection === "board"}
-          {#if agentsList.length > 0 && !hasEnabledAIAgent}
+          {#if agentsList.length > 0 && !hasReadyAIAgent}
             <div class="preflight-banner" role="alert">
-              <span class="preflight-icon" aria-hidden="true">⚠</span>
+              <span class="preflight-icon" aria-hidden="true">🔑</span>
               <div class="preflight-text">
-                <strong>{t("preflight.no_agent.title")}</strong>
-                <span>{t("preflight.no_agent.body")}</span>
+                <strong>{t("preflight.no_api_key.title")}</strong>
+                <span>{t("preflight.no_api_key.body")}</span>
               </div>
-              <button class="preflight-cta" onclick={() => (leftSection = "agents")}>
-                {t("preflight.no_agent.cta")}
+              <button class="preflight-cta" onclick={() => (apiKeysOpen = true)}>
+                {t("preflight.no_api_key.cta")}
               </button>
             </div>
           {/if}
@@ -750,6 +771,7 @@
             embedded={true}
             availableRepos={repos}
             onClose={() => (leftSection = "board")}
+            onOpenApiKeys={() => (apiKeysOpen = true)}
             onChanged={() => {
               void refreshAgents();
               if (!connected) refresh();
@@ -897,6 +919,13 @@
 
 {#if generalSettingsOpen}
   <GeneralSettingsView onClose={() => (generalSettingsOpen = false)} />
+{/if}
+
+{#if apiKeysOpen}
+  <ApiKeysDialog
+    onClose={() => (apiKeysOpen = false)}
+    onChanged={() => { void refreshAgents(); }}
+  />
 {/if}
 
 <!-- Toast surface — fixed bottom-right. Always mounted so we can push

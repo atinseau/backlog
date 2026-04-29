@@ -8,10 +8,11 @@
     availableRepos: string[];
     onClose: () => void;
     onChanged?: () => void;
+    onOpenApiKeys?: () => void;
     embedded?: boolean;
   }
 
-  let { availableRepos, onClose, onChanged, embedded = false }: Props = $props();
+  let { availableRepos, onClose, onChanged, onOpenApiKeys, embedded = false }: Props = $props();
 
   let agents = $state<AgentSummary[]>([]);
   let loading = $state(true);
@@ -261,24 +262,24 @@
                 {#if !isExecutable(agent)}
                   <span class="warn">{t("agents_view.not_executable")}</span>
                 {/if}
-                {#if agent.needs_api_key}
-                  <span class="warn" title={t("agents_view.needs_api_key_hint", { key: agent.required_secret_key ?? "" })}>
-                    {t("agents_view.needs_api_key")}
-                  </span>
-                {/if}
                 {#if agent.active_runs > 0}
                   <span class="active">▶ {agent.active_runs} actif{agent.active_runs > 1 ? "s" : ""}</span>
                 {/if}
               </div>
-              <label class="toggle" onclick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={agent.enabled}
-                  disabled={savingAgentId === agent.id}
-                  onchange={(e) => patchField(agent.id, { enabled: (e.currentTarget as HTMLInputElement).checked })}
-                />
-                {agent.enabled ? t("agents_view.enabled") : t("agents_view.disabled")}
-              </label>
+              <div class="status-cell" onclick={(e) => e.stopPropagation()} role="presentation">
+                {#if agent.needs_api_key}
+                  <button
+                    class="api-key-link"
+                    type="button"
+                    onclick={() => onOpenApiKeys?.()}
+                    title={t("agents_view.needs_api_key_hint", { key: agent.required_secret_key ?? "" })}
+                  >
+                    🔑 {t("agents_view.set_api_key")}
+                  </button>
+                {:else if isExecutable(agent)}
+                  <span class="ready-pill">✓ {t("agents_view.ready")}</span>
+                {/if}
+              </div>
             </button>
 
             {#if isExpanded}
@@ -683,14 +684,31 @@
     font-weight: 600;
   }
 
-  .toggle {
+  .status-cell {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
-    cursor: pointer;
-    color: var(--text-secondary);
   }
+  .ready-pill {
+    background: var(--success-bg);
+    color: var(--success);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+  .api-key-link {
+    background: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .api-key-link:hover { filter: brightness(1.05); }
 
   .grid {
     display: grid;
