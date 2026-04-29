@@ -119,12 +119,12 @@
   }
 
   function progressBarColor(task: SubTaskCard): string {
-    if (task.status === "completed") return "#12b76a";
+    if (task.status === "completed") return "var(--success)";
     if (task.status === "blocked") return "#f04438";
-    if (task.status === "review") return "#9e77ed";
-    if (task.status === "running") return "#12b76a";
+    if (task.status === "review") return "#a78bfa";
+    if (task.status === "running") return "var(--success)";
     if (task.status === "waiting") return "#f79009";
-    return "#98a2b3";
+    return "var(--text-subtle)";
   }
 </script>
 
@@ -142,30 +142,6 @@
   <header>
     <span class={priorityClass}>{card.priority}</span>
     <h3>{card.title}</h3>
-    {#if canPlay}
-      <button
-        class="icon-btn play"
-        onclick={handlePlayClick}
-        disabled={starting}
-        aria-label={t("card.play")}
-        title={t("card.play")}
-      >{starting ? "…" : "▶"}</button>
-    {/if}
-    {#if canApprove}
-      <button
-        class="icon-btn approve"
-        onclick={handleApproveClick}
-        disabled={approving}
-        aria-label={t("card.approve")}
-        title={t("card.approve")}
-      >{approving ? "…" : "✓"}</button>
-    {/if}
-    {#if onSplit && card.tasks.length === 0}
-      <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
-    {/if}
-    {#if onAddTask}
-      <button class="icon-btn" onclick={handleAddTaskClick} aria-label={t("card.add_subtask")} title={t("card.add_subtask")}>+</button>
-    {/if}
   </header>
 
   {#if card.repo_targets.length > 0}
@@ -245,6 +221,35 @@
       {#if blockedCount > 0}<span class="badge blocked">⚠ {blockedCount} blocked</span>{/if}
     </footer>
   {/if}
+
+  {#if canPlay || canApprove || (onSplit && card.tasks.length === 0) || onAddTask}
+    <div class="actions">
+      {#if canPlay}
+        <button
+          class="icon-btn play"
+          onclick={handlePlayClick}
+          disabled={starting}
+          aria-label={t("card.play")}
+          title={t("card.play")}
+        >{starting ? "…" : "▶"}</button>
+      {/if}
+      {#if canApprove}
+        <button
+          class="icon-btn approve"
+          onclick={handleApproveClick}
+          disabled={approving}
+          aria-label={t("card.approve")}
+          title={t("card.approve")}
+        >{approving ? "…" : "✓"}</button>
+      {/if}
+      {#if onSplit && card.tasks.length === 0}
+        <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
+      {/if}
+      {#if onAddTask}
+        <button class="icon-btn" onclick={handleAddTaskClick} aria-label={t("card.add_subtask")} title={t("card.add_subtask")}>+</button>
+      {/if}
+    </div>
+  {/if}
 </article>
 
 <style>
@@ -264,7 +269,7 @@
     transform: translateY(-1px);
   }
   .card.clickable:focus-visible {
-    outline: 2px solid #1570ef;
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
   header {
@@ -290,8 +295,19 @@
   .pri-p0 { background: #d92d20; }
   .pri-p1 { background: #f79009; }
   .pri-p2 { background: #2e90fa; }
-  .pri-p3 { background: #98a2b3; }
+  .pri-p3 { background: var(--text-subtle); }
 
+  /* Action toolbar at the bottom of the card. Lets the title row use
+     the full card width (= fewer wrap-lines on narrow columns) by
+     hosting the play / approve / split / add-subtask buttons here. */
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+  }
   .icon-btn {
     background: transparent;
     border: 1px solid var(--border-strong);
@@ -307,7 +323,7 @@
     border-color: var(--text-subtle);
   }
   .icon-btn.play {
-    background: #027a48;
+    background: var(--success);
     border-color: var(--success);
     color: white;
   }
@@ -405,7 +421,7 @@
   }
   .card-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #2e90fa, #1570ef);
+    background: linear-gradient(90deg, #2e90fa, var(--accent));
     transition: width 0.4s ease-out;
   }
   .card-stats {
