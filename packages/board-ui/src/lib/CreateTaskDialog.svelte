@@ -31,14 +31,28 @@
   // Execution defaults the user picks at task creation time. Inherited
   // by the sub-task auto-shim and (eventually) by AI-split sub-tasks.
   let manualApproval = $state(false);
-  let autoSplit = $state(false); // ask AI to split into sub-tasks
-  // Auto-commit + auto-push: defaulted ON because that's what users
-  // expect when they click Play — "do the work AND save it." Without
-  // commit, the agent's edits live in the worktree and disappear with
-  // it on approve. Push is best-effort (skipped silently for repos
-  // with no `origin` remote).
+  // Commit / push / PR / merge: the user's "what should happen at the
+  // end of the run?" sequence. Defaults match the most common case —
+  // commit + push on, PR + merge off (PR creation needs gh installed).
   let commitWhenDone = $state(true);
   let pushWhenDone = $state(true);
+  let createPr = $state(false);
+  let mergePr = $state(false);
+  // Where the agent works. isolated_worktree (default) keeps the
+  // user's main checkout untouched and lets multiple runs go in
+  // parallel; "direct" is for the rare case where the user wants
+  // the changes in their working copy without an extra git switch.
+  let worktreeMode = $state<"isolated_worktree" | "direct">("isolated_worktree");
+
+  // AI splitter / estimator — both opt-in. Splitter is conditional
+  // ("only if needed"); estimator runs an LLM once to ballpark the
+  // task duration. Max tasks / max sub-agents are pretty-printed in
+  // the splitter prompt; defaults match what the splitter expects
+  // server-side.
+  let autoSplit = $state(false);
+  let autoEstimateWithAi = $state(false);
+  let maxSplitTasks = $state(6);
+  let maxSubagents = $state(3);
 
   // Assignee for the (future) sub-task. Empty = "auto" (let the
   // orchestrator rank). Otherwise either an AI agent id or a human
@@ -87,6 +101,9 @@
       input.manual_approval_required = manualApproval;
       input.auto_commit = commitWhenDone;
       input.push_when_done = pushWhenDone;
+      input.create_pr = createPr;
+      input.merge_pr = mergePr;
+      input.worktree_mode = worktreeMode;
       // Empty assignee = "auto" (orchestrator picks). Anything else
       // (agent id or user id) goes into preferred_agents and is
       // inherited by the auto-shim sub-task or by split sub-tasks.
@@ -233,20 +250,11 @@
 
         <fieldset class="execution">
           <legend>{t("create_task.execution.title")}</legend>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={autoSplit} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.auto_split")}</span>
-              <span class="toggle-desc">{t("create_task.execution.auto_split_desc")}</span>
-            </span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={manualApproval} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
-              <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
-            </span>
-          </label>
+
+          <!-- End-of-run pipeline, in order: commit → push → PR → merge.
+               Each step gates the next visually so the user knows the
+               sequence (push only matters if there's a commit; PR only
+               matters if pushed; merge only after PR). -->
           <label class="toggle">
             <input type="checkbox" bind:checked={commitWhenDone} />
             <span>
@@ -261,7 +269,73 @@
               <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
             </span>
           </label>
-          <p class="hint">{t("create_task.execution.worktree_note")}</p>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={createPr} disabled={!commitWhenDone || !pushWhenDone} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.create_pr")}</span>
+              <span class="toggle-desc">{t("create_task.execution.create_pr_desc")}</span>
+            </span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={mergePr} disabled={!createPr} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.merge_pr")}</span>
+              <span class="toggle-desc">{t("create_task.execution.merge_pr_desc")}</span>
+            </span>
+          </label>
+
+          <label class="toggle">
+            <input type="checkbox" bind:checked={manualApproval} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
+              <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
+            </span>
+          </label>
+
+          <!-- Worktree mode — direct vs isolated. The note used to
+               apologise for "always worktree"; now it's a real choice. -->
+          <label class="select-row">
+            <span class="select-label">{t("create_task.execution.worktree_mode")}</span>
+            <select bind:value={worktreeMode}>
+              <option value="isolated_worktree">{t("create_task.execution.worktree_isolated")}</option>
+              <option value="direct">{t("create_task.execution.worktree_direct")}</option>
+            </select>
+            <span class="select-hint">
+              {worktreeMode === "direct"
+                ? t("create_task.execution.worktree_direct_hint")
+                : t("create_task.execution.worktree_isolated_hint")}
+            </span>
+          </label>
+        </fieldset>
+
+        <fieldset class="execution">
+          <legend>{t("create_task.ai.title")}</legend>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={autoSplit} />
+            <span>
+              <span class="toggle-label">{t("create_task.ai.auto_split")}</span>
+              <span class="toggle-desc">{t("create_task.ai.auto_split_desc")}</span>
+            </span>
+          </label>
+          {#if autoSplit}
+            <div class="ai-tuning">
+              <label class="number-row">
+                <span>{t("create_task.ai.max_tasks")}</span>
+                <input type="number" min="1" max="20" bind:value={maxSplitTasks} />
+              </label>
+              <label class="number-row">
+                <span>{t("create_task.ai.max_subagents")}</span>
+                <input type="number" min="1" max="10" bind:value={maxSubagents} />
+              </label>
+            </div>
+          {/if}
+          <label class="toggle">
+            <input type="checkbox" bind:checked={autoEstimateWithAi} />
+            <span>
+              <span class="toggle-label">{t("create_task.ai.estimate")}</span>
+              <span class="toggle-desc">{t("create_task.ai.estimate_desc")}</span>
+            </span>
+          </label>
         </fieldset>
 
         <footer>
@@ -388,6 +462,44 @@
     margin-top: 3px;
     font-size: 11px;
     color: var(--text-muted);
+  }
+  .select-row {
+    display: grid;
+    grid-template-columns: 140px 200px 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+  .select-row select {
+    padding: 4px 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    font: inherit;
+  }
+  .select-label { color: var(--text-primary); }
+  .select-hint { font-size: 11px; color: var(--text-muted); font-style: italic; }
+  .ai-tuning {
+    display: flex;
+    gap: 16px;
+    margin: 4px 0 8px 26px;
+  }
+  .number-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .number-row input {
+    width: 54px;
+    padding: 3px 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    font: inherit;
+    font-size: 12px;
   }
   .backdrop {
     position: fixed;

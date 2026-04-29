@@ -39,6 +39,9 @@ const createBodySchema = z.object({
   manual_approval_required: z.boolean().optional(),
   auto_commit: z.boolean().optional(),
   push_when_done: z.boolean().optional(),
+  create_pr: z.boolean().optional(),
+  merge_pr: z.boolean().optional(),
+  worktree_mode: z.enum(["isolated_worktree", "direct"]).optional(),
   preferred_agents: z.array(z.string().min(1)).optional(),
 });
 
@@ -110,6 +113,9 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.manual_approval_required !== undefined) input.manualApprovalRequired = parsed.data.manual_approval_required;
       if (parsed.data.auto_commit !== undefined) input.autoCommit = parsed.data.auto_commit;
       if (parsed.data.push_when_done !== undefined) input.pushWhenDone = parsed.data.push_when_done;
+      if (parsed.data.create_pr !== undefined) input.createPr = parsed.data.create_pr;
+      if (parsed.data.merge_pr !== undefined) input.mergePr = parsed.data.merge_pr;
+      if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
       let workItem = createTask(workspace.backlogDir, input);
       if (parsed.data.estimated_duration_seconds) {

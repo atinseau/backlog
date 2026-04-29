@@ -88,6 +88,9 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
       manual_approval_required: false,
       auto_commit: true,
       push_when_done: true,
+      create_pr: false,
+      merge_pr: false,
+      worktree_mode: "isolated_worktree",
       preferred_agents: [],
     },
     sync: {

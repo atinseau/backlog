@@ -16,6 +16,8 @@ export const artifactSchema = z.object({
   kind: z.enum(["branch", "commit", "patch", "pr", "test_report", "summary", "file", "log"]),
   value: z.string().min(1),
 });
+// Note: "pr" was already in the enum (typed as the URL of an opened PR).
+// run-service emits {kind: "pr", value: <url>} after a successful gh pr create.
 
 export const runSchema = z.object({
   version: z.literal(1),

@@ -2,7 +2,7 @@
   import RetryBadge from "./RetryBadge.svelte";
   import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
-  import type { SubTaskCard, TaskCard } from "./types.js";
+  import type { TaskCard } from "./types.js";
   import { onDestroy } from "svelte";
 
   interface Props {
@@ -125,14 +125,6 @@
     }
   }
 
-  function progressBarColor(task: SubTaskCard): string {
-    if (task.status === "completed") return "var(--success)";
-    if (task.status === "blocked") return "#f04438";
-    if (task.status === "review") return "#a78bfa";
-    if (task.status === "running") return "var(--success)";
-    if (task.status === "waiting") return "#f79009";
-    return "var(--text-subtle)";
-  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -186,9 +178,10 @@
               />
             {/if}
           </span>
-          <div class="progress-bar" aria-label="progress" style:--fill={progressBarColor(task)}>
-            <div class="progress-fill" style:width="{task.progress_percent}%"></div>
-          </div>
+          <!-- Per-subtask progress bar removed — the .card-progress at
+               the bottom of the card already aggregates and avoided
+               doubling up when a card has a single subtask (the most
+               common case after the auto-shim). -->
         </li>
       {/each}
     </ul>
@@ -408,18 +401,6 @@
     color: var(--text-muted);
     font-size: 11px;
     display: block;
-  }
-  .progress-bar {
-    height: 4px;
-    background: var(--border-default);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-top: 4px;
-  }
-  .progress-fill {
-    height: 100%;
-    background: var(--fill, var(--text-subtle));
-    transition: width 0.4s ease-out;
   }
   .blockers li {
     display: flex;

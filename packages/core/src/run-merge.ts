@@ -178,6 +178,62 @@ export async function pushWorktreeBranch(input: {
   return { ok: true };
 }
 
+// Open a pull request via the `gh` CLI (GitHub today; gitlab/bitbucket
+// equivalents can plug in here later). Optionally auto-merge after
+// creation. Both steps best-effort: missing `gh` returns a typed
+// reason so the caller can surface a friendly skip event instead of
+// a stack trace.
+export async function createPullRequest(input: {
+  worktreePath: string;
+  branch: string;
+  title: string;
+  body: string;
+  autoMerge: boolean;
+}): Promise<{ ok: boolean; url?: string; merged?: boolean; error?: string; detail?: string }> {
+  const ghCheck = await execa("which", ["gh"], { reject: false });
+  if (ghCheck.exitCode !== 0) {
+    return { ok: false, error: "gh_not_installed" };
+  }
+  const create = await execa(
+    "gh",
+    ["pr", "create", "--head", input.branch, "--title", input.title, "--body", input.body],
+    { cwd: input.worktreePath, reject: false },
+  );
+  if (create.exitCode !== 0) {
+    const detail = (create.stderr || create.stdout).trim().slice(0, 500);
+    // gh prints "a pull request for branch X already exists" when re-running.
+    // Treat that as a non-fatal recovery: look up the URL and continue.
+    if (/already exists/i.test(detail)) {
+      const view = await execa("gh", ["pr", "view", "--json", "url", "-q", ".url"], {
+        cwd: input.worktreePath,
+        reject: false,
+      });
+      const url = view.exitCode === 0 ? view.stdout.trim() : undefined;
+      const merged = input.autoMerge ? await mergeViaGh(input.worktreePath) : false;
+      const result: { ok: boolean; merged: boolean; url?: string } = { ok: true, merged };
+      if (url) result.url = url;
+      return result;
+    }
+    return { ok: false, error: "gh_pr_create_failed", detail };
+  }
+  // gh prints the PR url on stdout's last line.
+  const url = create.stdout.trim().split("\n").pop()?.trim();
+  let merged = false;
+  if (input.autoMerge) {
+    merged = await mergeViaGh(input.worktreePath);
+  }
+  const out: { ok: boolean; merged: boolean; url?: string } = { ok: true, merged };
+  if (url) out.url = url;
+  return out;
+}
+
+async function mergeViaGh(cwd: string): Promise<boolean> {
+  // --auto leverages branch protection / required checks where set;
+  // when nothing is gating, --squash --merge merges immediately.
+  const merge = await execa("gh", ["pr", "merge", "--squash", "--auto"], { cwd, reject: false });
+  return merge.exitCode === 0;
+}
+
 // Tear down a worktree + optionally delete its branch. Best-effort:
 // failures are reported but don't throw, because approve has already
 // done its work and we don't want one stale lock to break the flow.

@@ -450,6 +450,9 @@ export interface CreateTaskInput {
   manual_approval_required?: boolean;
   auto_commit?: boolean;
   push_when_done?: boolean;
+  create_pr?: boolean;
+  merge_pr?: boolean;
+  worktree_mode?: "isolated_worktree" | "direct";
   preferred_agents?: string[];
 }
 

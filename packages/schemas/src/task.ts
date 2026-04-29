@@ -65,6 +65,25 @@ export const taskSchema = z.object({
     // Defaulted to true so collaborators can pull the work without
     // an extra step.
     push_when_done: z.boolean().default(true),
+    // After the push, open a pull request via `gh pr create` (or the
+    // host's equivalent). Off by default — depends on the gh CLI
+    // being installed and authenticated. The post-run hook logs a
+    // friendly skip event when prerequisites are missing.
+    create_pr: z.boolean().default(false),
+    // Auto-merge the PR after creation. Only honoured when create_pr
+    // is also true; off by default so the human reviews before the
+    // merge button is clicked.
+    merge_pr: z.boolean().default(false),
+    // Where the agent does its work:
+    //   isolated_worktree (default) — safe, parallel-friendly, the
+    //                                 only mode the executor wires
+    //                                 today.
+    //   direct                       — work directly in the user's
+    //                                 main checkout. Future-looking;
+    //                                 the executor still falls back
+    //                                 to a worktree until this is
+    //                                 wired downstream.
+    worktree_mode: z.enum(["isolated_worktree", "direct"]).default("isolated_worktree"),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a
     // specific agent (claude-code, codex, etc.) or a user. The
@@ -74,6 +93,9 @@ export const taskSchema = z.object({
     manual_approval_required: false,
     auto_commit: true,
     push_when_done: true,
+    create_pr: false,
+    merge_pr: false,
+    worktree_mode: "isolated_worktree",
     preferred_agents: [],
   }),
   sync: z.object({
