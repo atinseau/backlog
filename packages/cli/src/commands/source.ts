@@ -308,7 +308,7 @@ export function registerSourceCommand(program: Command): void {
         throw new Error(sourceId ? `Unknown source: ${sourceId}` : "No sources configured.");
       }
       for (const source of sourcesToValidate) {
-        const connector = createConnector(source!, workspace.root);
+        const connector = createConnector(source!, workspace.root, workspace.backlogDir);
         const result = await connector.validate();
         console.log(`${source!.id}: ${result.ok ? "ok" : "invalid"} (${result.details.join(", ")})`);
       }
@@ -332,7 +332,7 @@ export function registerSourceCommand(program: Command): void {
       }
 
       for (const source of sourcesToSync) {
-        const connector = createConnector(source!, workspace.root);
+        const connector = createConnector(source!, workspace.root, workspace.backlogDir);
         const items = await connector.pull();
         if (!options?.dryRun) {
           upsertImportedTasks(workspace.backlogDir, items);
@@ -387,7 +387,7 @@ export function registerSourceCommand(program: Command): void {
         if (!source) {
           throw new Error(`Unknown source: ${sourceLink.source_ref}`);
         }
-        const connector = createConnector(source, workspace.root);
+        const connector = createConnector(source, workspace.root, workspace.backlogDir);
         if (!connector.push) {
           if (!options.all) {
             throw new Error(`Source ${source.id} does not support push.`);

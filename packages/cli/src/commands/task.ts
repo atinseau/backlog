@@ -327,7 +327,7 @@ export function registerTaskCommand(program: Command): void {
       }
 
       for (const source of sourcesToSync) {
-        const connector = createConnector(source!, workspace.root);
+        const connector = createConnector(source!, workspace.root, workspace.backlogDir);
         const items = await connector.pull();
         if (!options?.dryRun) {
           upsertImportedTasks(workspace.backlogDir, items);

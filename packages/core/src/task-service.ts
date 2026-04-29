@@ -1,6 +1,6 @@
 import type { SourceLink } from "@backlog/schemas";
 import { taskStatusSchema, type Task, type TaskStatus } from "@backlog/schemas";
-import { makeId } from "./id.js";
+import { nextId } from "@backlog/config";
 import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
 import { removeSyncConflictsForTask } from "./sync-conflicts.js";
 
@@ -43,7 +43,7 @@ export function createTask(backlogDir: string, input: CreateWorkItemInput): Task
   const file = readTasksFile(backlogDir);
   const now = new Date().toISOString();
   const item: Task = {
-    id: makeId("TASK"),
+    id: nextId(backlogDir, "task"),
     title: input.title,
     ...(input.description ? { description: input.description } : {}),
     source_links: input.sourceLinks ?? [],

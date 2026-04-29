@@ -127,7 +127,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     });
 
     const branch = buildRunBranchName(task.id, task.title);
-    const runId = nextRunId();
+    const runId = nextRunId(backlogDir);
     let worktreePath: string;
     try {
       worktreePath = await ensureWorktree({

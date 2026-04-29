@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { runSchema, type Artifact, type Run, type SubTask, type Task } from "@backlog/schemas";
 import type { Agent } from "@backlog/schemas";
-import { makeId } from "./id.js";
+import { nextId } from "@backlog/config";
 
 function activeRunsDir(backlogDir: string): string {
   return path.join(backlogDir, "runs", "active");
@@ -16,8 +16,8 @@ function runDirectory(baseDir: string, runId: string): string {
   return path.join(baseDir, runId);
 }
 
-export function nextRunId(): string {
-  return makeId("RUN");
+export function nextRunId(backlogDir: string): string {
+  return nextId(backlogDir, "run");
 }
 
 export function createRun(params: {

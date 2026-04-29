@@ -51,6 +51,9 @@ importers:
 
   packages/claims:
     dependencies:
+      '@backlog/config':
+        specifier: workspace:*
+        version: link:../config
       '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas
@@ -133,6 +136,9 @@ importers:
 
   packages/connectors:
     dependencies:
+      '@backlog/config':
+        specifier: workspace:*
+        version: link:../config
       '@backlog/schemas':
         specifier: workspace:*
         version: link:../schemas

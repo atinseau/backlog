@@ -3,7 +3,7 @@ import {
   type SubTask,
   type SubTaskStatus,
 } from "@backlog/schemas";
-import { makeId } from "./id.js";
+import { nextId } from "@backlog/config";
 import { getTask, updateTaskStatus, deriveTaskStatusFromSubTasks } from "./task-service.js";
 import { listSubTasks, readSubTasksFile, writeSubTasksFile } from "./state-files.js";
 
@@ -51,7 +51,7 @@ export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTa
   const file = readSubTasksFile(backlogDir);
   const now = new Date().toISOString();
   const task: SubTask = {
-    id: makeId("TASK"),
+    id: nextId(backlogDir, "subtask"),
     task_id: input.workItemId,
     title: input.title,
     repo: input.repo,

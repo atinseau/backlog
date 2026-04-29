@@ -8,3 +8,4 @@ export * from "./user-paths.js";
 export * from "./project-id.js";
 export * from "./project-registry.js";
 export * from "./secrets.js";
+export * from "./id-counter.js";

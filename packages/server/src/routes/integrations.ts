@@ -847,7 +847,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
     }
 
     try {
-      const connector = createConnector(source, project.root);
+      const connector = createConnector(source, project.root, project.backlogDir);
       const pulled = await connector.pull();
       const result = await importPulledTasks(project.backlogDir, source, pulled);
       return c.json({

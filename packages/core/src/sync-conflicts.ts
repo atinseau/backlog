@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { syncConflictsFileSchema, type SyncConflict, type SyncConflictsFile, type Task } from "@backlog/schemas";
-import { makeId } from "./id.js";
+import { nextId } from "@backlog/config";
 import { readTasksFile, writeTasksFile } from "./state-files.js";
 
 function conflictsPath(backlogDir: string): string {
@@ -76,7 +76,7 @@ export function recordStatusConflict(params: {
   }
 
   const conflict: SyncConflict = {
-    id: makeId("SYNC"),
+    id: nextId(params.backlogDir, "sync"),
     task_id: params.workItemId,
     source_ref: params.sourceRef,
     field: "status",

@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { SourceConfig, Task } from "@backlog/schemas";
+import { nextId } from "@backlog/config";
 
 export interface SourceConnector {
   validate(): Promise<{ ok: boolean; details: string[] }>;
@@ -19,8 +19,8 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function makeImportedId(): string {
-  return `TASK-${crypto.randomBytes(4).toString("hex")}`;
+function makeImportedId(backlogDir: string): string {
+  return nextId(backlogDir, "task");
 }
 
 function parsePriority(value: string | undefined): Task["priority"] {
@@ -62,10 +62,15 @@ function parseStatus(value: string | undefined): Task["status"] {
   }
 }
 
-function baseImportedWorkItem(source: SourceConfig, externalId: string, title: string): Task {
+function baseImportedWorkItem(
+  source: SourceConfig,
+  externalId: string,
+  title: string,
+  backlogDir: string,
+): Task {
   const now = nowIso();
   return {
-    id: makeImportedId(),
+    id: makeImportedId(backlogDir),
     title,
     source_links: [
       {
@@ -104,7 +109,11 @@ function baseImportedWorkItem(source: SourceConfig, externalId: string, title: s
 }
 
 class MarkdownConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig, private readonly projectRoot: string) {}
+  constructor(
+    private readonly source: SourceConfig,
+    private readonly projectRoot: string,
+    private readonly backlogDir: string,
+  ) {}
 
   async validate() {
     const filePath = this.resolvePath();
@@ -124,7 +133,7 @@ class MarkdownConnector implements SourceConnector {
       if (!match) {
         continue;
       }
-      const item = baseImportedWorkItem(this.source, `line-${index + 1}`, match[1]!.trim());
+      const item = baseImportedWorkItem(this.source, `line-${index + 1}`, match[1]!.trim(), this.backlogDir);
       items.push(item);
     }
 
@@ -138,7 +147,11 @@ class MarkdownConnector implements SourceConnector {
 }
 
 class CsvConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig, private readonly projectRoot: string) {}
+  constructor(
+    private readonly source: SourceConfig,
+    private readonly projectRoot: string,
+    private readonly backlogDir: string,
+  ) {}
 
   async validate() {
     const filePath = this.resolvePath();
@@ -162,7 +175,7 @@ class CsvConnector implements SourceConnector {
       const record = Object.fromEntries(headers.map((header, i) => [header, values[i] ?? ""]));
       const title = record.title || record.Title || `CSV row ${index + 1}`;
       const externalId = record.id || record.ID || `row-${index + 1}`;
-      const item = baseImportedWorkItem(this.source, externalId, title);
+      const item = baseImportedWorkItem(this.source, externalId, title, this.backlogDir);
       if (record.description || record.Description) {
         item.description = record.description || record.Description;
       }
@@ -187,7 +200,10 @@ class CsvConnector implements SourceConnector {
 }
 
 class JiraConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig) {}
+  constructor(
+    private readonly source: SourceConfig,
+    private readonly backlogDir: string,
+  ) {}
 
   async validate() {
     const baseUrl = String(this.source.config.base_url ?? "");
@@ -242,7 +258,7 @@ class JiraConnector implements SourceConnector {
 
     return (payload.issues ?? []).map((issue) => {
       const title = issue.fields?.summary ?? issue.key;
-      const item = baseImportedWorkItem(this.source, issue.key, title);
+      const item = baseImportedWorkItem(this.source, issue.key, title, this.backlogDir);
       item.priority = parsePriority(issue.fields?.priority?.name);
       item.status = parseStatus(issue.fields?.status?.name);
       item.labels = issue.fields?.labels ?? [];
@@ -326,7 +342,10 @@ class JiraConnector implements SourceConnector {
 }
 
 class GithubConnector implements SourceConnector {
-  constructor(private readonly source: SourceConfig) {}
+  constructor(
+    private readonly source: SourceConfig,
+    private readonly backlogDir: string,
+  ) {}
 
   async validate() {
     const repo = String(this.source.config.repo ?? "");
@@ -374,7 +393,7 @@ class GithubConnector implements SourceConnector {
       .filter((issue) => !issue.pull_request)
       .map((issue) => {
         const externalId = `${repo}#${issue.number}`;
-        const item = baseImportedWorkItem(this.source, externalId, issue.title);
+        const item = baseImportedWorkItem(this.source, externalId, issue.title, this.backlogDir);
         if (issue.body) item.description = issue.body;
         item.status = issue.state === "closed" ? "done" : "backlog";
         item.labels = (issue.labels ?? []).map((entry) =>
@@ -412,16 +431,20 @@ function mapBacklogStatusToJiraStatus(status: Task["status"]): string | null {
   return null;
 }
 
-export function createConnector(source: SourceConfig, projectRoot: string): SourceConnector {
+export function createConnector(
+  source: SourceConfig,
+  projectRoot: string,
+  backlogDir: string,
+): SourceConnector {
   switch (source.kind) {
     case "markdown":
-      return new MarkdownConnector(source, projectRoot);
+      return new MarkdownConnector(source, projectRoot, backlogDir);
     case "csv":
-      return new CsvConnector(source, projectRoot);
+      return new CsvConnector(source, projectRoot, backlogDir);
     case "jira":
-      return new JiraConnector(source);
+      return new JiraConnector(source, backlogDir);
     case "github":
-      return new GithubConnector(source);
+      return new GithubConnector(source, backlogDir);
   }
   throw new Error(`Unsupported source kind: ${String(source.kind)}`);
 }

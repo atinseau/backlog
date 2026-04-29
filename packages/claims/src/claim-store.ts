@@ -1,10 +1,10 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
   claimRecordSchema,
   type ClaimRecord,
 } from "@backlog/schemas";
+import { nextId } from "@backlog/config";
 import { scopesOverlap } from "./overlap-detector.js";
 
 function activeClaimsDir(backlogDir: string): string {
@@ -44,7 +44,7 @@ export function createClaim(params: {
   const expiresAt = new Date(now.getTime() + (params.ttlMinutes ?? 30) * 60_000);
   const claim: ClaimRecord = {
     version: 1,
-    id: `CLM-${now.toISOString().replace(/[:.]/g, "-")}-${crypto.randomBytes(2).toString("hex")}`,
+    id: nextId(params.backlogDir, "claim"),
     repo: params.repo,
     repo_path: params.repoPath,
     paths: params.paths,
