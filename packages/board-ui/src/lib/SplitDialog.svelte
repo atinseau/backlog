@@ -348,9 +348,9 @@
     {#if view === "manual"}
       <form onsubmit={handleManualSubmit}>
         <fieldset>
-          <legend>Repos</legend>
+          <legend>Repositories</legend>
           {#if availableRepos.length === 0}
-            <p class="hint">No repos detected on the board. Add repo_targets to this work item or to the workspace config.</p>
+            <p class="hint">No repositories detected on the board. Add repo_targets to this work item or to the workspace config.</p>
           {:else}
             <ul class="repos">
               {#each availableRepos as repo (repo)}

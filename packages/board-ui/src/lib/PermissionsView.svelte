@@ -32,7 +32,7 @@
 
   const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = [
     { value: "default", label: "(défaut agent)", help: "Reprend la valeur par défaut du provider" },
-    { value: "read-only", label: "Read-only", help: "Lecture du repo, aucune écriture." },
+    { value: "read-only", label: "Read-only", help: "Lecture du repository, aucune écriture." },
     { value: "workspace-write", label: "Workspace-write", help: "Écriture sandbox autorisée." },
     { value: "danger-full-access", label: "⚠ Full access", help: "Aucune restriction. Dangereux." },
   ];
@@ -279,7 +279,7 @@
               </div>
 
               <div class="chips-row">
-                <span class="chips-label">Repos autorisés :</span>
+                <span class="chips-label">Repositories autorisés :</span>
                 {#each availableRepos as repo (repo)}
                   <label class="chip" class:on={agent.allowed_repos.includes(repo)}>
                     <input

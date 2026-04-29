@@ -150,7 +150,7 @@
           </li>
         {/each}
         {#if repos.length === 0}
-          <li class="empty">aucun repo configuré</li>
+          <li class="empty">aucun repository configuré</li>
         {/if}
       </ul>
 
@@ -215,7 +215,7 @@
           </div>
         </form>
       {:else}
-        <button class="add" onclick={() => (showCreate = true)}>+ ajouter un repo</button>
+        <button class="add" onclick={() => (showCreate = true)}>+ ajouter un repository</button>
       {/if}
     {/if}
 {/snippet}
