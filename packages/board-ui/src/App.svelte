@@ -14,6 +14,7 @@
   import SettingsView from "./lib/SettingsView.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
+  import AgentPicker from "./lib/AgentPicker.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
@@ -102,10 +103,15 @@
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
   let cloudStatus = $state<CloudStatus | null>(null);
-  // Cached list of agents for preflight checks (banner that warns
-  // before Play if no AI agent is enabled). Refreshed on workspace
-  // switch and after the user closes the Agents section.
+  // Cached list of agents for the topbar AgentPicker + preflight
+  // checks. Refreshed on workspace switch and whenever the Agents
+  // view's onChanged callback fires (so toggling enable / changing
+  // model in AgentsView surfaces here within one round-trip).
   let agentsList = $state<AgentSummary[]>([]);
+  // Selected agent for the next run, persisted per project. Null
+  // means "let the orchestrator pick" (the existing behaviour).
+  let selectedAgentId = $state<string | null>(null);
+  const PREFERRED_AGENT_KEY_PREFIX = "backlog.preferred_agent.";
 
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations / Permissions
@@ -200,6 +206,27 @@
   async function refreshAgents() {
     try { agentsList = await fetchAgents(); }
     catch { agentsList = []; }
+    // After loading, seed the selected agent if the user hasn't picked
+    // one yet (or their previous pick disappeared from the registry).
+    const stored = selectedWorkspaceId
+      ? localStorage.getItem(PREFERRED_AGENT_KEY_PREFIX + selectedWorkspaceId)
+      : null;
+    if (stored && agentsList.some((a) => a.id === stored)) {
+      selectedAgentId = stored;
+      return;
+    }
+    const firstEnabled = agentsList.find(
+      (a) => a.enabled && (a.provider === "claude" || a.provider === "codex" || a.provider === "custom"),
+    );
+    selectedAgentId = firstEnabled?.id ?? null;
+  }
+
+  function persistAgentChoice(id: string | null) {
+    selectedAgentId = id;
+    if (!selectedWorkspaceId) return;
+    const key = PREFERRED_AGENT_KEY_PREFIX + selectedWorkspaceId;
+    if (id) localStorage.setItem(key, id);
+    else localStorage.removeItem(key);
   }
 
   // Preflight: any executable AI agent enabled? "manual" agents don't
@@ -364,7 +391,9 @@
     error = null;
     openActivityPanel();
     try {
-      const result = await startRun({ task_id: card.id, approve: true });
+      const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
+      if (selectedAgentId) runInput.agent_id = selectedAgentId;
+      const result = await startRun(runInput);
       if (result.started.length === 0) {
         const reason =
           result.skipped[0]?.reasons[0] ??
@@ -506,6 +535,12 @@
         onStarted={openActivityPanel}
         onPlay={handleTopbarPlay}
       />
+      <AgentPicker
+        agents={agentsList}
+        selectedId={selectedAgentId}
+        onSelect={persistAgentChoice}
+        onManageAgents={() => (leftSection = "agents")}
+      />
     </div>
     <div class="topbar-right">
       {#if board}
@@ -619,7 +654,10 @@
             embedded={true}
             availableRepos={repos}
             onClose={() => (leftSection = "board")}
-            onChanged={() => { if (!connected) refresh(); }}
+            onChanged={() => {
+              void refreshAgents();
+              if (!connected) refresh();
+            }}
           />
         {:else if leftSection === "integrations"}
           <IntegrationsView
