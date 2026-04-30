@@ -4,6 +4,17 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-30
+
+Same release window as 1.4.0 with the kanban card menu + agent UX work added. The 1.4.0 tarball on npm shipped the core sequential-IDs / migrate / archive / account-secrets surface; 1.4.1 layers on the board UI:
+
+- **Card menu** — 3-dot button (top-right of each card) + right-click both open the same menu: Edit · Copy ID · Set priority ▸ · Move to top (bypass queue) · Assign ▸ · Archive · Delete. Disabled actions on cards with a run in flight so you can't shoot yourself in the foot mid-execution.
+- **Assign ▸ submenu** — pick an agent or a user as the default assignee for the task's new sub-tasks. Backed by `execution_defaults.preferred_agents`. Existing sub-tasks aren't retroactively reassigned (open the detail dialog for that).
+- **Agent display names** — `formatAgentLabel()` computes pretty defaults (`claude-opus-4-7` → "Claude Opus 4.7"). The picker shows a context-window pill ("1M", "200k", "128k") for known models. Double-click on the agent name in the Agents view → inline rename → Enter / blur saves, Escape cancels. Empty value clears the override and the auto-name takes back over.
+- **DELETE / archive on the API** — `DELETE /tasks/:id`, `POST /tasks/:id/archive` + unarchive, same for sub-tasks, `PATCH /tasks/:id` for partial updates (priority, preferred_agents, etc.). The CLI already had archive/remove; the board UI now has them too.
+
+If you're already on 1.4.0, this is a no-data-migration upgrade — `npm i -g backlog@latest`. The migrate / archive / secrets behaviour from 1.4.0 is unchanged.
+
 ## [1.4.0] - 2026-04-29
 
 Sequential per-project IDs replace the legacy hex/timestamp format. **Breaking** — existing workspaces must run `backlog migrate ids` once after upgrading.
