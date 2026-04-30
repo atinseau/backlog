@@ -200,10 +200,12 @@ jobs:
       # Without the staple, `xcrun stapler validate` on the .dmg fails
       # (purely cosmetic — the .app inside is staplé, so Gatekeeper
       # accepts the install both online and offline). Stapling the .dmg
-      # too means tooling that inspects the container directly is happy
-      # — matches what `pnpm dist:mac` produced locally for v1.3.x.
+      # too means tooling that inspects the container directly is happy.
+      # Only runs on a tag push because workflow_dispatch builds use
+      # --publish never which skips notarization, and stapling an
+      # un-notarized DMG fails with "Record not found".
       - name: Staple DMG containers
-        if: success()
+        if: success() && github.event_name == 'push'
         working-directory: packages/desktop/release
         run: |
           for dmg in *.dmg; do
@@ -274,8 +276,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build CLI (bundles all workspace deps via tsup)
-        run: pnpm --filter backlog build
+      # `pnpm --filter backlog...` walks the workspace dep graph in topo
+      # order. The CLI's tsup bundles every internal package, but those
+      # packages must have their dist/ + .d.ts produced first or
+      # esbuild can't resolve `@backlog/config`, `@backlog/core`, etc.
+      - name: Build CLI + transitive workspace deps
+        run: pnpm --filter "backlog..." build
 
       - name: Publish if version is new
         # `pnpm publish` errors if the version already exists on npm.
