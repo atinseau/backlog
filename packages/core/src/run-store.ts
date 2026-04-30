@@ -129,7 +129,24 @@ export function updateRunStatus(backlogDir: string, runId: string, status: Run["
 }
 
 export function isTerminalRunStatus(status: Run["status"]): boolean {
-  return status === "succeeded" || status === "failed" || status === "blocked" || status === "canceled";
+  // `interrupted` is now treated as terminal too. Originally it was
+  // considered "live but stalled" — but in practice an interrupted
+  // run is one whose executor process is gone (set by the orchestrator
+  // loop's orphan reaper, see updateRunStatus(…, "interrupted",
+  // "Reaped on hydrate — executor process gone")). The subtask is
+  // already kicked back to `queued` for a fresh ▶, so the old run is
+  // effectively dead. Leaving it non-terminal made it linger in
+  // listActiveRuns() and hold the agent's concurrency slot forever,
+  // surfacing as "Ton agent est déjà en train de tourner sur une
+  // autre tâche" the next time the user clicked Play — even though
+  // nothing was actually running. Marking interrupted terminal makes
+  // listActiveRuns() drop it, and isAgentBusyStatus() (below) excludes
+  // it too. Symmetry preserved.
+  return status === "succeeded"
+    || status === "failed"
+    || status === "blocked"
+    || status === "canceled"
+    || status === "interrupted";
 }
 
 // "Holding the agent slot" — runs that are still doing something on
@@ -137,8 +154,13 @@ export function isTerminalRunStatus(status: Run["status"]): boolean {
 // Used by the planner to compute concurrency: a run sitting in
 // awaiting_review doesn't keep the agent busy, so it shouldn't block
 // the next task from being scheduled to the same agent.
+//
+// `interrupted` deliberately excluded: its executor process is gone
+// (see isTerminalRunStatus comment above), so the agent isn't actually
+// busy. Including it caused 2-day-old reaped runs to permanently
+// pin codex-default / claude-default at full capacity.
 export function isAgentBusyStatus(status: Run["status"]): boolean {
-  return status === "queued" || status === "preparing" || status === "running" || status === "interrupted";
+  return status === "queued" || status === "preparing" || status === "running";
 }
 
 export function listAllRuns(backlogDir: string): Run[] {

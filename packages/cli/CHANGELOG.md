@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-04-30
+
+Two structural fixes around stale runs that were silently pinning agent capacity. User reported clicking Play and getting *"Ton agent est déjà en train de tourner sur une autre tâche…"* even though nothing was visibly running.
+
+- **`interrupted` runs no longer hold agent capacity** — when the orchestrator's hydrate step finds a run marked `running` whose executor process is dead (typical after a crash, kill -9, or fresh `backlog serve` after killing the previous one), it marks the run `interrupted` and kicks the subtask back to `queued` for a fresh ▶. Until now, `interrupted` was treated as still-busy by `isAgentBusyStatus`, so a 2-day-old reaped run kept `claude-default` / `codex-default` permanently at `max_concurrent_runs=1`. Next click on Play surfaced `at_capacity` even though the agent was idle. **Fix**: marked `interrupted` as terminal (drops it from `listActiveRuns`) AND removed it from `isAgentBusyStatus` (symmetric — terminal can't be busy). Existing interrupted runs in workspaces are immediately freed.
+- **Stale terminal runs auto-archive on hydrate** — `runs/active/` was accumulating `succeeded`/`failed`/etc. runs because the post-executor `archiveRun()` call didn't always land (server crash mid-finalisation, sigkill during a tick…). The directory clutter wasn't just cosmetic: it meant every `listActiveRuns` call had to parse stale `run.json` files and filter them out at the application level. **Fix**: every server hydrate now sweeps `runs/active/` for any run whose status is terminal (including the newly-terminal `interrupted`) and physically moves it to `runs/archive/` via `archiveRun()`. Workspaces that had been collecting cruft for days clean themselves on next launch.
+
+End-to-end verified locally: a workspace with 2 stale active runs (one `interrupted`, one `succeeded`) showed `claude-default: active_runs=0` after server restart with the new code, and `runs/active/` was empty (both moved to archive).
+
 ## [1.4.8] - 2026-04-30
 
 User-friendly auto-update errors + structural fix so the race that triggered them can't happen again.

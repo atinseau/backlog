@@ -3,7 +3,14 @@ import path from "node:path";
 import { loadConfig } from "@backlog/config";
 import type { OrchestratorMode, OrchestratorState } from "@backlog/schemas";
 import { getOrchestratorState, updateOrchestratorState } from "./orchestrator-state.js";
-import { appendRunEvent, listActiveRuns, updateRunStatus } from "./run-store.js";
+import {
+  appendRunEvent,
+  archiveRun,
+  isTerminalRunStatus,
+  listActiveRuns,
+  updateRunStatus,
+} from "./run-store.js";
+import type { Run } from "@backlog/schemas";
 import { listSubTasks } from "./state-files.js";
 import { startRunsForPlan, type StartRunsResult } from "./run-launcher.js";
 import { buildExecutionPlan } from "./scheduler.js";
@@ -305,6 +312,38 @@ export async function hydrateOrchestrator(backlogDir: string, options?: { now?: 
   // writes as the staleness signal: an executor that's actually doing
   // work touches that file at least every minute.
   reapOrphanedRuns(backlogDir, options?.now ?? Date.now());
+
+  // Sweep `runs/active/` for terminal runs and move them to archive.
+  // Two ways a run can end up terminal-but-still-active:
+  //   1. The reaper above just marked it `interrupted` — that's now
+  //      treated as terminal (see isTerminalRunStatus in run-store)
+  //      so it shouldn't keep squatting active/.
+  //   2. A run completed cleanly in a previous session, but the
+  //      `archiveRun` call after the executor returned was skipped
+  //      (server crashed mid-finalisation, sigkill during a tick…).
+  // The user-reported bug ("Ton agent est déjà en train de tourner")
+  // was exactly this — a 2-day-old `interrupted` run was pinning
+  // codex-default at full capacity. Doing this on every hydrate
+  // keeps the directory honest from now on.
+  try {
+    const activeDir = path.join(backlogDir, "runs", "active");
+    if (fs.existsSync(activeDir)) {
+      for (const entry of fs.readdirSync(activeDir)) {
+        const runJson = path.join(activeDir, entry, "run.json");
+        if (!fs.existsSync(runJson)) continue;
+        try {
+          const raw = JSON.parse(fs.readFileSync(runJson, "utf8")) as { status?: string; id?: string };
+          if (raw.id && raw.status && isTerminalRunStatus(raw.status as Run["status"])) {
+            archiveRun(backlogDir, raw.id);
+          }
+        } catch {
+          // Corrupt run.json — leave it; user can clean manually.
+        }
+      }
+    }
+  } catch {
+    // Best effort; never block server startup on cleanup.
+  }
 
   const state = getOrchestratorState(backlogDir);
   if (state.mode !== "running") return state;
