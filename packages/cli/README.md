@@ -1,6 +1,6 @@
 # Backlog
 
-**The task orchestrator for humans and AI coding agents.**
+**The task orchestrator for AI coding agents.**
 
 Run Claude Code, Codex, and your own CLIs across isolated git worktrees,
 with claims, retries, and review. Local by default — no account required.
@@ -16,7 +16,7 @@ with claims, retries, and review. Local by default — no account required.
 | Surface | Install | Use case |
 |---------|---------|----------|
 | **CLI** (`backlog`) | `npm i -g backlog` | Headless, scriptable, the binary you put in CI |
-| **Desktop** | [backlog.so/desktop](https://backlog.so/desktop) | Native kanban + run inspector + agent fleet (macOS first) |
+| **Desktop** | [backlog.so/desktop](https://backlog.so/desktop) | Native kanban + run inspector + agent fleet (macOS · Linux · Windows) |
 | **SDK** (`@osmove/backlog-sdk`) | `npm i @osmove/backlog-sdk` | Embed the orchestrator in your own tool, TypeScript-first |
 
 CLI, Desktop, and SDK are all **Apache-2.0, free forever**. Backlog Cloud
@@ -123,8 +123,11 @@ backlog serve
 ```
 
 ```bash
-# Option B — Desktop: native window, no browser tab. macOS shipping today
-# (signed + notarised); Windows + Linux follow via electron-builder.
+# Option B — Desktop: native window, no browser tab. macOS, Linux,
+# and Windows all ship today via electron-builder. macOS is signed +
+# notarised; Linux AppImage / .deb / .rpm runs unsigned (normal);
+# Windows installer is unsigned for now (SmartScreen warns once,
+# install completes — EV cert in flight).
 # Download: https://backlog.so/desktop
 ```
 

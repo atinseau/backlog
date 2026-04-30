@@ -108,6 +108,23 @@ A Backlog UI is planned alongside this roadmap. The CLI is the first client of
 the engine, not the engine itself. The UI will consume the same state (`.backlog/`)
 and the same APIs as the CLI, so any combination of CLI and UI works.
 
+### Surfaces shipped today (v1.4.0)
+
+| Surface | Status | Notes |
+|---------|--------|-------|
+| **CLI** (`backlog`) | ✅ shipped | npm; Apache-2.0 |
+| **Board UI** | ✅ shipped | served by `backlog serve` / embedded in Desktop |
+| **Desktop — macOS** | ✅ shipped | DMG + `.zip`; signed + notarized |
+| **Desktop — Linux** | ✅ shipped | AppImage + `.deb` + `.rpm`; x64 + arm64 |
+| **Desktop — Windows** | ✅ shipped | NSIS installer + portable; **unsigned** until EV cert (≈2 wk) |
+| **SDK** (`@osmove/backlog-sdk`) | ✅ shipped | TypeScript-first, OpenAPI-generated |
+| **Backlog Cloud** | 🚧 in private dev | hosted backend, paid SaaS, optional |
+
+Auto-update is wired across all three desktop platforms via `electron-updater`
++ GitHub Releases (`latest.yml`, `latest-mac.yml`, `latest-linux.yml`).
+A single `desktop-v*` git tag fans out to three GH Actions jobs (mac /
+linux / windows) and produces 17 binaries in one run.
+
 ## Non-goals (for now)
 
 - Replacing Linear/Jira as a primary tracker UI. Backlog connects to them, it

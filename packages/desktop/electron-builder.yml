@@ -46,7 +46,7 @@ dmg:
 # warning, and distros sign packages themselves at the repo level.
 linux:
   category: Development
-  synopsis: The task orchestrator for humans and AI coding agents
+  synopsis: The task orchestrator for AI coding agents
   description: |
     Backlog runs entirely locally — kanban board, AI splitter, run
     orchestrator, claim-based file locking, and a pre-commit hook that
@@ -71,7 +71,7 @@ linux:
   desktop:
     entry:
       Name: Backlog
-      Comment: Task orchestrator for humans and AI coding agents
+      Comment: Task orchestrator for AI coding agents
       Categories: Development;IDE;
       Keywords: backlog;tasks;kanban;ai;agents;
 deb:
