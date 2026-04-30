@@ -146,9 +146,12 @@ export function buildExecutionPlan(
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
   const tasks = listSubTasks(backlogDir).filter(
-    (task) => !isTerminal(task.status) && !isAlreadyHandled(task.status),
+    (task) =>
+      !task.archived_at &&
+      !isTerminal(task.status) &&
+      !isAlreadyHandled(task.status),
   );
-  const workItems = listTasks(backlogDir);
+  const workItems = listTasks(backlogDir).filter((item) => !item.archived_at);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));
   const claims = listActiveClaims(backlogDir);

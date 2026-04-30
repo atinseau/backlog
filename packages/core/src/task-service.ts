@@ -164,6 +164,32 @@ export function updateTaskPlanning(
   return item;
 }
 
+// Archive: soft-hide a task from the default board / list views without
+// touching its status. Unarchive clears the field. Idempotent.
+export function archiveTask(backlogDir: string, id: string): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`Unknown task: ${id}`);
+  if (!item.archived_at) {
+    item.archived_at = new Date().toISOString();
+    item.updated_at = item.archived_at;
+    writeTasksFile(backlogDir, file);
+  }
+  return item;
+}
+
+export function unarchiveTask(backlogDir: string, id: string): Task {
+  const file = readTasksFile(backlogDir);
+  const item = file.tasks.find((candidate) => candidate.id === id);
+  if (!item) throw new Error(`Unknown task: ${id}`);
+  if (item.archived_at) {
+    delete item.archived_at;
+    item.updated_at = new Date().toISOString();
+    writeTasksFile(backlogDir, file);
+  }
+  return item;
+}
+
 export function setTaskEstimate(backlogDir: string, id: string, seconds: number | null): Task {
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === id);

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
+  archiveTask,
   buildTaskExecutionOutline,
   createTask,
   getSource,
@@ -11,6 +12,7 @@ import {
   resolveSplitRepos,
   setTaskEstimate,
   splitTask,
+  unarchiveTask,
   updateTask,
   upsertImportedTasks,
   updateTaskStatus,
@@ -124,18 +126,29 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("list")
-    .description("List known work items")
+    .description("List known work items (archived items hidden by default — pass --archived or --all to include)")
     .option("--status <status>", "Only show work items in one status")
     .option("--priority <priority>", "Only show work items at one priority")
     .option("--repo <repo>", "Only show work items targeting one repo")
     .option("--label <label>", "Only show work items carrying one label")
+    .option("--archived", "Only show archived work items")
+    .option("--all", "Show every work item including archived")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string }) => {
+    .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string; archived?: boolean; all?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const items = listTasks(workspace.backlogDir).filter((item) => {
+        // Archive visibility — default hides archived; --archived flips
+        // to only-archived; --all shows both. --archived wins over --all
+        // if both are passed.
+        const isArchived = Boolean(item.archived_at);
+        if (options.archived) {
+          if (!isArchived) return false;
+        } else if (!options.all) {
+          if (isArchived) return false;
+        }
         if (options.status && item.status !== options.status) {
           return false;
         }
@@ -195,7 +208,7 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("remove")
-    .description("Remove a work item, optionally cascading its tasks")
+    .description("Permanently delete a task (and optionally its sub-tasks)")
     .argument("<work-item-id>", "Work item id")
     .option("--cascade", "Also remove tasks linked to this work item")
     .action((workItemId: string, options: { cascade?: boolean }) => {
@@ -207,6 +220,32 @@ export function registerTaskCommand(program: Command): void {
         ...(options.cascade ? { cascadeTasks: true } : {}),
       });
       console.log(`Removed ${item.id}`);
+    });
+
+  task
+    .command("archive")
+    .description("Archive a task — hides it from the default board / list (status preserved). Reversible with `unarchive`.")
+    .argument("<work-item-id>", "Work item id")
+    .action((workItemId: string) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const item = archiveTask(workspace.backlogDir, workItemId);
+      console.log(`Archived ${item.id}`);
+    });
+
+  task
+    .command("unarchive")
+    .description("Restore an archived task to the default views")
+    .argument("<work-item-id>", "Work item id")
+    .action((workItemId: string) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const item = unarchiveTask(workspace.backlogDir, workItemId);
+      console.log(`Unarchived ${item.id}`);
     });
 
   task

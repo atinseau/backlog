@@ -115,6 +115,12 @@ export const taskSchema = z.object({
   }),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
+  // ISO timestamp set by `backlog task archive`. When present, the
+  // task is hidden from default board / list views (use --archived
+  // or --all to see it). Distinct from status — archive is orthogonal
+  // to "what's the work doing right now". Unarchive clears the field
+  // and the task reappears in its original status.
+  archived_at: z.string().min(1).optional(),
 });
 
 export const tasksFileSchema = z.object({

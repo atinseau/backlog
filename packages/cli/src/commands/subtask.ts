@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
+  archiveSubTask,
   blockTask,
   buildExecutionPlan,
   clearSubTaskEstimate,
@@ -10,6 +11,7 @@ import {
   removeSubTask,
   setSubTaskEstimate,
   setSubTaskProgress,
+  unarchiveSubTask,
   unblockTask,
   updateSubTask,
   updateSubTaskStatus,
@@ -175,7 +177,7 @@ export function registerSubTaskCommand(program: Command): void {
 
   task
     .command("remove")
-    .description("Remove a task and drop dependency references to it")
+    .description("Permanently delete a sub-task and drop dependency references to it")
     .argument("<task-id>", "SubTask id")
     .action((taskId: string) => {
       const workspace = findProject();
@@ -184,6 +186,32 @@ export function registerSubTaskCommand(program: Command): void {
       }
       const task = removeSubTask(workspace.backlogDir, taskId);
       console.log(`Removed ${task.id}`);
+    });
+
+  task
+    .command("archive")
+    .description("Archive a sub-task — hides from default views + scheduler skips it. Reversible with `unarchive`.")
+    .argument("<task-id>", "SubTask id")
+    .action((taskId: string) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const task = archiveSubTask(workspace.backlogDir, taskId);
+      console.log(`Archived ${task.id}`);
+    });
+
+  task
+    .command("unarchive")
+    .description("Restore an archived sub-task to the default views")
+    .argument("<task-id>", "SubTask id")
+    .action((taskId: string) => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const task = unarchiveSubTask(workspace.backlogDir, taskId);
+      console.log(`Unarchived ${task.id}`);
     });
 
   task

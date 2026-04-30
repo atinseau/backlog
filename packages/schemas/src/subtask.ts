@@ -51,6 +51,10 @@ export const subTaskSchema = z.object({
   }),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
+  // ISO timestamp set by `backlog subtask archive`. When present the
+  // sub-task is hidden from default views; the scheduler also skips
+  // it. Unarchive clears the field. Orthogonal to status.
+  archived_at: z.string().min(1).optional(),
 });
 
 export const subTasksFileSchema = z.object({

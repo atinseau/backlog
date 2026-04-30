@@ -163,6 +163,30 @@ export function updateSubTaskStatus(backlogDir: string, id: string, status: SubT
   return task;
 }
 
+export function archiveSubTask(backlogDir: string, id: string): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
+  if (!task) throw new Error(`Unknown subtask: ${id}`);
+  if (!task.archived_at) {
+    task.archived_at = new Date().toISOString();
+    task.updated_at = task.archived_at;
+    writeSubTasksFile(backlogDir, file);
+  }
+  return task;
+}
+
+export function unarchiveSubTask(backlogDir: string, id: string): SubTask {
+  const file = readSubTasksFile(backlogDir);
+  const task = file.subtasks.find((candidate) => candidate.id === id);
+  if (!task) throw new Error(`Unknown subtask: ${id}`);
+  if (task.archived_at) {
+    delete task.archived_at;
+    task.updated_at = new Date().toISOString();
+    writeSubTasksFile(backlogDir, file);
+  }
+  return task;
+}
+
 export function blockTask(backlogDir: string, id: string, reasons: string[]): SubTask {
   const task = getSubTask(backlogDir, id);
   if (!task) {
