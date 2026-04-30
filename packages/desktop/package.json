@@ -4,6 +4,17 @@
   "private": true,
   "license": "Apache-2.0",
   "description": "Backlog desktop app (Electron) — embeds the local Hono server and kanban UI in a native window.",
+  "homepage": "https://backlog.so",
+  "author": {
+    "name": "Osmove",
+    "email": "hello@backlog.so",
+    "url": "https://backlog.so"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/osmove/backlog.git",
+    "directory": "packages/desktop"
+  },
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
