@@ -9,7 +9,17 @@ function worktreesRoot(backlogDir: string): string {
 }
 
 export function buildRunBranchName(taskId: string, taskTitle: string, runId?: string): string {
-  const slug = taskTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
+  // Slugify: lowercase, non-alnum → -, trim leading/trailing -, cap at
+  // 32 chars. Then re-trim trailing - because slicing at 32 can land
+  // on a separator dash (e.g. "with-hello-world-" → after concat
+  // becomes "with-hello-world--run_022", with the visible double dash
+  // that the user spotted in the activity log).
+  const slug = taskTitle
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 32)
+    .replace(/-+$/g, "");
   const base = `backlog/${taskId}-${slug || "task"}`;
   // Append the run id so branches are unique per run. Without this, a
   // re-try of the same subtask after an earlier run failed (and its

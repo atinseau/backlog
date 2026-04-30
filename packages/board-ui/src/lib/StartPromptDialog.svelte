@@ -32,7 +32,14 @@
     busy = true;
     error = null;
     try {
-      await startRun({ task_id: taskId });
+      // approve: true matches what Card.svelte's Play button does. In
+      // `assist` autonomy mode the server otherwise refuses with
+      // "Set approve=true to launch runs in assist mode" — a state
+      // that's correct for orchestrator daemon ticks (which need
+      // explicit approval per run) but wrong here, because the user
+      // just clicked "Lancer cette tâche maintenant ?" — that *is* the
+      // approval. The two surfaces should behave identically.
+      await startRun({ task_id: taskId, approve: true });
       // Best-effort: keep orchestrator nudged so subsequent ticks pick
       // up any siblings. Non-fatal if it errors (e.g. already running).
       void startOrchestrator({}).catch(() => undefined);

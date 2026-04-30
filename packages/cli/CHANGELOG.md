@@ -4,6 +4,17 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.11] - 2026-04-30
+
+Caught by an end-to-end Chrome test driving the kanban as a real user would.
+
+- **`Démarrer ▶` rejected runs in assist mode** — `StartPromptDialog` called `startRun({ task_id })` without `approve: true`, while `Card.svelte`'s ▶ button has always passed it. Server enforced `approve=true` for `assist` autonomy mode and refused the start with *"Set approve=true to launch runs in assist mode"*. The user clicked Démarrer, got the error, then tried the card-level Play and that worked — confusing inconsistency. **Fix**: the Démarrer button now passes `approve: true` to match the card Play. Both surfaces behave identically.
+- **"Sans sous-tâche, l'orchestrateur n'a rien à exécuter" was misleading** — the help-text under the StartPrompt body warned that an empty task wouldn't run, but the server's auto-shim creates a covering subtask on the fly when `/runs` is hit with `task_id` only (the same path the card Play and Démarrer both use now). The agent DOES execute. **Fix**: rewrote the help text to *"L'agent va générer une sous-tâche couvrant la description et l'exécuter directement."* — what actually happens.
+- **Branch names had double-dashes when the title slugified to 32 chars exactly** — `Add test2.html with Hello World content` → slug `add-test2-html-with-hello-world-` (32 chars, ending on a dash because the slice landed on a separator). The `${base}-${runId}` concat then produced `…with-hello-world--run_022`. Cosmetic but visible in commit messages and git log. **Fix**: re-trim trailing dashes after the 32-char slice.
+- **"Créer + découper" submit label was wrong when autoSplit was off** — the label always read "Créer + découper" but the AI splitter only runs when the user opts in via the autoSplit checkbox (default off). For 99% of new tasks the action was just *create*, not *create + split*. **Fix**: button label now flips between "Créer" and "Créer + découper" based on the checkbox state.
+
+E2E verified locally: typed a task description, hit submit (now labeled "Créer"), the create dialog closed cleanly, StartPromptDialog opened with the renamed text, hitting Démarrer ▶ launched a real run on `claude-code` that committed `test_30_avril.html` to a fresh branch. Activity panel populated in real time.
+
 ## [1.4.10] - 2026-04-30
 
 Three more bugs from a real user test ("j'ai créé une tâche, j'ai eu 2 confirmations, j'ai cliqué sur Play et j'ai eu une erreur worktree_failed"). All structural.

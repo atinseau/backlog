@@ -361,8 +361,15 @@
 
         <footer>
           <button type="button" onclick={onClose}>{t("create_task.button.cancel")}</button>
+          <!-- Label was always "Créer + découper", but the splitter only
+               runs when autoSplit is checked (default off). Dynamic label
+               so the button matches what'll actually happen. -->
           <button type="submit" class="primary" disabled={phase === "creating" || !description.trim()}>
-            {phase === "creating" ? t("create_task.button.submitting") : t("create_task.button.submit")}
+            {phase === "creating"
+              ? t("create_task.button.submitting")
+              : autoSplit
+                ? t("create_task.button.submit_split")
+                : t("create_task.button.submit_create")}
           </button>
         </footer>
       </form>
