@@ -120,8 +120,13 @@
         <span class="update-banner__title">{t("update.ready", { version: status.version })}</span>
         <span class="update-banner__detail">{t("update.restart_to_install")}</span>
       {:else if status.kind === "error"}
+        <!-- Header stays generic ("Mise à jour indisponible"); the
+             specific cause goes in the detail line, with the raw
+             error tucked into a tooltip for power users. The main.ts
+             humanizeUpdateError() classifier turns electron-updater's
+             stack-trace-y messages into one-sentence guidance. -->
         <span class="update-banner__title">{t("update.error")}</span>
-        <span class="update-banner__detail" title={status.message}>{status.message}</span>
+        <span class="update-banner__detail" title={status.detail ?? status.message}>{status.message}</span>
       {/if}
     </div>
 

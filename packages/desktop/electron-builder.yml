@@ -137,4 +137,11 @@ publish:
   - provider: github
     owner: osmove
     repo: backlog
-    releaseType: release
+    # `draft` so each platform job uploads to a NON-published release.
+    # A `finalize-release` job in desktop-release.yml flips it to
+    # published only after every platform job has succeeded. This
+    # eliminates the race window where electron-updater clients saw
+    # v$NEW as latest after the first platform uploaded but before the
+    # macOS job finished notarisation — they'd 404 on latest-mac.yml.
+    # With draft, the release is invisible to clients until complete.
+    releaseType: draft

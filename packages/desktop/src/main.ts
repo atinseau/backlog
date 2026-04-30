@@ -36,9 +36,73 @@ type UpdateStatus =
   | { kind: "not-available"; version: string }
   | { kind: "downloading"; percent: number; transferred: number; total: number }
   | { kind: "downloaded"; version: string }
-  | { kind: "error"; message: string };
+  // `message` is the short user-friendly line shown in the banner.
+  // `detail` carries the original error string for debugging — the
+  // banner exposes it as a tooltip so power users can still read it
+  // without it dominating the UI.
+  | { kind: "error"; message: string; detail?: string };
 
 let lastUpdateStatus: UpdateStatus | null = null;
+
+// Translate raw electron-updater error strings into something a normal
+// user can read. The library's defaults look like:
+//   `Cannot find latest-mac.yml in the latest release artifacts
+//    (https://github.com/osmove/backlog/releases/download/v1.4.7/
+//    latest-mac.yml): HttpError: 404 …`
+// which is terrifying for someone who just wanted to click "Check for
+// Updates". Each branch below maps a known failure mode to a short,
+// reassuring sentence + the original message tucked in `detail` for
+// debugging via the banner tooltip. Anything we can't classify falls
+// through to a generic "Update failed, please try again later".
+function humanizeUpdateError(raw: string): { message: string; detail: string } {
+  const detail = raw;
+  // 404 on latest-*.yml = the GitHub Release exists (so electron-updater
+  // discovered v$NEW) but the platform-specific manifest hasn't been
+  // uploaded yet. Happens during the ~3-minute window between the first
+  // platform job uploading its artifacts (which creates the Release as
+  // "published") and the macOS job finishing its notarization. The user
+  // who hit the bug above was caught in exactly this window.
+  if (/latest-(mac|linux|win)?\.?ya?ml/i.test(raw) && /404|not.*found|cannot find/i.test(raw)) {
+    return {
+      message: "La nouvelle version est en cours de finalisation. Réessaye dans 2-3 minutes.",
+      detail,
+    };
+  }
+  if (/ENOTFOUND|getaddrinfo|EAI_AGAIN/i.test(raw)) {
+    return {
+      message: "Pas de connexion internet. L'app vérifiera à la prochaine ouverture.",
+      detail,
+    };
+  }
+  if (/ETIMEDOUT|ESOCKETTIMEDOUT/i.test(raw)) {
+    return {
+      message: "Connexion au serveur de mises à jour trop lente. Réessaye plus tard.",
+      detail,
+    };
+  }
+  if (/rate.?limit|too many requests|HTTP 403/i.test(raw)) {
+    return {
+      message: "GitHub limite temporairement les requêtes. Réessaye dans quelques minutes.",
+      detail,
+    };
+  }
+  if (/code.?sign|signature|trust/i.test(raw)) {
+    return {
+      message: "La nouvelle version est signée différemment. Télécharge-la manuellement depuis backlog.so/desktop.",
+      detail,
+    };
+  }
+  if (/disk.*space|ENOSPC/i.test(raw)) {
+    return {
+      message: "Espace disque insuffisant pour télécharger la mise à jour.",
+      detail,
+    };
+  }
+  return {
+    message: "Mise à jour indisponible pour l'instant. Réessaye plus tard.",
+    detail,
+  };
+}
 
 function broadcastUpdateStatus(status: UpdateStatus): void {
   lastUpdateStatus = status;
@@ -64,8 +128,9 @@ ipcMain.handle("backlog:update-check", async () => {
     }
     return lastUpdateStatus ?? { kind: "checking" };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const status: UpdateStatus = { kind: "error", message };
+    const raw = err instanceof Error ? err.message : String(err);
+    const { message, detail } = humanizeUpdateError(raw);
+    const status: UpdateStatus = { kind: "error", message, detail };
     broadcastUpdateStatus(status);
     return status;
   }
@@ -187,8 +252,9 @@ function checkForUpdatesFromMenu(): void {
   }
   broadcastUpdateStatus({ kind: "checking" });
   autoUpdater.checkForUpdates().catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    broadcastUpdateStatus({ kind: "error", message });
+    const raw = err instanceof Error ? err.message : String(err);
+    const { message, detail } = humanizeUpdateError(raw);
+    broadcastUpdateStatus({ kind: "error", message, detail });
   });
 }
 
@@ -311,8 +377,11 @@ app.whenReady().then(async () => {
         broadcastUpdateStatus({ kind: "checking" });
       });
       autoUpdater.on("error", (err: Error) => {
+        // Keep the raw message in the console for power users / bug
+        // reports, but ship a friendly version to the renderer banner.
         console.warn("[auto-update] error:", err.message);
-        broadcastUpdateStatus({ kind: "error", message: err.message });
+        const { message, detail } = humanizeUpdateError(err.message);
+        broadcastUpdateStatus({ kind: "error", message, detail });
       });
       autoUpdater.on("update-available", (info: { version: string }) => {
         console.log(`[auto-update] new version available: ${info.version}`);

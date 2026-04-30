@@ -12,7 +12,7 @@ type UpdateStatus =
   | { kind: "not-available"; version: string }
   | { kind: "downloading"; percent: number; transferred: number; total: number }
   | { kind: "downloaded"; version: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; detail?: string };
 
 contextBridge.exposeInMainWorld("backlog", {
   // Reveal a path in the OS file manager (Finder on mac, Explorer on

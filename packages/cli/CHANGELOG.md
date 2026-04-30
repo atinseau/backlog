@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.8] - 2026-04-30
+
+User-friendly auto-update errors + structural fix so the race that triggered them can't happen again.
+
+- **Update errors no longer dump stack traces in the banner** — clicking *Check for Updates* during the ~3-minute window between the first platform job uploading and the macOS notarisation finishing surfaced `Cannot find latest-mac.yml in the latest release artifacts (https://github.com/osmove/backlog/releases/download/v1.4.7/latest-mac.yml): HttpError: 404 …` to the user. Terrifying for someone who just clicked a menu item. **Fix**: a `humanizeUpdateError()` classifier in `main.ts` translates known electron-updater error patterns to one-line French guidance: missing platform manifest → *"La nouvelle version est en cours de finalisation. Réessaye dans 2-3 minutes."* / network down → *"Pas de connexion internet…"* / GitHub rate-limited / disk full / signing mismatch / generic fallback. The raw message is preserved in a tooltip (`<span title>`) for power users + bug reports, but the banner stays calm.
+- **CI: draft releases until all platforms are uploaded** — the actual race fix. `electron-builder.yml`'s `publish.releaseType` is now `draft` instead of `release`. Each platform job uploads into a hidden draft release; a new `finalize-release` job runs after `linux`, `macos`, and `windows` all succeed, sanity-checks that every expected artifact (`Backlog-$V-arm64.dmg`, `latest-mac.yml`, `Backlog-Setup-$V-x64.exe`, `latest.yml`, `Backlog-$V-x86_64.AppImage`, `latest-linux.yml`) is on the release, then flips the draft to published with `gh release edit --draft=false`. From the auto-update channel's perspective, the new version simply appears atomically — no half-uploaded state ever reaches a client. If a platform fails and assets are missing, the finalize job leaves the draft up for manual inspection instead of shipping a broken release.
+
 ## [1.4.7] - 2026-04-30
 
 Three more bugs caught from a real user test ("ça ne marche pas, le menu clignote, et ça dit que c'est créé alors que ça l'a pas fait"). Each one was a structural problem, not a tuning fix.

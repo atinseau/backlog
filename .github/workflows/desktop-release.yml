@@ -284,3 +284,56 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Flip the draft GitHub Release to published once every platform
+  # uploaded its artifacts. With electron-builder.yml's
+  # `releaseType: draft`, all four jobs above upload into a hidden
+  # release; clients of the auto-update channel never see it as
+  # "latest" until this job runs. Eliminates the race window where a
+  # user clicked "Check for Updates" between the windows job (which
+  # creates the release) and macOS finishing notarisation (which
+  # uploads latest-mac.yml) — they'd 404 on the platform manifest.
+  finalize-release:
+    needs: [linux, macos, windows]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Tag is desktop-v<version>; release tag (electron-builder
+          # convention) is v<version>. Read the version back from
+          # package.json so this stays in sync if the bump rules change.
+          VERSION=$(node -p "require('./packages/desktop/package.json').version")
+          echo "Finalizing release v${VERSION}"
+          # Sanity-check the artifacts everyone expects are actually
+          # there. Bail loud if not — better to leave the draft up so
+          # the release can be inspected manually than to publish a
+          # half-baked one.
+          REQUIRED=(
+            "Backlog-${VERSION}-arm64.dmg"
+            "Backlog-${VERSION}-x64.dmg"
+            "latest-mac.yml"
+            "Backlog-Setup-${VERSION}-x64.exe"
+            "latest.yml"
+            "Backlog-${VERSION}-x86_64.AppImage"
+            "latest-linux.yml"
+          )
+          MISSING=()
+          for asset in "${REQUIRED[@]}"; do
+            if ! gh release view "v${VERSION}" --json assets -q ".assets[].name" | grep -qx "$asset"; then
+              MISSING+=("$asset")
+            fi
+          done
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "::error::Missing artifacts on draft release v${VERSION}:"
+            for m in "${MISSING[@]}"; do echo "  - $m"; done
+            echo "Leaving draft for manual inspection."
+            exit 1
+          fi
+          gh release edit "v${VERSION}" --draft=false
+          echo "v${VERSION} flipped from draft → published."
