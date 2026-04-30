@@ -18,6 +18,7 @@
   import ApiKeysDialog from "./lib/ApiKeysDialog.svelte";
   import AgentPicker from "./lib/AgentPicker.svelte";
   import Toasts from "./lib/Toasts.svelte";
+  import UpdateBanner from "./lib/UpdateBanner.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
@@ -813,6 +814,7 @@
 </script>
 
 <div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
+  <UpdateBanner />
   <header class="topbar">
     <div class="topbar-left">
       <ProjectSelector

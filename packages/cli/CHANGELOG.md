@@ -4,6 +4,18 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-04-30
+
+Auto-update is now visible inside the app. Until 1.4.3 the only signal of a downloaded update was a native macOS notification (often dismissed or invisible on Windows/Linux); 1.4.4 adds an in-app banner and a manual menu trigger so the user is never stuck on a stale build without realising.
+
+- **In-app update banner** — surfaces every state of the auto-update lifecycle: `Checking…`, `Update available, downloading…`, a live progress bar with MB / percentage during download, `Backlog X.Y.Z is ready to install` with a **Restart now** button when the new version is staged. The banner sits at the top of the kanban shell, above the topbar; mounts on every platform; auto-dismisses the "you're up to date" state after 4s; never re-pops the same error after the user X's it.
+- **Check for Updates… menu item** — under `Backlog` (mac app menu) and `Help` (Windows + Linux). Same backend as the in-app trigger, so they stay in sync — no risk of two parallel UI states. Manual checks override the silent startup poll.
+- **Status broadcast over IPC** — every `electron-updater` event (`checking-for-update`, `update-available`, `download-progress`, `update-downloaded`, `update-not-available`, `error`) now broadcasts to all renderer windows via `webContents.send("backlog:update-status", …)`. The Svelte side subscribes through a new `window.backlog.onUpdateStatus(callback)` bridge method, and replays the last known status on subscribe so a banner that mounts mid-download immediately reflects reality.
+- **`window.backlog.installUpdate()`** — wraps `autoUpdater.quitAndInstall()` so the renderer can drive the restart from the banner button. Guarded on the renderer side: only visible once `status.kind === "downloaded"`.
+- Browser-served `backlog serve` (no Electron bridge) silently no-ops the banner — `window.backlog` is undefined, so the component renders nothing. Zero impact on CLI users.
+
+Versions 1.4.0 through 1.4.3 will pick this up via the existing `electron-updater` background poll: open Backlog 1.4.3, leave it running ~1 minute, and 1.4.4 downloads silently. The new banner shipped in 1.4.4 will then surface for every future release.
+
 ## [1.4.3] - 2026-04-30
 
 **Critical hotfix** — board UI was missing from both the desktop app and the npm tarball.

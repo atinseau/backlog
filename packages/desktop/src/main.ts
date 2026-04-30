@@ -25,6 +25,66 @@ ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
   if (!/^https?:\/\//.test(url)) return; // never let renderer open file:// or shell URLs
   await shell.openExternal(url);
 });
+// Update lifecycle, exposed to the renderer so the kanban can show an
+// in-app banner ("update available", "downloading…", "ready to restart")
+// in addition to the native macOS notification. Two surfaces use this:
+// the View → Check for Updates menu item below, and the UpdateBanner
+// component in board-ui. Both share the same IPC channel.
+type UpdateStatus =
+  | { kind: "checking" }
+  | { kind: "available"; version: string }
+  | { kind: "not-available"; version: string }
+  | { kind: "downloading"; percent: number; transferred: number; total: number }
+  | { kind: "downloaded"; version: string }
+  | { kind: "error"; message: string };
+
+let lastUpdateStatus: UpdateStatus | null = null;
+
+function broadcastUpdateStatus(status: UpdateStatus): void {
+  lastUpdateStatus = status;
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send("backlog:update-status", status);
+  }
+}
+
+ipcMain.handle("backlog:update-check", async () => {
+  // Respond fast — checkForUpdates resolves once the manifest is fetched,
+  // not after the download finishes. The renderer pivots its UI on the
+  // status events broadcast above.
+  if (process.env.NODE_ENV === "development") {
+    return { kind: "error", message: "auto-update disabled in dev builds" } as UpdateStatus;
+  }
+  try {
+    broadcastUpdateStatus({ kind: "checking" });
+    const result = await autoUpdater.checkForUpdates();
+    if (!result || !result.updateInfo) {
+      const status: UpdateStatus = { kind: "not-available", version: app.getVersion() };
+      broadcastUpdateStatus(status);
+      return status;
+    }
+    return lastUpdateStatus ?? { kind: "checking" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status: UpdateStatus = { kind: "error", message };
+    broadcastUpdateStatus(status);
+    return status;
+  }
+});
+
+ipcMain.handle("backlog:update-install", async () => {
+  // quitAndInstall closes every window and triggers the installer. Only
+  // safe to call once an update has actually been downloaded — the
+  // renderer guards the button visibility on lastUpdateStatus.kind ===
+  // "downloaded".
+  try {
+    autoUpdater.quitAndInstall();
+  } catch (err) {
+    console.warn("[auto-update] quitAndInstall failed:", err instanceof Error ? err.message : err);
+  }
+});
+
+ipcMain.handle("backlog:update-status", async () => lastUpdateStatus);
+
 ipcMain.handle("backlog:pick-folder", async (event, opts: unknown) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const raw = (opts && typeof opts === "object" ? opts : {}) as {
@@ -113,8 +173,31 @@ async function createWindow(): Promise<void> {
   }
 }
 
+// Trigger a manual update check from the menu. Same IPC handler as the
+// in-app banner button, so the surfaces stay consistent — one path,
+// idempotent if both fire concurrently.
+function checkForUpdatesFromMenu(): void {
+  if (process.env.NODE_ENV === "development") {
+    void dialog.showMessageBox({
+      type: "info",
+      message: "Updates disabled in dev builds.",
+      detail: "Run a packaged build (`pnpm dist:mac`) to test the auto-update flow.",
+    });
+    return;
+  }
+  broadcastUpdateStatus({ kind: "checking" });
+  autoUpdater.checkForUpdates().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    broadcastUpdateStatus({ kind: "error", message });
+  });
+}
+
 function buildMenu(): void {
   const isMac = process.platform === "darwin";
+  const updateMenuItem: Electron.MenuItemConstructorOptions = {
+    label: "Check for Updates…",
+    click: () => checkForUpdatesFromMenu(),
+  };
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
       ? ([
@@ -122,6 +205,8 @@ function buildMenu(): void {
             label: app.name,
             submenu: [
               { role: "about" },
+              { type: "separator" },
+              updateMenuItem,
               { type: "separator" },
               { role: "services" },
               { type: "separator" },
@@ -174,6 +259,25 @@ function buildMenu(): void {
           : ([{ role: "close" }] as Electron.MenuItemConstructorOptions[])),
       ],
     },
+    // Help menu — cross-platform home for "Check for Updates…" so
+    // Windows + Linux users can trigger a manual check (mac users get
+    // it under the app menu too, by convention).
+    {
+      label: "Help",
+      submenu: [
+        ...(isMac
+          ? ([] as Electron.MenuItemConstructorOptions[])
+          : ([updateMenuItem, { type: "separator" }] as Electron.MenuItemConstructorOptions[])),
+        {
+          label: "Backlog on GitHub",
+          click: () => void shell.openExternal("https://github.com/osmove/backlog"),
+        },
+        {
+          label: "Report an Issue",
+          click: () => void shell.openExternal("https://github.com/osmove/backlog/issues"),
+        },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -203,14 +307,34 @@ app.whenReady().then(async () => {
       // Auto-download is on by default; we only opt out of auto-install
       // so the user keeps control over when the restart happens.
       autoUpdater.autoInstallOnAppQuit = true;
+      autoUpdater.on("checking-for-update", () => {
+        broadcastUpdateStatus({ kind: "checking" });
+      });
       autoUpdater.on("error", (err: Error) => {
         console.warn("[auto-update] error:", err.message);
+        broadcastUpdateStatus({ kind: "error", message: err.message });
       });
       autoUpdater.on("update-available", (info: { version: string }) => {
         console.log(`[auto-update] new version available: ${info.version}`);
+        broadcastUpdateStatus({ kind: "available", version: info.version });
       });
+      autoUpdater.on("update-not-available", (info: { version: string }) => {
+        broadcastUpdateStatus({ kind: "not-available", version: info.version });
+      });
+      autoUpdater.on(
+        "download-progress",
+        (progress: { percent: number; transferred: number; total: number }) => {
+          broadcastUpdateStatus({
+            kind: "downloading",
+            percent: progress.percent,
+            transferred: progress.transferred,
+            total: progress.total,
+          });
+        },
+      );
       autoUpdater.on("update-downloaded", (info: { version: string }) => {
         console.log(`[auto-update] downloaded ${info.version} — will install on quit`);
+        broadcastUpdateStatus({ kind: "downloaded", version: info.version });
       });
       void autoUpdater.checkForUpdatesAndNotify();
     } catch (err) {

@@ -19,9 +19,31 @@ interface BacklogBridge {
   openExternal: (url: string) => Promise<void>;
   /** Open a native folder picker; returns the selected path or null on cancel. */
   pickFolder: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>;
+  /** Trigger a manual update check. Same backend as the View menu item. */
+  checkForUpdates: () => Promise<UpdateStatus | null>;
+  /** Restart the app and install a previously-downloaded update. */
+  installUpdate: () => Promise<void>;
+  /** Latest known update status (replayed for late subscribers). */
+  getUpdateStatus: () => Promise<UpdateStatus | null>;
+  /** Subscribe to update lifecycle events. Returns an unsubscribe fn. */
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 
 declare global {
+  /**
+   * Status of the auto-update lifecycle. Mirrors the same union in
+   * packages/desktop/src/main.ts and preload.ts — keep the three in
+   * sync. Declared inside `declare global` so Svelte components and
+   * .ts files can refer to `UpdateStatus` directly without an import.
+   */
+  type UpdateStatus =
+    | { kind: "checking" }
+    | { kind: "available"; version: string }
+    | { kind: "not-available"; version: string }
+    | { kind: "downloading"; percent: number; transferred: number; total: number }
+    | { kind: "downloaded"; version: string }
+    | { kind: "error"; message: string };
+
   interface Window {
     backlog?: BacklogBridge;
   }

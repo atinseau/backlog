@@ -696,5 +696,15 @@
   "theme.label": "Apparence",
   "theme.auto": "Système",
   "theme.light": "Clair",
-  "theme.dark": "Sombre"
+  "theme.dark": "Sombre",
+  "update.checking": "Recherche d'une mise à jour…",
+  "update.up_to_date": "Backlog est à jour ({version})",
+  "update.available": "Mise à jour disponible : Backlog {version}",
+  "update.downloading_in_background": "Téléchargement en arrière-plan…",
+  "update.downloading": "Téléchargement de la mise à jour…",
+  "update.ready": "Backlog {version} est prêt à être installé",
+  "update.restart_to_install": "Redémarre pour appliquer la mise à jour.",
+  "update.restart_now": "Redémarrer",
+  "update.error": "Échec de la mise à jour",
+  "update.dismiss": "Fermer"
 }

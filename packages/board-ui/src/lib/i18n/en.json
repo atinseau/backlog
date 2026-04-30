@@ -696,5 +696,15 @@
   "theme.label": "Appearance",
   "theme.auto": "System",
   "theme.light": "Light",
-  "theme.dark": "Dark"
+  "theme.dark": "Dark",
+  "update.checking": "Checking for updates…",
+  "update.up_to_date": "Backlog is up to date ({version})",
+  "update.available": "Update available: Backlog {version}",
+  "update.downloading_in_background": "Downloading in the background…",
+  "update.downloading": "Downloading update…",
+  "update.ready": "Backlog {version} is ready to install",
+  "update.restart_to_install": "Restart to apply the update.",
+  "update.restart_now": "Restart now",
+  "update.error": "Update failed",
+  "update.dismiss": "Dismiss"
 }
