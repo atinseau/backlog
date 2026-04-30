@@ -195,6 +195,39 @@ jobs:
           CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
 
+      # electron-builder notarises the .app inside each DMG but doesn't
+      # staple the notarisation ticket onto the .dmg container itself.
+      # Without the staple, `xcrun stapler validate` on the .dmg fails
+      # (purely cosmetic — the .app inside is staplé, so Gatekeeper
+      # accepts the install both online and offline). Stapling the .dmg
+      # too means tooling that inspects the container directly is happy
+      # — matches what `pnpm dist:mac` produced locally for v1.3.x.
+      - name: Staple DMG containers
+        if: success()
+        working-directory: packages/desktop/release
+        run: |
+          for dmg in *.dmg; do
+            echo "Stapling $dmg"
+            xcrun stapler staple "$dmg"
+          done
+
+      # The release was already published by electron-builder above.
+      # Re-upload the stapled .dmgs over the unstapled ones so end
+      # users who download the .dmg get the staple too. `gh release
+      # upload --clobber` overwrites an existing asset of the same
+      # name without needing to delete it first.
+      - name: Re-upload stapled DMGs
+        if: success() && github.event_name == 'push'
+        working-directory: packages/desktop/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # The release tag is `v<version>` (electron-builder convention,
+        # not the git tag we pushed). Read it back from package.json
+        # so the step doesn't drift if the version bumps.
+        run: |
+          VERSION=$(node -p "require('../package.json').version")
+          gh release upload "v$VERSION" *.dmg --clobber --repo osmove/backlog
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -206,3 +239,50 @@ jobs:
             packages/desktop/release/latest-mac.yml
           if-no-files-found: warn
           retention-days: 14
+
+  # Publish the `backlog` CLI to npm on the same tag. Runs only on a
+  # desktop-v* tag push (not workflow_dispatch) so a CI smoke test
+  # never accidentally publishes. ci.yml has its own npm publish job
+  # gated on `v*` tags — that path is for npm-only releases. This
+  # one keeps CLI + Desktop versions in lockstep when a desktop-v*
+  # tag is the trigger.
+  npm:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/desktop-v')
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build CLI (bundles all workspace deps via tsup)
+        run: pnpm --filter backlog build
+
+      - name: Publish if version is new
+        # `pnpm publish` errors if the version already exists on npm.
+        # Idempotent guard: read the local version + the latest published
+        # version, only publish when they differ. Lets re-running the
+        # workflow on a re-pushed tag be safe.
+        run: |
+          LOCAL=$(node -p "require('./packages/cli/package.json').version")
+          REMOTE=$(npm view backlog version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL remote=$REMOTE"
+          if [ "$LOCAL" != "$REMOTE" ]; then
+            pnpm --filter backlog publish --provenance --access public --no-git-checks
+          else
+            echo "Already published; skipping."
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
