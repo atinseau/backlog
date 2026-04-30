@@ -1,7 +1,7 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
-  import CardMenu from "./CardMenu.svelte";
   import type { MenuItem } from "./card-menu-types.js";
+  import { cardMenuStore } from "./card-menu-store.svelte.js";
   import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { TaskCard } from "./types.js";
@@ -144,13 +144,18 @@
   }
 
   // ---- Card menu (3-dot button + right-click) ----
-  let menuOpen = $state(false);
-  let menuAnchor = $state<{ x: number; y: number } | null>(null);
+  // Menu rendering is hoisted to App-shell level via cardMenuStore
+  // (single global menu instance). This card just builds the items
+  // list lazily on click and tells the store to open at coords. No
+  // local menuOpen/menuAnchor — they used to live here, which made
+  // each card hold its own menu render that suffered from ancestor
+  // CSS transforms (svelte-dnd-action's FLIP residue) and from
+  // multi-card race conditions when the user clicked another card's
+  // kebab while one was open.
   const isArchived = $derived(Boolean((card as TaskCard & { archived_at?: string }).archived_at));
 
   function openMenuAt(x: number, y: number) {
-    menuAnchor = { x, y };
-    menuOpen = true;
+    cardMenuStore.openAt({ x, y, items: menuItems });
   }
 
   function handleMenuButtonClick(event: MouseEvent) {
@@ -372,7 +377,10 @@
     </footer>
   {/if}
 
-  <CardMenu open={menuOpen} items={menuItems} anchor={menuAnchor} onClose={() => (menuOpen = false)} />
+  <!-- The actual menu is rendered ONCE at App-shell level, driven by
+       cardMenuStore. This card just emits openAt(coords, items) on
+       kebab click / context-menu — see openMenuAt above. -->
+
 
   {#if canPlay || canApprove || (onSplit && card.tasks.length === 0) || onAddTask}
     <div class="actions">

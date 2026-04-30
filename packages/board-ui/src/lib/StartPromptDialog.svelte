@@ -1,6 +1,6 @@
 <script lang="ts">
   import DialogShell from "./DialogShell.svelte";
-  import { startOrchestrator } from "./api.js";
+  import { startRun, startOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
@@ -15,11 +15,27 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
+  // Critical: this used to call startOrchestrator() alone, which kicks
+  // the daemon but only picks up subtasks that are already READY. A
+  // freshly-created task with zero subtasks (the typical case for a
+  // simple "create test.html with hello world" prompt) has nothing in
+  // the queue — so the daemon spun for a moment and idled, leaving
+  // the user confused: "the task says created but nothing happened,
+  // and Activity is empty".
+  //
+  // Fix: call startRun({ task_id }) which goes through /runs. That
+  // endpoint's auto-shim creates a covering subtask on the fly when
+  // the task has none, so the run actually fires. Then we kick the
+  // orchestrator too, so any *other* queued subtasks (from a prior
+  // split) catch up in the same click.
   async function startNow() {
     busy = true;
     error = null;
     try {
-      await startOrchestrator({});
+      await startRun({ task_id: taskId });
+      // Best-effort: keep orchestrator nudged so subsequent ticks pick
+      // up any siblings. Non-fatal if it errors (e.g. already running).
+      void startOrchestrator({}).catch(() => undefined);
       onStarted?.();
       onClose();
     } catch (err) {
@@ -51,9 +67,21 @@
   </div>
   <footer>
     <button type="button" onclick={onClose} disabled={busy}>{t("start_prompt.button.later")}</button>
-    <button type="button" class="primary" onclick={startNow} disabled={busy}>
-      {busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}
-    </button>
+    <!-- Autofocus the primary action so the user lands on it after the
+         create-task dialog auto-closes. Earlier the create dialog
+         lingered on a redundant "applied" screen and the user often
+         dismissed both modals without realising the agent hadn't
+         actually started — leaving them with "the task says created
+         but nothing happened". With autofocus on Start + the primary
+         visual styling, hitting Enter or clicking the obvious green
+         button kicks off the run. -->
+    <button
+      type="button"
+      class="primary"
+      onclick={startNow}
+      disabled={busy}
+      autofocus
+    >{busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}</button>
   </footer>
 </DialogShell>
 

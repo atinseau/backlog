@@ -19,6 +19,7 @@
   import AgentPicker from "./lib/AgentPicker.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import UpdateBanner from "./lib/UpdateBanner.svelte";
+  import CardMenu from "./lib/CardMenu.svelte";
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
@@ -1089,6 +1090,16 @@
     availableRepos={repos}
     onClose={() => (createTaskOpen = false)}
     onCreated={(result) => {
+      // Auto-close the create dialog the moment the task lands. The
+      // dialog used to linger on an "applied" screen showing
+      // "Tâche créée" / "✓ Tâche créée" — visually duplicating its
+      // own header text in the body. Worse, it stacked in front of the
+      // StartPromptDialog that opens next, so the user often saw the
+      // "created" confirmation, hit Close, and never noticed the
+      // "Start now?" prompt — leading to "the task says created but
+      // nothing happened" confusion. Now: create dialog closes, start
+      // prompt is the single visible follow-up. Clean handoff.
+      createTaskOpen = false;
       if (!connected) refresh();
       startPrompt = result;
     }}
@@ -1167,6 +1178,13 @@
      into it from anywhere (run lifecycle transitions in diffRunState,
      handlePlayCard, etc.). The bind:this exposes its push() method. -->
 <Toasts bind:this={toasts} />
+
+<!-- Card kebab / right-click menu — single global instance, driven
+     by cardMenuStore. Lives at App-shell level so it sits OUTSIDE
+     every card's transformed subtree and outside every dialog/modal.
+     Each Card.svelte just calls cardMenuStore.openAt(coords, items)
+     to surface it. -->
+<CardMenu />
 
 <style>
   :global(body) {

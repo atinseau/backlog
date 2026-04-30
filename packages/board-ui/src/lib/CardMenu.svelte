@@ -1,99 +1,85 @@
 <script lang="ts">
-  // Generic popup menu used by Card.svelte (and re-usable for other
-  // contexts later — sub-task rows, run history, etc.). Shows a list
-  // of actions plus optional submenus (priority picker, assign
-  // picker). The trigger lives outside; this component just renders
-  // the menu when `open` is true.
+  // Single global popup menu, driven by cardMenuStore. Rendered ONCE
+  // at App.svelte level inside the shell — never inside a Card. The
+  // earlier per-card design suffered from two structural problems:
   //
-  // Positioning: caller passes anchor coordinates (clientX/clientY),
-  // we clamp into the viewport so the menu doesn't get cut off near
-  // the right edge or bottom of the screen. Closes on:
+  // - svelte-dnd-action leaves a residual CSS transform on each
+  //   <article class="card"> (matrix(1,0,0,1,0,-1) — a 1px y-translate
+  //   from FLIP animations, invisible but enough to create a
+  //   containing block). With a transformed ancestor, `position: fixed`
+  //   stops being viewport-relative — it gets re-anchored to that
+  //   transformed parent, and the menu rendered ~270px off-target.
+  // - Each card holding its own menu state plus its own document-level
+  //   mousedown listener for outside-click made the close logic
+  //   non-deterministic during fast cursor movements between cards
+  //   ("on sort la souris, on revient → menu clignote / disparaît").
+  //
+  // Hoisting fixes both: the menu is fixed-positioned to the viewport
+  // because it's rendered at the App-shell level (no transformed
+  // ancestor), and there's only one menu state to coordinate, period.
+  //
+  // Positioning: the store's `anchor` is set by Card.svelte on kebab
+  // click via `getBoundingClientRect()` of the button. We freeze the
+  // computed (clamped) position once when the anchor changes — so
+  // re-renders triggered by SSE board updates or async fetches that
+  // change `items.length` no longer shift the menu.
+  //
+  // Closes on:
   //   - any outside click
   //   - Escape
   //   - clicking an item (after the action runs)
+  //   - hovering a different submenu (the previous submenu collapses)
   //
-  // The menu is fully keyboard-navigable: ↑/↓ moves the highlight,
-  // → opens a submenu, ← closes it, Enter / Space activates.
+  // Keyboard nav: ↑/↓ moves the highlight, → opens a submenu, ←
+  // closes it, Enter / Space activates.
 
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import { cardMenuStore } from "./card-menu-store.svelte.js";
   import type { MenuItem } from "./card-menu-types.js";
 
-  interface Props {
-    open: boolean;
-    items: MenuItem[];
-    anchor: { x: number; y: number } | null;
-    onClose: () => void;
-  }
-
-  let { open, items, anchor, onClose }: Props = $props();
-
-  // Portal action — moves the menu element straight onto <body> on
-  // mount, then back to its original parent on destroy. Critical
-  // because the parent <article class="card"> can have a CSS transform
-  // applied at any time (svelte-dnd-action sets `transform: matrix(…)`
-  // during FLIP animations and even after, on idle, leaves a 1px y
-  // residue). Any non-identity ancestor transform turns `position:
-  // fixed` into "fixed within the transformed ancestor" instead of
-  // "fixed within the viewport" — so the menu would render hundreds
-  // of pixels offset from the kebab. Portaling sidesteps the entire
-  // class of bugs by detaching the menu from the card subtree.
-  function portal(node: HTMLElement) {
-    const original = node.parentElement;
-    document.body.appendChild(node);
-    return {
-      destroy() {
-        if (original && original.isConnected) {
-          original.appendChild(node);
-        } else {
-          node.remove();
-        }
-      },
-    };
-  }
+  // Pull state through derived getters so the component subscribes to
+  // each field. (Reading store.state.foo inside the script block also
+  // subscribes, but going through getters makes the dependency
+  // explicit and lets us guard against null anchor in one place.)
+  const open = $derived(cardMenuStore.state.open);
+  const anchor = $derived(cardMenuStore.state.anchor);
+  const items = $derived(cardMenuStore.state.items);
 
   let menuEl = $state<HTMLDivElement | null>(null);
   let openSubmenu = $state<number | null>(null);
   let highlight = $state<number>(-1);
 
-  // Frozen-on-open position. Computed ONCE when the menu opens, then
-  // held stable for the lifetime of that open session. Earlier we used
-  // a $derived.by that depended on `items.length`, which made the
-  // position recompute every time the parent re-rendered the menu —
-  // and the parent re-renders all the time (assigneesForMenu fetches
-  // async, SSE board updates change card props, etc.). Each recompute
-  // would briefly produce a slightly different y-clamp, visible to the
-  // user as a flicker between "correct anchor" and "shifted clamp".
-  // Snapshotting once means the menu stays put until you close it.
+  // Frozen position. Computed when `anchor` first changes after
+  // an open. We snapshot via untrack on items so an async fetch that
+  // appends "Assign ▸" later doesn't shift the menu mid-life.
   let position = $state<{ x: number; y: number }>({ x: 0, y: 0 });
   let lastAnchorKey = "";
 
   function freezePosition(): void {
     if (!anchor) return;
     const margin = 8;
-    const w = 220;          // matches .menu min-width
-    // Use a generous height estimate so a menu opened near the screen
-    // bottom slides up enough to fully fit. Real height is computed
-    // post-mount by the browser; this is just for clamping.
-    const h = Math.max(items.length, 6) * 32 + 12;
+    const w = 220;
+    const itemCount = untrack(() => items.length);
+    const h = Math.max(itemCount, 6) * 32 + 12;
     const x = Math.min(anchor.x, window.innerWidth - w - margin);
     const y = Math.min(anchor.y, window.innerHeight - h - margin);
     position = { x: Math.max(margin, x), y: Math.max(margin, y) };
   }
 
-  function handleDocumentClick(event: MouseEvent) {
-    if (!open) return;
-    if (menuEl && !menuEl.contains(event.target as Node)) onClose();
+  function handleDocumentMousedown(event: MouseEvent) {
+    if (!cardMenuStore.state.open) return;
+    if (menuEl && !menuEl.contains(event.target as Node)) cardMenuStore.close();
   }
 
   function handleKey(event: KeyboardEvent) {
-    if (!open) return;
+    if (!cardMenuStore.state.open) return;
     const visibleItems = items.filter((it) => !it.separator);
     if (event.key === "Escape") {
       event.preventDefault();
       if (openSubmenu !== null) {
         openSubmenu = null;
       } else {
-        onClose();
+        cardMenuStore.close();
       }
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -118,18 +104,15 @@
       try {
         await item.onSelect();
       } finally {
-        onClose();
+        cardMenuStore.close();
       }
     } else {
-      onClose();
+      cardMenuStore.close();
     }
   }
 
   $effect(() => {
     if (open && anchor) {
-      // Re-freeze position only when the anchor identity changes —
-      // i.e. a fresh open from a different click. Same anchor on
-      // re-render = no recompute = no flicker.
       const key = `${anchor.x},${anchor.y}`;
       if (key !== lastAnchorKey) {
         lastAnchorKey = key;
@@ -144,10 +127,10 @@
   });
 
   onMount(() => {
-    document.addEventListener("mousedown", handleDocumentClick, { capture: true });
+    document.addEventListener("mousedown", handleDocumentMousedown, { capture: true });
     document.addEventListener("keydown", handleKey);
     return () => {
-      document.removeEventListener("mousedown", handleDocumentClick, { capture: true });
+      document.removeEventListener("mousedown", handleDocumentMousedown, { capture: true });
       document.removeEventListener("keydown", handleKey);
     };
   });
@@ -157,7 +140,6 @@
   <div
     class="menu"
     bind:this={menuEl}
-    use:portal
     role="menu"
     tabindex="-1"
     style="left: {position.x}px; top: {position.y}px"

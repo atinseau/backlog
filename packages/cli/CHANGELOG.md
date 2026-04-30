@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.7] - 2026-04-30
+
+Three more bugs caught from a real user test ("ça ne marche pas, le menu clignote, et ça dit que c'est créé alors que ça l'a pas fait"). Each one was a structural problem, not a tuning fix.
+
+- **Card kebab menu was still chaotic** — 1.4.6's portal hack escaped one transform symptom but still rendered one menu instance per card, each with its own document-level mousedown listener and its own state. Fast cursor movements between cards (mouse out, mouse back) raced these instances against each other and against the card's own transform residue from svelte-dnd-action's FLIP. Result: menu sometimes flickered, sometimes disappeared, sometimes appeared at the previous card's position. **Fix**: hoisted the menu to a single global instance rendered at App-shell level, driven by a tiny `cardMenuStore`. Cards just emit `openAt(coords, items)`; one `<CardMenu>` mounted in the app reads from the store. No more multi-instance race, no transformed ancestor, no portal trickery.
+- **Create-task flow showed two "Tâche créée" confirmations stacked** — the create dialog had an `applied` phase that printed "Tâche créée" in the header AND "✓ Tâche créée" in the body, with a Close button. Then `StartPromptDialog` opened on top (or behind, depending on z-index), asking "Démarrer maintenant?" Users dismissed the create-dialog confirmation thinking it meant the work was done, never noticed the start prompt, and got "the task says created but the agent didn't do anything". **Fix**: the create dialog now closes immediately on success — the start prompt is the single visible follow-up, with **Démarrer ▶** as the autofocused primary action so Enter starts the run.
+- **"Démarrer" actually started the orchestrator daemon, not the task** — `startOrchestrator()` only picks up subtasks already marked READY in the queue. A freshly-created task with zero subtasks (the typical "create test.html with hello world" case) had nothing for the daemon to grab, so it idled. The card's Play button works because it goes through `/runs` which has an auto-shim that creates a covering subtask if none exists. **Fix**: the StartPromptDialog now calls `startRun({ task_id })` (same path as the Play button) — the auto-shim kicks in, the run actually fires, and Activity logs populate. The orchestrator is also nudged in parallel so any sibling subtasks from a prior split catch up in the same click.
+
 ## [1.4.6] - 2026-04-30
 
 Three small but visible fixes, all caught by an end-to-end Chrome session against `backlog serve`.
