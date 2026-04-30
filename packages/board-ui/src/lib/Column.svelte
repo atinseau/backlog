@@ -25,9 +25,16 @@
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
     onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
+    // Card-menu actions — proxied to Card.svelte. Pass-through; the
+    // App is the source of truth for what each one does.
+    onArchive?: (card: TaskCard) => Promise<void> | void;
+    onUnarchive?: (card: TaskCard) => Promise<void> | void;
+    onDelete?: (card: TaskCard) => Promise<void> | void;
+    onMoveToTop?: (card: TaskCard) => Promise<void> | void;
+    onSetPriority?: (card: TaskCard, priority: "P0" | "P1" | "P2" | "P3") => Promise<void> | void;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -119,7 +126,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} />
+        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} />
       </div>
     {/each}
     {#if localCards.length === 0}

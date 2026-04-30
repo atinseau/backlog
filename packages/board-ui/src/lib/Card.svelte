@@ -1,5 +1,6 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
+  import CardMenu, { type MenuItem } from "./CardMenu.svelte";
   import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { TaskCard } from "./types.js";
@@ -12,9 +13,19 @@
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
     onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
+    // Card-menu actions. The card itself wires the trigger (3-dot button
+    // + right-click) and renders the menu; the parent decides what
+    // happens on each action so it can also refresh / undo / show
+    // toasts. Each handler is optional — items with no handler are
+    // hidden so a smaller embed can opt out.
+    onArchive?: (card: TaskCard) => Promise<void> | void;
+    onUnarchive?: (card: TaskCard) => Promise<void> | void;
+    onDelete?: (card: TaskCard) => Promise<void> | void;
+    onMoveToTop?: (card: TaskCard) => Promise<void> | void;
+    onSetPriority?: (card: TaskCard, priority: "P0" | "P1" | "P2" | "P3") => Promise<void> | void;
   }
 
-  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -125,6 +136,73 @@
     }
   }
 
+  // ---- Card menu (3-dot button + right-click) ----
+  let menuOpen = $state(false);
+  let menuAnchor = $state<{ x: number; y: number } | null>(null);
+  const isArchived = $derived(Boolean((card as TaskCard & { archived_at?: string }).archived_at));
+
+  function openMenuAt(x: number, y: number) {
+    menuAnchor = { x, y };
+    menuOpen = true;
+  }
+
+  function handleMenuButtonClick(event: MouseEvent) {
+    event.stopPropagation();
+    const btn = event.currentTarget as HTMLElement;
+    const r = btn.getBoundingClientRect();
+    // Anchor the menu just below the 3-dot button so the user keeps
+    // their cursor on it without having to chase across the card.
+    openMenuAt(r.right - 6, r.bottom + 4);
+  }
+
+  function handleContextMenu(event: MouseEvent) {
+    if (!onArchive && !onDelete && !onMoveToTop && !onSetPriority) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openMenuAt(event.clientX, event.clientY);
+  }
+
+  function copyId() {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      void navigator.clipboard.writeText(card.id);
+    }
+  }
+
+  // Build menu items lazily on each open so the disabled state, the
+  // archived/unarchived label, and the priority sub-items reflect the
+  // current card snapshot.
+  const menuItems = $derived.by((): MenuItem[] => {
+    const items: MenuItem[] = [];
+    if (onOpen) items.push({ label: t("card_menu.edit"), icon: "✎", onSelect: () => onOpen?.(card) });
+    items.push({ label: t("card_menu.copy_id", { id: card.id }), icon: "⧉", onSelect: copyId });
+    if (onSetPriority) {
+      items.push({
+        label: t("card_menu.set_priority"),
+        icon: "★",
+        submenu: (["P0", "P1", "P2", "P3"] as const).map((p) => ({
+          label: p === card.priority ? `${p}  •` : p,
+          onSelect: () => onSetPriority?.(card, p),
+        })),
+      });
+    }
+    if (onMoveToTop) {
+      items.push({ label: t("card_menu.move_to_top"), icon: "⤒", onSelect: () => onMoveToTop?.(card), disabled: locked });
+    }
+    if (onArchive || onUnarchive) {
+      items.push({ separator: true, label: "" });
+      if (isArchived && onUnarchive) {
+        items.push({ label: t("card_menu.unarchive"), icon: "↺", onSelect: () => onUnarchive?.(card) });
+      } else if (onArchive) {
+        items.push({ label: t("card_menu.archive"), icon: "📦", onSelect: () => onArchive?.(card), disabled: locked });
+      }
+    }
+    if (onDelete) {
+      items.push({ label: t("card_menu.delete"), icon: "✕", onSelect: () => onDelete?.(card), danger: true, disabled: locked });
+    }
+    return items;
+  });
+
+  const hasMenu = $derived(menuItems.length > 0);
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -133,15 +211,25 @@
   class="card {cardPriorityClass}"
   class:clickable={Boolean(onOpen)}
   class:locked
+  class:archived={isArchived}
   title={locked ? t("card.locked_running") : undefined}
   onpointerdown={handlePointerDown}
   onclick={handleClick}
+  oncontextmenu={handleContextMenu}
   onkeydown={handleKeydown}
   role={onOpen ? "button" : undefined}
   tabindex={onOpen ? 0 : undefined}
 >
   <header>
     <h3>{card.title}</h3>
+    {#if hasMenu}
+      <button
+        type="button"
+        class="kebab"
+        aria-label={t("card.menu_label")}
+        onclick={handleMenuButtonClick}
+      >⋮</button>
+    {/if}
   </header>
 
   <div class="meta">
@@ -222,6 +310,8 @@
     </footer>
   {/if}
 
+  <CardMenu open={menuOpen} items={menuItems} anchor={menuAnchor} onClose={() => (menuOpen = false)} />
+
   {#if canPlay || canApprove || (onSplit && card.tasks.length === 0) || onAddTask}
     <div class="actions">
       {#if canPlay}
@@ -287,6 +377,9 @@
   }
   header {
     margin-bottom: 6px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
   }
   h3 {
     margin: 0;
@@ -294,6 +387,47 @@
     line-height: 1.3;
     /* Title takes full width — priority moved out to .meta. */
     overflow-wrap: anywhere;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .kebab {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-subtle);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 100ms ease, background 100ms ease, color 100ms ease;
+    /* Pulled in from the card edge so the dot trio sits visually
+       inside the padding without crowding the priority pill. */
+    margin-right: -4px;
+    margin-top: -2px;
+  }
+  .card:hover .kebab,
+  .card:focus-within .kebab,
+  .kebab:focus-visible {
+    opacity: 1;
+  }
+  .kebab:hover {
+    background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+    color: var(--text-primary);
+  }
+  /* Archived cards: still clickable / present, but visually muted so
+     they read as "shelved". The board hides them by default — when a
+     filter pulls them back into view this style flags them. */
+  .card.archived {
+    opacity: 0.55;
+    border-left-color: var(--text-subtle);
+  }
+  .card.archived h3 {
+    text-decoration: line-through;
+    text-decoration-color: var(--text-subtle);
   }
   .meta {
     display: flex;

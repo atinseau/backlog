@@ -40,12 +40,17 @@
     fetchAgents,
     fetchProjectsList,
     approveRun,
+    archiveTask,
     cancelRun,
+    deleteTask,
+    moveTaskToTop,
     moveWorkItem,
+    patchTask,
     renameProjectById,
     reorderTask,
     setCurrentProjectId,
     startRun,
+    unarchiveTask,
     type CloudStatus,
     type AgentSummary,
   } from "./lib/api.js";
@@ -524,6 +529,51 @@
     }
   }
 
+  // ---- Card-menu handlers ----
+  // Each one mutates server state then triggers a refresh if SSE
+  // isn't connected (otherwise the next event drives the UI). Errors
+  // surface in the same shared `error` banner the rest of the board
+  // uses — the menu itself stays simple, no per-action toasts.
+  async function handleArchiveCard(card: TaskCard) {
+    error = null;
+    try { await archiveTask(card.id); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+  async function handleUnarchiveCard(card: TaskCard) {
+    error = null;
+    try { await unarchiveTask(card.id); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+  async function handleDeleteCard(card: TaskCard) {
+    // Confirm in plain dialog rather than a custom modal — keeps
+    // the menu fast on the common path. Cascade is the safe default
+    // here: deleting a parent without its sub-tasks would orphan the
+    // sub-tasks (their task_id would dangle).
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(t("card_menu.delete_confirm", { title: card.title }));
+      if (!ok) return;
+    }
+    error = null;
+    try { await deleteTask(card.id, { cascade: true }); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+  async function handleMoveToTopCard(card: TaskCard) {
+    error = null;
+    try { await moveTaskToTop(card.id); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+  async function handleSetPriority(card: TaskCard, priority: "P0" | "P1" | "P2" | "P3") {
+    if (priority === card.priority) return;
+    error = null;
+    try { await patchTask(card.id, { priority }); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+
   // Cancel every in-flight run on the current board. Used by the
   // topbar Stop button when the global orchestrator isn't running
   // but individual runs are. Best-effort per run — one failure
@@ -851,6 +901,11 @@
                 onOpen={selectCard}
                 onPlay={handlePlayCard}
                 onApprove={handleApproveCard}
+                onArchive={handleArchiveCard}
+                onUnarchive={handleUnarchiveCard}
+                onDelete={handleDeleteCard}
+                onMoveToTop={handleMoveToTopCard}
+                onSetPriority={handleSetPriority}
               />
             {/each}
           </main>

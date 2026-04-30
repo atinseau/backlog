@@ -11,6 +11,7 @@ import {
   setTaskEstimate,
   splitTask,
   unarchiveTask,
+  updateTask,
   updateTaskStatus,
 } from "@backlog/core";
 import { Hono } from "hono";
@@ -337,6 +338,40 @@ export function workItemsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "estimate_failed", detail: message }, 404);
+    }
+  });
+
+  // PATCH a small set of task fields (priority, title, description,
+  // labels, repo_targets). Used by the card menu's "Set priority"
+  // submenu. Validation mirrors the create body — only the fields
+  // listed here are touched, others are left as-is.
+  const patchBodySchema = z.object({
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
+    labels: z.array(z.string().min(1)).optional(),
+    repo_targets: z.array(z.string().min(1)).optional(),
+  });
+  app.patch("/tasks/:id", async (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = patchBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const input: Parameters<typeof updateTask>[2] = {};
+      if (parsed.data.title !== undefined) input.title = parsed.data.title;
+      if (parsed.data.description !== undefined) input.description = parsed.data.description;
+      if (parsed.data.priority !== undefined) input.priority = parsed.data.priority;
+      if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
+      if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
+      const task = updateTask(workspace.backlogDir, id, input);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "patch_failed", detail: message }, 404);
     }
   });
 

@@ -506,6 +506,76 @@ export async function reorderTask(
   }
 }
 
+// "Move to top of the column" — reorder with no anchor falls through
+// to insertIndex=0 in the core helper. Surfaces in the card menu as
+// "Bypass queue" since the orchestrator picks higher-ranked items first.
+export async function moveTaskToTop(id: string): Promise<void> {
+  return reorderTask(id, {});
+}
+
+export async function archiveTask(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/archive`), { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Archive failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+export async function unarchiveTask(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/unarchive`), { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Unarchive failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+export async function deleteTask(id: string, opts: { cascade?: boolean } = {}): Promise<void> {
+  const url = apiUrl(`/tasks/${encodeURIComponent(id)}`, opts.cascade ? { cascade: "true" } : {});
+  const response = await fetch(url, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`Delete failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+export async function archiveSubTask(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}/archive`), { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Archive failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+export async function unarchiveSubTask(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}/unarchive`), { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Unarchive failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+export async function deleteSubTask(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/subtasks/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`Delete failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
+// Partial update for tasks (priority, title, description, labels,
+// repo_targets). Used by the card menu's Set-priority submenu.
+export interface PatchTaskInput {
+  title?: string;
+  description?: string;
+  priority?: "P0" | "P1" | "P2" | "P3";
+  labels?: string[];
+  repo_targets?: string[];
+}
+export async function patchTask(id: string, input: PatchTaskInput): Promise<void> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(`Patch failed (${response.status}): ${await response.text().catch(() => "")}`);
+  }
+}
+
 export interface CreateSubTaskInput {
   task_id: string;
   title: string;
