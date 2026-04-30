@@ -82,10 +82,12 @@ describe("orchestrator-loop", () => {
 
     const hydrated = await hydrateOrchestrator(backlogDir);
     expect(hydrated.mode).toBe("idle");
-    expect(hydrated.last_error).toBe("stale_hydrate");
+    expect(hydrated.started_at).toBeUndefined();
+    expect(hydrated.paused_at).toBeUndefined();
+    expect(hydrated.last_error).toBeUndefined();
   });
 
-  it("hydrate with fresh last_tick_at keeps running", async () => {
+  it("hydrate with fresh last_tick_at also forces idle", async () => {
     await startOrchestrator(backlogDir, { tick_interval_ms: 60_000 });
     // simulate fresh tick
     const fresh = new Date().toISOString();
@@ -95,7 +97,9 @@ describe("orchestrator-loop", () => {
     );
 
     const hydrated = await hydrateOrchestrator(backlogDir);
-    expect(hydrated.mode).toBe("running");
+    expect(hydrated.mode).toBe("idle");
+    expect(hydrated.started_at).toBeUndefined();
+    expect(hydrated.paused_at).toBeUndefined();
   });
 
   it("hydrate is a no-op when state is idle", async () => {
