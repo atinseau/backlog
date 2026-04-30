@@ -204,13 +204,34 @@ jobs:
       # Only runs on a tag push because workflow_dispatch builds use
       # --publish never which skips notarization, and stapling an
       # un-notarized DMG fails with "Record not found".
+      # Apple's notarization API returns success the moment the ticket
+      # is written to their primary store, but `xcrun stapler` reads
+      # from CloudKit, which lags by 30s–5min. A naive `stapler staple`
+      # right after notarize fails with "Record not found". Retry with
+      # exponential backoff up to ~6 min total — well past the typical
+      # CloudKit propagation window without making the job stall on a
+      # genuinely missing ticket.
       - name: Staple DMG containers
         if: success() && github.event_name == 'push'
         working-directory: packages/desktop/release
         run: |
+          set +e
           for dmg in *.dmg; do
             echo "Stapling $dmg"
-            xcrun stapler staple "$dmg"
+            attempt=1
+            max_attempts=7   # 30 + 45 + 60 + 75 + 90 + 105 + 120 = ~9.5 min worst case
+            delay=30
+            while true; do
+              xcrun stapler staple "$dmg" && break
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "::error::Stapling $dmg failed after $attempt attempts"
+                exit 65
+              fi
+              echo "Staple attempt $attempt failed (likely CloudKit propagation). Retrying in ${delay}s..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay + 15))
+            done
           done
 
       # The release was already published by electron-builder above.
