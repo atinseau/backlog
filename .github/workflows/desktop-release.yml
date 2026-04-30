@@ -195,61 +195,25 @@ jobs:
           CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
 
-      # electron-builder notarises the .app inside each DMG but doesn't
-      # staple the notarisation ticket onto the .dmg container itself.
-      # Without the staple, `xcrun stapler validate` on the .dmg fails
-      # (purely cosmetic — the .app inside is staplé, so Gatekeeper
-      # accepts the install both online and offline). Stapling the .dmg
-      # too means tooling that inspects the container directly is happy.
-      # Only runs on a tag push because workflow_dispatch builds use
-      # --publish never which skips notarization, and stapling an
-      # un-notarized DMG fails with "Record not found".
-      # Apple's notarization API returns success the moment the ticket
-      # is written to their primary store, but `xcrun stapler` reads
-      # from CloudKit, which lags by 30s–5min. A naive `stapler staple`
-      # right after notarize fails with "Record not found". Retry with
-      # exponential backoff up to ~6 min total — well past the typical
-      # CloudKit propagation window without making the job stall on a
-      # genuinely missing ticket.
-      - name: Staple DMG containers
-        if: success() && github.event_name == 'push'
-        working-directory: packages/desktop/release
-        run: |
-          set +e
-          for dmg in *.dmg; do
-            echo "Stapling $dmg"
-            attempt=1
-            max_attempts=7   # 30 + 45 + 60 + 75 + 90 + 105 + 120 = ~9.5 min worst case
-            delay=30
-            while true; do
-              xcrun stapler staple "$dmg" && break
-              if [ "$attempt" -ge "$max_attempts" ]; then
-                echo "::error::Stapling $dmg failed after $attempt attempts"
-                exit 65
-              fi
-              echo "Staple attempt $attempt failed (likely CloudKit propagation). Retrying in ${delay}s..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay + 15))
-            done
-          done
-
-      # The release was already published by electron-builder above.
-      # Re-upload the stapled .dmgs over the unstapled ones so end
-      # users who download the .dmg get the staple too. `gh release
-      # upload --clobber` overwrites an existing asset of the same
-      # name without needing to delete it first.
-      - name: Re-upload stapled DMGs
-        if: success() && github.event_name == 'push'
-        working-directory: packages/desktop/release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # The release tag is `v<version>` (electron-builder convention,
-        # not the git tag we pushed). Read it back from package.json
-        # so the step doesn't drift if the version bumps.
-        run: |
-          VERSION=$(node -p "require('../package.json').version")
-          gh release upload "v$VERSION" *.dmg --clobber --repo osmove/backlog
+      # NOTE: no DMG-stapling step here — and the absence is deliberate.
+      # electron-builder + electron-osx-sign notarize and staple the
+      # **Backlog.app** inside each DMG. The DMG container itself is
+      # never notarized (electron-builder doesn't submit it), so
+      # `xcrun stapler` would fail with "Record not found" — there's
+      # nothing to staple a ticket to.
+      #
+      # Critically, this is fine end-to-end. When a user downloads
+      # Backlog-1.4.x-arm64.dmg, mounts it, and drags Backlog.app to
+      # /Applications, Gatekeeper inspects the .app, finds the stapled
+      # ticket, and launches without a warning — both online and
+      # offline. The DMG container being unsigned is the same shape
+      # 99% of macOS apps ship in (Slack, Notion, Cursor, …).
+      #
+      # If a future release moves to a DMG-level signing flow (e.g.
+      # `electron-builder` adds `notarizeDmg: true` or we sign the
+      # DMG manually with `productsign`), reintroduce a staple step
+      # here. Until then, DON'T add one — it will always fail with
+      # CloudKit "Record not found" because the record never existed.
 
       - name: Upload artifacts
         if: always()
