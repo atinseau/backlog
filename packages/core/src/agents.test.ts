@@ -78,9 +78,15 @@ describe("agents", () => {
   });
 
   it("keeps validation working after an agent update", () => {
+    // validateAgents checks executableExists(agent.command ?? "claude").
+    // CI runners don't have `claude` on PATH, so without a real command
+    // the test passes only on dev machines where the user actually has
+    // Claude installed. process.execPath is always present (it's the
+    // running node binary) — use it as a stand-in.
     updateAgent(backlogDir, "claude-code", {
       capabilities: ["plan", "review"],
       allowedRisk: ["low"],
+      command: process.execPath,
       enabled: true,
     });
 
