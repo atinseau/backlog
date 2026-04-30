@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-04-30
+
+Two regression fixes that bit live users on 1.4.3 and 1.4.4. Both are short, visible, and worth pushing immediately.
+
+- **Auto-update silently broken since 1.4.0** — `before-quit` was calling `app.exit(0)`, which skips the `will-quit` and `quit` events. `electron-updater`'s `autoInstallOnAppQuit = true` flag hooks into the `quit` event to run the staged installer. Net effect: the `.dmg` for the new version was downloaded into `~/Library/Caches/backlog-updater/pending/`, but the installer never fired on quit, so users stayed pinned to whatever they installed first regardless of how many times they quit and relaunched. Replaced `app.exit(0)` with `app.quit()`; the `isQuitting` guard prevents the resulting re-fire of `before-quit` from looping. Users on 1.4.3 / 1.4.4 will get 1.4.5 (and every subsequent update) by quitting and relaunching once.
+- **Kanban card kebab menu flickered + didn't open** — `svelte-dnd-action` listens for `pointerdown` events on each draggable card. Clicking the 3-dot button (or the play / approve / split / + buttons) inside a card sent the `pointerdown` up to dnd-action, which staged a "potential drag" → applied a clone-style → cancelled when the click resolved with no movement → snapped back. Visible as a whole-screen flicker, plus the menu often failed to open because the click was racing dnd-action's drag-start. Fixed by stopping `pointerdown` and `mousedown` propagation on every inline action button so dnd-action never sees them. Drag itself (grabbing the card body) is unchanged.
+
 ## [1.4.4] - 2026-04-30
 
 Auto-update is now visible inside the app. Until 1.4.3 the only signal of a downloaded update was a native macOS notification (often dismissed or invisible on Windows/Linux); 1.4.4 adds an in-app banner and a manual menu trigger so the user is never stuck on a stale build without realising.

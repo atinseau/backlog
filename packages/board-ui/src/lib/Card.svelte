@@ -162,6 +162,18 @@
     openMenuAt(r.right - 6, r.bottom + 4);
   }
 
+  // Block pointerdown / mousedown propagation on the action buttons so
+  // svelte-dnd-action (which listens on the dndzone container) doesn't
+  // initiate a "potential drag" when the user clicks an inline button.
+  // Without this, clicking the kebab/play/approve buttons makes the
+  // whole card flicker as dnd-action stages a drag clone, immediately
+  // cancels it (no movement), and snaps the card back. Bonus side
+  // effect: the menu actually opens reliably because the click event
+  // can resolve cleanly instead of racing with dnd-action's drag-start.
+  function stopButtonPointerEvent(event: PointerEvent | MouseEvent) {
+    event.stopPropagation();
+  }
+
   function handleContextMenu(event: MouseEvent) {
     if (!onArchive && !onDelete && !onMoveToTop && !onSetPriority) return;
     event.preventDefault();
@@ -276,6 +288,8 @@
         class="kebab"
         aria-label={t("card.menu_label")}
         onclick={handleMenuButtonClick}
+        onpointerdown={stopButtonPointerEvent}
+        onmousedown={stopButtonPointerEvent}
       >⋮</button>
     {/if}
   </header>
@@ -366,6 +380,8 @@
         <button
           class="icon-btn play"
           onclick={handlePlayClick}
+          onpointerdown={stopButtonPointerEvent}
+          onmousedown={stopButtonPointerEvent}
           disabled={starting}
           aria-label={t("card.play")}
           title={t("card.play")}
@@ -375,16 +391,32 @@
         <button
           class="icon-btn approve"
           onclick={handleApproveClick}
+          onpointerdown={stopButtonPointerEvent}
+          onmousedown={stopButtonPointerEvent}
           disabled={approving}
           aria-label={t("card.approve")}
           title={t("card.approve")}
         >{approving ? "…" : "✓"}</button>
       {/if}
       {#if onSplit && card.tasks.length === 0}
-        <button class="icon-btn" onclick={handleSplitClick} aria-label={t("card.split")} title={t("card.split")}>✂</button>
+        <button
+          class="icon-btn"
+          onclick={handleSplitClick}
+          onpointerdown={stopButtonPointerEvent}
+          onmousedown={stopButtonPointerEvent}
+          aria-label={t("card.split")}
+          title={t("card.split")}
+        >✂</button>
       {/if}
       {#if onAddTask}
-        <button class="icon-btn" onclick={handleAddTaskClick} aria-label={t("card.add_subtask")} title={t("card.add_subtask")}>+</button>
+        <button
+          class="icon-btn"
+          onclick={handleAddTaskClick}
+          onpointerdown={stopButtonPointerEvent}
+          onmousedown={stopButtonPointerEvent}
+          aria-label={t("card.add_subtask")}
+          title={t("card.add_subtask")}
+        >+</button>
       {/if}
     </div>
   {/if}

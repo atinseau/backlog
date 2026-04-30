@@ -361,6 +361,17 @@ app.on("before-quit", (event) => {
       // Best effort — don't block shutdown if the server hangs.
     })
     .finally(() => {
-      app.exit(0);
+      // CRITICAL: must be `app.quit()`, NOT `app.exit(0)`. The latter
+      // skips the `will-quit` and `quit` events, which is exactly where
+      // electron-updater hooks `autoInstallOnAppQuit` to actually run
+      // the installer for a downloaded update. Using `app.exit()` here
+      // (the original implementation) silently broke auto-update — the
+      // .dmg got fetched into ~/Library/Caches/backlog-updater/ but the
+      // installer never ran on quit, so users stayed pinned to their
+      // installed version no matter how many times they quit + relaunched.
+      //
+      // app.quit() re-fires before-quit. The isQuitting guard above
+      // catches the second call and early-returns, so we don't loop.
+      app.quit();
     });
 });
