@@ -41,6 +41,25 @@ function secretsPath(backlogDir: string): string {
   return path.join(backlogDir, "secrets.json");
 }
 
+// Account-level secrets file. Lives at ~/.backlog/secrets.json so a
+// single OPENAI_API_KEY / ANTHROPIC_API_KEY etc. follows the user
+// across every project. Encrypted with the same per-machine key as
+// the project files (~/.backlog/.secrets-key) so re-keying stays a
+// single operation.
+//
+// Lookup chain: project secret first → account fallback → null.
+// That way a project can override the account default by setting its
+// own value (useful when a contractor wants a separate API tier for
+// one client) without forcing every other project to re-set the
+// same key.
+function accountSecretsDir(): string {
+  return path.join(os.homedir(), ".backlog");
+}
+
+function accountSecretsPath(): string {
+  return path.join(accountSecretsDir(), "secrets.json");
+}
+
 // Resolve the symmetric key location. We deliberately keep it under
 // ~/.backlog/ rather than next to the workspace's secrets.json — this
 // way moving / syncing the workspace doesn't carry the key with the
@@ -104,11 +123,10 @@ function isEncryptedValue(value: unknown): value is EncryptedValue {
   );
 }
 
-function readFile(backlogDir: string): SecretsFile {
-  const file = secretsPath(backlogDir);
-  if (!fs.existsSync(file)) return { version: 2, secrets: {} };
+function readFileAt(filePath: string): SecretsFile {
+  if (!fs.existsSync(filePath)) return { version: 2, secrets: {} };
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as Record<string, unknown>;
     const version = typeof parsed.version === "number" ? parsed.version : 1;
     const secrets = (parsed.secrets ?? {}) as Record<string, unknown>;
     if (version === 2) {
@@ -129,12 +147,11 @@ function readFile(backlogDir: string): SecretsFile {
   }
 }
 
-function writeFile(backlogDir: string, data: SecretsFileV2): void {
-  const file = secretsPath(backlogDir);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+function writeFileAt(filePath: string, data: SecretsFileV2): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
   try {
-    fs.chmodSync(file, 0o600);
+    fs.chmodSync(filePath, 0o600);
   } catch {
     // best-effort on non-POSIX
   }
@@ -142,8 +159,8 @@ function writeFile(backlogDir: string, data: SecretsFileV2): void {
 
 // Read the file and return a flat plaintext view. Decrypts v2; passes
 // through v1 (legacy plaintext store).
-function readPlaintext(backlogDir: string): Record<string, string> {
-  const file = readFile(backlogDir);
+function readPlaintextAt(filePath: string): Record<string, string> {
+  const file = readFileAt(filePath);
   if (file.version === 1) return { ...file.secrets };
   const key = getOrCreateKey();
   const out: Record<string, string> = {};
@@ -158,38 +175,136 @@ function readPlaintext(backlogDir: string): Record<string, string> {
   return out;
 }
 
-function writePlaintext(backlogDir: string, plaintext: Record<string, string>): void {
+function writePlaintextAt(filePath: string, plaintext: Record<string, string>): void {
   const key = getOrCreateKey();
   const encrypted: Record<string, EncryptedValue> = {};
   for (const [k, v] of Object.entries(plaintext)) {
     encrypted[k] = encrypt(v, key);
   }
-  writeFile(backlogDir, { version: 2, secrets: encrypted });
+  writeFileAt(filePath, { version: 2, secrets: encrypted });
+}
+
+// ---------- Project-level (legacy single-scope API) ----------
+// Lookup chain: getSecret returns the project value if set, otherwise
+// the account fallback, otherwise null. This lets the existing
+// callsites (executors, AI splitter, doctor) keep using getSecret
+// unchanged and pick up the new account scope for free.
+
+function readProjectPlaintext(backlogDir: string): Record<string, string> {
+  return readPlaintextAt(secretsPath(backlogDir));
+}
+
+function writeProjectPlaintext(backlogDir: string, plaintext: Record<string, string>): void {
+  writePlaintextAt(secretsPath(backlogDir), plaintext);
 }
 
 export function getSecret(backlogDir: string, key: string): string | null {
-  return readPlaintext(backlogDir)[key] ?? null;
+  const project = readProjectPlaintext(backlogDir)[key];
+  if (project !== undefined) return project;
+  const account = readPlaintextAt(accountSecretsPath())[key];
+  return account ?? null;
 }
 
 export function hasSecret(backlogDir: string, key: string): boolean {
   return getSecret(backlogDir, key) !== null;
 }
 
+// Strictly project-scoped lookup, ignoring the account fallback.
+// Useful when a tool wants to know whether the *project* has its own
+// override (e.g. for a UI badge "this project uses a different key").
+export function getProjectSecret(backlogDir: string, key: string): string | null {
+  return readProjectPlaintext(backlogDir)[key] ?? null;
+}
+
+export function hasProjectSecret(backlogDir: string, key: string): boolean {
+  return getProjectSecret(backlogDir, key) !== null;
+}
+
+// setSecret keeps writing to the project file — preserves backward
+// compat for anything in the codebase that calls it. The CLI surface
+// has been updated to default to the account scope; programmatic
+// callers can pick scope explicitly via setProjectSecret /
+// setAccountSecret.
 export function setSecret(backlogDir: string, key: string, value: string): void {
-  const plaintext = readPlaintext(backlogDir);
+  setProjectSecret(backlogDir, key, value);
+}
+
+export function setProjectSecret(backlogDir: string, key: string, value: string): void {
+  const plaintext = readProjectPlaintext(backlogDir);
   plaintext[key] = value;
-  writePlaintext(backlogDir, plaintext);
+  writeProjectPlaintext(backlogDir, plaintext);
 }
 
 export function deleteSecret(backlogDir: string, key: string): void {
-  const plaintext = readPlaintext(backlogDir);
+  deleteProjectSecret(backlogDir, key);
+}
+
+export function deleteProjectSecret(backlogDir: string, key: string): void {
+  const plaintext = readProjectPlaintext(backlogDir);
   if (!(key in plaintext)) return;
   delete plaintext[key];
-  writePlaintext(backlogDir, plaintext);
+  writeProjectPlaintext(backlogDir, plaintext);
 }
 
 export function listSecretKeys(backlogDir: string): string[] {
-  return Object.keys(readPlaintext(backlogDir)).sort();
+  return Object.keys(readProjectPlaintext(backlogDir)).sort();
+}
+
+// ---------- Account-level (new in 1.4) ----------
+// Single set of secrets shared across every project on this machine.
+// Lives at ~/.backlog/secrets.json. The CLI defaults to this scope
+// because for 99 % of users a single OPENAI_API_KEY / ANTHROPIC_API_KEY
+// covers every project they own; per-project overrides are the
+// exception.
+
+export function getAccountSecret(key: string): string | null {
+  return readPlaintextAt(accountSecretsPath())[key] ?? null;
+}
+
+export function hasAccountSecret(key: string): boolean {
+  return getAccountSecret(key) !== null;
+}
+
+export function setAccountSecret(key: string, value: string): void {
+  const plaintext = readPlaintextAt(accountSecretsPath());
+  plaintext[key] = value;
+  writePlaintextAt(accountSecretsPath(), plaintext);
+}
+
+export function deleteAccountSecret(key: string): void {
+  const plaintext = readPlaintextAt(accountSecretsPath());
+  if (!(key in plaintext)) return;
+  delete plaintext[key];
+  writePlaintextAt(accountSecretsPath(), plaintext);
+}
+
+export function listAccountSecretKeys(): string[] {
+  return Object.keys(readPlaintextAt(accountSecretsPath())).sort();
+}
+
+// ---------- Helpers ----------
+
+// Where each scope's secrets live on disk. Surfaced for `backlog
+// doctor` and `backlog secrets list` UIs that want to print the
+// resolved path so the user can debug.
+export function projectSecretsPath(backlogDir: string): string {
+  return secretsPath(backlogDir);
+}
+
+export function accountSecretsFilePath(): string {
+  return accountSecretsPath();
+}
+
+// Resolve which scope provided a given key. Useful for the CLI's
+// `secrets list --resolved` mode that wants to show "OPENAI_API_KEY
+// (account)" vs "ANTHROPIC_API_KEY (project override)".
+export function describeSecretScope(
+  backlogDir: string,
+  key: string,
+): "project" | "account" | null {
+  if (key in readProjectPlaintext(backlogDir)) return "project";
+  if (key in readPlaintextAt(accountSecretsPath())) return "account";
+  return null;
 }
 
 // Test hook: the symmetric key file lives at ~/.backlog/.secrets-key by
@@ -214,11 +329,20 @@ export interface ReKeyResult {
 }
 
 export function reEncryptSecrets(backlogDir: string, fromKey: Buffer): ReKeyResult {
-  const file = readFile(backlogDir);
+  return reEncryptAt(secretsPath(backlogDir), fromKey);
+}
+
+// Same flow but for the account-level secrets file. Used by `backlog
+// secrets re-key --scope account` after copying ~/.backlog/secrets.json
+// from another machine alongside its .secrets-key.
+export function reEncryptAccountSecrets(fromKey: Buffer): ReKeyResult {
+  return reEncryptAt(accountSecretsPath(), fromKey);
+}
+
+function reEncryptAt(filePath: string, fromKey: Buffer): ReKeyResult {
+  const file = readFileAt(filePath);
   if (file.version === 1) {
-    // v1 plaintext: just upgrade in place using the current local key.
-    // No need for fromKey since nothing is encrypted yet.
-    writePlaintext(backlogDir, file.secrets);
+    writePlaintextAt(filePath, file.secrets);
     return { succeeded: Object.keys(file.secrets), failed: [] };
   }
 
@@ -235,6 +359,6 @@ export function reEncryptSecrets(backlogDir: string, fromKey: Buffer): ReKeyResu
       failed.push(k);
     }
   }
-  writeFile(backlogDir, { version: 2, secrets: reEncrypted });
+  writeFileAt(filePath, { version: 2, secrets: reEncrypted });
   return { succeeded, failed };
 }
