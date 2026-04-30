@@ -199,7 +199,7 @@
   "card.priority": "Priorité {value}",
   "card.menu_label": "Actions de la carte",
   "card.locked_running": "Un run est en cours sur cette carte — les actions sont désactivées jusqu'à ce qu'il finisse.",
-  "card_menu.edit": "Éditer",
+  "card_menu.edit": "Ouvrir / éditer",
   "card_menu.copy_id": "Copier l'ID ({id})",
   "card_menu.set_priority": "Changer la priorité",
   "card_menu.move_to_top": "Faire passer en premier",

@@ -27,22 +27,58 @@
 
   let { open, items, anchor, onClose }: Props = $props();
 
+  // Portal action — moves the menu element straight onto <body> on
+  // mount, then back to its original parent on destroy. Critical
+  // because the parent <article class="card"> can have a CSS transform
+  // applied at any time (svelte-dnd-action sets `transform: matrix(…)`
+  // during FLIP animations and even after, on idle, leaves a 1px y
+  // residue). Any non-identity ancestor transform turns `position:
+  // fixed` into "fixed within the transformed ancestor" instead of
+  // "fixed within the viewport" — so the menu would render hundreds
+  // of pixels offset from the kebab. Portaling sidesteps the entire
+  // class of bugs by detaching the menu from the card subtree.
+  function portal(node: HTMLElement) {
+    const original = node.parentElement;
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        if (original && original.isConnected) {
+          original.appendChild(node);
+        } else {
+          node.remove();
+        }
+      },
+    };
+  }
+
   let menuEl = $state<HTMLDivElement | null>(null);
   let openSubmenu = $state<number | null>(null);
   let highlight = $state<number>(-1);
 
-  // Resolved position after viewport clamping. Re-computed each time
-  // the anchor changes so a menu opened near the screen edge slides
-  // back into view rather than overflowing.
-  const position = $derived.by(() => {
-    if (!anchor) return { x: 0, y: 0 };
+  // Frozen-on-open position. Computed ONCE when the menu opens, then
+  // held stable for the lifetime of that open session. Earlier we used
+  // a $derived.by that depended on `items.length`, which made the
+  // position recompute every time the parent re-rendered the menu —
+  // and the parent re-renders all the time (assigneesForMenu fetches
+  // async, SSE board updates change card props, etc.). Each recompute
+  // would briefly produce a slightly different y-clamp, visible to the
+  // user as a flicker between "correct anchor" and "shifted clamp".
+  // Snapshotting once means the menu stays put until you close it.
+  let position = $state<{ x: number; y: number }>({ x: 0, y: 0 });
+  let lastAnchorKey = "";
+
+  function freezePosition(): void {
+    if (!anchor) return;
     const margin = 8;
     const w = 220;          // matches .menu min-width
-    const h = items.length * 32 + 12;
+    // Use a generous height estimate so a menu opened near the screen
+    // bottom slides up enough to fully fit. Real height is computed
+    // post-mount by the browser; this is just for clamping.
+    const h = Math.max(items.length, 6) * 32 + 12;
     const x = Math.min(anchor.x, window.innerWidth - w - margin);
     const y = Math.min(anchor.y, window.innerHeight - h - margin);
-    return { x: Math.max(margin, x), y: Math.max(margin, y) };
-  });
+    position = { x: Math.max(margin, x), y: Math.max(margin, y) };
+  }
 
   function handleDocumentClick(event: MouseEvent) {
     if (!open) return;
@@ -90,11 +126,20 @@
   }
 
   $effect(() => {
-    if (open) {
+    if (open && anchor) {
+      // Re-freeze position only when the anchor identity changes —
+      // i.e. a fresh open from a different click. Same anchor on
+      // re-render = no recompute = no flicker.
+      const key = `${anchor.x},${anchor.y}`;
+      if (key !== lastAnchorKey) {
+        lastAnchorKey = key;
+        freezePosition();
+      }
       tick().then(() => menuEl?.focus());
-    } else {
+    } else if (!open) {
       openSubmenu = null;
       highlight = -1;
+      lastAnchorKey = "";
     }
   });
 
@@ -112,6 +157,7 @@
   <div
     class="menu"
     bind:this={menuEl}
+    use:portal
     role="menu"
     tabindex="-1"
     style="left: {position.x}px; top: {position.y}px"

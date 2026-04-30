@@ -115,7 +115,31 @@
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
-  let cloudStatus = $state<CloudStatus | null>(null);
+  // Persist the last known cloud status across reloads/launches so the
+  // sidebar doesn't flash "signed out" between page load and the
+  // /cloud/status fetch resolving (~1s round-trip if backlog.so is
+  // reachable, indefinite if it isn't). The cached value is just a
+  // best-effort hint — the real source of truth is still the JWT
+  // stored in secrets.json server-side.
+  const CLOUD_STATUS_CACHE_KEY = "backlog.cloud_status_cache";
+  function readCachedCloudStatus(): CloudStatus | null {
+    try {
+      const raw = typeof localStorage !== "undefined" ? localStorage.getItem(CLOUD_STATUS_CACHE_KEY) : null;
+      return raw ? (JSON.parse(raw) as CloudStatus) : null;
+    } catch {
+      return null;
+    }
+  }
+  function writeCachedCloudStatus(status: CloudStatus): void {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(CLOUD_STATUS_CACHE_KEY, JSON.stringify(status));
+      }
+    } catch {
+      // Quota / private-mode — non-fatal, just skip caching.
+    }
+  }
+  let cloudStatus = $state<CloudStatus | null>(readCachedCloudStatus());
   // Cached list of agents for the topbar AgentPicker + preflight
   // checks. Refreshed on workspace switch and whenever the Agents
   // view's onChanged callback fires (so toggling enable / changing
@@ -198,9 +222,15 @@
 
   async function loadCloudStatus() {
     try {
-      cloudStatus = await fetchCloudStatus();
+      const next = await fetchCloudStatus();
+      cloudStatus = next;
+      writeCachedCloudStatus(next);
     } catch {
-      cloudStatus = { signed_in: false };
+      // On fetch error: keep the last known cached status (if any) so
+      // a transient network blip doesn't spuriously flip the user to
+      // "signed out". Only fall through to the false default if we
+      // truly have nothing on hand.
+      if (!cloudStatus) cloudStatus = { signed_in: false };
     }
   }
 

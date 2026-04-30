@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.6] - 2026-04-30
+
+Three small but visible fixes, all caught by an end-to-end Chrome session against `backlog serve`.
+
+- **Card kebab menu opened hundreds of pixels offset from the click** — the root cause was a CSS transform on the parent `<article class="card">` (left over from svelte-dnd-action's FLIP animation residue, even at idle: `transform: matrix(1, 0, 0, 1, 0, -1)` — a 1px y-translation that's invisible but creates a containing block). Any non-identity ancestor transform turns `position: fixed` into "fixed within the transformed ancestor" rather than "fixed within the viewport", so the menu rendered ~270px right and ~100px down from the kebab. **Fix**: portal the menu element straight onto `<body>` via a `use:portal` action — escapes the entire card subtree and any future ancestor transforms. The menu now anchors precisely to the kebab's right edge minus 6px, every time.
+- **Menu position re-flickered on each parent re-render** — the previous `$derived.by` recomputed clamping based on `items.length`, which changes when `assigneesForMenu` finishes its async fetch (going from `0` agents to `N+1`). The change in length altered the y-clamp by a few pixels, visible to the user as a tiny jump after open. **Fix**: snapshot the position once when the anchor first changes (`lastAnchorKey` guard), don't recompute on subsequent items mutations. Combined with the portal above, the menu is now genuinely stable.
+- **Card-menu "Edit" was confusing** — the action just opened the task detail dialog (which is read-only today), and the user's intuition was that "Edit" should put them into edit mode directly. Renamed the label to **"Ouvrir / éditer"** (FR) / **"Open / edit"** (EN) to match the actual behaviour. A future release will add inline title editing inside the dialog.
+- **Cloud session flashed "signed out" on every launch** — `loadCloudStatus()` started with `cloudStatus = null` and waited for the `/cloud/status` round-trip (~500ms when backlog.so is reachable, longer if not), during which the sidebar profile pill briefly showed the signed-out state. **Fix**: cache the last known status in `localStorage` (key: `backlog.cloud_status_cache`) and use it as the optimistic initial value. A network blip during refresh now keeps the cached status instead of flipping to "signed out".
+
 ## [1.4.5] - 2026-04-30
 
 Two regression fixes that bit live users on 1.4.3 and 1.4.4. Both are short, visible, and worth pushing immediately.

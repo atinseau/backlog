@@ -203,7 +203,7 @@
   "card.approve": "Approve the run and move to Done",
   "card.menu_label": "Card actions",
   "card.locked_running": "A run is in flight on this card — actions are disabled until it finishes.",
-  "card_menu.edit": "Edit",
+  "card_menu.edit": "Open / edit",
   "card_menu.copy_id": "Copy ID ({id})",
   "card_menu.set_priority": "Set priority",
   "card_menu.move_to_top": "Move to top (bypass queue)",
