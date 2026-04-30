@@ -835,11 +835,17 @@ export async function cancelRun(runId: string, summary?: string): Promise<void> 
   }
 }
 
-export async function approveRun(runId: string, summary?: string): Promise<void> {
+export type RunApproveOptions = {
+  summary?: string;
+  merge_strategy?: "none" | "fast_forward" | "merge_commit";
+};
+
+export async function approveRun(runId: string, options?: string | RunApproveOptions): Promise<void> {
+  const body = typeof options === "string" ? { summary: options } : (options ?? {});
   const response = await fetch(apiUrl(`/runs/${runId}/approve`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(summary ? { summary } : {}),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));

@@ -105,7 +105,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
     },
     git: {
       branch_strategy: "isolated_worktree",
-      merge_strategy: "none",
+      merge_strategy: "fast_forward",
       cleanup_worktree_on_approve: true,
       delete_branch_after_merge: true,
     },

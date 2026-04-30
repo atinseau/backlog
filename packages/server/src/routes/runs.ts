@@ -23,6 +23,11 @@ const startBodySchema = z.object({
   approve: z.boolean().optional(),
 });
 
+const approveBodySchema = z.object({
+  summary: z.string().optional(),
+  merge_strategy: z.enum(["none", "fast_forward", "merge_commit"]).optional(),
+}).strict().optional();
+
 export function runsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
@@ -132,7 +137,6 @@ export function runsRoutes(): Hono<AppEnv> {
   // `backlog runs approve` CLI command. Without this endpoint the
   // user has to drop to a terminal to clear EN REVUE cards, which
   // is the difference between "looks alive" and "I have to babysit".
-  const approveBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
   app.post("/runs/:id/approve", async (c) => {
     const workspace = c.get("workspace");
     const runId = c.req.param("id");
@@ -155,7 +159,11 @@ export function runsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      await approveRun(workspace.backlogDir, runId, parsed.data?.summary);
+      const approveOptions: Parameters<typeof approveRun>[3] = {};
+      if (parsed.data?.merge_strategy) {
+        approveOptions.mergeStrategy = parsed.data.merge_strategy;
+      }
+      await approveRun(workspace.backlogDir, runId, parsed.data?.summary, approveOptions);
       return c.json({ ok: true, run_id: runId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -1,10 +1,11 @@
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
 import { loadConfig } from "@backlog/config";
+import type { GitMergeStrategy, ProjectConfig } from "@backlog/schemas";
 import { cascadeBlockDependents, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { addRunArtifact, appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
-import { cleanupRunWorktree, commitWorktreeChanges, createPullRequest, mergeRunBranch, pushWorktreeBranch } from "./run-merge.js";
+import { cleanupRunWorktree, commitWorktreeChanges, createPullRequest, mergeRunBranch, pushWorktreeBranch, sanitizeRunBranch } from "./run-merge.js";
 
 function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
   const task = getSubTask(backlogDir, taskId);
@@ -62,71 +63,91 @@ export async function completeRun(backlogDir: string, runId: string, summary?: s
   archiveRun(backlogDir, runId);
 }
 
-export async function approveRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
-  // Capture the run + repo BEFORE completeRun moves it to archive,
-  // because the merge + worktree cleanup need the worktree path that
-  // only exists on the active record.
+export interface ApproveRunOptions {
+  mergeStrategy?: GitMergeStrategy;
+}
+
+function withMergeStrategy(config: ProjectConfig, override?: GitMergeStrategy): ProjectConfig {
+  if (!override) return config;
+  return {
+    ...config,
+    git: {
+      ...config.git,
+      merge_strategy: override,
+    },
+  };
+}
+
+export async function approveRun(backlogDir: string, runId: string, summary?: string, options?: ApproveRunOptions): Promise<void> {
+  // Capture the run + repo before completeRun moves it to archive,
+  // because merge + cleanup need the active worktree path.
   const run = loadRun(backlogDir, runId);
-  await completeRun(backlogDir, runId, summary ?? "Approved in review");
   if (!run) return;
 
-  // Optional auto-merge + worktree cleanup, both off by default.
-  // Failure of either is logged into events.ndjson but never throws —
-  // the approve itself already succeeded and the user shouldn't have
-  // to retry the whole flow because of a leftover lock or a conflict.
+  const baseConfig = loadConfig(backlogDir);
+  const config = withMergeStrategy(baseConfig, options?.mergeStrategy);
+  const repo = config.repos.find((r) => r.id === run.repo);
+
+  if (config.git.merge_strategy !== "none") {
+    if (!repo) {
+      throw new Error(`Unknown repo '${run.repo}' for run ${run.id}`);
+    }
+    const sanitize = await sanitizeRunBranch({ worktreePath: run.worktree_path });
+    if (!sanitize.ok) {
+      throw new Error(`Run branch cleanup failed: ${sanitize.error ?? "unknown"}${sanitize.detail ? ` — ${sanitize.detail}` : ""}`);
+    }
+    if (sanitize.changed) {
+      if (sanitize.sha) addRunArtifact(backlogDir, runId, { kind: "commit", value: sanitize.sha });
+      appendRunEvent(backlogDir, runId, {
+        ts: new Date().toISOString(),
+        type: "run.sanitized",
+        message: "Removed Backlog internal artifacts before applying",
+      });
+    }
+    const mergeResult = await mergeRunBranch({
+      run,
+      repoPath: repo.path,
+      repoDefaultBranch: repo.default_branch,
+      config,
+    });
+    if (mergeResult) {
+      appendRunEvent(backlogDir, runId, {
+        ts: new Date().toISOString(),
+        type: mergeResult.ok ? "run.merged" : "run.merge_failed",
+        message: mergeResult.ok
+          ? `Merged ${mergeResult.branch} → ${mergeResult.target} (${mergeResult.strategy})`
+          : `Merge into ${mergeResult.target} failed: ${mergeResult.error ?? "unknown"}`,
+      });
+      if (!mergeResult.ok) {
+        const detail = mergeResult.detail ? ` — ${mergeResult.detail}` : "";
+        throw new Error(`Merge failed: ${mergeResult.error ?? "unknown"}${detail}`);
+      }
+    }
+  }
+
+  await completeRun(backlogDir, runId, summary ?? "Approved in review");
+
+  // Worktree cleanup is best-effort after the approval has succeeded.
+  // Merge failures above throw before completion so the run stays in
+  // awaiting_review and the user can fix/retry instead of losing sight
+  // of unapplied work.
   try {
-    const config = loadConfig(backlogDir);
-    const repo = config.repos.find((r) => r.id === run.repo);
     if (!repo) return;
 
-    if (config.git.merge_strategy !== "none") {
-      const mergeResult = await mergeRunBranch({
-        run,
-        repoPath: repo.path,
-        repoDefaultBranch: repo.default_branch,
-        config,
-      });
-      if (mergeResult) {
-        appendRunEvent(backlogDir, runId, {
-          ts: new Date().toISOString(),
-          type: mergeResult.ok ? "run.merged" : "run.merge_failed",
-          message: mergeResult.ok
-            ? `Merged ${mergeResult.branch} → ${mergeResult.target} (${mergeResult.strategy})`
-            : `Merge into ${mergeResult.target} failed: ${mergeResult.error ?? "unknown"}`,
-        });
-
-        if (config.git.cleanup_worktree_on_approve) {
-          const cleanup = await cleanupRunWorktree({
-            worktreePath: run.worktree_path,
-            branch: run.branch,
-            repoPath: repo.path,
-            // Only delete the branch when merge succeeded — otherwise
-            // the unmerged work would be lost.
-            deleteBranch: mergeResult.ok && config.git.delete_branch_after_merge,
-          });
-          appendRunEvent(backlogDir, runId, {
-            ts: new Date().toISOString(),
-            type: cleanup.removedWorktree ? "worktree.removed" : "worktree.cleanup_failed",
-            message: cleanup.removedWorktree
-              ? `Removed worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
-              : `Failed to remove worktree: ${cleanup.error ?? "unknown"}`,
-          });
-        }
-      }
-    } else if (config.git.cleanup_worktree_on_approve) {
-      // No-merge path — still tear down the worktree so `git switch
-      // <branch>` works in the user's main checkout. Branch stays.
+    if (config.git.cleanup_worktree_on_approve) {
+      // Only delete the branch when merge was requested. In no-merge
+      // mode the branch is the user's only copy of the work.
       const cleanup = await cleanupRunWorktree({
         worktreePath: run.worktree_path,
         branch: run.branch,
         repoPath: repo.path,
-        deleteBranch: false,
+        deleteBranch: config.git.merge_strategy !== "none" && config.git.delete_branch_after_merge,
       });
       appendRunEvent(backlogDir, runId, {
         ts: new Date().toISOString(),
         type: cleanup.removedWorktree ? "worktree.removed" : "worktree.cleanup_failed",
         message: cleanup.removedWorktree
-          ? `Removed worktree (branch ${run.branch} kept — set git.merge_strategy to auto-merge)`
+          ? `Removed worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
           : `Failed to remove worktree: ${cleanup.error ?? "unknown"}`,
       });
     }

@@ -85,7 +85,7 @@
     approving = true;
     error = null;
     try {
-      await approveRun(runId, "Approved from diff panel");
+      await approveRun(runId, { summary: "Approved from diff panel", merge_strategy: "fast_forward" });
       onApproved?.();
       onClose();
     } catch (err) {

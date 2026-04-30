@@ -48,7 +48,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Backlog Board (UI not built)</title>
+  <title>Backlog (UI not built)</title>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; margin: 4rem auto; max-width: 36rem; color: #1a1a1a; padding: 0 1rem; }
     code { background: #f4f4f4; padding: 0.15rem 0.35rem; border-radius: 3px; }
@@ -57,7 +57,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
   </style>
 </head>
 <body>
-  <h1>Backlog Board — API ready, UI bundle missing</h1>
+  <h1>Backlog — API ready, UI bundle missing</h1>
   <p>The API is up. To build the kanban UI:</p>
   <pre><code>pnpm --filter @backlog/board-ui build</code></pre>
   <p>Then re-run <code>backlog serve</code>. Try the API directly:</p>

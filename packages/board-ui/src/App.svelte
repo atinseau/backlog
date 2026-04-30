@@ -580,7 +580,7 @@
   async function handleApproveCard(_card: TaskCard, runId: string) {
     error = null;
     try {
-      await approveRun(runId);
+      await approveRun(runId, { merge_strategy: "fast_forward" });
     } catch (err) {
       error = t("card.approve_failed", {
         reason: err instanceof Error ? err.message : String(err),

@@ -22,6 +22,14 @@ function summarizeBash(command: string): string {
   return trimmed.length > 80 ? trimmed.slice(0, 79) + "…" : trimmed;
 }
 
+function describeProcessFailure(result: { exitCode?: number | null; signal?: string | null; stdout?: string; stderr?: string }): string {
+  if (typeof result.exitCode === "number") return `exit code ${result.exitCode}`;
+  if (result.signal) return `signal ${result.signal}`;
+  const output = `${result.stderr ?? ""}${result.stdout ?? ""}`.trim();
+  if (output) return "non-zero exit";
+  return "no exit status or output";
+}
+
 function classifyCodexCommand(command: string): string {
   const c = command.replace(/.*?-l?c\s+"/, "").trim();
   if (/^(?:git|gh)\s/.test(c)) return "agent.git";
@@ -215,6 +223,7 @@ export async function executeCodexAgentRun(params: {
       return;
     }
 
+    const failure = describeProcessFailure(result);
     const handoffPath = writeRunHandoff(
       params.backlogDir,
       params.run.id,
@@ -224,7 +233,7 @@ export async function executeCodexAgentRun(params: {
         `Run: ${params.run.id}`,
         "Reason: codex exec failed",
         "",
-        `Exit code: ${String(result.exitCode)}`,
+        `Exit: ${failure}`,
         "",
         "Inspect `.backlog-codex.log` and `.backlog-codex-last-message.md` in the worktree.",
       ].join("\n"),
@@ -232,12 +241,12 @@ export async function executeCodexAgentRun(params: {
     await failRun(
       params.backlogDir,
       params.run.id,
-      lastMessage || `Codex agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`,
+      lastMessage || `Codex agent ${params.agent.id} failed (${failure})`,
     );
     appendRunEvent(params.backlogDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",
-      message: `Codex execution failed. Handoff: ${handoffPath}`,
+      message: `Codex execution failed (${failure}). Handoff: ${handoffPath}`,
     });
   } catch (error) {
     updateRunStatus(params.backlogDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));

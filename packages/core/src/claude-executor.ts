@@ -52,6 +52,14 @@ function summarizeToolUse(toolName: string, input: unknown): string {
   return toolName;
 }
 
+function describeProcessFailure(result: { exitCode?: number | null; signal?: string | null; stdout?: string; stderr?: string }): string {
+  if (typeof result.exitCode === "number") return `exit code ${result.exitCode}`;
+  if (result.signal) return `signal ${result.signal}`;
+  const output = `${result.stderr ?? ""}${result.stdout ?? ""}`.trim();
+  if (output) return "non-zero exit";
+  return "no exit status or output";
+}
+
 function handleStreamEvent(
   backlogDir: string,
   runId: string,
@@ -210,6 +218,7 @@ export async function executeClaudeAgentRun(params: {
       return;
     }
 
+    const failure = describeProcessFailure(result);
     const handoffPath = writeRunHandoff(
       params.backlogDir,
       params.run.id,
@@ -219,7 +228,7 @@ export async function executeClaudeAgentRun(params: {
         `Run: ${params.run.id}`,
         "Reason: claude print execution failed",
         "",
-        `Exit code: ${String(result.exitCode)}`,
+        `Exit: ${failure}`,
         "",
         "Inspect `.backlog-claude.log` in the worktree.",
       ].join("\n"),
@@ -227,12 +236,12 @@ export async function executeClaudeAgentRun(params: {
     await failRun(
       params.backlogDir,
       params.run.id,
-      summary || `Claude agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`,
+      summary || `Claude agent ${params.agent.id} failed (${failure})`,
     );
     appendRunEvent(params.backlogDir, params.run.id, {
       ts: new Date().toISOString(),
       type: "executor.failed",
-      message: `Claude execution failed. Handoff: ${handoffPath}`,
+      message: `Claude execution failed (${failure}). Handoff: ${handoffPath}`,
     });
   } catch (error) {
     updateRunStatus(params.backlogDir, params.run.id, "blocked", error instanceof Error ? error.message : String(error));

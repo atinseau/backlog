@@ -45,7 +45,16 @@
 
   function clickFile(runId: string | undefined, file: string) {
     if (!runId || !onOpenDiff) return;
-    onOpenDiff(runId, file);
+    onOpenDiff(runId, normalizeWorktreeFile(file));
+  }
+
+  function normalizeWorktreeFile(file: string): string {
+    const m = /\/\.backlog\/worktrees\/[^/]+\/run_\d+\/(.+)$/.exec(file);
+    return m?.[1] ?? file;
+  }
+
+  function formatRunId(runId: string): string {
+    return runId.replace(/^RUN-/, "");
   }
 
   // Open/closed state persisted in localStorage. Mounted bar is always
@@ -198,12 +207,12 @@
             {@const file = isFileEvent(ev.type) ? extractFile(ev.message) : null}
             <li class="evt evt-{ev.kind}">
               <span class="ts">{new Date(ev.ts).toLocaleTimeString("fr-FR")}</span>
-              {#if ev.runId}<span class="run-pill">{ev.runId.replace(/^RUN-/, "").slice(0, 6)}</span>{/if}
+              {#if ev.runId}<span class="run-pill">{formatRunId(ev.runId)}</span>{/if}
               <code class="type">{ev.type}</code>
               {#if ev.message}
                 {#if file && onOpenDiff && ev.runId}
                   <span class="msg">
-                    <button class="file-link" onclick={() => clickFile(ev.runId, file)} title={file}>{file}</button>
+                    <button class="file-link" onclick={() => clickFile(ev.runId, file)} title={file}>{normalizeWorktreeFile(file)}</button>
                   </span>
                 {:else}
                   <span class="msg">{ev.message}</span>

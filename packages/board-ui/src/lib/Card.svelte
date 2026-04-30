@@ -41,12 +41,19 @@
   // Used on the <article> to colour-code the left border by priority.
   const cardPriorityClass = $derived(`prio-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
-  const runningCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
+  const activeRunCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
+  const runningCount = $derived(card.tasks.filter((t) => {
+    const status = t.active_run?.status;
+    return status === "queued" || status === "preparing" || status === "running";
+  }).length);
+  const reviewCount = $derived(card.tasks.filter((t) => t.active_run?.status === "awaiting_review").length);
+  const blockedTaskCount = $derived(card.tasks.filter((t) => t.status === "blocked").length);
+  const visibleBlockedCount = $derived(blockedCount + blockedTaskCount);
   // A card is "locked" while any of its subtasks has an active run —
   // the executor owns its status, dragging is blocked at the dndzone
   // level (Column.svelte), and we surface the state visually with a
   // not-allowed cursor + faded outline.
-  const locked = $derived(runningCount > 0);
+  const locked = $derived(activeRunCount > 0);
   // Subtasks that the scheduler could pick up if asked to start now.
   // "queued" and "planned" both mean "ready, just hasn't been launched
   // yet"; "waiting" still has unmet deps so we don't count it.
@@ -192,6 +199,30 @@
     }
   }
 
+  function runStatusLabel(status: string): string {
+    switch (status) {
+      case "queued": return t("card.run_status.queued");
+      case "preparing": return t("card.run_status.preparing");
+      case "running": return t("card.run_status.running");
+      case "awaiting_review": return t("card.run_status.awaiting_review");
+      case "succeeded": return t("card.run_status.succeeded");
+      case "failed": return t("card.run_status.failed");
+      case "blocked": return t("card.run_status.blocked");
+      case "interrupted": return t("card.run_status.interrupted");
+      case "canceled": return t("card.run_status.canceled");
+      default: return status;
+    }
+  }
+
+  function subtaskStatusLabel(status: string): string | null {
+    switch (status) {
+      case "blocked": return t("card.subtask_status.blocked");
+      case "review": return t("card.subtask_status.review");
+      case "completed": return t("card.subtask_status.completed");
+      default: return null;
+    }
+  }
+
   // Build menu items lazily on each open so the disabled state, the
   // archived/unarchived label, and the priority sub-items reflect the
   // current card snapshot.
@@ -313,7 +344,9 @@
           <div class="task-line">
             <span class="task-title">{task.title}</span>
             <span class="task-eta">
-              {#if task.eta && task.active_run}
+              {#if task.active_run?.status === "awaiting_review"}
+                {t("card.task_ready_to_apply")}
+              {:else if task.eta && task.active_run}
                 {formatRemaining(task.eta, timer.now) ?? formatDuration(task.estimated_duration_seconds)}
               {:else}
                 ~{formatDuration(task.estimated_duration_seconds)}
@@ -323,7 +356,9 @@
           <span class="task-meta">
             {task.repo}
             {#if task.active_run}
-              · {task.active_run.status} ({task.active_run.agent_id})
+              · {runStatusLabel(task.active_run.status)} ({task.active_run.agent_id})
+            {:else if subtaskStatusLabel(task.status)}
+              · {subtaskStatusLabel(task.status)}
             {/if}
             {#if task.active_claim}
               · 🔒 {task.active_claim.topic}
@@ -365,9 +400,10 @@
       <div class="card-stats">
         <span>{card.progress_percent}%</span>
         <span class="dot">·</span>
-        <span>{t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
+        <span>{reviewCount > 0 ? t("card.awaiting_apply") : t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
         {#if runningCount > 0}<span class="dot">·</span><span class="badge running">▶ {runningCount}</span>{/if}
-        {#if blockedCount > 0}<span class="dot">·</span><span class="badge blocked">⚠ {blockedCount}</span>{/if}
+        {#if reviewCount > 0}<span class="dot">·</span><span class="badge review">✓ {reviewCount}</span>{/if}
+        {#if visibleBlockedCount > 0}<span class="dot">·</span><span class="badge blocked">⚠ {visibleBlockedCount}</span>{/if}
       </div>
     </div>
   {:else if blockedCount > 0 || runningCount > 0}
@@ -404,7 +440,7 @@
           disabled={approving}
           aria-label={t("card.approve")}
           title={t("card.approve")}
-        >{approving ? "…" : "✓"}</button>
+        >{#if approving}…{:else}<span aria-hidden="true">✓</span><span>{t("card.apply_button")}</span>{/if}</button>
       {/if}
       {#if onSplit && card.tasks.length === 0}
         <button
@@ -577,6 +613,10 @@
     background: #a78bfa;
     border-color: #a78bfa;
     color: white;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
   }
   .icon-btn.approve:hover:not(:disabled) {
     background: #8b5cf6;
@@ -668,5 +708,6 @@
     border-radius: 3px;
   }
   .badge.running { background: var(--success-bg); color: var(--success); }
+  .badge.review { background: var(--accent-bg); color: var(--accent-text); }
   .badge.blocked { background: var(--warning-bg); color: var(--warning); }
 </style>

@@ -49,10 +49,11 @@ export const gitConfigSchema = z.object({
   // a config-shape break. Stays "isolated_worktree" by default — direct
   // mode is risky for multi-agent parallelism.
   branch_strategy: z.enum(["isolated_worktree"]).default("isolated_worktree"),
-  // What to do on `runs approve`. Default is "none" so existing
-  // workspaces keep their current "approve = mark-complete only,
-  // user merges by hand" behaviour.
-  merge_strategy: gitMergeStrategySchema.default("none"),
+  // What to do on `runs approve`. Default is fast-forward so the
+  // Desktop flow means what users expect: approve/apply makes the
+  // agent's commit land in the main checkout, while still refusing
+  // dirty trees or conflicts.
+  merge_strategy: gitMergeStrategySchema.default("fast_forward"),
   // Branch to merge into when merge_strategy != "none". Falls back to
   // the repo's default_branch if unset.
   merge_target: z.string().min(1).optional(),
@@ -94,7 +95,7 @@ export const projectConfigSchema = z.object({
   // section get the safe defaults (no auto-merge, cleanup on approve).
   git: gitConfigSchema.default({
     branch_strategy: "isolated_worktree",
-    merge_strategy: "none",
+    merge_strategy: "fast_forward",
     cleanup_worktree_on_approve: true,
     delete_branch_after_merge: true,
   }),

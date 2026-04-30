@@ -4,6 +4,19 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.13] - 2026-04-30
+
+Real audit after 1.4.12 showed the agent was executing, but the product contract was wrong: successful work landed in an isolated worktree/branch and the Desktop UI made "awaiting review" look like "still running" or "done-ish". The user expected files to appear in the project after approving; Backlog was often only marking the run complete.
+
+- **Desktop window title said "Backlog Board"** — Electron already set the BrowserWindow title to `Backlog`, but the loaded document title was still `Backlog Board`, so macOS displayed the stale title. **Fix**: board HTML title and server fallback now say `Backlog`.
+- **Approve did not actually apply work in Desktop** — workspaces defaulted to `git.merge_strategy = "none"`, and `approveRun()` completed the run before attempting any merge. That meant a ✓ could mark a task Done while the file still lived only under `.backlog/worktrees/...`. **Fix**: Desktop approve now sends `merge_strategy: "fast_forward"`, new workspaces default to fast-forward apply, and `approveRun()` merges before marking the run succeeded. If the main checkout is dirty or the merge fails, the run stays `awaiting_review` with an actionable error.
+- **Backlog internal logs were committed into run branches** — `.backlog-claude.log`, `.backlog-claude-prompt.md`, Codex equivalents, and `.backlog-run.patch` were staged by `git add -A`. **Fix**: auto-commit now unstages internal run artifacts, and approve sanitizes older polluted branches before applying them.
+- **In-repo workspaces could block apply because `.backlog/` was untracked** — the merge preflight treated every untracked file as dirty. **Fix**: preflight ignores untracked files but still blocks tracked modifications; Git itself still prevents overwriting conflicting untracked user files.
+- **Run state was fuzzy on cards and in Activity** — review runs showed raw `awaiting_review`, the badge looked like a running ▶ count, and activity pills truncated `run_027` to `run_02`. **Fix**: cards now say `prêt à appliquer`, show a visible `✓ Appliquer` action, display blocked subtasks as `bloqué`, and Activity keeps full run ids plus repo-relative file paths.
+- **Executor failures said "exit code undefined"** — a CLI that exits without code/output now surfaces `no exit status or output` instead of a bogus undefined exit code.
+
+Verified on the user's Demo workspace: applied `run_027` by fast-forward, `test-30-avril.html` appeared in `/Users/jimmy/Dev/test-backlog-demo`, run moved to `succeeded`, worktree was removed, and `.backlog-claude.*` files were not present in the final checkout.
+
 ## [1.4.12] - 2026-04-30
 
 User reported six structural problems on launching 1.4.11. All trace back to "the app is too eager to resume yesterday's work" or "errors prioritise the wrong reason". Belt-and-suspenders fix: clean shutdown when the user quits, force-idle on every startup.
