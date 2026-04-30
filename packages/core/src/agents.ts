@@ -45,6 +45,12 @@ export function getAgent(backlogDir: string, id: string): Agent | null {
 }
 
 export interface UpdateAgentInput {
+  // Human-friendly label set via the UI's double-click rename or
+  // `backlog agents update --display-name`. Setting it to empty
+  // string is treated as a request to clear (use clearDisplayName
+  // explicitly for clarity in callers).
+  displayName?: string;
+  clearDisplayName?: boolean;
   model?: string;
   clearModel?: boolean;
   profile?: string;
@@ -70,6 +76,16 @@ export function updateAgent(backlogDir: string, id: string, input: UpdateAgentIn
     throw new Error(`Unknown agent: ${id}`);
   }
 
+  if (input.displayName !== undefined) {
+    if (input.displayName === "") {
+      delete agent.display_name;
+    } else {
+      agent.display_name = input.displayName;
+    }
+  }
+  if (input.clearDisplayName) {
+    delete agent.display_name;
+  }
   if (input.model !== undefined) {
     agent.model = input.model;
   }

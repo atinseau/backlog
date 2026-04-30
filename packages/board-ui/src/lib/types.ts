@@ -96,6 +96,10 @@ export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access"
 
 export interface AgentSummary {
   id: string;
+  // User-set human label, surfaced in the topbar picker and the
+  // Agents view. Null means "no override" — the UI computes a label
+  // from provider + model via formatAgentLabel().
+  display_name: string | null;
   provider: string;
   enabled: boolean;
   max_concurrent_runs: number;

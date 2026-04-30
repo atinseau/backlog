@@ -24,6 +24,7 @@ const updateBodySchema = z
     capabilities: z.array(z.string()).optional(),
     model: z.string().nullable().optional(),
     profile: z.string().nullable().optional(),
+    display_name: z.string().nullable().optional(),
   })
   .strict();
 
@@ -61,6 +62,7 @@ export function agentsRoutes(): Hono<AppEnv> {
       const needsApiKey = secretKey !== null && !hasSecret(workspace.backlogDir, secretKey);
       return {
         id: agent.id,
+        display_name: agent.display_name ?? null,
         provider: agent.provider,
         enabled: agent.enabled,
         max_concurrent_runs: agent.max_concurrent_runs,
@@ -142,6 +144,8 @@ export function agentsRoutes(): Hono<AppEnv> {
     else if (parsed.data.model !== undefined) input.model = parsed.data.model;
     if (parsed.data.profile === null) input.clearProfile = true;
     else if (parsed.data.profile !== undefined) input.profile = parsed.data.profile;
+    if (parsed.data.display_name === null) input.clearDisplayName = true;
+    else if (parsed.data.display_name !== undefined) input.displayName = parsed.data.display_name;
 
     try {
       const agent = updateAgent(workspace.backlogDir, c.req.param("id"), input);

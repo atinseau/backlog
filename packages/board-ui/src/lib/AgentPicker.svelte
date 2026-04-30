@@ -6,6 +6,7 @@
   // workspace remembers its preferred runner.
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import type { AgentSummary } from "./types.js";
 
   interface Props {
@@ -36,8 +37,11 @@
     }),
   );
   const selected = $derived(executable.find((a) => a.id === selectedId) ?? null);
+  const selectedLabel = $derived(selected ? formatAgentLabel(selected) : null);
   const triggerLabel = $derived(
-    selected ? selected.id : executable.length === 0 ? t("agent_picker.none") : t("agent_picker.choose"),
+    selectedLabel ? selectedLabel.short
+      : executable.length === 0 ? t("agent_picker.none")
+      : t("agent_picker.choose"),
   );
 
   function toggle() { open = !open; }
@@ -81,7 +85,7 @@
   >
     <span class="bot-icon" aria-hidden="true">🤖</span>
     <span class="name">{triggerLabel}</span>
-    {#if selected?.model}<span class="model">{selected.model}</span>{/if}
+    {#if selectedLabel?.contextSize}<span class="ctx-chip">{selectedLabel.contextSize}</span>{/if}
     <span class="chevron" aria-hidden="true">▾</span>
   </button>
 
@@ -91,16 +95,17 @@
         <div class="empty-row">{t("agent_picker.empty")}</div>
       {:else}
         {#each executable as agent (agent.id)}
+          {@const label = formatAgentLabel(agent)}
           <button
             class="item"
             class:active={agent.id === selectedId}
             class:dim={agent.needs_api_key}
             onclick={() => pick(agent.id)}
-            title={agent.needs_api_key ? t("agent_picker.needs_api_key_hint", { key: agent.required_secret_key ?? "" }) : ""}
+            title={agent.needs_api_key ? t("agent_picker.needs_api_key_hint", { key: agent.required_secret_key ?? "" }) : `${agent.id} · ${agent.model ?? agent.provider}`}
           >
             <span class="provider provider-{agent.provider}">{agent.provider}</span>
-            <span class="item-name">{agent.id}</span>
-            {#if agent.model}<span class="item-model">{agent.model}</span>{/if}
+            <span class="item-name">{label.short}</span>
+            {#if label.contextSize}<span class="ctx-chip">{label.contextSize}</span>{/if}
             {#if agent.needs_api_key}<span class="off">🔑 key</span>{/if}
             {#if agent.id === selectedId}<span class="check">✓</span>{/if}
           </button>
@@ -138,13 +143,17 @@
   }
   .bot-icon { font-size: 12px; flex-shrink: 0; line-height: 1; }
   .name { font-weight: 500; }
-  .model {
+  /* Context window pill — shows model capacity at a glance ("1M",
+     "200k", "128k"). Only rendered when we know the value; unknown
+     models simply hide the chip rather than guessing. */
+  .ctx-chip {
     font-family: ui-monospace, monospace;
     font-size: 10px;
     background: var(--bg-elevated);
     color: var(--text-secondary);
     padding: 1px 5px;
     border-radius: 3px;
+    border: 1px solid var(--border);
   }
   .chevron {
     font-size: 12px;

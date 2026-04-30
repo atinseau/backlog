@@ -2,7 +2,45 @@
   import { createAgent, deleteAgent, fetchAgents, patchAgent } from "./api.js";
   import { t } from "./i18n.svelte.js";
   import { MODEL_CATALOG, CUSTOM_MODEL_VALUE, type ModelChoice } from "./agent-models.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import type { AgentSummary, SandboxMode } from "./types.js";
+
+  // Double-click rename — mirrors the ProjectsView pattern. When
+  // editingId matches an agent's id we swap its label for an input.
+  // Saving on Enter or blur calls patchAgent({ display_name }); empty
+  // input clears the field so the auto-computed name takes back over.
+  let editingId = $state<string | null>(null);
+  let editingValue = $state("");
+  function startRename(agent: AgentSummary, event: Event) {
+    event.stopPropagation();
+    editingId = agent.id;
+    editingValue = agent.display_name ?? formatAgentLabel(agent).short;
+  }
+  async function finishRename(agent: AgentSummary) {
+    const next = editingValue.trim();
+    editingId = null;
+    const original = agent.display_name ?? null;
+    // null = "use auto-computed default". Empty string from the user
+    // means "go back to default" — translate before sending.
+    const value: string | null = next.length === 0 ? null : next;
+    if (value === original) return;
+    try {
+      await patchAgent(agent.id, { display_name: value });
+      onChanged?.();
+      await load();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+  function handleRenameKey(event: KeyboardEvent, agent: AgentSummary) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void finishRename(agent);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      editingId = null;
+    }
+  }
 
   interface Props {
     availableRepos: string[];
@@ -256,9 +294,29 @@
             >
               <span class="chev" aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
               <div class="ident">
-                <strong>{agent.id}</strong>
+                {#if editingId === agent.id}
+                  <!-- Inline rename input — Enter / blur saves, Escape cancels.
+                       Stop propagation so clicks on the input don't toggle
+                       the agent's expanded panel. -->
+                  <input
+                    class="rename-input"
+                    type="text"
+                    bind:value={editingValue}
+                    onkeydown={(e) => handleRenameKey(e, agent)}
+                    onblur={() => finishRename(agent)}
+                    onclick={(e) => e.stopPropagation()}
+                    autofocus
+                  />
+                {:else}
+                  {@const label = formatAgentLabel(agent)}
+                  <strong
+                    class="agent-label"
+                    title={agent.id + (agent.display_name ? ` · double-click to rename` : "")}
+                    ondblclick={(e) => startRename(agent, e)}
+                  >{label.short}</strong>
+                  {#if label.contextSize}<span class="ctx-chip">{label.contextSize}</span>{/if}
+                {/if}
                 <span class="provider provider-{agent.provider}">{agent.provider}</span>
-                {#if agent.model}<span class="model-pill">{agent.model}</span>{/if}
                 {#if !isExecutable(agent)}
                   <span class="warn">{t("agents_view.not_executable")}</span>
                 {/if}
@@ -654,6 +712,29 @@
   }
   .ident { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .ident strong { font-size: 14px; color: var(--text-primary); }
+  /* Hover hint that the label is rename-able. The cursor / underline
+     mirror the .project-name affordance in ProjectsView. */
+  .agent-label { cursor: text; }
+  .agent-label:hover { text-decoration: underline dotted var(--text-subtle); text-underline-offset: 3px; }
+  .rename-input {
+    font: inherit;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 2px 6px;
+    min-width: 180px;
+  }
+  .ctx-chip {
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
   .provider {
     font-size: 10px;
     text-transform: uppercase;

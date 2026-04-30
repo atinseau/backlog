@@ -15,6 +15,12 @@ export const retryPolicySchema = z.object({
 
 export const agentSchema = z.object({
   id: z.string().min(1),
+  // Optional human-friendly label set via the kanban (double-click on
+  // the agent's name in the picker / Agents view) or
+  // `backlog agents update --display-name`. When absent the UI
+  // computes one from provider + model — see formatAgentLabel().
+  // Persisted so the chosen name survives across sessions / machines.
+  display_name: z.string().min(1).optional(),
   provider: z.string().min(1),
   model: z.string().optional(),
   profile: z.string().optional(),

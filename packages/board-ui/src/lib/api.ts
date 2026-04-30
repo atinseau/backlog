@@ -146,6 +146,8 @@ export interface UpdateAgentInput {
   capabilities?: string[];
   model?: string | null;
   profile?: string | null;
+  // null clears it (the auto-computed name takes over again).
+  display_name?: string | null;
 }
 
 export async function patchAgent(id: string, input: UpdateAgentInput): Promise<unknown> {
