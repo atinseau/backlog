@@ -157,6 +157,13 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+    # Skip the macOS build entirely when the Apple secrets aren't
+    # configured yet — the `mac:` block in electron-builder.yml has
+    # `notarize: true` hardcoded, which requires reaching Apple's
+    # notary service. Without APPLE_ID set the build will fail. Until
+    # the secrets are added in repo settings, the user can build Mac
+    # locally and `gh release upload` to attach DMGs to the release.
+    if: ${{ vars.MACOS_BUILD_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
