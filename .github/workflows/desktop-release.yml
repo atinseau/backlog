@@ -133,3 +133,69 @@ jobs:
             packages/desktop/release/latest.yml
           if-no-files-found: warn
           retention-days: 14
+
+  # macOS: built on macos-latest because Apple's notarization tools
+  # (xcrun notarytool, codesign, productbuild) are macOS-only. The
+  # runner image already includes Xcode CLT.
+  #
+  # Required secrets in repo settings:
+  #   APPLE_ID                       - the Apple Developer email
+  #   APPLE_APP_SPECIFIC_PASSWORD    - app-specific password from
+  #                                    appleid.apple.com (not the main pw)
+  #   APPLE_TEAM_ID                  - 10-char Team ID, visible in
+  #                                    developer.apple.com/account
+  #   MACOS_CSC_LINK                 - Developer ID Application .p12,
+  #                                    base64-encoded:
+  #                                    `base64 -i cert.p12 | pbcopy`
+  #   MACOS_CSC_KEY_PASSWORD         - the .p12 export password
+  #
+  # electron-builder picks up CSC_LINK + CSC_KEY_PASSWORD automatically
+  # (we just rename the macOS-prefixed secrets in the env block to dodge
+  # collision with the Windows ones), and the APPLE_* trio drives the
+  # `notarize: true` step in electron-builder.yml's `mac:` block.
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build server + transitive deps
+        run: pnpm --filter "@backlog/server..." build
+
+      - name: Build desktop bundle
+        run: pnpm --filter @backlog/desktop build
+
+      - name: Package + publish (macOS)
+        run: pnpm --filter @backlog/desktop exec electron-builder --mac --x64 --arm64 --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backlog-desktop-macos
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*-mac.zip
+            packages/desktop/release/latest-mac.yml
+          if-no-files-found: warn
+          retention-days: 14

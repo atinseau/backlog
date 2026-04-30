@@ -586,33 +586,35 @@
     <div class="content">
       {#if false}
         <section class="panel" hidden>
-          {#if cloudStatus?.signed_in && cloudStatus.user}
+          {#if cloudStatus?.signed_in && cloudStatus?.user}
+            {@const user = cloudStatus!.user!}
             <div class="status ok">
-              {t("account.signed_in_as", { email: cloudStatus.user.email })}
+              {t("account.signed_in_as", { email: user.email })}
             </div>
             <div class="meta-grid">
               <div class="meta-item">
                 <span class="meta-label">{t("account.plan")}</span>
-                <span class="plan-pill plan-{cloudStatus.user.plan}">
-                  {t(`account.plan.${cloudStatus.user.plan}`)}
+                <span class="plan-pill plan-{user.plan}">
+                  {t(`account.plan.${user.plan}`)}
                 </span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">GitHub</span>
-                {#if cloudStatus.user.repos_limit === null}
+                {#if user.repos_limit === null}
                   <span>{t("account.repos_unlimited")}</span>
                 {:else}
+                  {@const limit = user.repos_limit!}
                   <span
-                    class:over={cloudStatus.user.repos_used >= cloudStatus.user.repos_limit}
+                    class:over={user.repos_used >= limit}
                   >{t("account.repos_quota", {
-                    used: cloudStatus.user.repos_used,
-                    limit: cloudStatus.user.repos_limit,
+                    used: user.repos_used,
+                    limit,
                   })}</span>
                 {/if}
               </div>
             </div>
             <div class="row">
-              {#if cloudStatus.user.plan === "free"}
+              {#if user.plan === "free"}
                 <button class="primary" onclick={handleUpgrade} disabled={billingBusy}>
                   {billingBusy ? t("account.button.upgrading") : t("account.button.upgrade")}
                 </button>

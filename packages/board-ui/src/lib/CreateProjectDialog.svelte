@@ -54,13 +54,9 @@
     }
   }
 
-  // Optional bridge exposed by the Electron preload. When running in a
-  // pure browser (backlog serve), it's undefined and we fall back to a
-  // text input.
-  interface BacklogBridge {
-    pickFolder(opts?: { title?: string }): Promise<string | null>;
-  }
-  declare global { interface Window { backlog?: BacklogBridge } }
+  // Optional bridge exposed by the Electron preload (typed once in
+  // ./desktop-bridge.d.ts). When running in a pure browser (backlog
+  // serve), it's undefined and we fall back to a text input.
   const isElectron = typeof window !== "undefined" && Boolean(window.backlog?.pickFolder);
 
   async function pickPath() {

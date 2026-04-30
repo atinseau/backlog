@@ -1,6 +1,7 @@
 <script lang="ts">
   import RetryBadge from "./RetryBadge.svelte";
-  import CardMenu, { type MenuItem } from "./CardMenu.svelte";
+  import CardMenu from "./CardMenu.svelte";
+  import type { MenuItem } from "./card-menu-types.js";
   import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { TaskCard } from "./types.js";

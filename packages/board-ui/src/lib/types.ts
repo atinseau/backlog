@@ -155,6 +155,16 @@ export interface ProjectEntry {
   id: string;
   path: string;
   name: string;
+  /**
+   * Where the workspace lives relative to the path:
+   *   "in_repo"     → <path>/.backlog/  (single-repo project)
+   *   "user_level"  → <path> itself is the workspace root, registered
+   *                   under ~/.backlog/<slug>/ (multi-repo project)
+   *
+   * Optional because older registries persisted before this field
+   * existed don't carry it; the resolver falls back to "in_repo".
+   */
+  location?: "in_repo" | "user_level";
   added_at: string;
   last_opened_at?: string;
 }

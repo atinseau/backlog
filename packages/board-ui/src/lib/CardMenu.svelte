@@ -16,16 +16,7 @@
   // → opens a submenu, ← closes it, Enter / Space activates.
 
   import { onMount, tick } from "svelte";
-
-  export interface MenuItem {
-    label: string;
-    icon?: string;
-    onSelect?: () => void | Promise<void>;
-    submenu?: MenuItem[];
-    danger?: boolean; // styles in red — used for Delete
-    disabled?: boolean;
-    separator?: boolean;
-  }
+  import type { MenuItem } from "./card-menu-types.js";
 
   interface Props {
     open: boolean;

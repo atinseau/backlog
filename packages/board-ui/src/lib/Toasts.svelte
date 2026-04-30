@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  // Type exports must live in a module-level script in Svelte 5 —
+  // svelte-check refuses `export type` from a regular `<script>`.
+  export type ToastKind = "info" | "success" | "warning" | "error";
+</script>
+
 <script lang="ts">
   // Lightweight toast surface anchored bottom-right.
   //
@@ -11,8 +17,6 @@
   // top-down so the newest one appears at the bottom (closest to the
   // anchor point, i.e. where the eye lands when something just happened).
   import { t } from "./i18n.svelte.js";
-
-  export type ToastKind = "info" | "success" | "warning" | "error";
 
   interface Toast {
     id: number;

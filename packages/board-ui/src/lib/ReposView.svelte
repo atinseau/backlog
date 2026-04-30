@@ -3,15 +3,10 @@
   import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
-  // Bridge exposed by packages/desktop's preload.ts. Optional so the
-  // board UI also works when served by `backlog serve` in a normal
-  // browser (no Electron, no IPC, no native file open).
-  interface BacklogBridge {
-    openPath: (path: string) => Promise<string>;
-    showInFolder: (path: string) => Promise<void>;
-    pickFolder: (opts?: { title?: string }) => Promise<string | null>;
-  }
-  declare global { interface Window { backlog?: BacklogBridge } }
+  // Bridge exposed by packages/desktop's preload.ts is typed once in
+  // ./desktop-bridge.d.ts (svelte-check rejects per-component ambient
+  // declarations). The board UI is shared between the Electron window
+  // and `backlog serve` in a normal browser, hence the runtime guard.
   const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
 
   function openInFinder(repoPath: string) {
