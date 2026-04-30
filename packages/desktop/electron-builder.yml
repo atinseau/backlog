@@ -51,6 +51,15 @@ linux:
     Backlog runs entirely locally — kanban board, AI splitter, run
     orchestrator, claim-based file locking, and a pre-commit hook that
     keeps two agents from stepping on the same files.
+  # Override artifact filename — the workspace package name is
+  # `@backlog/desktop`, which contains a `/` and `@`. electron-builder
+  # would otherwise template that into the filename verbatim, producing
+  # `release/@backlog/desktop_1.4.0_amd64.deb` (the `/` makes it a
+  # subdir, then dpkg-deb errors on the missing parent). Force the
+  # name to a clean lowercase ascii string. ${ext} resolves to
+  # AppImage / deb / rpm per target.
+  artifactName: "Backlog-${version}-${arch}.${ext}"
+  executableName: backlog-desktop
   target:
     - target: AppImage
       arch: [x64, arm64]
