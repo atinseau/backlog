@@ -203,6 +203,8 @@
   "card_menu.copy_id": "Copier l'ID ({id})",
   "card_menu.set_priority": "Changer la priorité",
   "card_menu.move_to_top": "Faire passer en premier",
+  "card_menu.assign": "Assigner",
+  "card_menu.assign_auto": "Auto (laisser le planificateur choisir)",
   "card_menu.archive": "Archiver",
   "card_menu.unarchive": "Désarchiver",
   "card_menu.delete": "Supprimer…",

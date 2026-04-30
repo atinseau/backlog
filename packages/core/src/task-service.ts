@@ -37,6 +37,11 @@ export interface UpdateWorkItemInput {
   preferredLane?: string;
   clearPreferredLane?: boolean;
   splitStatus?: "pending" | "done";
+  // Default assignee for new sub-tasks produced from this task. Lives
+  // under execution_defaults.preferred_agents — written here so the
+  // card-menu Assign action can set it via the same patch endpoint
+  // as priority. Existing sub-tasks aren't retroactively updated.
+  preferredAgents?: string[];
 }
 
 export function createTask(backlogDir: string, input: CreateWorkItemInput): Task {
@@ -125,6 +130,12 @@ export function updateTask(backlogDir: string, id: string, input: UpdateWorkItem
   }
   if (input.splitStatus !== undefined) {
     item.planning.split_status = input.splitStatus;
+  }
+  if (input.preferredAgents !== undefined) {
+    item.execution_defaults = {
+      ...item.execution_defaults,
+      preferred_agents: input.preferredAgents,
+    };
   }
 
   item.updated_at = new Date().toISOString();

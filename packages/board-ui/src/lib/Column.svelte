@@ -32,9 +32,11 @@
     onDelete?: (card: TaskCard) => Promise<void> | void;
     onMoveToTop?: (card: TaskCard) => Promise<void> | void;
     onSetPriority?: (card: TaskCard, priority: "P0" | "P1" | "P2" | "P3") => Promise<void> | void;
+    onAssign?: (card: TaskCard, assigneeId: string | null) => Promise<void> | void;
+    assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -126,7 +128,7 @@
   >
     {#each localCards as card (card.id)}
       <div>
-        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} />
+        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} {onAssign} {assignees} />
       </div>
     {/each}
     {#if localCards.length === 0}

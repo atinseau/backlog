@@ -207,6 +207,8 @@
   "card_menu.copy_id": "Copy ID ({id})",
   "card_menu.set_priority": "Set priority",
   "card_menu.move_to_top": "Move to top (bypass queue)",
+  "card_menu.assign": "Assign",
+  "card_menu.assign_auto": "Auto (let scheduler pick)",
   "card_menu.archive": "Archive",
   "card_menu.unarchive": "Unarchive",
   "card_menu.delete": "Delete…",

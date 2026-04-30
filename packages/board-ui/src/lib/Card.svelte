@@ -23,9 +23,15 @@
     onDelete?: (card: TaskCard) => Promise<void> | void;
     onMoveToTop?: (card: TaskCard) => Promise<void> | void;
     onSetPriority?: (card: TaskCard, priority: "P0" | "P1" | "P2" | "P3") => Promise<void> | void;
+    // Assign sets execution_defaults.preferred_agents on the task.
+    // Pass an id to assign, null to clear ("auto"). The list of
+    // available assignees is supplied by the parent so we don't
+    // re-fetch per card.
+    onAssign?: (card: TaskCard, assigneeId: string | null) => Promise<void> | void;
+    assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
   }
 
-  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -187,6 +193,47 @@
     }
     if (onMoveToTop) {
       items.push({ label: t("card_menu.move_to_top"), icon: "⤒", onSelect: () => onMoveToTop?.(card), disabled: locked });
+    }
+    if (onAssign && assignees && assignees.length > 0) {
+      // Build the submenu: "Auto" first (clear assignment), then a
+      // separator, then agents, then a separator, then users. Each
+      // entry shows a • next to whoever is currently assigned.
+      const currentAssignee = (card as TaskCard & { preferred_agents?: string[] }).preferred_agents?.[0];
+      const submenu: MenuItem[] = [
+        {
+          label: t("card_menu.assign_auto") + (currentAssignee ? "" : "  •"),
+          icon: "✱",
+          onSelect: () => onAssign?.(card, null),
+        },
+      ];
+      const agents = assignees.filter((a) => a.kind === "agent");
+      const users = assignees.filter((a) => a.kind === "user");
+      if (agents.length > 0) {
+        submenu.push({ separator: true, label: "" });
+        for (const a of agents) {
+          submenu.push({
+            label: a.label + (a.id === currentAssignee ? "  •" : "") + (a.ready === false ? "  🔑" : ""),
+            icon: "🤖",
+            onSelect: () => onAssign?.(card, a.id),
+            disabled: a.ready === false,
+          });
+        }
+      }
+      if (users.length > 0) {
+        submenu.push({ separator: true, label: "" });
+        for (const u of users) {
+          submenu.push({
+            label: u.label + (u.id === currentAssignee ? "  •" : ""),
+            icon: "👤",
+            onSelect: () => onAssign?.(card, u.id),
+          });
+        }
+      }
+      items.push({
+        label: t("card_menu.assign"),
+        icon: "→",
+        submenu,
+      });
     }
     if (onArchive || onUnarchive) {
       items.push({ separator: true, label: "" });

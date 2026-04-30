@@ -39,6 +39,7 @@
     fetchRepos,
     fetchAgents,
     fetchProjectsList,
+    fetchUsers,
     approveRun,
     archiveTask,
     cancelRun,
@@ -54,6 +55,8 @@
     type CloudStatus,
     type AgentSummary,
   } from "./lib/api.js";
+  import { formatAgentLabel } from "./lib/agent-label.js";
+  import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import { formatDuration } from "./lib/timer.svelte.js";
   import {
@@ -117,6 +120,25 @@
   // view's onChanged callback fires (so toggling enable / changing
   // model in AgentsView surfaces here within one round-trip).
   let agentsList = $state<AgentSummary[]>([]);
+  let usersList = $state<UserSummary[]>([]);
+
+  // Flat assignee menu — what the card-menu Assign ▸ submenu lists.
+  // Agents come first (executable providers), users second. Disabled
+  // agents (needs_api_key) stay visible but are flagged so the user
+  // sees they exist + knows the key is missing.
+  const assigneesForMenu = $derived.by((): Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }> => {
+    const out: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }> = [];
+    for (const a of agentsList) {
+      const isExec = a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
+      if (!isExec) continue;
+      out.push({ id: a.id, label: formatAgentLabel(a).short, kind: "agent", ready: !a.needs_api_key });
+    }
+    for (const u of usersList) {
+      if (u.status !== "active") continue;
+      out.push({ id: u.id, label: u.display_name || u.email, kind: "user" });
+    }
+    return out;
+  });
   // Selected agent for the next run, persisted per project. Null
   // means "let the orchestrator pick" (the existing behaviour).
   let selectedAgentId = $state<string | null>(null);
@@ -303,9 +325,16 @@
     for (const [id, snap] of next) runState.set(id, snap);
   }
 
+  async function refreshUsers() {
+    try { usersList = await fetchUsers(); }
+    catch { usersList = []; }
+  }
+
   async function refreshAgents() {
     try { agentsList = await fetchAgents(); }
     catch { agentsList = []; }
+    // Users + agents share the assignee picker — keep them in sync.
+    void refreshUsers();
     // After loading, seed the selected agent if the user hasn't picked
     // one yet (or their previous pick disappeared from the registry).
     const stored = selectedWorkspaceId
@@ -570,6 +599,17 @@
     if (priority === card.priority) return;
     error = null;
     try { await patchTask(card.id, { priority }); }
+    catch (err) { error = err instanceof Error ? err.message : String(err); }
+    finally { if (!connected) await refresh(); }
+  }
+  async function handleAssignCard(card: TaskCard, assigneeId: string | null) {
+    error = null;
+    // null = clear (let scheduler pick). Otherwise replace the array
+    // with a single entry. The schema supports multiple assignees but
+    // the card-menu picker is single-pick by design — open the
+    // detail dialog for richer multi-assign.
+    const preferred_agents = assigneeId ? [assigneeId] : [];
+    try { await patchTask(card.id, { preferred_agents }); }
     catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { if (!connected) await refresh(); }
   }
@@ -906,6 +946,8 @@
                 onDelete={handleDeleteCard}
                 onMoveToTop={handleMoveToTopCard}
                 onSetPriority={handleSetPriority}
+                onAssign={handleAssignCard}
+                assignees={assigneesForMenu}
               />
             {/each}
           </main>

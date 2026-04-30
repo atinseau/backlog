@@ -351,6 +351,11 @@ export function workItemsRoutes(): Hono<AppEnv> {
     priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
     labels: z.array(z.string().min(1)).optional(),
     repo_targets: z.array(z.string().min(1)).optional(),
+    // Assignee for new sub-tasks generated from this task. The kanban
+    // card menu's Assign ▸ picker writes here. Empty array means
+    // "let the scheduler pick" (auto). Existing sub-tasks aren't
+    // retroactively reassigned — open them individually for that.
+    preferred_agents: z.array(z.string().min(1)).optional(),
   });
   app.patch("/tasks/:id", async (c) => {
     const workspace = c.get("workspace");
@@ -367,6 +372,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.priority !== undefined) input.priority = parsed.data.priority;
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
+      if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
       const task = updateTask(workspace.backlogDir, id, input);
       return c.json({ task });
     } catch (error) {

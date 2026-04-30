@@ -566,6 +566,9 @@ export interface PatchTaskInput {
   priority?: "P0" | "P1" | "P2" | "P3";
   labels?: string[];
   repo_targets?: string[];
+  // Default assignee for new sub-tasks. The card menu's Assign ▸
+  // submenu writes a single id here (use [] to unassign).
+  preferred_agents?: string[];
 }
 export async function patchTask(id: string, input: PatchTaskInput): Promise<void> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}`), {
