@@ -43,8 +43,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build server (UI assets land in dist/public)
-        run: pnpm --filter @backlog/server build
+      # `tsc -b` in @backlog/server needs every workspace dependency
+      # already built (their dist/ + .d.ts must exist). The `...^`
+      # filter syntax tells pnpm "this package and everything it
+      # depends on, in topo order".
+      - name: Build server + transitive deps (UI assets land in dist/public)
+        run: pnpm --filter "@backlog/server..." build
 
       - name: Build desktop bundle (main + preload)
         run: pnpm --filter @backlog/desktop build
