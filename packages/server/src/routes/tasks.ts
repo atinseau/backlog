@@ -1,13 +1,16 @@
 import { getSecret, loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
+  archiveTask,
   createTask,
   listSubTasks,
   listTasks,
+  removeTask,
   reorderTask,
   resolveSplitRepos,
   setTaskEstimate,
   splitTask,
+  unarchiveTask,
   updateTaskStatus,
 } from "@backlog/core";
 import { Hono } from "hono";
@@ -334,6 +337,48 @@ export function workItemsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "estimate_failed", detail: message }, 404);
+    }
+  });
+
+  // Archive: soft-hide. Reversible via /unarchive. Distinct from
+  // DELETE — the row stays on disk, the scheduler skips it, and the
+  // board hides it from the default view.
+  app.post("/tasks/:id/archive", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    try {
+      const task = archiveTask(workspace.backlogDir, id);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "archive_failed", detail: message }, 404);
+    }
+  });
+
+  app.post("/tasks/:id/unarchive", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    try {
+      const task = unarchiveTask(workspace.backlogDir, id);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "unarchive_failed", detail: message }, 404);
+    }
+  });
+
+  // Hard delete. Cascade=true also removes the linked subtasks.
+  // Returns the removed task so the UI can confirm or undo locally.
+  app.delete("/tasks/:id", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    const cascade = c.req.query("cascade") === "true";
+    try {
+      const task = removeTask(workspace.backlogDir, id, { cascadeTasks: cascade });
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "delete_failed", detail: message }, 404);
     }
   });
 

@@ -1,9 +1,12 @@
 import {
+  archiveSubTask,
   clearSubTaskEstimate,
   createSubTask,
+  removeSubTask,
   reorderSubTask,
   setSubTaskEstimate,
   setSubTaskProgress,
+  unarchiveSubTask,
   updateSubTask,
   updateSubTaskStatus,
 } from "@backlog/core";
@@ -190,6 +193,42 @@ export function subtasksRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "progress_failed", detail: message }, 404);
+    }
+  });
+
+  app.post("/subtasks/:id/archive", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    try {
+      const task = archiveSubTask(workspace.backlogDir, id);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "archive_failed", detail: message }, 404);
+    }
+  });
+
+  app.post("/subtasks/:id/unarchive", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    try {
+      const task = unarchiveSubTask(workspace.backlogDir, id);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "unarchive_failed", detail: message }, 404);
+    }
+  });
+
+  app.delete("/subtasks/:id", (c) => {
+    const workspace = c.get("workspace");
+    const id = c.req.param("id");
+    try {
+      const task = removeSubTask(workspace.backlogDir, id);
+      return c.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "delete_failed", detail: message }, 404);
     }
   });
 
