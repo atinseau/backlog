@@ -108,6 +108,28 @@ A Backlog UI is planned alongside this roadmap. The CLI is the first client of
 the engine, not the engine itself. The UI will consume the same state (`.backlog/`)
 and the same APIs as the CLI, so any combination of CLI and UI works.
 
+### Hosted browser-only board (Cloud, not yet shipped)
+
+Today the kanban UI ships in `@backlog/board-ui` (Svelte) and is served by:
+- `@backlog/server` (when you run `backlog board` / `backlog serve`)
+- the Electron Desktop app (embeds the same Svelte build)
+
+Both expect their backend at `127.0.0.1:7878` (local) or a Cloud URL via
+`BACKLOG_API_URL`. The Cloud backend at `backlog.so` doesn't host the board UI
+itself yet — Pro/Team users see their workspace through the Desktop app or
+`backlog board` CLI, both pointed at `https://www.backlog.so/api/v1`.
+
+The hosted browser UI (visit `backlog.so/app`, see your kanban without
+installing anything) is on the roadmap. Lift involves:
+- Mounting `@backlog/board-ui`'s built assets in the Cloud's `public/app/`
+- Reconciling the API contract (Cloud routes are namespaced under `/api/v1/
+  workspaces/:id/...` while the local `@backlog/server` is flat — board-ui
+  currently assumes the latter)
+- Bearer-token auth path for the Cloud variant
+- SSE streaming over the Cloud (currently uses a local same-origin SSE channel)
+
+Estimated 1–2 days of focused work; tracked separately when prioritized.
+
 ### Surfaces shipped today (v1.4.0)
 
 | Surface | Status | Notes |
