@@ -703,12 +703,23 @@
           const m = r.match(/^agent_blocked:[^:]+:(.+)$/);
           return m ? [m[1]!] : [r];
         });
+        // Priority order matters. Earlier the missing_api_key check
+        // came first, but on a workspace with one configured agent
+        // (claude-code, key set) and one unconfigured (codex, no key),
+        // a fresh task could fail with at_capacity (claude-code busy
+        // running another subtask) AND missing_api_key (codex needs
+        // OPENAI_API_KEY). Showing "Configure d'abord ta clé" was
+        // misleading — the user HAS a key, the relevant agent is
+        // simply busy. Only fall through to the api-key message when
+        // the queue has nothing else to say (i.e. no agent is
+        // currently busy on the user's behalf).
+        const hasCapacityReason = directReasons.includes("at_capacity") || directReasons.includes("no_agent_capacity");
         const apiKeyReason = directReasons.find((r) => r.startsWith("missing_api_key:"));
-        if (apiKeyReason) {
+        if (hasCapacityReason) {
+          error = t("card.play_at_capacity");
+        } else if (apiKeyReason) {
           error = t("card.play_no_api_key");
           apiKeysOpen = true;
-        } else if (directReasons.includes("at_capacity") || directReasons.includes("no_agent_capacity")) {
-          error = t("card.play_at_capacity");
         } else if (directReasons.includes("risk_not_allowed")) {
           error = t("card.play_risk_not_allowed");
         } else if (directReasons.some((r) => r.startsWith("missing_capabilities:"))) {
@@ -1111,7 +1122,16 @@
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
     onClose={() => (startPrompt = null)}
-    onStarted={() => { if (!connected) refresh(); }}
+    onStarted={() => {
+      // Same UX as clicking the card-level Play: pop the bottom
+      // Activity panel open so the user immediately sees logs,
+      // refresh state if SSE isn't connected yet. Without
+      // openActivityPanel here, hitting "Démarrer" silently kicked
+      // off a run with no visible feedback — user thought nothing
+      // happened.
+      openActivityPanel();
+      if (!connected) refresh();
+    }}
   />
 {/if}
 

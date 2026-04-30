@@ -4,6 +4,18 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.12] - 2026-04-30
+
+User reported six structural problems on launching 1.4.11. All trace back to "the app is too eager to resume yesterday's work" or "errors prioritise the wrong reason". Belt-and-suspenders fix: clean shutdown when the user quits, force-idle on every startup.
+
+- **App auto-fires queued runs on launch** — `orchestrator.json` had `mode: running` from the previous session, hydrate happily resumed, the queue picked up stale `queued` subtasks, three unrelated runs auto-fired before the user clicked anywhere. Activity panel filled with `subtask_006-add-test-html` / `subtask_007-aaa` / `subtask_008-add-test-30-avril.html` — none of which the user just asked for. **Fix (suspenders)**: hydrate now ALWAYS resets the orchestrator to `idle`. The "resume what was running" semantics across server restarts seemed nice on paper but in practice surprised every user. New invariant: explicit ▶ click starts work. Empty mailbox on every launch.
+- **Hydrate only ran for the bound workspace** — `state.json` said `lastWorkspace=twoody` so the desktop server booted bound to twoody, but the kanban auto-routed to `WS-2300244e` via localStorage's `backlog.selected_project_id`. Demo's `orchestrator.json` was still `running` from a prior session (twoody's hydrate didn't touch it). **Fix**: server startup now hydrates EVERY registered workspace from `~/.backlog/projects.json`, not just the one it was launched bound to. Multi-project users get their entire fleet reset to idle on any server boot.
+- **Quit didn't clean up runs** — server SIGINT just dropped sockets and exited. Runs marked `running` got reaped on next launch as `interrupted` ("Reaped on hydrate — executor process gone") which is alarming UX. **Fix (belt)**: `RunningServer.close()` now walks every registered workspace, calls `shutdownOrchestrator(dir)` to halt timers, marks any `queued`/`preparing`/`running` runs as `canceled` with reason `"Canceled — server shutting down"`, and pins `orchestrator.json` to `idle`. Clean audit trail, no scary reaper messages on next boot.
+- **Card Play surfaced "Configure ta clé" when claude-code was busy** — workspace had two agents (claude-code with a key set, codex without). When claude-code hit `at_capacity` from the auto-fired runs, the response also included codex's `missing_api_key:OPENAI_API_KEY` complaint. The error-message picker priority listed `apiKeyReason` first → user saw "Configure d'abord ta clé" even though their actual agent was just busy. **Fix**: `at_capacity` and `no_agent_capacity` checks now come before `missing_api_key` in the priority chain. The user's keyed-up agent being busy is a more actionable message than the unrelated unconfigured one.
+- **`Démarrer ▶` didn't auto-open the Activity panel** — the card-level Play button calls `openActivityPanel()` so the user sees logs immediately. The post-create StartPromptDialog's `onStarted` callback only refreshed state, didn't pop the panel. The user clicked Démarrer, the dialog closed, the run started — but no visible feedback unless they manually expanded the bottom panel. **Fix**: `onStarted` now calls `openActivityPanel()` first. Same UX as the card Play.
+
+E2E verified: workspace had Demo at `mode=running` from a previous session. Restart server → Demo's `orchestrator.json` flipped to `idle` automatically, twoody too. Started orchestrator manually, sent SIGINT → server shutdown ran, Demo's `mode` was `idle` again on disk. Round-trip clean.
+
 ## [1.4.11] - 2026-04-30
 
 Caught by an end-to-end Chrome test driving the kanban as a real user would.

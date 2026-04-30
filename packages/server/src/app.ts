@@ -117,11 +117,39 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", usersRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 
-  void hydrateOrchestrator(options.workspace.backlogDir).catch((error) => {
-    if (process.env.BACKLOG_SERVER_LOG === "1") {
-      console.error("orchestrator hydrate failed", error);
+  // Hydrate the orchestrator for EVERY registered workspace, not just
+  // the one the server was launched bound to. The kanban can switch
+  // workspaces via the topbar selector and route API calls to any
+  // registered workspace via the `?workspace=` query param. If we
+  // hydrated only the bound one, switching to another workspace
+  // could surface its stale state — running orchestrator, queued
+  // subtasks, orphaned worktrees — none of which had a chance to be
+  // cleaned up on this server boot. The user reported exactly this:
+  // launched the desktop app (bound to twoody), kanban auto-routed to
+  // demo via localStorage, demo's orchestrator.json was `running` from
+  // last session, queue picked up stale subtasks, three runs auto-fired.
+  // Hydrating every workspace at startup ensures every door is clean.
+  void (async () => {
+    try {
+      const { loadRegistry } = await import("@backlog/config");
+      const { hydrateOrchestrator: hydrate } = await import("@backlog/core");
+      const registry = loadRegistry();
+      const seenDirs = new Set<string>([options.workspace.backlogDir]);
+      // Always start with the bound workspace.
+      await hydrate(options.workspace.backlogDir).catch(() => undefined);
+      for (const project of registry.projects) {
+        const root = project.path;
+        const dir = project.location === "user_level" ? root : `${root}/.backlog`;
+        if (seenDirs.has(dir)) continue;
+        seenDirs.add(dir);
+        await hydrate(dir).catch(() => undefined);
+      }
+    } catch (error) {
+      if (process.env.BACKLOG_SERVER_LOG === "1") {
+        console.error("orchestrator hydrate failed", error);
+      }
     }
-  });
+  })();
 
   const uiDir = options.uiDistDir ?? defaultUiDistDir();
   if (existsSync(uiDir)) {

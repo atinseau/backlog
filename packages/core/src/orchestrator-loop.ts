@@ -364,21 +364,30 @@ export async function hydrateOrchestrator(backlogDir: string, options?: { now?: 
     // Loader errors, missing config, etc. — non-fatal at startup.
   }
 
-  const state = getOrchestratorState(backlogDir);
-  if (state.mode !== "running") return state;
-  const now = options?.now ?? Date.now();
-  const lastTickMs = state.last_tick_at ? Date.parse(state.last_tick_at) : 0;
-  const stale = !state.last_tick_at || !Number.isFinite(lastTickMs) || now - lastTickMs > STALE_HYDRATE_MS;
-  if (stale) {
+  // Always reset the orchestrator to `idle` on hydrate. Originally we
+  // resumed a running orchestrator across server restarts so the daemon
+  // would keep ticking after a `backlog serve` restart. In practice
+  // this surprised users badly: a quick app relaunch would surface
+  // a queue full of stale `queued` subtasks (left over from runs that
+  // were interrupted, reaped, etc.) and the orchestrator immediately
+  // started firing N runs in parallel before the user even got to
+  // their kanban. The user reported exactly this — opened Backlog
+  // 1.4.11, 3 unrelated runs (run_024 / run_025 / run_026) auto-fired
+  // on stale subtasks before they could click anywhere.
+  //
+  // New invariant: the user explicitly clicks ▶ (header Play, card
+  // Play, or Démarrer in the StartPrompt) to start work. Fresh launches
+  // are always quiet. The state file's `mode` is reset to idle so
+  // `getOrchestratorState` returns idle next time too.
+  const persisted = getOrchestratorState(backlogDir);
+  if (persisted.mode !== "idle") {
     return updateOrchestratorState(backlogDir, {
       mode: "idle",
       started_at: null,
       paused_at: null,
-      last_error: "stale_hydrate",
     });
   }
-  scheduleNextTick(backlogDir, state.tick_interval_ms);
-  return state;
+  return persisted;
 }
 
 export function shutdownOrchestrator(backlogDir: string): void {
