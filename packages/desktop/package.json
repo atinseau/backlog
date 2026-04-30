@@ -1,6 +1,6 @@
 {
   "name": "@backlog/desktop",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "private": true,
   "license": "Apache-2.0",
   "description": "Backlog desktop app (Electron) — embeds the local Hono server and kanban UI in a native window.",
@@ -18,8 +18,8 @@
   "type": "module",
   "main": "dist/main.mjs",
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup && NODE_ENV=development electron dist/main.mjs",
+    "build": "pnpm --filter @backlog/board-ui build && tsup",
+    "dev": "pnpm --filter @backlog/board-ui build && tsup && NODE_ENV=development electron dist/main.mjs",
     "start": "electron dist/main.mjs",
     "dist:mac": "pnpm build && electron-builder --mac --x64 --arm64",
     "dist:linux": "pnpm build && electron-builder --linux --x64 --arm64",

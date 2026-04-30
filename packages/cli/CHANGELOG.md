@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-04-30
+
+**Critical hotfix** — board UI was missing from both the desktop app and the npm tarball.
+
+- **Root cause** — `@backlog/board-ui` (Svelte 5) writes its `vite build` output to `../server/dist/public/`, which the CLI tsup `onSuccess` and the desktop tsup `onSuccess` both copy into their own `dist/public/`. But board-ui was *not* declared as a workspace dep of `@backlog/server`, `backlog`, or `@backlog/desktop`, so `pnpm --filter` never traversed it. Every published artifact since the board-ui split shipped with an empty `dist/public/`. End users saw the "Backlog Board — API ready, UI bundle missing" placeholder instead of the kanban.
+- **Fix** — every consumer (`backlog`, `@backlog/desktop`, the root `build` script, `prepublishOnly`, dev scripts) now explicitly invokes `pnpm --filter @backlog/board-ui build` before its own bundler runs. Vite is fast (~850ms) so this adds negligible overhead. Belt-and-suspenders: applied at the package level (so npm + dev contributors are safe) AND at the CI workflow level (next change).
+- **Affects** — 1.4.0, 1.4.1, 1.4.2 on npm + 1.4.0, 1.4.1, 1.4.2 desktop GitHub releases all ship without the UI. **Upgrade to 1.4.3 immediately.**
+- **Verified** — built `dist/public/` now contains `index.html` + `assets/index-*.{js,css}` (~430KB JS, ~127KB CSS) post-build. Fresh smoke test on the local Mac.
+
 ## [1.4.2] - 2026-04-30
 
 Patch release — Desktop artifact naming + a clean stapled DMG re-roll.
