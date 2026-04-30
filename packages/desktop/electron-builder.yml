@@ -38,6 +38,45 @@ dmg:
     - x: 410
       y: 220
       type: file
+
+# Linux: AppImage is the universal target — single executable, no
+# install required, auto-updates via electron-updater out of the box.
+# .deb / .rpm cover the package-manager users (Ubuntu/Debian + Fedora/
+# RHEL). No code signing on Linux; AppImage runs unsigned without any
+# warning, and distros sign packages themselves at the repo level.
+linux:
+  category: Development
+  synopsis: The task orchestrator for humans and AI coding agents
+  description: |
+    Backlog runs entirely locally — kanban board, AI splitter, run
+    orchestrator, claim-based file locking, and a pre-commit hook that
+    keeps two agents from stepping on the same files.
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+    - target: rpm
+      arch: [x64]
+  icon: assets/icon.png
+  desktop:
+    entry:
+      Name: Backlog
+      Comment: Task orchestrator for humans and AI coding agents
+      Categories: Development;IDE;
+      Keywords: backlog;tasks;kanban;ai;agents;
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+
 asar: true
 
 # Auto-update: GitHub Releases is the cheapest reliable channel —

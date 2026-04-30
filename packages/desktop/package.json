@@ -10,7 +10,8 @@
     "build": "tsup",
     "dev": "tsup && NODE_ENV=development electron dist/main.mjs",
     "start": "electron dist/main.mjs",
-    "dist:mac": "pnpm build && electron-builder --mac --x64 --arm64"
+    "dist:mac": "pnpm build && electron-builder --mac --x64 --arm64",
+    "dist:linux": "pnpm build && electron-builder --linux --x64 --arm64"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

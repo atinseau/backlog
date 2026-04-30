@@ -1,0 +1,73 @@
+name: Desktop release
+
+# Builds the Electron app and uploads installers to GitHub Releases.
+# Triggered when a tag matching desktop-v* is pushed (e.g.
+# `desktop-v1.4.1`). Each platform job runs on its native runner so
+# the platform-specific tooling (codesign on macOS, dpkg/rpm on Linux,
+# signtool on Windows once that lands) is available without a
+# cross-compile dance.
+#
+# electron-builder's `publish: github` block in electron-builder.yml
+# does the actual upload — we just hand it GH_TOKEN and the right
+# platform flag. Auto-update metadata files (`latest-mac.yml`,
+# `latest-linux.yml`) are produced and uploaded automatically; the
+# desktop app's electron-updater picks the right one based on
+# `process.platform`.
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+  workflow_dispatch:
+    # Manual trigger from the Actions UI when you want a build without
+    # cutting a public release. The Linux job will produce artifacts
+    # but won't publish (no tag = no release).
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # uploading release assets requires write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build server (UI assets land in dist/public)
+        run: pnpm --filter @backlog/server build
+
+      - name: Build desktop bundle (main + preload)
+        run: pnpm --filter @backlog/desktop build
+
+      # electron-builder reads electron-builder.yml's `publish: github`
+      # block and uploads to the release that matches the current tag.
+      # On workflow_dispatch (no tag) it builds but doesn't publish.
+      - name: Package + publish (Linux)
+        run: pnpm --filter @backlog/desktop exec electron-builder --linux --x64 --arm64 --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Keep AppImage + deb + rpm around as job artifacts for manual
+      # smoke-testing even on workflow_dispatch runs.
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backlog-desktop-linux
+          path: |
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.deb
+            packages/desktop/release/*.rpm
+            packages/desktop/release/latest-linux*.yml
+          if-no-files-found: warn
+          retention-days: 14
