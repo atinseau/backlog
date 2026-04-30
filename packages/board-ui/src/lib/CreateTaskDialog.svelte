@@ -138,7 +138,13 @@
           onCreated?.({ taskId: task.id, subTasksCreated: 0 });
         }
       } else {
-        phase = "applied";
+        // Skip the "applied" phase entirely. Setting `phase = "applied"`
+        // briefly rendered "Tâche créée" / "✓ Tâche créée" before the
+        // parent closed the dialog — visually a duplicate of the
+        // StartPromptDialog body that opens next, which leads users to
+        // think they've already confirmed. Just hand off via onCreated;
+        // the parent closes the dialog and surfaces the start prompt
+        // as the single visible confirmation.
         onCreated?.({ taskId: task.id, subTasksCreated: 0 });
       }
     } catch (err) {

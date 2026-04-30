@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.10] - 2026-04-30
+
+Three more bugs from a real user test ("j'ai créé une tâche, j'ai eu 2 confirmations, j'ai cliqué sur Play et j'ai eu une erreur worktree_failed"). All structural.
+
+- **`worktree_failed` on retry of a failed run** — `buildRunBranchName(taskId, taskTitle)` returned `backlog/<task>-<slug>` regardless of which run was about to use it. When a run failed and its worktree wasn't cleaned (no auto-gc until a manual sweep), the next run on the same subtask hit `git worktree add -b <branch> <path>` with that same `<branch>` already in use → exit 255 → "worktree_failed: Command failed with exit code 255". Confirmed in user's `test-backlog-demo`: `git worktree list` showed `run_006` and `run_019` still attached to old failed-run branches that the new `run_021` was trying to claim. **Fix**: branch names now include the run id (`backlog/<task>-<slug>-<runId>`), so retries on the same subtask always get a fresh branch even if the prior worktree is still around. Used `-` as the separator (not `/`) on purpose: with `/` git refuses to create `foo/bar` when a leaf branch `foo` already exists in `refs/heads/`, breaking upgrades from older branches.
+- **Orphaned worktrees never got cleaned up** — `garbageCollectWorktrees()` exists in `@backlog/core` but was only invoked manually via the CLI. Failed/interrupted runs left their worktree directories on disk indefinitely, accumulating like the user's 3 stale worktrees in test-backlog-demo. **Fix**: hydrate now calls `garbageCollectWorktrees()` on every server start, alongside the run-archive sweep added in 1.4.9. Verified locally: workspace went from `git worktree list` returning 3 paths (main + run_006 + run_019) to just `main` after one server start with the new code.
+- **Two confirmations after creating a task** — the user reported seeing "Tâche créée" twice. Root cause: CreateTaskDialog briefly rendered its `phase = "applied"` view (header "Tâche créée" + body "✓ Tâche créée") before the parent's `onCreated` callback closed the dialog — racy enough that a fast user noticed. THEN the StartPromptDialog opened with body text *"Tâche {taskId} créée avec {count} sous-tâches prêtes"* — visually a second "créée" confirmation, even though the dialog is asking a *new* question. **Fix**: removed the `phase = "applied"` set in CreateTaskDialog so the dialog closes cleanly without flashing through the success state. AND rewrote the StartPromptDialog body / title to be action-focused — "Lancer cette tâche maintenant ?" / "{taskId} sera exécutée par l'agent" — instead of repeating "créée".
+
 ## [1.4.9] - 2026-04-30
 
 Two structural fixes around stale runs that were silently pinning agent capacity. User reported clicking Play and getting *"Ton agent est déjà en train de tourner sur une autre tâche…"* even though nothing was visibly running.

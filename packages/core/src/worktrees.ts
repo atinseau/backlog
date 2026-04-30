@@ -8,9 +8,22 @@ function worktreesRoot(backlogDir: string): string {
   return path.join(backlogDir, "worktrees");
 }
 
-export function buildRunBranchName(taskId: string, taskTitle: string): string {
+export function buildRunBranchName(taskId: string, taskTitle: string, runId?: string): string {
   const slug = taskTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32);
-  return `backlog/${taskId}-${slug || "task"}`;
+  const base = `backlog/${taskId}-${slug || "task"}`;
+  // Append the run id so branches are unique per run. Without this, a
+  // re-try of the same subtask after an earlier run failed (and its
+  // worktree didn't get cleaned up) would hit `git worktree add` with
+  // a branch name already in use → exit 255 → "worktree_failed".
+  //
+  // We use `-` (not `/`) as the separator on purpose. With `/` the
+  // new branch would be `backlog/<task>-<slug>/<runId>` — but the
+  // OLD branch `backlog/<task>-<slug>` already exists in upgraded
+  // workspaces, and git refuses to create `foo/bar` when a leaf
+  // branch `foo` exists (refs are stored as files, can't be both a
+  // file and a directory). `-` keeps every branch a sibling under
+  // `refs/heads/backlog/`, so legacy branches and new ones coexist.
+  return runId ? `${base}-${runId}` : base;
 }
 
 export async function ensureWorktree(params: {

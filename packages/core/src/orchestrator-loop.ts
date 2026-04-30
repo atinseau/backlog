@@ -15,6 +15,7 @@ import { listSubTasks } from "./state-files.js";
 import { startRunsForPlan, type StartRunsResult } from "./run-launcher.js";
 import { buildExecutionPlan } from "./scheduler.js";
 import { updateSubTaskStatus } from "./subtask-service.js";
+import { garbageCollectWorktrees } from "./worktrees.js";
 
 // A live executor writes to events.ndjson at least at start, on every
 // tool call, and at finish. If the file hasn't moved in this many ms
@@ -343,6 +344,24 @@ export async function hydrateOrchestrator(backlogDir: string, options?: { now?: 
     }
   } catch {
     // Best effort; never block server startup on cleanup.
+  }
+
+  // Clean up orphaned worktrees from runs that have already been
+  // archived. A run that ended `failed` or `interrupted` left its
+  // git worktree (and its branch) sitting on disk — the next time
+  // the user retried the same subtask the new run would collide on
+  // the branch name (with the older buildRunBranchName that didn't
+  // include runId, this was guaranteed; now the branch is unique
+  // per run but the worktree directories still pile up). Sweep them
+  // here so the repo and disk stay tidy. Best-effort; if a worktree
+  // is locked or git misbehaves we skip and move on.
+  try {
+    const config = loadConfig(backlogDir);
+    if (config) {
+      await garbageCollectWorktrees(backlogDir, config).catch(() => undefined);
+    }
+  } catch {
+    // Loader errors, missing config, etc. — non-fatal at startup.
   }
 
   const state = getOrchestratorState(backlogDir);

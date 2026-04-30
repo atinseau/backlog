@@ -126,8 +126,12 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       updated_at: new Date().toISOString(),
     });
 
-    const branch = buildRunBranchName(task.id, task.title);
+    // Generate runId BEFORE the branch name so the branch can include
+    // it. Branches are now `backlog/<task>-<slug>/<runId>` which makes
+    // every run uniquely-branched even if a prior run on the same
+    // subtask failed and left its worktree+branch behind.
     const runId = nextRunId(backlogDir);
+    const branch = buildRunBranchName(task.id, task.title, runId);
     let worktreePath: string;
     try {
       worktreePath = await ensureWorktree({
