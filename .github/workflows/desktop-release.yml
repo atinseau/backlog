@@ -75,3 +75,61 @@ jobs:
             packages/desktop/release/latest-linux*.yml
           if-no-files-found: warn
           retention-days: 14
+
+  # Windows: built on a windows-latest runner because signtool, the
+  # Windows code-signing toolchain, and the NSIS makensis binaries
+  # only run there. v1 ships unsigned — SmartScreen will warn first-
+  # time installers but the install completes. When the EV cert lands,
+  # set the `WIN_CSC_LINK` (PFX, base64) and `WIN_CSC_KEY_PASSWORD`
+  # secrets and electron-builder will sign automatically; remap them
+  # to CSC_LINK / CSC_KEY_PASSWORD here in the env block.
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build server + transitive deps
+        run: pnpm --filter "@backlog/server..." build
+
+      - name: Build desktop bundle
+        run: pnpm --filter @backlog/desktop build
+
+      - name: Package + publish (Windows)
+        # The shell defaults to pwsh on windows-latest; the && operator
+        # works fine but the ternary expression syntax is the same as
+        # the Linux job above — GH Actions evaluates ${{ }} before
+        # handing the command to the shell.
+        run: pnpm --filter @backlog/desktop exec electron-builder --win --x64 --arm64 --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code-signing secrets — left unset until the EV cert ships.
+          # When set, electron-builder picks them up automatically and
+          # signs the NSIS installer + portable exe.
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backlog-desktop-windows
+          path: |
+            packages/desktop/release/*.exe
+            packages/desktop/release/*.msi
+            packages/desktop/release/latest.yml
+          if-no-files-found: warn
+          retention-days: 14

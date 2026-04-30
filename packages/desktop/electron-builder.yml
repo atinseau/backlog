@@ -86,6 +86,39 @@ deb:
     - libuuid1
     - libsecret-1-0
 
+# Windows: NSIS is the standard installer (auto-update via
+# electron-updater, Start menu shortcut, Add/Remove Programs entry,
+# uninstaller). The `portable` target is a single .exe that runs
+# from anywhere — useful for trial runs and policy-locked corporate
+# laptops where the user can't install software.
+#
+# Code signing is intentionally NOT configured here — without an EV
+# cert SmartScreen will flash "Windows protected your PC" on first
+# launch, but the install completes fine. Once the cert ships, set
+# `CSC_LINK` (PFX in base64) + `CSC_KEY_PASSWORD` env vars in CI and
+# electron-builder picks them up automatically. No yaml changes needed.
+win:
+  artifactName: "Backlog-Setup-${version}-${arch}.${ext}"
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: portable
+      arch: [x64]
+  icon: assets/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Backlog
+  uninstallDisplayName: Backlog Desktop
+  # Portable target (the single-exe build) writes its own filename
+  # so it doesn't collide with the NSIS installer in releases/.
+portable:
+  artifactName: "Backlog-Portable-${version}-${arch}.${ext}"
+
 asar: true
 
 # Auto-update: GitHub Releases is the cheapest reliable channel —
