@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-04-30
+
+Patch release — Desktop artifact naming + a clean stapled DMG re-roll.
+
+- **macOS artifact symmetry** — `electron-builder.yml` now sets `mac.artifactName: "${productName}-${version}-${arch}.${ext}"`, so every macOS artifact carries an explicit `-arm64` or `-x64` suffix. 1.4.1 shipped `Backlog-1.4.1-arm64.dmg` next to a bare `Backlog-1.4.1.dmg` (Intel, no suffix) — the legacy electron-builder default from the era when x64 was the assumed Mac arch. Apple Silicon has been the default since 2021; the bare filename was misleading. Linux + Windows already templated `${arch}` into their artifactName, so this brings macOS in line with the rest of the matrix.
+- **Stapled DMGs** — 1.4.1's CI run uploaded the DMGs before the Apple notarization ticket had propagated through CloudKit, so `xcrun stapler` failed. 1.4.2 rebuilds + restaples cleanly. End users see no Gatekeeper friction on first launch.
+- **No CLI / desktop runtime changes** — pure release plumbing. If you're on 1.4.1 via npm, this is a no-op upgrade for the CLI itself.
+
 ## [1.4.1] - 2026-04-30
 
 Same release window as 1.4.0 with the kanban card menu + agent UX work added. The 1.4.0 tarball on npm shipped the core sequential-IDs / migrate / archive / account-secrets surface; 1.4.1 layers on the board UI:
