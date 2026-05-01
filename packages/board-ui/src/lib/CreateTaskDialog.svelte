@@ -52,6 +52,21 @@
   // branch protected.
   let worktreeMode = $state<"isolated_worktree" | "direct">("direct");
 
+  $effect(() => {
+    if (worktreeMode === "direct") {
+      createPr = false;
+      mergePr = false;
+      if (!commitWhenDone) pushWhenDone = false;
+    } else {
+      commitWhenDone = true;
+      if (!pushWhenDone) {
+        createPr = false;
+        mergePr = false;
+      }
+      if (!createPr) mergePr = false;
+    }
+  });
+
   // AI splitter / estimator — both opt-in. Splitter is conditional
   // ("only if needed"); estimator runs an LLM once to ballpark the
   // task duration. Max tasks / max sub-agents are pretty-printed in
@@ -106,10 +121,10 @@
       };
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = manualApproval;
-      input.auto_commit = commitWhenDone;
-      input.push_when_done = pushWhenDone;
-      input.create_pr = createPr;
-      input.merge_pr = mergePr;
+      input.auto_commit = worktreeMode === "isolated_worktree" ? true : commitWhenDone;
+      input.push_when_done = worktreeMode === "direct" ? commitWhenDone && pushWhenDone : pushWhenDone;
+      input.create_pr = worktreeMode === "isolated_worktree" ? createPr : false;
+      input.merge_pr = worktreeMode === "isolated_worktree" ? mergePr : false;
       input.worktree_mode = worktreeMode;
       // Empty assignee = "auto" (orchestrator picks). Anything else
       // (agent id or user id) goes into preferred_agents and is
@@ -287,38 +302,44 @@
             </span>
           </label>
 
-          <!-- End-of-run pipeline, in order: commit → push → PR → merge.
-               Each step gates the next visually so the user knows the
-               sequence (push only matters if there's a commit; PR only
-               matters if pushed; merge only after PR). -->
-          <label class="toggle">
-            <input type="checkbox" bind:checked={commitWhenDone} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.commit_when_done")}</span>
-              <span class="toggle-desc">{t("create_task.execution.commit_when_done_desc")}</span>
-            </span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={pushWhenDone} disabled={!commitWhenDone} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
-              <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
-            </span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={createPr} disabled={!commitWhenDone || !pushWhenDone} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.create_pr")}</span>
-              <span class="toggle-desc">{t("create_task.execution.create_pr_desc")}</span>
-            </span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={mergePr} disabled={!createPr} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.merge_pr")}</span>
-              <span class="toggle-desc">{t("create_task.execution.merge_pr_desc")}</span>
-            </span>
-          </label>
+          {#if worktreeMode === "direct"}
+            <label class="toggle">
+              <input type="checkbox" bind:checked={commitWhenDone} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.commit_when_done")}</span>
+                <span class="toggle-desc">{t("create_task.execution.commit_when_done_desc")}</span>
+              </span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" bind:checked={pushWhenDone} disabled={!commitWhenDone} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
+                <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
+              </span>
+            </label>
+          {:else}
+            <label class="toggle">
+              <input type="checkbox" bind:checked={pushWhenDone} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
+                <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
+              </span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" bind:checked={createPr} disabled={!pushWhenDone} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.create_pr")}</span>
+                <span class="toggle-desc">{t("create_task.execution.create_pr_desc")}</span>
+              </span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" bind:checked={mergePr} disabled={!createPr} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.merge_pr")}</span>
+                <span class="toggle-desc">{t("create_task.execution.merge_pr_desc")}</span>
+              </span>
+            </label>
+          {/if}
 
           <label class="toggle">
             <input type="checkbox" bind:checked={manualApproval} />

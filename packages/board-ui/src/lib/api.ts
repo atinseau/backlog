@@ -7,6 +7,7 @@ import type {
   Repo,
   ProjectEntry,
   ProjectInfo,
+  RunSummary,
 } from "./types.js";
 
 // Re-export so callers that already pull from this module (e.g. SplitDialog
@@ -1008,6 +1009,7 @@ export interface SubTaskDetail {
   blockers: string[];
   estimated_duration_seconds?: number;
   progress_percent?: number;
+  latest_run?: RunSummary | null;
   execution?: {
     lane?: string;
     preferred_agents: string[];

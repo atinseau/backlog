@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
-import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { addRunArtifact, appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
+import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, resolveExecutable, successModeForAgent } from "./provider-utils.js";
 import { parseClaudeJsonStdout } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
 
@@ -102,13 +102,16 @@ export async function executeClaudeAgentRun(params: {
   priorFailureFeedback?: string;
   attemptNumber?: number;
 }): Promise<void> {
-  const executable = params.agent.command || "claude";
-  const basePrompt = buildProviderPrompt(params.task, params.workItem);
+  const executable = resolveExecutable(params.agent.command || "claude");
+  const basePrompt = buildProviderPrompt(params.task, params.workItem, { executionMode: params.run.execution_mode });
   const prompt = params.priorFailureFeedback && (params.attemptNumber ?? 1) > 1
     ? buildRetryPrompt(basePrompt, params.attemptNumber ?? 2, params.priorFailureFeedback)
     : basePrompt;
-  const promptPath = path.join(params.run.worktree_path, ".backlog-claude-prompt.md");
-  const logPath = path.join(params.run.worktree_path, ".backlog-claude.log");
+  const scratchDir = params.run.execution_mode === "direct"
+    ? getRunDirectory(params.backlogDir, params.run.id)
+    : params.run.worktree_path;
+  const promptPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "claude-prompt.md" : ".backlog-claude-prompt.md");
+  const logPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "claude.log" : ".backlog-claude.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
   // `--output-format stream-json --verbose` emits NDJSON of the agent
@@ -198,8 +201,14 @@ export async function executeClaudeAgentRun(params: {
     if (summary) {
       addRunArtifact(params.backlogDir, params.run.id, { kind: "summary", value: summary });
     }
-    addRunArtifact(params.backlogDir, params.run.id, { kind: "log", value: ".backlog-claude.log" });
-    for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
+    addRunArtifact(params.backlogDir, params.run.id, {
+      kind: "log",
+      value: params.run.execution_mode === "direct" ? logPath : ".backlog-claude.log",
+    });
+    for (const artifact of await collectWorktreeArtifacts(
+      params.run.worktree_path,
+      params.run.execution_mode === "direct" ? { scratchDir } : undefined,
+    )) {
       addRunArtifact(params.backlogDir, params.run.id, artifact);
     }
 
@@ -230,7 +239,9 @@ export async function executeClaudeAgentRun(params: {
         "",
         `Exit: ${failure}`,
         "",
-        "Inspect `.backlog-claude.log` in the worktree.",
+        params.run.execution_mode === "direct"
+          ? "Inspect `claude.log` in the run directory."
+          : "Inspect `.backlog-claude.log` in the worktree.",
       ].join("\n"),
     );
     await failRun(

@@ -15,6 +15,49 @@ const PROVIDER_SECRET_ENV_MAP: Record<string, string> = {
   OPENAI_API_KEY: "OPENAI_API_KEY",
 };
 
+function commonExecutableDirs(): string[] {
+  const home = process.env.HOME;
+  return [
+    ...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean),
+    ...(home ? [
+      path.join(home, ".local", "bin"),
+      path.join(home, "bin"),
+      path.join(home, ".npm-global", "bin"),
+    ] : []),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+  ];
+}
+
+function expandedPath(): string {
+  return Array.from(new Set(commonExecutableDirs())).join(path.delimiter);
+}
+
+function executableCandidates(command: string): string[] {
+  if (command.includes("/") || command.includes(path.sep)) return [command];
+  return commonExecutableDirs().map((dir) => path.join(dir, command));
+}
+
+function isExecutable(filePath: string): boolean {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveExecutable(command: string): string {
+  if (command.trim().includes(" ")) return command;
+  return executableCandidates(command).find(isExecutable) ?? command;
+}
+
+export function executableExists(command: string): boolean {
+  return executableCandidates(command).some(isExecutable);
+}
+
 export function buildProviderEnv(
   agent: Agent,
   run: Run,
@@ -36,6 +79,7 @@ export function buildProviderEnv(
   return {
     ...secretsEnv,
     ...process.env,
+    PATH: expandedPath(),
     ...agent.environment,
     BACKLOG_RUN_ID: run.id,
     BACKLOG_TASK_ID: task.id,
@@ -46,10 +90,19 @@ export function buildProviderEnv(
   };
 }
 
-export function buildProviderPrompt(task: SubTask, workItem: Task): string {
+export function buildProviderPrompt(
+  task: SubTask,
+  workItem: Task,
+  options?: { executionMode?: Run["execution_mode"] },
+): string {
+  const direct = options?.executionMode === "direct";
   const lines = [
-    "You are executing one Backlog coding task in an isolated git worktree.",
-    "Stay within the declared scope whenever possible.",
+    direct
+      ? "You are executing one Backlog coding task directly in the user's main checkout."
+      : "You are executing one Backlog coding task in an isolated git worktree.",
+    direct
+      ? "Your file edits affect the user's working copy immediately. Stay within the declared scope."
+      : "Stay within the declared scope whenever possible.",
     "",
     `Work item: ${workItem.id}`,
     `Work item title: ${workItem.title}`,
@@ -84,7 +137,10 @@ export function buildProviderPrompt(task: SubTask, workItem: Task): string {
   return lines.join("\n");
 }
 
-export async function collectWorktreeArtifacts(worktreePath: string): Promise<Artifact[]> {
+export async function collectWorktreeArtifacts(
+  worktreePath: string,
+  options?: { scratchDir?: string },
+): Promise<Artifact[]> {
   const artifacts: Artifact[] = [];
 
   const status = await execa("git", ["status", "--short", "--porcelain"], {
@@ -111,9 +167,9 @@ export async function collectWorktreeArtifacts(worktreePath: string): Promise<Ar
     reject: false,
   });
   if (diff.stdout.trim().length > 0) {
-    const patchPath = path.join(worktreePath, ".backlog-run.patch");
+    const patchPath = path.join(options?.scratchDir ?? worktreePath, ".backlog-run.patch");
     fs.writeFileSync(patchPath, diff.stdout, "utf8");
-    artifacts.push({ kind: "patch", value: ".backlog-run.patch" });
+    artifacts.push({ kind: "patch", value: options?.scratchDir ? patchPath : ".backlog-run.patch" });
   }
 
   return artifacts;

@@ -1,9 +1,9 @@
 import { archiveClaim, createClaim, writeContextFile } from "@backlog/claims";
-import { detectGitDir } from "@backlog/git";
+import { detectGitDir, git } from "@backlog/git";
 import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
-import { appendRunEvent, addRunArtifact, createRun, getRunEvents, listActiveRuns, loadRun, nextRunId, updateRunStatus } from "./run-store.js";
+import { appendRunEvent, addRunArtifact, createRun, getRunEvents, isAgentBusyStatus, listActiveRuns, loadRun, nextRunId, updateRunStatus } from "./run-store.js";
 import { runWithRetry, retryPolicyForAgent } from "./retry.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
@@ -14,6 +14,34 @@ import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./work
 // attempt's prompt. Bounded so a verbose Claude log doesn't explode
 // the prompt size.
 const RETRY_FEEDBACK_BYTES = 4_000;
+
+async function inspectDirectCheckout(repoPath: string): Promise<
+  | { ok: true; branch: string }
+  | { ok: false; reason: string }
+> {
+  let branch: string;
+  try {
+    branch = await git(["symbolic-ref", "--short", "HEAD"], repoPath);
+  } catch {
+    return { ok: false, reason: "direct_checkout_detached_head" };
+  }
+
+  // Direct mode writes into the user's checkout, and auto-commit uses
+  // `git add -A`. Refuse local dirt before the run so unrelated human
+  // work cannot be swept into the agent commit. `.backlog/` is allowed
+  // because embedded workspaces keep their own state inside the repo.
+  const status = await git(["status", "--porcelain"], repoPath);
+  const dirty = status.split("\n").map((line) => line.trim()).filter((line) => {
+    if (!line) return false;
+    const file = line.slice(3).trim().replace(/^"|"$/g, "");
+    return file !== ".backlog" && !file.startsWith(".backlog/");
+  });
+  if (dirty.length > 0) {
+    return { ok: false, reason: "direct_checkout_dirty" };
+  }
+
+  return { ok: true, branch };
+}
 
 export interface StartedRun {
   runId: string;
@@ -97,9 +125,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     const agent = await resolveAgent(backlogDir, task, decision.assignedAgentId, forcedAgentId, skipped);
     if (!agent) continue;
 
-    const activeAgentRuns = listActiveRuns(backlogDir).filter(
-      (run) => run.status === "running" || run.status === "preparing",
-    );
+    const activeAgentRuns = listActiveRuns(backlogDir).filter((run) => isAgentBusyStatus(run.status));
     if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
       skipped.push({ taskId: task.id, reasons: ["no_agent_capacity"] });
       continue;
@@ -119,28 +145,43 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       ttlMinutes: config.claims.ttl_minutes,
       agentId: agent.id,
     });
-    const gitDir = await detectGitDir(repo.path);
-    writeContextFile(gitDir, {
-      version: 1,
-      claim_id: claim.id,
-      updated_at: new Date().toISOString(),
-    });
 
     // Generate runId BEFORE the branch name so the branch can include
-    // it. Branches are now `backlog/<task>-<slug>/<runId>` which makes
+    // it. Branches are now `backlog/<task>-<slug>-<runId>` which makes
     // every run uniquely-branched even if a prior run on the same
     // subtask failed and left its worktree+branch behind.
     const runId = nextRunId(backlogDir);
-    const branch = buildRunBranchName(task.id, task.title, runId);
+    const executionMode = workItem.execution_defaults?.worktree_mode ?? "direct";
+    let branch = buildRunBranchName(task.id, task.title, runId);
     let worktreePath: string;
     try {
-      worktreePath = await ensureWorktree({
-        backlogDir,
-        repoId: repo.id,
-        repoPath: repo.path,
-        branch,
-        runId,
-      });
+      if (executionMode === "direct") {
+        const directBusy = listActiveRuns(backlogDir).some(
+          (run) => run.repo === repo.id && run.execution_mode === "direct" && isAgentBusyStatus(run.status),
+        ) || started.some((run) => run.worktreePath === repo.path);
+        if (directBusy) {
+          archiveClaim(backlogDir, claim.id);
+          skipped.push({ taskId: task.id, reasons: ["direct_checkout_busy"] });
+          continue;
+        }
+
+        const direct = await inspectDirectCheckout(repo.path);
+        if (!direct.ok) {
+          archiveClaim(backlogDir, claim.id);
+          skipped.push({ taskId: task.id, reasons: [direct.reason] });
+          continue;
+        }
+        branch = direct.branch;
+        worktreePath = repo.path;
+      } else {
+        worktreePath = await ensureWorktree({
+          backlogDir,
+          repoId: repo.id,
+          repoPath: repo.path,
+          branch,
+          runId,
+        });
+      }
     } catch (worktreeError) {
       // Worktree creation failed — most often because the branch
       // already exists from a previous run that didn't clean up. The
@@ -167,9 +208,23 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       branch,
       worktreePath,
       claimIds: [claim.id],
+      executionMode,
+    });
+    const gitDir = await detectGitDir(repo.path);
+    writeContextFile(gitDir, {
+      version: 1,
+      claim_id: claim.id,
+      updated_at: new Date().toISOString(),
     });
     await writeWorktreeContext(worktreePath, run.id, claim.id);
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
+    appendRunEvent(backlogDir, run.id, {
+      ts: new Date().toISOString(),
+      type: executionMode === "direct" ? "workspace.direct" : "workspace.worktree",
+      message: executionMode === "direct"
+        ? `Working directly in ${repo.path} on ${branch}`
+        : `Working in isolated worktree ${worktreePath}`,
+    });
     updateRunStatus(backlogDir, run.id, "running", "Execution workspace prepared");
     updateSubTaskStatus(backlogDir, task.id, "running");
 

@@ -4,6 +4,18 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.14] - 2026-04-30
+
+Follow-up from the user's real Desktop test after 1.4.13: a task created with "Directement dans ta copie" still ran in `.backlog/worktrees/...`, and failed runs appeared as unexplained `blocked` cards.
+
+- **Direct mode now actually works in the main checkout** — `execution_defaults.worktree_mode = "direct"` was persisted on the task but ignored by `run-launcher`; all runs still used isolated worktrees. **Fix**: direct tasks now use the repo checkout as `run.worktree_path`, record `execution_mode: direct`, refuse to start if the checkout has local changes, and block parallel direct runs in the same repo.
+- **Desktop can find CLI executables launched from a GUI app** — macOS GUI apps often miss the user's shell PATH, so `claude` could be installed in `~/.local/bin` but invisible to Electron, producing an instant failure with no stdout/stderr. **Fix**: executors resolve `claude`/`codex` through PATH plus `~/.local/bin`, `~/bin`, `~/.npm-global/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and inject that expanded PATH into agent subprocesses.
+- **Blocked cards now say why** — board and task-detail responses include the latest run for each subtask. Cards and the detail inspector show `run_029 · Claude agent claude-code failed (no exit status or output)` instead of a bare `bloqué`.
+- **Header visibility pass** — removed the width-hungry `il reste X min` and `live` pills, and added a centered run-status display showing active run id/agent/mode, latest activity, review count, or blocked reason. Clicking it opens Activity.
+- **Creation options are conditional** — direct mode now shows only `Commit` and `Push`; isolated worktree mode shows `Push`, `Create PR`, and `Merge PR`. Worktree commits remain implicit so PR/merge has a branch to work with.
+- **Run scratch files stay out of the project** — direct-mode Claude/Codex prompts, logs, last messages, and generated patches are stored in the run directory, not at the repo root.
+- **Worktree GC leaves direct checkouts alone** — direct runs store the repo path as their execution path, so cleanup must not treat archived direct runs as removable worktrees. **Fix**: `listKnownWorktrees()` and `garbageCollectWorktrees()` now skip `execution_mode: direct` runs entirely.
+
 ## [1.4.13] - 2026-04-30
 
 Real audit after 1.4.12 showed the agent was executing, but the product contract was wrong: successful work landed in an isolated worktree/branch and the Desktop UI made "awaiting review" look like "still running" or "done-ish". The user expected files to appear in the project after approving; Backlog was often only marking the run complete.

@@ -42,7 +42,10 @@ export interface RunSummary {
   id: string;
   status: string;
   agent_id: string;
-  started_at: string;
+  started_at?: string;
+  finished_at?: string;
+  execution_mode?: "isolated_worktree" | "direct";
+  result?: string | null;
 }
 
 export interface SubTaskCard {
@@ -51,6 +54,7 @@ export interface SubTaskCard {
   repo: string;
   status: string;
   scopes: string[];
+  blockers: string[];
   risk: "low" | "medium" | "high";
   priority_score: number;
   active_run: RunSummary | null;
@@ -61,6 +65,7 @@ export interface SubTaskCard {
   progress_percent: number;
   progress_source: "agent" | "elapsed" | "status";
   eta: string | null;
+  latest_run: RunSummary | null;
 }
 
 export interface TaskCard {

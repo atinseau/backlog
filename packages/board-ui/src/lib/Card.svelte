@@ -223,6 +223,21 @@
     }
   }
 
+  function cleanBlocker(blocker: string): string {
+    const runFailure = /^run_failed:([^:]+):(.+)$/.exec(blocker);
+    if (runFailure) return `${runFailure[1]} · ${runFailure[2]}`;
+    return blocker;
+  }
+
+  function blockedReason(task: TaskCard["tasks"][number]): string | null {
+    const blocker = task.blockers.find((item) => item.startsWith("run_failed:")) ?? task.blockers[0];
+    if (blocker) return cleanBlocker(blocker);
+    if (task.latest_run?.status === "failed" || task.latest_run?.status === "blocked") {
+      return `${task.latest_run.id} · ${task.latest_run.result ?? runStatusLabel(task.latest_run.status)}`;
+    }
+    return null;
+  }
+
   // Build menu items lazily on each open so the disabled state, the
   // archived/unarchived label, and the priority sub-items reflect the
   // current card snapshot.
@@ -359,6 +374,9 @@
               · {runStatusLabel(task.active_run.status)} ({task.active_run.agent_id})
             {:else if subtaskStatusLabel(task.status)}
               · {subtaskStatusLabel(task.status)}
+            {/if}
+            {#if task.status === "blocked" && blockedReason(task)}
+              · <span class="blocked-reason">{blockedReason(task)}</span>
             {/if}
             {#if task.active_claim}
               · 🔒 {task.active_claim.topic}
@@ -669,6 +687,9 @@
     justify-content: space-between;
     align-items: center;
     gap: 6px;
+    color: var(--warning);
+  }
+  .blocked-reason {
     color: var(--warning);
   }
   .card-footer {

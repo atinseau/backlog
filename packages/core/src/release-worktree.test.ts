@@ -113,7 +113,7 @@ describe("release and worktree operators", () => {
   });
 
   it("lists known worktrees and supports dry-run garbage collection", async () => {
-    const { backlogDir, repoId } = await createWorkspace();
+    const { root, backlogDir, repoId } = await createWorkspace();
     const workItem = createTask(backlogDir, { title: "worktree snapshot", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
@@ -139,6 +139,18 @@ describe("release and worktree operators", () => {
       claimIds: [],
     });
     archiveRun(backlogDir, "RUN-terminal");
+    createRun({
+      backlogDir,
+      runId: "RUN-direct",
+      task,
+      workItem,
+      agent,
+      branch: "main",
+      worktreePath: root,
+      claimIds: [],
+      executionMode: "direct",
+    });
+    archiveRun(backlogDir, "RUN-direct");
 
     const worktrees = listKnownWorktrees(backlogDir);
     expect(worktrees).toEqual([
@@ -152,6 +164,8 @@ describe("release and worktree operators", () => {
 
     const dryRun = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir), { dryRun: true });
     expect(dryRun.removed).toContain(worktreePath);
+    expect(dryRun.removed).not.toContain(root);
     expect(fs.existsSync(worktreePath)).toBe(true);
+    expect(fs.existsSync(root)).toBe(true);
   });
 });

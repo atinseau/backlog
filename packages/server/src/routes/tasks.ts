@@ -5,6 +5,7 @@ import {
   createTask,
   listSubTasks,
   listTasks,
+  listAllRuns,
   removeTask,
   reorderTask,
   resolveSplitRepos,
@@ -100,7 +101,34 @@ export function workItemsRoutes(): Hono<AppEnv> {
     if (!task) {
       return c.json({ error: "unknown_task", id }, 404);
     }
-    const subtasks = listSubTasks(workspace.backlogDir).filter((sub) => sub.task_id === id);
+    const runsBySubtask = new Map<string, ReturnType<typeof listAllRuns>[number]>();
+    for (const run of listAllRuns(workspace.backlogDir)) {
+      const previous = runsBySubtask.get(run.subtask_id);
+      const currentTime = new Date(run.finished_at ?? run.started_at ?? 0).getTime();
+      const previousTime = previous ? new Date(previous.finished_at ?? previous.started_at ?? 0).getTime() : -1;
+      if (!previous || currentTime >= previousTime) {
+        runsBySubtask.set(run.subtask_id, run);
+      }
+    }
+    const subtasks = listSubTasks(workspace.backlogDir)
+      .filter((sub) => sub.task_id === id)
+      .map((sub) => {
+        const run = runsBySubtask.get(sub.id);
+        return {
+          ...sub,
+          latest_run: run
+            ? {
+                id: run.id,
+                status: run.status,
+                agent_id: run.agent_id,
+                started_at: run.started_at,
+                finished_at: run.finished_at,
+                execution_mode: run.execution_mode,
+                result: run.result,
+              }
+            : null,
+        };
+      });
     return c.json({ task, subtasks });
   });
 

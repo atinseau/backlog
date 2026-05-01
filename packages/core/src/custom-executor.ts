@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
-import { appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { completeRun, failRun } from "./run-service.js";
 
 function buildEnv(agent: Agent, run: Run, task: SubTask, workItem: Task): NodeJS.ProcessEnv {
@@ -43,7 +43,10 @@ export async function executeCustomAgentRun(params: {
       reject: false,
     });
 
-    const logPath = path.join(params.run.worktree_path, ".backlog-executor.log");
+    const scratchDir = params.run.execution_mode === "direct"
+      ? getRunDirectory(params.backlogDir, params.run.id)
+      : params.run.worktree_path;
+    const logPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "executor.log" : ".backlog-executor.log");
     fs.writeFileSync(
       logPath,
       [`# stdout`, result.stdout, ``, `# stderr`, result.stderr].join("\n"),
@@ -71,7 +74,9 @@ export async function executeCustomAgentRun(params: {
         "",
         `Exit code: ${String(result.exitCode)}`,
         "",
-        "Inspect `.backlog-executor.log` in the worktree for stdout/stderr.",
+        params.run.execution_mode === "direct"
+          ? "Inspect `executor.log` in the run directory for stdout/stderr."
+          : "Inspect `.backlog-executor.log` in the worktree for stdout/stderr.",
       ].join("\n"),
     );
     await failRun(params.backlogDir, params.run.id, `Custom agent ${params.agent.id} failed with exit code ${String(result.exitCode)}`);

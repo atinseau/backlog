@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
-import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { addRunArtifact, appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, successModeForAgent } from "./provider-utils.js";
+import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, resolveExecutable, successModeForAgent } from "./provider-utils.js";
 import { parseCodexJsonStream } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
 
@@ -107,14 +107,17 @@ export async function executeCodexAgentRun(params: {
   priorFailureFeedback?: string;
   attemptNumber?: number;
 }): Promise<void> {
-  const executable = params.agent.command || "codex";
-  const basePrompt = buildProviderPrompt(params.task, params.workItem);
+  const executable = resolveExecutable(params.agent.command || "codex");
+  const basePrompt = buildProviderPrompt(params.task, params.workItem, { executionMode: params.run.execution_mode });
   const prompt = params.priorFailureFeedback && (params.attemptNumber ?? 1) > 1
     ? buildRetryPrompt(basePrompt, params.attemptNumber ?? 2, params.priorFailureFeedback)
     : basePrompt;
-  const promptPath = path.join(params.run.worktree_path, ".backlog-codex-prompt.md");
-  const outputPath = path.join(params.run.worktree_path, ".backlog-codex-last-message.md");
-  const logPath = path.join(params.run.worktree_path, ".backlog-codex.log");
+  const scratchDir = params.run.execution_mode === "direct"
+    ? getRunDirectory(params.backlogDir, params.run.id)
+    : params.run.worktree_path;
+  const promptPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "codex-prompt.md" : ".backlog-codex-prompt.md");
+  const outputPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "codex-last-message.md" : ".backlog-codex-last-message.md");
+  const logPath = path.join(scratchDir, params.run.execution_mode === "direct" ? "codex.log" : ".backlog-codex.log");
   fs.writeFileSync(promptPath, prompt, "utf8");
 
   const args = ["exec", "--skip-git-repo-check", "--json", "--output-last-message", outputPath];
@@ -203,8 +206,14 @@ export async function executeCodexAgentRun(params: {
     if (lastMessage) {
       addRunArtifact(params.backlogDir, params.run.id, { kind: "summary", value: lastMessage });
     }
-    addRunArtifact(params.backlogDir, params.run.id, { kind: "log", value: ".backlog-codex.log" });
-    for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
+    addRunArtifact(params.backlogDir, params.run.id, {
+      kind: "log",
+      value: params.run.execution_mode === "direct" ? logPath : ".backlog-codex.log",
+    });
+    for (const artifact of await collectWorktreeArtifacts(
+      params.run.worktree_path,
+      params.run.execution_mode === "direct" ? { scratchDir } : undefined,
+    )) {
       addRunArtifact(params.backlogDir, params.run.id, artifact);
     }
 
@@ -235,7 +244,9 @@ export async function executeCodexAgentRun(params: {
         "",
         `Exit: ${failure}`,
         "",
-        "Inspect `.backlog-codex.log` and `.backlog-codex-last-message.md` in the worktree.",
+        params.run.execution_mode === "direct"
+          ? "Inspect `codex.log` and `codex-last-message.md` in the run directory."
+          : "Inspect `.backlog-codex.log` and `.backlog-codex-last-message.md` in the worktree.",
       ].join("\n"),
     );
     await failRun(

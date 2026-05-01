@@ -30,6 +30,7 @@ export const runSchema = z.object({
   provider: z.string().min(1),
   status: runStatusSchema,
   claim_ids: z.array(z.string()).default([]),
+  execution_mode: z.enum(["isolated_worktree", "direct"]).default("isolated_worktree"),
   worktree_path: z.string().min(1),
   artifacts: z.array(artifactSchema).default([]),
   result: z.string().nullable().default(null),

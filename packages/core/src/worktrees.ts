@@ -83,24 +83,28 @@ export interface KnownWorktree {
 }
 
 export function listKnownWorktrees(backlogDir: string): KnownWorktree[] {
-  const active = listActiveRuns(backlogDir).map((run) => ({
-    runId: run.id,
-    repo: run.repo,
-    branch: run.branch,
-    status: run.status,
-    path: run.worktree_path,
-    exists: fs.existsSync(run.worktree_path),
-    active: true,
-  }));
-  const archived = listArchivedRuns(backlogDir).map((run) => ({
-    runId: run.id,
-    repo: run.repo,
-    branch: run.branch,
-    status: run.status,
-    path: run.worktree_path,
-    exists: fs.existsSync(run.worktree_path),
-    active: false,
-  }));
+  const active = listActiveRuns(backlogDir)
+    .filter((run) => run.execution_mode !== "direct")
+    .map((run) => ({
+      runId: run.id,
+      repo: run.repo,
+      branch: run.branch,
+      status: run.status,
+      path: run.worktree_path,
+      exists: fs.existsSync(run.worktree_path),
+      active: true,
+    }));
+  const archived = listArchivedRuns(backlogDir)
+    .filter((run) => run.execution_mode !== "direct")
+    .map((run) => ({
+      runId: run.id,
+      repo: run.repo,
+      branch: run.branch,
+      status: run.status,
+      path: run.worktree_path,
+      exists: fs.existsSync(run.worktree_path),
+      active: false,
+    }));
   return [...active, ...archived];
 }
 
@@ -118,6 +122,9 @@ export async function garbageCollectWorktrees(
   const activeRuns = listActiveRuns(backlogDir);
 
   for (const run of activeRuns) {
+    if (run.execution_mode === "direct") {
+      continue;
+    }
     if (run.status === "running" || run.status === "preparing" || run.status === "awaiting_review") {
       result.skipped.push(run.worktree_path);
       continue;
@@ -125,6 +132,9 @@ export async function garbageCollectWorktrees(
   }
 
   for (const run of archivedRuns) {
+    if (run.execution_mode === "direct") {
+      continue;
+    }
     if (!fs.existsSync(run.worktree_path)) {
       continue;
     }

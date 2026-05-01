@@ -5,6 +5,7 @@ import {
   elapsedSeconds,
   estimateSubTask,
   etaIso,
+  listAllRuns,
   listActiveRuns,
   listSubTasks,
   listTasks,
@@ -36,9 +37,11 @@ interface SubTaskCard {
   repo: string;
   status: SubTask["status"];
   scopes: string[];
+  blockers: string[];
   risk: SubTask["risk"];
   priority_score: number;
-  active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at"> | null;
+  active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "execution_mode" | "result"> | null;
+  latest_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null;
   active_claim: ClaimSummary | null;
   estimated_duration_seconds: number;
   estimate_source: "manual" | "auto";
@@ -95,6 +98,19 @@ function findActiveRun(runs: Run[], subtaskId: string): Run | null {
   return runs.find((run) => run.subtask_id === subtaskId) ?? null;
 }
 
+function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null {
+  if (!run) return null;
+  return {
+    id: run.id,
+    status: run.status,
+    agent_id: run.agent_id,
+    started_at: run.started_at,
+    finished_at: run.finished_at,
+    execution_mode: run.execution_mode,
+    result: run.result,
+  };
+}
+
 function findActiveClaimForTask(
   claims: ClaimRecord[],
   task: SubTask,
@@ -117,6 +133,15 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
   const tasks = listSubTasks(workspace.backlogDir);
   const claims = listActiveClaims(workspace.backlogDir);
   const runs = listActiveRuns(workspace.backlogDir);
+  const latestRunsBySubtask = new Map<string, Run>();
+  for (const run of listAllRuns(workspace.backlogDir)) {
+    const previous = latestRunsBySubtask.get(run.subtask_id);
+    const currentTime = new Date(run.finished_at ?? run.started_at ?? 0).getTime();
+    const previousTime = previous ? new Date(previous.finished_at ?? previous.started_at ?? 0).getTime() : -1;
+    if (!previous || currentTime >= previousTime) {
+      latestRunsBySubtask.set(run.subtask_id, run);
+    }
+  }
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const archivedRunsCtx = { tasksById };
@@ -147,6 +172,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
 
     const taskCards: SubTaskCard[] = itemTasks.map((task) => {
       const activeRun = findActiveRun(runs, task.id);
+      const latestRun = activeRun ?? latestRunsBySubtask.get(task.id) ?? null;
       const claimIds = activeRun?.claim_ids ?? [];
       const activeClaim = findActiveClaimForTask(claims, task, claimIds);
       const estimate = estimateSubTask(workspace.backlogDir, task, archivedRunsCtx);
@@ -169,6 +195,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
         repo: task.repo,
         status: task.status,
         scopes: task.scopes,
+        blockers: task.blockers,
         risk: task.risk,
         priority_score: task.priority_score,
         active_run: activeRun
@@ -177,8 +204,11 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
               status: activeRun.status,
               agent_id: activeRun.agent_id,
               started_at: activeRun.started_at,
+              execution_mode: activeRun.execution_mode,
+              result: activeRun.result,
             }
           : null,
+        latest_run: summarizeRun(latestRun),
         active_claim: activeClaim ? summarizeClaim(activeClaim) : null,
         estimated_duration_seconds: estimate.seconds,
         estimate_source: estimate.source,

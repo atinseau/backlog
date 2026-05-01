@@ -20,6 +20,12 @@ export function nextRunId(backlogDir: string): string {
   return nextId(backlogDir, "run");
 }
 
+export function getRunDirectory(backlogDir: string, runId: string): string {
+  const active = runDirectory(activeRunsDir(backlogDir), runId);
+  if (fs.existsSync(active)) return active;
+  return runDirectory(archiveRunsDir(backlogDir), runId);
+}
+
 export function createRun(params: {
   backlogDir: string;
   runId: string;
@@ -29,6 +35,7 @@ export function createRun(params: {
   branch: string;
   worktreePath: string;
   claimIds: string[];
+  executionMode?: Run["execution_mode"];
 }): Run {
   const directory = runDirectory(activeRunsDir(params.backlogDir), params.runId);
   fs.mkdirSync(directory, { recursive: true });
@@ -44,6 +51,7 @@ export function createRun(params: {
     provider: params.agent.provider,
     status: "preparing",
     claim_ids: params.claimIds,
+    execution_mode: params.executionMode ?? "isolated_worktree",
     worktree_path: params.worktreePath,
     artifacts: [],
     result: null,

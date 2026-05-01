@@ -1,10 +1,10 @@
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
 import path from "node:path";
 import YAML from "yaml";
 import { hasSecret } from "@backlog/config";
 import { agentsFileSchema, type Agent, type AgentsFile, type SubTask } from "@backlog/schemas";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
+import { executableExists } from "./provider-utils.js";
 
 // Map a provider id → the secret key its executor needs at run time.
 // Returns null when no key is required (custom agents own their env;
@@ -229,13 +229,6 @@ export interface AgentSelection {
   available: boolean;
 }
 
-function executableExists(command: string): boolean {
-  if (command.includes("/") || command.startsWith(".")) {
-    return fs.existsSync(command);
-  }
-  return spawnSync("which", [command], { stdio: "ignore" }).status === 0;
-}
-
 export function validateAgents(backlogDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
   return listAgents(backlogDir).map((agent) => {
     const reasons: string[] = [];
@@ -321,6 +314,12 @@ export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk
   if (!supportsAgentExecution(agent)) {
     return false;
   }
+  if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
+    return false;
+  }
+  if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
+    return false;
+  }
   if (backlogDir && agentNeedsApiKey(backlogDir, agent)) {
     return false;
   }
@@ -351,6 +350,12 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
       const reasons: string[] = [];
       if (!supportsAgentExecution(agent)) {
         reasons.push(`unsupported_provider:${agent.provider}`);
+      }
+      if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
+        reasons.push("missing_codex_executable");
+      }
+      if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
+        reasons.push("missing_claude_executable");
       }
       // API key presence is the new "is this agent ready?" gate.
       // Surfaces "missing_api_key:ANTHROPIC_API_KEY" / "OPENAI_API_KEY"

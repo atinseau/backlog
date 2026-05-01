@@ -65,6 +65,20 @@
     }
   }
 
+  function cleanBlocker(blocker: string): string {
+    const runFailure = /^run_failed:([^:]+):(.+)$/.exec(blocker);
+    if (runFailure) return `${runFailure[1]} · ${runFailure[2]}`;
+    return blocker;
+  }
+
+  function latestRunText(sub: SubTaskDetail): string | null {
+    if (!sub.latest_run) return null;
+    const bits = [sub.latest_run.id, sub.latest_run.status];
+    if (sub.latest_run.agent_id) bits.push(sub.latest_run.agent_id);
+    const head = bits.join(" · ");
+    return sub.latest_run.result ? `${head}: ${sub.latest_run.result}` : head;
+  }
+
   load();
 </script>
 
@@ -226,6 +240,19 @@
                       {#each sub.depends_on as dep (dep)}
                         <code class="dep">{dep}</code>
                       {/each}
+                    </div>
+                  {/if}
+                  {#if sub.blockers.length > 0}
+                    <div class="sub-line blocked-line">
+                      <span class="muted">{t("task_detail.subtask.blocked_by")}:</span>
+                      {#each sub.blockers as blocker (blocker)}
+                        <code class="blocker">{cleanBlocker(blocker)}</code>
+                      {/each}
+                    </div>
+                  {:else if sub.status === "blocked" && latestRunText(sub)}
+                    <div class="sub-line blocked-line">
+                      <span class="muted">{t("task_detail.subtask.last_run")}:</span>
+                      <code class="blocker">{latestRunText(sub)}</code>
                     </div>
                   {/if}
                 </li>
@@ -488,13 +515,18 @@
   .assignee-select:disabled { opacity: 0.5; cursor: not-allowed; }
   .sub-title { flex: 1; font-weight: 500; color: var(--text-primary); }
   .sub-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; }
-  .scope, .dep {
+  .scope, .dep, .blocker {
     font-family: ui-monospace, monospace;
     background: var(--bg-hover);
     color: var(--text-body);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 11px;
+  }
+  .blocked-line .blocker {
+    color: var(--warning);
+    background: var(--warning-bg);
+    white-space: normal;
   }
   .footer-meta {
     margin-top: 18px;

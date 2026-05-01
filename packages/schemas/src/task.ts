@@ -84,11 +84,6 @@ export const taskSchema = z.object({
     //                                 simultaneously or when you
     //                                 don't want the agent touching
     //                                 your working copy at all.
-    //                                 (Note: until "direct" is wired
-    //                                 in run-launcher, the executor
-    //                                 still uses a worktree under
-    //                                 the hood — the user's intent
-    //                                 is recorded for that follow-up.)
     worktree_mode: z.enum(["isolated_worktree", "direct"]).default("direct"),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a

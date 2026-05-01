@@ -2,10 +2,15 @@ import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/clai
 import { detectGitDir } from "@backlog/git";
 import { loadConfig } from "@backlog/config";
 import type { GitMergeStrategy, ProjectConfig } from "@backlog/schemas";
-import { cascadeBlockDependents, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
+import { cascadeBlockDependents, getSubTask, updateSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { addRunArtifact, appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { cleanupRunWorktree, commitWorktreeChanges, createPullRequest, mergeRunBranch, pushWorktreeBranch, sanitizeRunBranch } from "./run-merge.js";
+
+function failureBlocker(runId: string, summary?: string): string {
+  const clean = (summary ?? "Run failed").replace(/\s+/g, " ").trim();
+  return `run_failed:${runId}:${clean.slice(0, 180)}`;
+}
 
 function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
   const task = getSubTask(backlogDir, taskId);
@@ -88,7 +93,7 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
   const config = withMergeStrategy(baseConfig, options?.mergeStrategy);
   const repo = config.repos.find((r) => r.id === run.repo);
 
-  if (config.git.merge_strategy !== "none") {
+  if (run.execution_mode !== "direct" && config.git.merge_strategy !== "none") {
     if (!repo) {
       throw new Error(`Unknown repo '${run.repo}' for run ${run.id}`);
     }
@@ -134,7 +139,7 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
   try {
     if (!repo) return;
 
-    if (config.git.cleanup_worktree_on_approve) {
+    if (run.execution_mode !== "direct" && config.git.cleanup_worktree_on_approve) {
       // Only delete the branch when merge was requested. In no-merge
       // mode the branch is the user's only copy of the work.
       const cleanup = await cleanupRunWorktree({
@@ -181,6 +186,16 @@ export async function failRun(
 ): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "failed", summary ?? "Failed by operator");
   syncParentWorkAfterRun(backlogDir, run.subtask_id, "blocked");
+  const task = getSubTask(backlogDir, run.subtask_id);
+  if (task) {
+    const blocker = failureBlocker(runId, summary);
+    if (!task.blockers.includes(blocker)) {
+      // Store the latest failure where the board/task detail can show it.
+      // The archived run remains the full source of truth.
+      const blockers = [...task.blockers.filter((item) => !item.startsWith("run_failed:")), blocker];
+      updateSubTask(backlogDir, run.subtask_id, { blockers });
+    }
+  }
   // Optional cascade: mark every (transitive) dependent of the failed
   // subtask as blocked so they don't sit in "waiting" forever. Off by
   // default for backward compat — callers who know the failure is
@@ -229,7 +244,16 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   // don't have these fields; preserve "commit by default" behaviour.
   const commitWhenDone = parent?.execution_defaults?.auto_commit ?? true;
   const pushWhenDone = parent?.execution_defaults?.push_when_done ?? true;
-  if (!commitWhenDone) return;
+  if (!commitWhenDone) {
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "run.commit_skipped",
+      message: run.execution_mode === "direct"
+        ? "Commit disabled — changes were left in the main checkout"
+        : "Commit disabled — changes were left in the execution workspace",
+    });
+    return;
+  }
 
   const message = buildCommitMessage(parent, subtask, run);
   const commit = await commitWorktreeChanges({
@@ -288,6 +312,14 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   }
 
   const wantsPr = parent?.execution_defaults?.create_pr ?? false;
+  if (run.execution_mode === "direct" && wantsPr) {
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "run.pr_skipped",
+      message: "PR creation skipped — direct mode works on the current branch",
+    });
+    return;
+  }
   if (!wantsPr) return;
   const wantsMerge = parent?.execution_defaults?.merge_pr ?? false;
   const title = subtask?.title?.trim() || parent?.title?.trim() || `Backlog run ${run.id}`;

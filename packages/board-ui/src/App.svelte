@@ -31,6 +31,7 @@
   import ProfileMenu from "./lib/ProfileMenu.svelte";
   import ProfileView from "./lib/ProfileView.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
+  import RunStatusDisplay from "./lib/RunStatusDisplay.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
@@ -60,7 +61,6 @@
   import { formatAgentLabel } from "./lib/agent-label.js";
   import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
-  import { formatDuration } from "./lib/timer.svelte.js";
   import {
     COLUMN_ORDER,
     type BoardResponse,
@@ -726,6 +726,13 @@
           error = t("card.play_missing_capabilities");
         } else if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) {
           error = t("card.play_repo_blocked");
+        } else if (directReasons.includes("missing_claude_executable") || directReasons.includes("missing_codex_executable")) {
+          error = t("card.play_missing_executable");
+          leftSection = "agents";
+        } else if (directReasons.includes("direct_checkout_dirty")) {
+          error = t("card.play_direct_dirty");
+        } else if (directReasons.includes("direct_checkout_busy")) {
+          error = t("card.play_direct_busy");
         } else if (directReasons.includes("unknown_repo")) {
           error = t("card.play_unknown_repo");
         } else if (directReasons.includes("autonomy_mode_observe")) {
@@ -888,15 +895,10 @@
         onManageAgents={() => (leftSection = "agents")}
       />
     </div>
+    <div class="topbar-center">
+      <RunStatusDisplay board={board} workspaceId={selectedWorkspaceId} onOpenActivity={openActivityPanel} />
+    </div>
     <div class="topbar-right">
-      {#if board}
-        {#if board.total_remaining_seconds > 0}
-          <span class="eta-pill">{t("topbar.remaining", { duration: formatDuration(board.total_remaining_seconds) })}</span>
-        {/if}
-        <span class:on={connected} class:off={!connected} class="conn">
-          {connected ? t("topbar.live") : t("topbar.polling")}
-        </span>
-      {/if}
       <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
       <PanelToggles
         leftOpen={leftOpen}
@@ -1240,6 +1242,14 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .topbar-center {
+    flex: 1 1 auto;
+    min-width: 180px;
+    display: flex;
+    justify-content: center;
   }
   .topbar-right {
     display: flex;
@@ -1247,15 +1257,7 @@
     gap: 10px;
     font-size: 12px;
     color: var(--text-muted);
-  }
-  .conn.on { color: var(--success); }
-  .conn.off { color: var(--warning); }
-  .eta-pill {
-    background: var(--accent-bg);
-    color: var(--accent-text);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-weight: 500;
+    flex: 0 0 auto;
   }
   button.primary {
     background: var(--accent);
