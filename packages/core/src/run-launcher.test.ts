@@ -8,7 +8,7 @@ import { addAgent } from "./agents.js";
 import { buildExecutionPlan } from "./scheduler.js";
 import { createSubTask } from "./subtask-service.js";
 import { createTask } from "./task-service.js";
-import { loadRun } from "./run-store.js";
+import { getRunEvents, loadRun } from "./run-store.js";
 import { startRunsForPlan } from "./run-launcher.js";
 
 async function createWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string }> {
@@ -116,5 +116,49 @@ describe("run-launcher", () => {
       },
     ]);
     expect(fs.existsSync(path.join(root, "direct.txt"))).toBe(false);
+  });
+
+  it("can run direct-mode tasks on a dirty checkout when explicitly allowed", async () => {
+    addAgent(backlogDir, {
+      id: "writer",
+      provider: "custom",
+      command: "node -e \"require('fs').writeFileSync('direct.txt', 'ok\\\\n')\"",
+      successMode: "complete",
+      allowedRepos: [repoId],
+      allowedRisk: ["medium"],
+    });
+    const workItem = createTask(backlogDir, {
+      title: "Write direct file anyway",
+      repoTargets: [repoId],
+      autoCommit: false,
+      pushWhenDone: false,
+      worktreeMode: "direct",
+      preferredAgents: ["writer"],
+    });
+    createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Write direct file anyway",
+      repo: repoId,
+      risk: "medium",
+      preferredAgents: ["writer"],
+    });
+    fs.writeFileSync(path.join(root, "human-note.txt"), "do not stage me\n", "utf8");
+
+    const config = loadConfig(backlogDir);
+    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
+    const result = await startRunsForPlan({
+      backlogDir,
+      config,
+      plan,
+      maxStart: 1,
+      forcedAgentId: "writer",
+      allowDirtyDirect: true,
+    });
+
+    expect(result.skipped).toEqual([]);
+    expect(result.started).toHaveLength(1);
+    expect(fs.readFileSync(path.join(root, "human-note.txt"), "utf8")).toBe("do not stage me\n");
+    expect(fs.readFileSync(path.join(root, "direct.txt"), "utf8")).toBe("ok\n");
+    expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.direct_dirty_allowed"))).toBe(true);
   });
 });

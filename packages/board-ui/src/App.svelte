@@ -773,8 +773,10 @@
     if (action === "agents") leftSection = "agents";
   }
 
-  async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">) {
-    const result = await startRun({ task_id: card.id, approve: true });
+  async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
+    const input: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
+    if (options.allowDirtyDirect) input.allow_dirty_direct = true;
+    const result = await startRun(input);
     if (result.started.length > 0) {
       directDirtyPrompt = null;
       return;
@@ -788,25 +790,55 @@
   }
 
   async function retryDirtyDirectRun(taskId: string) {
+    directDirtyPrompt = null;
     error = null;
     openActivityPanel();
     const card = findCardById(taskId);
-    if (!card) throw new Error(t("direct_dirty.task_missing"));
+    if (!card) {
+      error = t("direct_dirty.task_missing");
+      return;
+    }
     try {
       await startTaskOrThrow(card);
+    } catch (err) {
+      if (!directDirtyPrompt) error = err instanceof Error ? err.message : String(err);
     } finally {
       if (!connected) await refresh();
     }
   }
 
   async function runDirtyTaskInWorktree(taskId: string) {
+    directDirtyPrompt = null;
     error = null;
     openActivityPanel();
     const card = findCardById(taskId);
-    if (!card) throw new Error(t("direct_dirty.task_missing"));
+    if (!card) {
+      error = t("direct_dirty.task_missing");
+      return;
+    }
     try {
       await patchTask(taskId, { worktree_mode: "isolated_worktree" });
       await startTaskOrThrow(card);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      if (!connected) await refresh();
+    }
+  }
+
+  async function continueDirtyDirectRun(taskId: string) {
+    directDirtyPrompt = null;
+    error = null;
+    openActivityPanel();
+    const card = findCardById(taskId);
+    if (!card) {
+      error = t("direct_dirty.task_missing");
+      return;
+    }
+    try {
+      await startTaskOrThrow(card, { allowDirtyDirect: true });
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     } finally {
       if (!connected) await refresh();
     }
@@ -1134,6 +1166,7 @@
     onClose={() => (directDirtyPrompt = null)}
     onRetryDirect={() => directDirtyPrompt ? retryDirtyDirectRun(directDirtyPrompt.taskId) : undefined}
     onRunInWorktree={() => directDirtyPrompt ? runDirtyTaskInWorktree(directDirtyPrompt.taskId) : undefined}
+    onContinueAnyway={() => directDirtyPrompt ? continueDirtyDirectRun(directDirtyPrompt.taskId) : undefined}
   />
 {/if}
 

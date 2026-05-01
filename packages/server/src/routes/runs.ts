@@ -22,6 +22,7 @@ const startBodySchema = z.object({
   max_start: z.number().int().positive().max(50).optional(),
   agent_id: z.string().min(1).optional(),
   approve: z.boolean().optional(),
+  allow_dirty_direct: z.boolean().optional(),
 });
 
 const approveBodySchema = z.object({
@@ -116,6 +117,7 @@ export function runsRoutes(): Hono<AppEnv> {
         maxStart: body.max_start ?? 1,
       };
       if (body.agent_id) launcherInput.forcedAgentId = body.agent_id;
+      if (body.allow_dirty_direct) launcherInput.allowDirtyDirect = true;
       const result = await startRunsForPlan(launcherInput);
 
       return c.json(

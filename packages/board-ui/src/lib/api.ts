@@ -762,6 +762,7 @@ export interface StartRunInput {
   max_start?: number;
   agent_id?: string;
   approve?: boolean;
+  allow_dirty_direct?: boolean;
 }
 
 export interface StartedRun {

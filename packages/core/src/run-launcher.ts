@@ -15,8 +15,8 @@ import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./work
 // the prompt size.
 const RETRY_FEEDBACK_BYTES = 4_000;
 
-async function inspectDirectCheckout(repoPath: string): Promise<
-  | { ok: true; branch: string }
+async function inspectDirectCheckout(repoPath: string, options: { allowDirty?: boolean } = {}): Promise<
+  | { ok: true; branch: string; dirtyFiles?: string[] }
   | { ok: false; reason: string }
 > {
   let branch: string;
@@ -37,6 +37,9 @@ async function inspectDirectCheckout(repoPath: string): Promise<
     return file !== ".backlog" && !file.startsWith(".backlog/");
   });
   if (dirty.length > 0) {
+    if (options.allowDirty) {
+      return { ok: true, branch, dirtyFiles: dirty };
+    }
     return { ok: false, reason: "direct_checkout_dirty" };
   }
 
@@ -69,6 +72,8 @@ export interface StartRunsForPlanInput {
   maxStart: number;
   /** Override agent for every started run (matches CLI --agent). */
   forcedAgentId?: string;
+  /** User explicitly chose to run in direct mode even though git is dirty. */
+  allowDirtyDirect?: boolean;
 }
 
 async function resolveAgent(
@@ -101,7 +106,7 @@ async function resolveAgent(
 }
 
 export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<StartRunsResult> {
-  const { backlogDir, config, plan, maxStart, forcedAgentId } = input;
+  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect } = input;
   const started: StartedRun[] = [];
   const skipped: SkippedRun[] = [];
 
@@ -154,6 +159,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     const executionMode = workItem.execution_defaults?.worktree_mode ?? "direct";
     let branch = buildRunBranchName(task.id, task.title, runId);
     let worktreePath: string;
+    let allowedDirtyDirectFiles: string[] = [];
     try {
       if (executionMode === "direct") {
         const directBusy = listActiveRuns(backlogDir).some(
@@ -165,13 +171,14 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
           continue;
         }
 
-        const direct = await inspectDirectCheckout(repo.path);
+        const direct = await inspectDirectCheckout(repo.path, allowDirtyDirect ? { allowDirty: true } : {});
         if (!direct.ok) {
           archiveClaim(backlogDir, claim.id);
           skipped.push({ taskId: task.id, reasons: [direct.reason] });
           continue;
         }
         branch = direct.branch;
+        allowedDirtyDirectFiles = direct.dirtyFiles ?? [];
         worktreePath = repo.path;
       } else {
         worktreePath = await ensureWorktree({
@@ -234,6 +241,13 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         ? `Working directly in ${repo.path} on ${branch}`
         : `Working in isolated worktree ${worktreePath}`,
     });
+    if (executionMode === "direct" && allowedDirtyDirectFiles.length > 0) {
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "workspace.direct_dirty_allowed",
+        message: `Continuing despite ${allowedDirtyDirectFiles.length} pre-existing local change(s)`,
+      });
+    }
     updateRunStatus(backlogDir, run.id, "running", "Execution workspace prepared");
     updateSubTaskStatus(backlogDir, task.id, "running");
 

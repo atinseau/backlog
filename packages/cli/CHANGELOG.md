@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.19] - 2026-05-01
+
+Hotfix from the user's 1.4.18 direct-mode retry.
+
+- **Dirty direct-mode warning now has an explicit override** — the dirty-check dialog closes immediately on action and now includes **Continue anyway**, which calls `/runs` with `allow_dirty_direct: true`. The launcher records a `workspace.direct_dirty_allowed` event so Activity still shows that the run intentionally started on a dirty checkout.
+- **Review-off tasks no longer stop at Apply** — normal tasks now complete even if the selected agent still has `success_mode: review` from an older/default config. Only the task/subtask `manual_approval_required` flag sends the run to `awaiting_review`. New workspace defaults now create Claude/Codex agents with `success_mode: complete`.
+
 ## [1.4.18] - 2026-05-01
 
 Hotfix from the user's direct-mode dirty-check test after 1.4.17.

@@ -35,7 +35,7 @@ function writeFakeClaudeBinary(root: string): string {
 }
 
 describe("executeClaudeAgentRun", () => {
-  it("runs claude print mode and completes by default", async () => {
+  it("completes normal tasks even when the agent default is review", async () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const repoId = path.basename(root);
@@ -58,6 +58,7 @@ describe("executeClaudeAgentRun", () => {
       allowed_repos: [],
       allowed_risk: ["low", "medium"],
       capabilities: ["plan", "edit_code"],
+      success_mode: "review",
       environment: {},
       retry_policy: { mode: "none", max_attempts: 1, reuse_worktree: true },
     };

@@ -177,8 +177,7 @@ export async function collectWorktreeArtifacts(
 
 export function successModeForAgent(agent: Agent, task?: SubTask): "review" | "complete" {
   if (task) {
-    if (task.execution.manual_approval_required) return "review";
-    if (!agent.success_mode) return "complete";
+    return task.execution.manual_approval_required ? "review" : "complete";
   }
   if (agent.success_mode) {
     return agent.success_mode;

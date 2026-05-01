@@ -165,4 +165,44 @@ describe("POST /runs", () => {
     expect(fs.readFileSync(path.join(workspace.root, "task-direct.txt"), "utf8")).toBe("ok\n");
     expect(fs.existsSync(path.join(workspace.backlogDir, "worktrees", "demo"))).toBe(false);
   });
+
+  it("passes explicit dirty direct checkout approval to the launcher", async () => {
+    const workspace = await makeGitWorkspace("assist");
+    addAgent(workspace.backlogDir, {
+      id: "writer",
+      provider: "custom",
+      command: "node -e \"require('fs').writeFileSync('dirty-direct.txt', 'ok\\\\n')\"",
+      successMode: "complete",
+      allowedRepos: ["demo"],
+      allowedRisk: ["medium"],
+    });
+    const task = createTask(workspace.backlogDir, {
+      title: "Write direct file anyway",
+      repoTargets: ["demo"],
+      autoCommit: false,
+      pushWhenDone: false,
+      worktreeMode: "direct",
+      preferredAgents: ["writer"],
+    });
+    fs.writeFileSync(path.join(workspace.root, "human-note.txt"), "already here\n", "utf8");
+
+    const app = buildApp(workspace);
+    const res = await app.request("/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        task_id: task.id,
+        agent_id: "writer",
+        approve: true,
+        allow_dirty_direct: true,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { started?: Array<{ worktreePath: string }>; skipped?: unknown[] };
+    expect(body.skipped ?? []).toEqual([]);
+    expect(body.started?.[0]?.worktreePath).toBe(workspace.root);
+    expect(fs.readFileSync(path.join(workspace.root, "dirty-direct.txt"), "utf8")).toBe("ok\n");
+    expect(fs.readFileSync(path.join(workspace.root, "human-note.txt"), "utf8")).toBe("already here\n");
+  });
 });

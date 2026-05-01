@@ -5,29 +5,15 @@
   interface Props {
     taskTitle: string;
     onClose: () => void;
-    onRetryDirect: () => Promise<void> | void;
-    onRunInWorktree: () => Promise<void> | void;
+    onRetryDirect: () => void;
+    onRunInWorktree: () => void;
+    onContinueAnyway: () => void;
   }
 
-  let { taskTitle, onClose, onRetryDirect, onRunInWorktree }: Props = $props();
-
-  let busy = $state<"direct" | "worktree" | null>(null);
-  let localError = $state<string | null>(null);
-
-  async function run(kind: "direct" | "worktree", action: () => Promise<void> | void) {
-    busy = kind;
-    localError = null;
-    try {
-      await action();
-    } catch (err) {
-      localError = err instanceof Error ? err.message : String(err);
-    } finally {
-      busy = null;
-    }
-  }
+  let { taskTitle, onClose, onRetryDirect, onRunInWorktree, onContinueAnyway }: Props = $props();
 </script>
 
-<DialogShell onClose={() => { if (!busy) onClose(); }} ariaLabel={t("direct_dirty.title")} extraClass="direct-dirty-dialog">
+<DialogShell {onClose} ariaLabel={t("direct_dirty.title")} extraClass="direct-dirty-dialog">
   <header>
     <h2>{t("direct_dirty.title")}</h2>
   </header>
@@ -43,24 +29,28 @@
         <strong>{t("direct_dirty.retry_label")}</strong>
         <span>{t("direct_dirty.retry_hint")}</span>
       </div>
+      <div class="danger-choice">
+        <strong>{t("direct_dirty.continue_label")}</strong>
+        <span>{t("direct_dirty.continue_hint")}</span>
+      </div>
     </div>
-    {#if localError}
-      <div class="error">{localError}</div>
-    {/if}
   </div>
   <footer>
-    <button type="button" onclick={onClose} disabled={busy !== null}>{t("direct_dirty.cancel")}</button>
+    <button type="button" onclick={onClose}>{t("direct_dirty.cancel")}</button>
     <button
       type="button"
-      onclick={() => run("direct", onRetryDirect)}
-      disabled={busy !== null}
-    >{busy === "direct" ? t("direct_dirty.retrying") : t("direct_dirty.retry")}</button>
+      onclick={onRetryDirect}
+    >{t("direct_dirty.retry")}</button>
+    <button
+      type="button"
+      class="danger"
+      onclick={onContinueAnyway}
+    >{t("direct_dirty.continue_anyway")}</button>
     <button
       type="button"
       class="primary"
-      onclick={() => run("worktree", onRunInWorktree)}
-      disabled={busy !== null}
-    >{busy === "worktree" ? t("direct_dirty.starting_worktree") : t("direct_dirty.start_worktree")}</button>
+      onclick={onRunInWorktree}
+    >{t("direct_dirty.start_worktree")}</button>
   </footer>
 </DialogShell>
 
@@ -102,6 +92,10 @@
     display: grid;
     gap: 3px;
   }
+  .choices > div.danger-choice {
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border-default));
+    background: color-mix(in srgb, var(--warning-bg) 45%, var(--bg-muted));
+  }
   strong {
     font-size: 13px;
   }
@@ -109,13 +103,6 @@
     color: var(--text-subtle);
     font-size: 12px;
     line-height: 1.4;
-  }
-  .error {
-    background: var(--danger-bg);
-    color: var(--danger);
-    border-radius: 4px;
-    padding: 8px 10px;
-    font-size: 12px;
   }
   footer {
     padding: 12px 20px;
@@ -142,8 +129,10 @@
   button.primary:hover:not(:disabled) {
     background: #036a3e;
   }
-  button:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
+  button.danger {
+    color: var(--warning);
+    border-color: color-mix(in srgb, var(--warning) 55%, var(--border-strong));
+    background: color-mix(in srgb, var(--warning-bg) 45%, var(--bg-hover));
+    font-weight: 600;
   }
 </style>
