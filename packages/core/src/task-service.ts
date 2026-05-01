@@ -42,6 +42,7 @@ export interface UpdateWorkItemInput {
   // card-menu Assign action can set it via the same patch endpoint
   // as priority. Existing sub-tasks aren't retroactively updated.
   preferredAgents?: string[];
+  worktreeMode?: "isolated_worktree" | "direct";
 }
 
 export function createTask(backlogDir: string, input: CreateWorkItemInput): Task {
@@ -135,6 +136,12 @@ export function updateTask(backlogDir: string, id: string, input: UpdateWorkItem
     item.execution_defaults = {
       ...item.execution_defaults,
       preferred_agents: input.preferredAgents,
+    };
+  }
+  if (input.worktreeMode !== undefined) {
+    item.execution_defaults = {
+      ...item.execution_defaults,
+      worktree_mode: input.worktreeMode,
     };
   }
 

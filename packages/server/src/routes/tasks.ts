@@ -370,9 +370,11 @@ export function workItemsRoutes(): Hono<AppEnv> {
   });
 
   // PATCH a small set of task fields (priority, title, description,
-  // labels, repo_targets). Used by the card menu's "Set priority"
-  // submenu. Validation mirrors the create body — only the fields
-  // listed here are touched, others are left as-is.
+  // labels, repo_targets, execution defaults). Used by focused UI
+  // actions such as priority changes, assignee changes, and switching
+  // a blocked direct-mode task to an isolated worktree. Validation
+  // mirrors the create body — only the fields listed here are touched,
+  // others are left as-is.
   const patchBodySchema = z.object({
     title: z.string().min(1).optional(),
     description: z.string().optional(),
@@ -384,6 +386,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
     // "let the scheduler pick" (auto). Existing sub-tasks aren't
     // retroactively reassigned — open them individually for that.
     preferred_agents: z.array(z.string().min(1)).optional(),
+    worktree_mode: z.enum(["isolated_worktree", "direct"]).optional(),
   });
   app.patch("/tasks/:id", async (c) => {
     const workspace = c.get("workspace");
@@ -401,6 +404,7 @@ export function workItemsRoutes(): Hono<AppEnv> {
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
+      if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       const task = updateTask(workspace.backlogDir, id, input);
       return c.json({ task });
     } catch (error) {

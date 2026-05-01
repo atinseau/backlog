@@ -22,6 +22,7 @@
   import { getShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
+  import DirectDirtyDialog from "./lib/DirectDirtyDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
   import RightPanel from "./lib/shell/RightPanel.svelte";
@@ -60,7 +61,7 @@
     type AgentSummary,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
-  import { explainStartRunResult } from "./lib/run-start-errors.js";
+  import { explainStartRunResult, type StartRunAction } from "./lib/run-start-errors.js";
   import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import {
@@ -178,6 +179,7 @@
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let splitTarget = $state<TaskCard | null>(null);
   let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
+  let directDirtyPrompt = $state<{ taskId: string; title: string } | null>(null);
   let integrationsTab = $state<"github" | "jira" | "sources">("github");
 
   // ---- shell layout state ----
@@ -696,9 +698,7 @@
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
-        error = explanation?.message ?? t("card.play_skipped_empty");
-        if (explanation?.action === "api_keys") apiKeysOpen = true;
-        if (explanation?.action === "agents") leftSection = "agents";
+        surfaceStartRunBlock(explanation?.message ?? t("card.play_skipped_empty"), explanation?.action ?? null, card);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -760,6 +760,56 @@
       if (found) return found;
     }
     return null;
+  }
+
+  function surfaceStartRunBlock(message: string, action: StartRunAction, card: Pick<TaskCard, "id" | "title"> | null) {
+    if (action === "direct_dirty" && card) {
+      error = null;
+      directDirtyPrompt = { taskId: card.id, title: card.title };
+      return;
+    }
+    error = message;
+    if (action === "api_keys") apiKeysOpen = true;
+    if (action === "agents") leftSection = "agents";
+  }
+
+  async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">) {
+    const result = await startRun({ task_id: card.id, approve: true });
+    if (result.started.length > 0) {
+      directDirtyPrompt = null;
+      return;
+    }
+    const explanation = explainStartRunResult(result) ?? {
+      message: t("card.play_skipped_empty"),
+      action: null,
+    };
+    surfaceStartRunBlock(explanation.message, explanation.action, card);
+    throw new Error(explanation.message);
+  }
+
+  async function retryDirtyDirectRun(taskId: string) {
+    error = null;
+    openActivityPanel();
+    const card = findCardById(taskId);
+    if (!card) throw new Error(t("direct_dirty.task_missing"));
+    try {
+      await startTaskOrThrow(card);
+    } finally {
+      if (!connected) await refresh();
+    }
+  }
+
+  async function runDirtyTaskInWorktree(taskId: string) {
+    error = null;
+    openActivityPanel();
+    const card = findCardById(taskId);
+    if (!card) throw new Error(t("direct_dirty.task_missing"));
+    try {
+      await patchTask(taskId, { worktree_mode: "isolated_worktree" });
+      await startTaskOrThrow(card);
+    } finally {
+      if (!connected) await refresh();
+    }
   }
 
   // Re-pull workspace + board state when the window comes back into focus
@@ -1060,9 +1110,10 @@
     subTasksCreated={startPrompt.subTasksCreated}
     onClose={() => (startPrompt = null)}
     onBlocked={(message, action) => {
-      error = message;
-      if (action === "api_keys") apiKeysOpen = true;
-      if (action === "agents") leftSection = "agents";
+      const prompt = startPrompt;
+      const card = prompt ? findCardById(prompt.taskId) : null;
+      surfaceStartRunBlock(message, action, card ?? (prompt ? { id: prompt.taskId, title: prompt.taskId } : null));
+      if (action === "direct_dirty") startPrompt = null;
     }}
     onStarted={() => {
       // Same UX as clicking the card-level Play: pop the bottom
@@ -1074,6 +1125,15 @@
       openActivityPanel();
       if (!connected) refresh();
     }}
+  />
+{/if}
+
+{#if directDirtyPrompt}
+  <DirectDirtyDialog
+    taskTitle={directDirtyPrompt.title}
+    onClose={() => (directDirtyPrompt = null)}
+    onRetryDirect={() => directDirtyPrompt ? retryDirtyDirectRun(directDirtyPrompt.taskId) : undefined}
+    onRunInWorktree={() => directDirtyPrompt ? runDirtyTaskInWorktree(directDirtyPrompt.taskId) : undefined}
   />
 {/if}
 

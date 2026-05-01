@@ -562,7 +562,9 @@ export async function deleteSubTask(id: string): Promise<void> {
 }
 
 // Partial update for tasks (priority, title, description, labels,
-// repo_targets). Used by the card menu's Set-priority submenu.
+// repo_targets, execution defaults). Used by small UI actions such as
+// priority, assignment, and switching a blocked direct task to a
+// worktree.
 export interface PatchTaskInput {
   title?: string;
   description?: string;
@@ -572,6 +574,7 @@ export interface PatchTaskInput {
   // Default assignee for new sub-tasks. The card menu's Assign ▸
   // submenu writes a single id here (use [] to unassign).
   preferred_agents?: string[];
+  worktree_mode?: "isolated_worktree" | "direct";
 }
 export async function patchTask(id: string, input: PatchTaskInput): Promise<void> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}`), {

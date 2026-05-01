@@ -1,7 +1,7 @@
 import type { StartRunResult } from "./api.js";
 import { t } from "./i18n.svelte.js";
 
-export type StartRunAction = "api_keys" | "agents" | null;
+export type StartRunAction = "api_keys" | "agents" | "direct_dirty" | null;
 
 export interface StartRunExplanation {
   message: string;
@@ -31,7 +31,7 @@ export function explainStartRunResult(result: StartRunResult): StartRunExplanati
   if (directReasons.includes("missing_claude_executable") || directReasons.includes("missing_codex_executable")) {
     return { message: t("card.play_missing_executable"), action: "agents" };
   }
-  if (directReasons.includes("direct_checkout_dirty")) return { message: t("card.play_direct_dirty"), action: null };
+  if (directReasons.includes("direct_checkout_dirty")) return { message: t("card.play_direct_dirty"), action: "direct_dirty" };
   if (directReasons.includes("direct_checkout_busy")) return { message: t("card.play_direct_busy"), action: null };
   if (directReasons.includes("unknown_repo")) return { message: t("card.play_unknown_repo"), action: null };
   if (directReasons.includes("autonomy_mode_observe")) return { message: t("card.play_autonomy_observe"), action: null };

@@ -4,6 +4,12 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.18] - 2026-05-01
+
+Hotfix from the user's direct-mode dirty-check test after 1.4.17.
+
+- **Direct-mode dirty checkout is now actionable** — clicking Play on a direct-mode task with local repo changes no longer leaves the user with a dead-end error telling them to recreate the task. **Fix**: Backlog opens a persistent warning with two concrete choices: retry direct mode after committing/stashing, or switch this task to an isolated worktree and start it immediately. The server PATCH API now allows updating `execution_defaults.worktree_mode`, and the core task update path persists that change safely.
+
 ## [1.4.17] - 2026-05-01
 
 Hotfix from the user's 1.4.16 Desktop review/apply pass.

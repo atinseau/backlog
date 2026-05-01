@@ -2,7 +2,7 @@
   import DialogShell from "./DialogShell.svelte";
   import { startRun, startOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
-  import { explainStartRunResult } from "./run-start-errors.js";
+  import { explainStartRunResult, type StartRunAction } from "./run-start-errors.js";
 
   interface Props {
     taskId: string;
@@ -10,7 +10,7 @@
     agentId?: string | null;
     onClose: () => void;
     onStarted?: () => void;
-    onBlocked?: (message: string, action: "api_keys" | "agents" | null) => void;
+    onBlocked?: (message: string, action: StartRunAction) => void;
   }
 
   let { taskId, subTasksCreated, agentId = null, onClose, onStarted, onBlocked }: Props = $props();
