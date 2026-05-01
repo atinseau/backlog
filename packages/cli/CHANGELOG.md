@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.17] - 2026-05-01
+
+Hotfix from the user's 1.4.16 Desktop review/apply pass.
+
+- **Appliquer failed after branches diverged** — the board card and diff panel forced `merge_strategy: "fast_forward"`, so applying a second reviewed worktree often failed with `Not possible to fast-forward`. **Fix**: Desktop Apply now integrates via merge commit, keeps the run in review on real conflicts, aborts failed merge attempts so the main checkout stays clean, and removes the noisy `Approve failed:` prefix from user-facing errors.
+- **Update banner was too aggressive** — the banner covered the app header and appeared on every background update check. **Fix**: the banner is back in normal flow so it pushes the header down, stays above right-side panels with a high z-index, uses green styling, and only surfaces automatic checks when an actual update is available/downloading/downloaded. Manual "Check for Updates…" still shows checking/up-to-date/errors.
+- **Header model picker duplicated task assignment** — the topbar agent/model selector conflicted with the task creation assignee selector and could leave an invisible preferred agent behind. **Fix**: removed the header picker and stopped sending a hidden `agent_id`; runs now use the task assignment or orchestrator selection.
+
 ## [1.4.16] - 2026-05-01
 
 Product pass from the user's next real Desktop run after 1.4.15.

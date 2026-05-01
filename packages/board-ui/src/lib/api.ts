@@ -871,7 +871,7 @@ export async function approveRun(runId: string, options?: string | RunApproveOpt
     const detail = await response.json().catch(() => ({}));
     throw new Error(
       typeof detail === "object" && detail && "detail" in detail
-        ? `Approve failed: ${(detail as { detail: string }).detail}`
+        ? (detail as { detail: string }).detail
         : `Approve failed: ${response.status}`,
     );
   }

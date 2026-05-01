@@ -119,7 +119,7 @@
   "diff.resize": "Glisser pour redimensionner le panneau",
   "diff.continue": "Appliquer dans le projet",
   "diff.continue_doing": "Application en cours…",
-  "diff.continue_hint": "Merge ce run dans la branche principale par fast-forward. Si le checkout principal est sale ou en conflit, le run reste en revue.",
+  "diff.continue_hint": "Applique ce run dans la branche principale. Si le checkout principal est sale ou en conflit, le run reste en revue.",
   "diff.discard": "Annuler",
   "diff.discard_doing": "Annulation…",
   "diff.discard_hint": "Jeter les changements de ce run et remettre la tâche à faire.",

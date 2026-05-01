@@ -43,6 +43,13 @@ async function safeRun(args: string[], cwd: string): Promise<SpawnResult> {
   return { exitCode: r.exitCode ?? null, stdout: r.stdout, stderr: r.stderr };
 }
 
+function mergeFailureMessage(strategy: GitMergeStrategy, exitCode: number | null, detail: string): string {
+  if (strategy === "fast_forward" && /not possible to fast-forward|diverging branches/i.test(detail)) {
+    return "fast-forward impossible: the run branch and target branch diverged";
+  }
+  return `git merge failed (exit ${exitCode})`;
+}
+
 function mergeOptionsFor(config: ProjectConfig, repoDefaultBranch: string): MergeOptions | null {
   const strategy = config.git.merge_strategy;
   if (strategy === "none") return null;
@@ -116,13 +123,17 @@ export async function mergeRunBranch(input: {
       : ["merge", "--no-ff", "-m", `Merge backlog run ${input.run.id}: ${branch}`, branch];
   const merge = await safeRun(args, input.repoPath);
   if (merge.exitCode !== 0) {
+    const detail = (merge.stderr || merge.stdout).trim().slice(0, 800);
+    if (opts.strategy === "merge_commit") {
+      await safeRun(["merge", "--abort"], input.repoPath);
+    }
     return {
       ok: false,
       strategy: opts.strategy,
       target: opts.target,
       branch,
-      error: `git merge failed (exit ${merge.exitCode})`,
-      detail: (merge.stderr || merge.stdout).trim().slice(0, 800),
+      error: mergeFailureMessage(opts.strategy, merge.exitCode, detail),
+      detail,
     };
   }
   return { ok: true, strategy: opts.strategy, target: opts.target, branch };

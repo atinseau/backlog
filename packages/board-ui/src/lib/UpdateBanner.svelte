@@ -7,7 +7,7 @@
   //
   // Status flow:
   //   idle (no banner)
-  //   → checking (subtle "Checking…" pill)
+  //   → checking (manual check only)
   //   → available (toast: "Update found, downloading…")
   //   → downloading (progress bar in the banner)
   //   → downloaded (banner: "Backlog X.Y.Z ready" + Restart button)
@@ -143,7 +143,7 @@
 
 <style>
   .update-banner {
-    position: fixed;
+    position: sticky;
     top: 0;
     left: 0;
     right: 0;
@@ -152,22 +152,25 @@
     align-items: center;
     gap: 12px;
     padding: 8px 16px;
-    background: var(--bg-surface, #14171f);
-    border-bottom: 1px solid var(--border-default, #262a36);
-    border-left: 3px solid var(--accent, #ffd166);
+    background: color-mix(in srgb, var(--success, #4ade80) 14%, var(--bg-surface, #14171f));
+    border-bottom: 1px solid color-mix(in srgb, var(--success, #4ade80) 45%, var(--border-default, #262a36));
+    border-left: 3px solid var(--success, #4ade80);
     color: var(--text-primary, #e6e7eb);
     font-size: 13px;
     font-family: -apple-system, system-ui, sans-serif;
   }
 
   .update-banner--downloaded {
+    background: color-mix(in srgb, var(--success, #4ade80) 18%, var(--bg-surface, #14171f));
     border-left-color: var(--success, #4ade80);
   }
   .update-banner--error {
+    background: color-mix(in srgb, var(--danger, #ef4444) 12%, var(--bg-surface, #14171f));
     border-left-color: var(--danger, #ef4444);
   }
   .update-banner--not-available {
-    border-left-color: var(--text-muted, #6b7280);
+    background: color-mix(in srgb, var(--success, #4ade80) 10%, var(--bg-surface, #14171f));
+    border-left-color: var(--success, #4ade80);
     opacity: 0.85;
   }
 
@@ -186,7 +189,7 @@
     border-radius: 50%;
     display: inline-block;
   }
-  .dot--info { background: var(--accent, #ffd166); }
+  .dot--info { background: var(--success, #4ade80); }
   .dot--ready { background: var(--success, #4ade80); box-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
   .dot--error { background: var(--danger, #ef4444); }
 
@@ -194,7 +197,7 @@
     width: 12px;
     height: 12px;
     border: 2px solid var(--border-default, #262a36);
-    border-top-color: var(--accent, #ffd166);
+    border-top-color: var(--success, #4ade80);
     border-radius: 50%;
     animation: update-spin 0.7s linear infinite;
   }
@@ -235,7 +238,7 @@
 
   .update-banner__progress-bar {
     height: 100%;
-    background: var(--accent, #ffd166);
+    background: var(--success, #4ade80);
     transition: width 200ms ease-out;
   }
 
@@ -247,7 +250,7 @@
   }
 
   .btn-primary {
-    background: var(--accent, #ffd166);
+    background: var(--success, #4ade80);
     color: #0b0b0e;
     border: none;
     border-radius: 4px;

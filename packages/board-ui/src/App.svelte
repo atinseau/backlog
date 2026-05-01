@@ -16,7 +16,6 @@
   import ProjectsView from "./lib/ProjectsView.svelte";
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
   import ApiKeysDialog from "./lib/ApiKeysDialog.svelte";
-  import AgentPicker from "./lib/AgentPicker.svelte";
   import Toasts from "./lib/Toasts.svelte";
   import UpdateBanner from "./lib/UpdateBanner.svelte";
   import CardMenu from "./lib/CardMenu.svelte";
@@ -145,8 +144,8 @@
     }
   }
   let cloudStatus = $state<CloudStatus | null>(readCachedCloudStatus());
-  // Cached list of agents for the topbar AgentPicker + preflight
-  // checks. Refreshed on workspace switch and whenever the Agents
+  // Cached list of agents for preflight checks and assignee menus.
+  // Refreshed on workspace switch and whenever the Agents
   // view's onChanged callback fires (so toggling enable / changing
   // model in AgentsView surfaces here within one round-trip).
   let agentsList = $state<AgentSummary[]>([]);
@@ -169,11 +168,6 @@
     }
     return out;
   });
-  // Selected agent for the next run, persisted per project. Null
-  // means "let the orchestrator pick" (the existing behaviour).
-  let selectedAgentId = $state<string | null>(null);
-  const PREFERRED_AGENT_KEY_PREFIX = "backlog.preferred_agent.";
-
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations / Permissions
   // / Repos) used to be modals; they're now rendered inline in the center
@@ -371,32 +365,6 @@
     catch { agentsList = []; }
     // Users + agents share the assignee picker — keep them in sync.
     void refreshUsers();
-    // After loading, seed the selected agent if the user hasn't picked
-    // one yet (or their previous pick disappeared from the registry).
-    const stored = selectedWorkspaceId
-      ? localStorage.getItem(PREFERRED_AGENT_KEY_PREFIX + selectedWorkspaceId)
-      : null;
-    if (stored && agentsList.some((a) => a.id === stored)) {
-      selectedAgentId = stored;
-      return;
-    }
-    // Auto-pick the first ready AI agent (executable provider, has
-    // its API key) so the topbar Play button works without forcing
-    // the user to open the picker on first launch.
-    const firstReady = agentsList.find(
-      (a) =>
-        !a.needs_api_key &&
-        (a.provider === "claude" || a.provider === "codex" || a.provider === "custom"),
-    );
-    selectedAgentId = firstReady?.id ?? null;
-  }
-
-  function persistAgentChoice(id: string | null) {
-    selectedAgentId = id;
-    if (!selectedWorkspaceId) return;
-    const key = PREFERRED_AGENT_KEY_PREFIX + selectedWorkspaceId;
-    if (id) localStorage.setItem(key, id);
-    else localStorage.removeItem(key);
   }
 
   // Preflight: is there at least one AI agent ready to run? The old
@@ -600,7 +568,7 @@
   async function handleApproveCard(_card: TaskCard, runId: string) {
     error = null;
     try {
-      await approveRun(runId, { merge_strategy: "fast_forward" });
+      await approveRun(runId, { summary: "Approved from board", merge_strategy: "merge_commit" });
     } catch (err) {
       error = t("card.approve_failed", {
         reason: err instanceof Error ? err.message : String(err),
@@ -725,7 +693,6 @@
     openActivityPanel();
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
-      if (selectedAgentId) runInput.agent_id = selectedAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
@@ -860,12 +827,6 @@
         onPlay={handleTopbarPlay}
         externalActive={hasInFlightRun}
         onStopActiveRuns={handleStopActiveRuns}
-      />
-      <AgentPicker
-        agents={agentsList}
-        selectedId={selectedAgentId}
-        onSelect={persistAgentChoice}
-        onManageAgents={() => (leftSection = "agents")}
       />
     </div>
     <div class="topbar-center">
@@ -1097,7 +1058,6 @@
   <StartPromptDialog
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
-    agentId={selectedAgentId}
     onClose={() => (startPrompt = null)}
     onBlocked={(message, action) => {
       error = message;

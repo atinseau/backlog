@@ -227,6 +227,75 @@ describe("completeRun", () => {
     expect(fs.existsSync(worktreePath)).toBe(false);
   });
 
+  it("applies a diverged review run with a merge commit", async () => {
+    const root = await createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    const config = loadConfig(backlogDir);
+    const repoId = config.repos[0]!.id;
+    const firstBranch = "backlog/test-first-merge";
+    const secondBranch = "backlog/test-second-merge";
+    const firstWorktree = path.join(backlogDir, "worktrees", repoId, "RUN-first");
+    const secondWorktree = path.join(backlogDir, "worktrees", repoId, "RUN-second");
+    await git(["worktree", "add", "-b", firstBranch, firstWorktree, "HEAD"], root);
+    await git(["worktree", "add", "-b", secondBranch, secondWorktree, "HEAD"], root);
+    fs.writeFileSync(path.join(firstWorktree, "first.txt"), "first\n", "utf8");
+    fs.writeFileSync(path.join(secondWorktree, "second.txt"), "second\n", "utf8");
+    await commitAll(firstWorktree, "add first file");
+    await commitAll(secondWorktree, "add second file");
+
+    const firstWorkItem = createTask(backlogDir, { title: "First apply", repoTargets: [repoId] });
+    const firstTask = createSubTask(backlogDir, {
+      workItemId: firstWorkItem.id,
+      title: "Add first file",
+      repo: repoId,
+      scopes: ["first.txt"],
+      risk: "low",
+    });
+    const secondWorkItem = createTask(backlogDir, { title: "Second apply", repoTargets: [repoId] });
+    const secondTask = createSubTask(backlogDir, {
+      workItemId: secondWorkItem.id,
+      title: "Add second file",
+      repo: repoId,
+      scopes: ["second.txt"],
+      risk: "low",
+    });
+    const agent = getAgent(backlogDir, "claude-code");
+    if (!agent) throw new Error("Expected claude-code agent");
+    createRun({
+      backlogDir,
+      runId: "RUN-first",
+      task: firstTask,
+      workItem: firstWorkItem,
+      agent,
+      branch: firstBranch,
+      worktreePath: firstWorktree,
+      claimIds: [],
+    });
+    createRun({
+      backlogDir,
+      runId: "RUN-second",
+      task: secondTask,
+      workItem: secondWorkItem,
+      agent,
+      branch: secondBranch,
+      worktreePath: secondWorktree,
+      claimIds: [],
+    });
+    await sendRunToReview(backlogDir, "RUN-first", "ready");
+    await sendRunToReview(backlogDir, "RUN-second", "ready");
+
+    await approveRun(backlogDir, "RUN-first", "approved", { mergeStrategy: "fast_forward" });
+    await approveRun(backlogDir, "RUN-second", "approved", { mergeStrategy: "merge_commit" });
+
+    expect(fs.readFileSync(path.join(root, "first.txt"), "utf8")).toBe("first\n");
+    expect(fs.readFileSync(path.join(root, "second.txt"), "utf8")).toBe("second\n");
+    const parents = (await git(["rev-list", "--parents", "-n", "1", "HEAD"], root)).trim().split(/\s+/);
+    expect(parents).toHaveLength(3);
+    expect(loadRun(backlogDir, "RUN-second")?.status).toBe("succeeded");
+    expect(getSubTask(backlogDir, secondTask.id)?.status).toBe("completed");
+    expect(getTask(backlogDir, secondWorkItem.id)?.status).toBe("done");
+  });
+
   it("keeps a review run open when apply cannot merge", async () => {
     const root = await createWorkspace();
     const backlogDir = path.join(root, ".backlog");

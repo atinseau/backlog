@@ -119,7 +119,7 @@
   "diff.resize": "Drag to resize the panel",
   "diff.continue": "Apply to project",
   "diff.continue_doing": "Applying…",
-  "diff.continue_hint": "Merge this run into the main branch with fast-forward. If the main checkout is dirty or conflicts, the run stays in review.",
+  "diff.continue_hint": "Apply this run into the main branch. If the main checkout is dirty or conflicts, the run stays in review.",
   "diff.discard": "Cancel",
   "diff.discard_doing": "Canceling…",
   "diff.discard_hint": "Discard this run's changes and move the task back to to-do.",

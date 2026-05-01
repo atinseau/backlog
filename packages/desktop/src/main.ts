@@ -43,6 +43,7 @@ type UpdateStatus =
   | { kind: "error"; message: string; detail?: string };
 
 let lastUpdateStatus: UpdateStatus | null = null;
+let manualUpdateCheckVisible = false;
 
 // Translate raw electron-updater error strings into something a normal
 // user can read. The library's defaults look like:
@@ -111,6 +112,30 @@ function broadcastUpdateStatus(status: UpdateStatus): void {
   }
 }
 
+function beginManualUpdateCheck(): void {
+  manualUpdateCheckVisible = true;
+  broadcastUpdateStatus({ kind: "checking" });
+}
+
+function finishNoUpdate(info: { version: string }): UpdateStatus {
+  const status: UpdateStatus = { kind: "not-available", version: info.version };
+  if (manualUpdateCheckVisible) {
+    broadcastUpdateStatus(status);
+  }
+  manualUpdateCheckVisible = false;
+  return status;
+}
+
+function finishUpdateError(raw: string): UpdateStatus {
+  const { message, detail } = humanizeUpdateError(raw);
+  const status: UpdateStatus = { kind: "error", message, detail };
+  if (manualUpdateCheckVisible) {
+    broadcastUpdateStatus(status);
+  }
+  manualUpdateCheckVisible = false;
+  return status;
+}
+
 ipcMain.handle("backlog:update-check", async () => {
   // Respond fast — checkForUpdates resolves once the manifest is fetched,
   // not after the download finishes. The renderer pivots its UI on the
@@ -119,20 +144,15 @@ ipcMain.handle("backlog:update-check", async () => {
     return { kind: "error", message: "auto-update disabled in dev builds" } as UpdateStatus;
   }
   try {
-    broadcastUpdateStatus({ kind: "checking" });
+    beginManualUpdateCheck();
     const result = await autoUpdater.checkForUpdates();
     if (!result || !result.updateInfo) {
-      const status: UpdateStatus = { kind: "not-available", version: app.getVersion() };
-      broadcastUpdateStatus(status);
-      return status;
+      return finishNoUpdate({ version: app.getVersion() });
     }
     return lastUpdateStatus ?? { kind: "checking" };
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
-    const { message, detail } = humanizeUpdateError(raw);
-    const status: UpdateStatus = { kind: "error", message, detail };
-    broadcastUpdateStatus(status);
-    return status;
+    return finishUpdateError(raw);
   }
 });
 
@@ -254,11 +274,10 @@ function checkForUpdatesFromMenu(): void {
     });
     return;
   }
-  broadcastUpdateStatus({ kind: "checking" });
+  beginManualUpdateCheck();
   autoUpdater.checkForUpdates().catch((err: unknown) => {
     const raw = err instanceof Error ? err.message : String(err);
-    const { message, detail } = humanizeUpdateError(raw);
-    broadcastUpdateStatus({ kind: "error", message, detail });
+    finishUpdateError(raw);
   });
 }
 
@@ -378,21 +397,23 @@ app.whenReady().then(async () => {
       // so the user keeps control over when the restart happens.
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.on("checking-for-update", () => {
-        broadcastUpdateStatus({ kind: "checking" });
+        if (manualUpdateCheckVisible) {
+          broadcastUpdateStatus({ kind: "checking" });
+        }
       });
       autoUpdater.on("error", (err: Error) => {
         // Keep the raw message in the console for power users / bug
         // reports, but ship a friendly version to the renderer banner.
         console.warn("[auto-update] error:", err.message);
-        const { message, detail } = humanizeUpdateError(err.message);
-        broadcastUpdateStatus({ kind: "error", message, detail });
+        finishUpdateError(err.message);
       });
       autoUpdater.on("update-available", (info: { version: string }) => {
         console.log(`[auto-update] new version available: ${info.version}`);
         broadcastUpdateStatus({ kind: "available", version: info.version });
+        manualUpdateCheckVisible = false;
       });
       autoUpdater.on("update-not-available", (info: { version: string }) => {
-        broadcastUpdateStatus({ kind: "not-available", version: info.version });
+        finishNoUpdate(info);
       });
       autoUpdater.on(
         "download-progress",
