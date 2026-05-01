@@ -7,7 +7,7 @@ function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-export async function discoverRepoForWorkspace(root: string, projectName: string): Promise<RepoConfig[]> {
+export async function discoverRepoForProject(root: string, projectName: string): Promise<RepoConfig[]> {
   try {
     const repoRoot = await detectRepoRoot(root);
     let defaultBranch = "main";
@@ -32,3 +32,6 @@ export async function discoverRepoForWorkspace(root: string, projectName: string
     return [];
   }
 }
+
+/** @deprecated Use discoverRepoForProject. */
+export const discoverRepoForWorkspace = discoverRepoForProject;

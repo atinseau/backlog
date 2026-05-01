@@ -7,9 +7,11 @@ import {
   etaIso,
   listAllRuns,
   listActiveRuns,
+  listRepos,
   listSubTasks,
   listTasks,
 } from "@backlog/core";
+import { emptyGitWorkingTreeStatus, getWorkingTreeStatus, type GitWorkingTreeStatus } from "@backlog/git";
 import type {
   ClaimRecord,
   Run,
@@ -68,7 +70,8 @@ interface TaskCard {
 
 interface BoardResponse {
   generated_at: string;
-  workspace: string;
+  project: string;
+  repo_git_statuses: Record<string, GitWorkingTreeStatus & { error?: string }>;
   columns: Record<ColumnKey, TaskCard[]>;
   active_claims_count: number;
   active_runs_count: number;
@@ -90,7 +93,7 @@ function summarizeClaim(claim: ClaimRecord, blocking = false): ClaimSummary {
 
 function findActiveRun(runs: Run[], subtaskId: string): Run | null {
   // Run records carry both `subtask_id` (the executable unit) and
-  // `task_id` (the parent work item). The board card's task is a
+  // `task_id` (the parent task). The board card's task is a
   // SubTask, so we must match on `subtask_id` — comparing against
   // `task_id` would only ever match the parent and silently leave
   // `active_run` null, which collapses the progress bar to the
@@ -128,13 +131,29 @@ interface BoardFilters {
   repo?: string | undefined;
 }
 
-function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardResponse {
-  const workItems = listTasks(workspace.backlogDir);
-  const tasks = listSubTasks(workspace.backlogDir);
-  const claims = listActiveClaims(workspace.backlogDir);
-  const runs = listActiveRuns(workspace.backlogDir);
+async function buildRepoGitStatuses(project: ServerProject): Promise<Record<string, GitWorkingTreeStatus & { error?: string }>> {
+  const repos = listRepos(project.backlogDir);
+  const entries = await Promise.all(
+    repos.map(async (repo) => {
+      try {
+        return [repo.id, await getWorkingTreeStatus(repo.path)] as const;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return [repo.id, { ...emptyGitWorkingTreeStatus(), clean: false, error: message }] as const;
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function buildBoard(project: ServerProject, filters: BoardFilters): Promise<BoardResponse> {
+  const parentTasks = listTasks(project.backlogDir);
+  const tasks = listSubTasks(project.backlogDir);
+  const claims = listActiveClaims(project.backlogDir);
+  const runs = listActiveRuns(project.backlogDir);
+  const repoGitStatuses = await buildRepoGitStatuses(project);
   const latestRunsBySubtask = new Map<string, Run>();
-  for (const run of listAllRuns(workspace.backlogDir)) {
+  for (const run of listAllRuns(project.backlogDir)) {
     const previous = latestRunsBySubtask.get(run.subtask_id);
     const currentTime = new Date(run.finished_at ?? run.started_at ?? 0).getTime();
     const previousTime = previous ? new Date(previous.finished_at ?? previous.started_at ?? 0).getTime() : -1;
@@ -157,12 +176,12 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
   let totalEstimated = 0;
   let totalRemaining = 0;
 
-  for (const workItem of workItems) {
-    const column = statusToColumn(workItem.status);
+  for (const parentTask of parentTasks) {
+    const column = statusToColumn(parentTask.status);
     if (!column) continue;
 
     const itemTasks = tasks.filter((task) => {
-      if (task.task_id !== workItem.id) return false;
+      if (task.task_id !== parentTask.id) return false;
       if (filters.repo && task.repo !== filters.repo) return false;
       return true;
     });
@@ -175,7 +194,7 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
       const latestRun = activeRun ?? latestRunsBySubtask.get(task.id) ?? null;
       const claimIds = activeRun?.claim_ids ?? [];
       const activeClaim = findActiveClaimForTask(claims, task, claimIds);
-      const estimate = estimateSubTask(workspace.backlogDir, task, archivedRunsCtx);
+      const estimate = estimateSubTask(project.backlogDir, task, archivedRunsCtx);
       const progress = computeSubTaskProgress({
         task,
         activeRun,
@@ -239,16 +258,16 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
       })),
     });
 
-    const itemEstimate = workItem.estimated_duration_seconds ?? cardEstimateSeconds;
+    const itemEstimate = parentTask.estimated_duration_seconds ?? cardEstimateSeconds;
 
     const card: TaskCard = {
-      id: workItem.id,
-      title: workItem.title,
-      priority: workItem.priority,
-      status: workItem.status,
-      labels: workItem.labels,
-      repo_targets: workItem.repo_targets,
-      rank: workItem.rank ?? null,
+      id: parentTask.id,
+      title: parentTask.title,
+      priority: parentTask.priority,
+      status: parentTask.status,
+      labels: parentTask.labels,
+      repo_targets: parentTask.repo_targets,
+      rank: parentTask.rank ?? null,
       tasks: taskCards,
       blocked_by_claims: blockedByClaims,
       estimated_duration_seconds: itemEstimate,
@@ -274,7 +293,8 @@ function buildBoard(workspace: ServerProject, filters: BoardFilters): BoardRespo
 
   return {
     generated_at: new Date().toISOString(),
-    workspace: workspace.root,
+    project: project.root,
+    repo_git_statuses: repoGitStatuses,
     columns,
     active_claims_count: claims.length,
     active_runs_count: runs.length,
@@ -298,10 +318,10 @@ function priorityOrder(priority: Task["priority"]): number {
 
 export function boardRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
-  app.get("/board", (c) => {
-    const workspace = c.get("workspace");
+  app.get("/board", async (c) => {
+    const project = c.get("project");
     const repo = c.req.query("repo") ?? undefined;
-    return c.json(buildBoard(workspace, { repo }));
+    return c.json(await buildBoard(project, { repo }));
   });
   return app;
 }

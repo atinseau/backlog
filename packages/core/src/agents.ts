@@ -16,7 +16,7 @@ function requiredSecretKeyForProvider(provider: string): string | null {
 }
 
 // True when the agent's provider needs an API key that isn't currently
-// in the workspace's secrets store. Used to filter the planner so a
+// in the project's secrets store. Used to filter the planner so a
 // "Codex but no OPENAI_API_KEY" agent can't be picked silently.
 function agentNeedsApiKey(backlogDir: string, agent: Agent): boolean {
   const key = requiredSecretKeyForProvider(agent.provider);
@@ -306,7 +306,7 @@ export function supportsAgentExecution(agent: Agent): boolean {
 // either configured and ready, or it wasn't). The field stays in the
 // schema for backward compat but doesn't gate scheduling.
 //
-// API-key presence (workspace secret) is checked here so the planner
+// API-key presence (project secret) is checked here so the planner
 // won't pick a Claude agent when ANTHROPIC_API_KEY isn't set — that
 // previously surfaced as a runtime "no api token" error after the
 // run was already in flight.

@@ -34,6 +34,10 @@
   let editingId = $state<string | null>(null);
   let editValue = $state("");
 
+  function focusOnMount(node: HTMLElement): void {
+    queueMicrotask(() => node.focus());
+  }
+
   async function load() {
     loading = true;
     try {
@@ -145,7 +149,7 @@
                       bind:value={editValue}
                       onkeydown={(e) => handleEditKey(e, project)}
                       onblur={() => commitEdit(project)}
-                      autofocus
+                      use:focusOnMount
                     />
                   {:else}
                     <button

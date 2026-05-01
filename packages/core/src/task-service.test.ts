@@ -8,7 +8,7 @@ import { createTask, removeTask, updateTask } from "./task-service.js";
 import { createSubTask, getSubTask } from "./subtask-service.js";
 import { listPendingSyncConflicts, recordStatusConflict } from "./sync-conflicts.js";
 
-async function createWorkspace(): Promise<string> {
+async function createProjectRoot(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-work-"));
   await git(["init", "-b", "main"], root);
   fs.writeFileSync(path.join(root, "README.md"), "# backlog\n", "utf8");
@@ -18,16 +18,16 @@ async function createWorkspace(): Promise<string> {
   return root;
 }
 
-describe("work-service", () => {
+describe("task-service", () => {
   let backlogDir: string;
 
   beforeEach(async () => {
-    backlogDir = path.join(await createWorkspace(), ".backlog");
+    backlogDir = path.join(await createProjectRoot(), ".backlog");
   });
 
-  it("updates editable work item fields and planning metadata", () => {
+  it("updates editable task fields and planning metadata", () => {
     const item = createTask(backlogDir, {
-      title: "Initial work item",
+      title: "Initial task",
       description: "old description",
       repoTargets: ["backlog"],
       labels: ["old"],
@@ -35,7 +35,7 @@ describe("work-service", () => {
     });
 
     const updated = updateTask(backlogDir, item.id, {
-      title: "Updated work item",
+      title: "Updated task",
       clearDescription: true,
       priority: "P0",
       repoTargets: ["backlog", "docs"],
@@ -48,7 +48,7 @@ describe("work-service", () => {
       worktreeMode: "isolated_worktree",
     });
 
-    expect(updated.title).toBe("Updated work item");
+    expect(updated.title).toBe("Updated task");
     expect(updated.description).toBeUndefined();
     expect(updated.priority).toBe("P0");
     expect(updated.repo_targets).toEqual(["backlog", "docs"]);
@@ -61,9 +61,9 @@ describe("work-service", () => {
     expect(updated.execution_defaults.worktree_mode).toBe("isolated_worktree");
   });
 
-  it("removes a work item and cascades linked tasks when requested", () => {
+  it("removes a task and cascades linked subtasks when requested", () => {
     const item = createTask(backlogDir, {
-      title: "Removable work item",
+      title: "Removable task",
       repoTargets: ["backlog"],
     });
     const task = createSubTask(backlogDir, {
@@ -73,7 +73,7 @@ describe("work-service", () => {
     });
     recordStatusConflict({
       backlogDir,
-      workItemId: item.id,
+      taskId: item.id,
       sourceRef: "jira-main",
       localValue: "in_progress",
       externalValue: "backlog",

@@ -1,5 +1,5 @@
 // `backlog migrate ids` core — rename every legacy hex/timestamp ID in
-// a workspace to the new sequential type_NNN format (task_001,
+// a project to the new sequential type_NNN format (task_001,
 // subtask_001, run_001, claim_001, sync_001).
 //
 // Strategy:
@@ -16,7 +16,7 @@
 //     before invoking this. We don't snapshot here; the CLI command
 //     does the cp -R first and refuses to run a second time if the
 //     backup already exists.
-//   - Mixed-format workspaces are tolerated: an ID that already
+//   - Mixed-format projects are tolerated: an ID that already
 //     matches the new format (task_NNN) is kept as-is; only legacy
 //     IDs get renamed.
 
@@ -122,7 +122,7 @@ function rewriteRefs(arr: string[] | undefined, map: Map<string, string>): strin
   return arr.map((v) => map.get(v) ?? v);
 }
 
-export async function migrateWorkspaceIds(backlogDir: string): Promise<MigrationReport> {
+export async function migrateProjectIds(backlogDir: string): Promise<MigrationReport> {
   const report = emptyReport();
 
   // ---- Load all state ----

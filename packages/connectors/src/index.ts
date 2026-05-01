@@ -62,7 +62,7 @@ function parseStatus(value: string | undefined): Task["status"] {
   }
 }
 
-function baseImportedWorkItem(
+function baseImportedTask(
   source: SourceConfig,
   externalId: string,
   title: string,
@@ -133,7 +133,7 @@ class MarkdownConnector implements SourceConnector {
       if (!match) {
         continue;
       }
-      const item = baseImportedWorkItem(this.source, `line-${index + 1}`, match[1]!.trim(), this.backlogDir);
+      const item = baseImportedTask(this.source, `line-${index + 1}`, match[1]!.trim(), this.backlogDir);
       items.push(item);
     }
 
@@ -175,7 +175,7 @@ class CsvConnector implements SourceConnector {
       const record = Object.fromEntries(headers.map((header, i) => [header, values[i] ?? ""]));
       const title = record.title || record.Title || `CSV row ${index + 1}`;
       const externalId = record.id || record.ID || `row-${index + 1}`;
-      const item = baseImportedWorkItem(this.source, externalId, title, this.backlogDir);
+      const item = baseImportedTask(this.source, externalId, title, this.backlogDir);
       if (record.description || record.Description) {
         item.description = record.description || record.Description;
       }
@@ -258,7 +258,7 @@ class JiraConnector implements SourceConnector {
 
     return (payload.issues ?? []).map((issue) => {
       const title = issue.fields?.summary ?? issue.key;
-      const item = baseImportedWorkItem(this.source, issue.key, title, this.backlogDir);
+      const item = baseImportedTask(this.source, issue.key, title, this.backlogDir);
       item.priority = parsePriority(issue.fields?.priority?.name);
       item.status = parseStatus(issue.fields?.status?.name);
       item.labels = issue.fields?.labels ?? [];
@@ -393,7 +393,7 @@ class GithubConnector implements SourceConnector {
       .filter((issue) => !issue.pull_request)
       .map((issue) => {
         const externalId = `${repo}#${issue.number}`;
-        const item = baseImportedWorkItem(this.source, externalId, issue.title, this.backlogDir);
+        const item = baseImportedTask(this.source, externalId, issue.title, this.backlogDir);
         if (issue.body) item.description = issue.body;
         item.status = issue.state === "closed" ? "done" : "backlog";
         item.labels = (issue.labels ?? []).map((entry) =>

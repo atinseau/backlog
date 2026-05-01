@@ -18,6 +18,12 @@ function parseKeyValuePairs(pairs: string[]): Record<string, string> {
   return environment;
 }
 
+function normalizeSandboxMode(value: string): "read-only" | "workspace-write" | "danger-full-access" {
+  if (value === "project-write") return "workspace-write";
+  if (value === "read-only" || value === "workspace-write" || value === "danger-full-access") return value;
+  throw new Error(`Invalid --sandbox-mode: ${value}`);
+}
+
 export function registerAgentCommand(program: Command): void {
   const agents = program.command("agents").description("Inspect configured agents");
 
@@ -106,7 +112,7 @@ export function registerAgentCommand(program: Command): void {
     .option("--clear-profile", "Remove the profile override")
     .option("--command <command>", "Executable override")
     .option("--clear-command", "Remove the executable override")
-    .option("--sandbox-mode <mode>", "read-only, workspace-write, or danger-full-access")
+    .option("--sandbox-mode <mode>", "read-only, project-write, or danger-full-access")
     .option("--clear-sandbox-mode", "Remove the sandbox mode override")
     .option("--success-mode <mode>", "review or complete")
     .option("--clear-success-mode", "Remove the success mode override")
@@ -122,7 +128,7 @@ export function registerAgentCommand(program: Command): void {
       clearProfile?: boolean;
       command?: string;
       clearCommand?: boolean;
-      sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+      sandboxMode?: string;
       clearSandboxMode?: boolean;
       successMode?: "review" | "complete";
       clearSuccessMode?: boolean;
@@ -143,7 +149,7 @@ export function registerAgentCommand(program: Command): void {
         ...(options.clearProfile ? { clearProfile: true } : {}),
         ...(options.command !== undefined ? { command: options.command } : {}),
         ...(options.clearCommand ? { clearCommand: true } : {}),
-        ...(options.sandboxMode !== undefined ? { sandboxMode: options.sandboxMode } : {}),
+        ...(options.sandboxMode !== undefined ? { sandboxMode: normalizeSandboxMode(options.sandboxMode) } : {}),
         ...(options.clearSandboxMode ? { clearSandboxMode: true } : {}),
         ...(options.successMode !== undefined ? { successMode: options.successMode } : {}),
         ...(options.clearSuccessMode ? { clearSuccessMode: true } : {}),

@@ -8,7 +8,7 @@ import {
   touchProject,
   unregisterProject,
 } from "@backlog/config";
-import { discoverRepoForWorkspace } from "@backlog/git";
+import { cloneRepo, detectGitProvider, discoverRepoForProject, repoIdFromGitUrl } from "@backlog/git";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ServerProject } from "../project-context.js";
@@ -24,6 +24,7 @@ const initBodySchema = z
   .object({
     path: z.string().min(1),
     name: z.string().min(1),
+    git_url: z.string().min(1).optional(),
     default_branch: z.string().min(1).optional(),
     force: z.boolean().optional(),
   })
@@ -34,7 +35,7 @@ export interface ProjectsRoutesOptions {
 }
 
 export function projectsRoutes(
-  workspace: ServerProject,
+  defaultProject: ServerProject,
   options: ProjectsRoutesOptions = {},
 ): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
@@ -45,7 +46,7 @@ export function projectsRoutes(
   });
 
   app.get("/projects/current", (c) => {
-    const current = c.get("workspace") ?? workspace;
+    const current = c.get("project") ?? defaultProject;
     return c.json({
       root: current.root,
       backlog_dir: current.backlogDir,
@@ -78,13 +79,28 @@ export function projectsRoutes(
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
+      if (parsed.data.git_url) {
+        await cloneRepo({
+          url: parsed.data.git_url,
+          dest: parsed.data.path,
+          ...(parsed.data.default_branch ? { branch: parsed.data.default_branch } : {}),
+        });
+      }
+
       // Mirror the CLI's `backlog init` behaviour: if the chosen folder
       // (or any direct child) is a git repository, auto-register it as
-      // a repo so the user lands on a usable project. Without this,
-      // creating a project from the GUI left repos: [] and the user had
-      // to make a separate "Add repository" trip just to actually use
-      // the kanban.
-      const repos = await discoverRepoForWorkspace(parsed.data.path, parsed.data.name);
+      // a repo so the user lands on a usable project.
+      let repos = await discoverRepoForProject(parsed.data.path, parsed.data.name);
+      if (parsed.data.git_url && repos[0]) {
+        repos = [
+          {
+            ...repos[0],
+            id: repoIdFromGitUrl(parsed.data.git_url),
+            git_url: parsed.data.git_url,
+            provider: detectGitProvider(parsed.data.git_url),
+          },
+        ];
+      }
       const initOptions: Parameters<typeof initLayout>[0] = {
         root: parsed.data.path,
         projectName: parsed.data.name,

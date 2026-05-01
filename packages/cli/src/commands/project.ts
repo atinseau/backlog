@@ -14,7 +14,7 @@ import {
   rollbackProjectMigration,
   saveConfig,
   unregisterProject,
-  userLevelWorkspaceDir,
+  userLevelProjectDir,
 } from "@backlog/config";
 import { detectGitDir } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
@@ -88,7 +88,7 @@ export function registerProjectCommand(program: Command): void {
     .requiredOption("--to <location>", "Target location: 'user-level' or 'in-repo'")
     .option("--name <name>", "Rename the project during migration (also affects the user-level dir name)")
     .option("--into <repo-id>", "When migrating to in_repo, the repo whose root will host .backlog/")
-    .option("--keep-old", "Don't rename the old workspace dir to .migrated-…/")
+    .option("--keep-old", "Don't rename the old project data dir to .migrated-…/")
     .action(async (idOrPathOrName: string, options: { to: string; name?: string; into?: string; keepOld?: boolean }) => {
       const targetLocation = options.to.replace(/-/g, "_");
       if (targetLocation !== "user_level" && targetLocation !== "in_repo") {
@@ -151,12 +151,12 @@ export function registerProjectCommand(program: Command): void {
         }
       }
       if (result.archivedAt) {
-        console.log(`  archived old workspace: ${result.archivedAt}`);
+        console.log(`  archived old project data: ${result.archivedAt}`);
       }
       const failed = reinstallReport.filter((r) => r.status === "failed");
       if (failed.length > 0) {
         console.log("");
-        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the new workspace dir to retry.");
+        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the new project dir to retry.");
       }
     });
 
@@ -165,7 +165,7 @@ export function registerProjectCommand(program: Command): void {
     .description("Restore a project's most recent .migrated-…/ archive (inverse of `project migrate`)")
     .argument("<id-or-name-or-path>", "Project to roll back")
     .option("--archive-path <path>", "Specific archive to restore (defaults to the most recent sibling)")
-    .option("--keep-current", "Don't delete the current workspace; rename it to .rolled-back-…/ instead")
+    .option("--keep-current", "Don't delete the current project data; rename it to .rolled-back-…/ instead")
     .action(async (idOrPathOrName: string, options: { archivePath?: string; keepCurrent?: boolean }) => {
       const result = rollbackProjectMigration({
         identifier: idOrPathOrName,
@@ -206,18 +206,18 @@ export function registerProjectCommand(program: Command): void {
         }
       }
       if (result.rolledBackTo) {
-        console.log(`  current workspace archived to: ${result.rolledBackTo}`);
+        console.log(`  current project data archived to: ${result.rolledBackTo}`);
       }
       const failed = reinstallReport.filter((r) => r.status === "failed");
       if (failed.length > 0) {
         console.log("");
-        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the restored workspace dir to retry.");
+        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the restored project dir to retry.");
       }
     });
 
   project
     .command("export")
-    .description("Bundle a project's workspace dir into a tar.gz for backup or transfer")
+    .description("Bundle a project's data dir into a tar.gz for backup or transfer")
     .argument("<id-or-name-or-path>", "Project to export")
     .requiredOption("--to <file>", "Path to write the .tar.gz archive")
     .action(async (idOrPathOrName: string, options: { to: string }) => {
@@ -232,11 +232,11 @@ export function registerProjectCommand(program: Command): void {
 
       // Stage everything in a temp dir, then tar from there. Lets us
       // include a manifest at the archive root without polluting the
-      // user's workspace.
+      // user's project.
       const stage = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-export-")));
       try {
-        const wsCopy = path.join(stage, "workspace");
-        fs.cpSync(backlogDir, wsCopy, { recursive: true, dereference: false });
+        const projectCopy = path.join(stage, "project");
+        fs.cpSync(backlogDir, projectCopy, { recursive: true, dereference: false });
 
         const manifest: ProjectExportManifest = {
           manifest_version: 1,
@@ -254,8 +254,8 @@ export function registerProjectCommand(program: Command): void {
 
         const archivePath = path.resolve(options.to);
         fs.mkdirSync(path.dirname(archivePath), { recursive: true });
-        // -C cd into stage so the archive has manifest.json + workspace/ at the root.
-        await execa("tar", ["-czf", archivePath, "-C", stage, "manifest.json", "workspace"]);
+        // -C cd into stage so the archive has manifest.json + project/ at the root.
+        await execa("tar", ["-czf", archivePath, "-C", stage, "manifest.json", "project"]);
 
         console.log(`✓ Exported ${entry.id} (${config.project_name}) → ${archivePath}`);
         const size = fs.statSync(archivePath).size;
@@ -267,7 +267,7 @@ export function registerProjectCommand(program: Command): void {
 
   project
     .command("import")
-    .description("Restore a project workspace from a tar.gz produced by `project export`")
+    .description("Restore a project from a tar.gz produced by `project export`")
     .argument("<file>", "Path to the .tar.gz archive")
     .option("--name <name>", "Override the project name (and the user-level slug) on import")
     .option("--into <path>", "Where to restore. Defaults to ~/.backlog/<slug>/ for user_level imports.")
@@ -286,9 +286,11 @@ export function registerProjectCommand(program: Command): void {
         if (manifest.manifest_version !== 1) {
           throw new Error(`Unsupported export manifest_version: ${manifest.manifest_version}`);
         }
-        const wsCopy = path.join(stage, "workspace");
-        if (!fs.existsSync(path.join(wsCopy, "config.toml"))) {
-          throw new Error("Archive's workspace/ has no config.toml — corrupt export.");
+        const projectCopy = fs.existsSync(path.join(stage, "project"))
+          ? path.join(stage, "project")
+          : path.join(stage, "workspace");
+        if (!fs.existsSync(path.join(projectCopy, "config.toml"))) {
+          throw new Error("Archive's project/ has no config.toml — corrupt export.");
         }
 
         const targetName = options.name ?? manifest.project_name;
@@ -307,7 +309,7 @@ export function registerProjectCommand(program: Command): void {
             destProjectRoot = into;
           }
         } else if (manifest.location === "user_level") {
-          destBacklogDir = userLevelWorkspaceDir(targetName);
+          destBacklogDir = userLevelProjectDir(targetName);
           destProjectRoot = destBacklogDir;
         } else {
           throw new Error(
@@ -316,10 +318,10 @@ export function registerProjectCommand(program: Command): void {
         }
 
         if (fs.existsSync(path.join(destBacklogDir, "config.toml"))) {
-          throw new Error(`Destination already has a workspace: ${destBacklogDir}`);
+          throw new Error(`Destination already has a project: ${destBacklogDir}`);
         }
         fs.mkdirSync(destBacklogDir, { recursive: true });
-        fs.cpSync(wsCopy, destBacklogDir, { recursive: true });
+        fs.cpSync(projectCopy, destBacklogDir, { recursive: true });
 
         // If the original project_id is already in the registry (e.g.
         // re-importing a project on the same machine, or a clone for a
@@ -355,7 +357,7 @@ export function registerProjectCommand(program: Command): void {
         console.log(`✓ Imported ${registered.id} (${registered.name}) → ${destBacklogDir} [${manifest.location}]`);
         console.log(`  exported_at: ${manifest.exported_at}`);
         console.log(
-          "  hooks: not installed yet — run `backlog hooks install --all` from the restored workspace dir.",
+          "  hooks: not installed yet — run `backlog hooks install --all` from the restored project dir.",
         );
       } finally {
         fs.rmSync(stage, { recursive: true, force: true });

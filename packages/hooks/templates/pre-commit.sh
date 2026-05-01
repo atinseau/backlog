@@ -15,8 +15,8 @@ if [[ ! -x "$BACKLOG_BIN" ]]; then
   exit 1
 fi
 
-# Run from the workspace dir so `claim check` can locate .backlog/ even when
-# the staged repo is a sibling of the workspace (e.g. twoody-app committing
-# against a workspace at twoody-backlog/.backlog/).
+# Run from the project dir so `claim check` can locate .backlog/ even when
+# the staged repo is a sibling of the project (e.g. twoody-app committing
+# against a project at twoody-backlog/.backlog/).
 cd "$BACKLOG_WORKSPACE"
 "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged

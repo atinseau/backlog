@@ -9,7 +9,7 @@ reorder priority. The topbar carries:
   orchestrator + a state pill
 - a **📁 Repos** modal to add a local path or clone from GitHub / GitLab /
   Bitbucket / arbitrary Git URLs
-- a **🔒 Permissions** modal (workspace autonomy, claims TTL, per-agent
+- a **🔒 Permissions** modal (project autonomy, claims TTL, per-agent
   sandbox / risk / repo restrictions)
 - a **⚙ Plan** side panel (wave breakdown, agents-max slider, auto toggle,
   last tick / last error)
@@ -54,7 +54,7 @@ change; the dev loop below avoids this.
 ## Develop
 
 ```bash
-# Terminal 1 — run the server with the workspace you're hacking on
+# Terminal 1 — run the server with the project you're hacking on
 corepack pnpm --filter @backlog/server dev
 # (PORT=7878 by default)
 
@@ -78,11 +78,11 @@ src/
     ├── Card.svelte                # Card + per-task progress bar + ETA + add-task button
     ├── Column.svelte              # Kanban column; intra-column drag rewrites rank
     ├── ClaimDialog.svelte         # Create-a-claim modal with conflict UI
-    ├── CreateTicketDialog.svelte  # Create a work item (title, project, priority, repos)
-    ├── CreateTaskDialog.svelte    # Create a task on an existing work item
+    ├── CreateTicketDialog.svelte  # Create a task (title, project, priority, repos)
+    ├── CreateTaskDialog.svelte    # Create a subtask on an existing task
     ├── OrchestratorControls.svelte  # Topbar ▶/⏸/⏹ trio + state pill (Xcode-style)
     ├── OrchestratorPanel.svelte   # Side panel: waves + agents-max slider + auto toggle
-    ├── PermissionsView.svelte     # Workspace autonomy + claims TTL + per-agent matrix
+    ├── PermissionsView.svelte     # Project autonomy + claims TTL + per-agent matrix
     ├── ProjectSelector.svelte     # Header dropdown
     ├── ProjectsView.svelte        # CRUD modal for projects
     ├── ReposView.svelte           # CRUD modal with "Local | Cloner Git" tabs

@@ -18,6 +18,10 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
+  function focusOnMount(node: HTMLElement): void {
+    queueMicrotask(() => node.focus());
+  }
+
   // Critical: this used to call startOrchestrator() alone, which kicks
   // the daemon but only picks up subtasks that are already READY. A
   // freshly-created task with zero subtasks (the typical case for a
@@ -101,7 +105,7 @@
       class="primary"
       onclick={startNow}
       disabled={busy}
-      autofocus
+      use:focusOnMount
     >{busy ? t("start_prompt.button.starting") : t("start_prompt.button.start")}</button>
   </footer>
 </DialogShell>

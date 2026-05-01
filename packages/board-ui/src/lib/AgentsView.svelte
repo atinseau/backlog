@@ -33,6 +33,7 @@
     }
   }
   function handleRenameKey(event: KeyboardEvent, agent: AgentSummary) {
+    event.stopPropagation();
     if (event.key === "Enter") {
       event.preventDefault();
       void finishRename(agent);
@@ -77,6 +78,16 @@
     confirmingDeleteId = null;
   }
 
+  function handleHeaderKey(event: KeyboardEvent, id: string) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleExpanded(id);
+  }
+
+  function focusOnMount(node: HTMLElement): void {
+    queueMicrotask(() => node.focus());
+  }
+
   function modelChoicesFor(provider: string): ModelChoice[] {
     return MODEL_CATALOG[provider] ?? [];
   }
@@ -89,7 +100,7 @@
   const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = [
     { value: "default", label: "(défaut provider)", help: "Reprend la valeur par défaut du provider" },
     { value: "read-only", label: "read-only", help: "Lecture seule, aucune écriture." },
-    { value: "workspace-write", label: "workspace-write", help: "Écriture sandbox autorisée." },
+    { value: "workspace-write", label: "project-write", help: "Écriture sandbox autorisée." },
     { value: "danger-full-access", label: "⚠ danger-full-access", help: "Aucune restriction." },
   ];
 
@@ -286,10 +297,12 @@
         {#each agents as agent (agent.id)}
           {@const isExpanded = expandedId === agent.id}
           <li class:disabled={!agent.enabled} class:not-executable={!isExecutable(agent)} class:expanded={isExpanded}>
-            <button
+            <div
               class="agent-header"
-              type="button"
+              role="button"
+              tabindex="0"
               onclick={() => toggleExpanded(agent.id)}
+              onkeydown={(e) => handleHeaderKey(e, agent.id)}
               aria-expanded={isExpanded}
             >
               <span class="chev" aria-hidden="true">{isExpanded ? "▾" : "▸"}</span>
@@ -305,7 +318,7 @@
                     onkeydown={(e) => handleRenameKey(e, agent)}
                     onblur={() => finishRename(agent)}
                     onclick={(e) => e.stopPropagation()}
-                    autofocus
+                    use:focusOnMount
                   />
                 {:else}
                   {@const label = formatAgentLabel(agent)}
@@ -338,7 +351,7 @@
                   <span class="ready-pill">✓ {t("agents_view.ready")}</span>
                 {/if}
               </div>
-            </button>
+            </div>
 
             {#if isExpanded}
             <div class="grid">
@@ -671,7 +684,7 @@
   ul.agents li.expanded { background: var(--bg-elevated); }
 
   /* Compact clickable row. Default state: 40px tall, just essentials. */
-  button.agent-header {
+  .agent-header {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -684,14 +697,14 @@
     color: var(--text-primary);
     font: inherit;
   }
-  button.agent-header:hover { background: var(--bg-hover); }
+  .agent-header:hover { background: var(--bg-hover); }
   .chev {
     font-size: 11px;
     color: var(--text-muted);
     flex-shrink: 0;
     width: 12px;
   }
-  ul.agents li.expanded > button.agent-header {
+  ul.agents li.expanded > .agent-header {
     border-bottom: 1px solid var(--border-subtle);
   }
   ul.agents li.expanded > .grid,

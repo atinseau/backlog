@@ -14,8 +14,8 @@ for deploy — or any other combination.
   can run Backlog end-to-end without ever calling out.
 - **Remote modes are opt-in per source/repo/sandbox/executor/target.** You
   choose which layer goes remote and which stays on your machine.
-- **One mental model across targets.** Whether the agent runs locally or on a
-  Coder workspace, Backlog reports the same shape of run, claim, and review.
+- **One mental model across targets.** Whether the agent runs locally or in a
+  remote Coder environment, Backlog reports the same shape of run, claim, and review.
 
 ## Phase 1 — Local foundation (current)
 
@@ -31,7 +31,7 @@ This phase is shipped. Everything else below is roadmap.
 
 ## Phase 2 — Remote sources
 
-Pull work items from where teams already track them.
+Pull tasks from where teams already track them.
 
 - GitHub Issues
 - GitHub Projects v2
@@ -47,7 +47,7 @@ connectors should support both pull and push where the upstream allows it.
 ## Phase 3 — Remote repos
 
 Today a repo is a local path. Phase 3 lets a repo be addressed by URL and
-cloned on demand into the workspace.
+cloned on demand into the project.
 
 - GitHub remotes (HTTPS / SSH)
 - GitLab remotes
@@ -64,7 +64,7 @@ run lifecycle.
 
 - GitHub Codespaces
 - Gitpod
-- Coder workspaces
+- Coder environments
 - Self-hosted Docker / Kubernetes pods
 - fly.io machines (ephemeral)
 - Anthropic-managed sandboxes when available
@@ -116,14 +116,14 @@ Today the kanban UI ships in `@backlog/board-ui` (Svelte) and is served by:
 
 Both expect their backend at `127.0.0.1:7878` (local) or a Cloud URL via
 `BACKLOG_API_URL`. The Cloud backend at `backlog.so` doesn't host the board UI
-itself yet — Pro/Team users see their workspace through the Desktop app or
+itself yet — Pro/Team users see their project through the Desktop app or
 `backlog board` CLI, both pointed at `https://www.backlog.so/api/v1`.
 
 The hosted browser UI (visit `backlog.so/app`, see your kanban without
 installing anything) is on the roadmap. Lift involves:
 - Mounting `@backlog/board-ui`'s built assets in the Cloud's `public/app/`
 - Reconciling the API contract (Cloud routes are namespaced under `/api/v1/
-  workspaces/:id/...` while the local `@backlog/server` is flat — board-ui
+  projects/:id/...` while the local `@backlog/server` is flat — board-ui
   currently assumes the latter)
 - Bearer-token auth path for the Cloud variant
 - SSE streaming over the Cloud (currently uses a local same-origin SSE channel)

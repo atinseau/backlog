@@ -68,7 +68,7 @@ export function registerHooksCommand(program: Command): void {
     .description("Inspect Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Inspect every configured repo in this workspace")
+    .option("--all", "Inspect every configured repo in this project")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; json?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
@@ -111,7 +111,7 @@ export function registerHooksCommand(program: Command): void {
     .description("Install Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Install hooks in every configured repo in this workspace")
+    .option("--all", "Install hooks in every configured repo in this project")
     .option("--force", "Replace an existing non-Backlog hook")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; force?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
@@ -131,7 +131,7 @@ export function registerHooksCommand(program: Command): void {
 
   hooks
     .command("pause")
-    .description("Temporarily skip the pre-commit hook in this workspace (default 30 minutes)")
+    .description("Temporarily skip the pre-commit hook in this project (default 30 minutes)")
     .option("-m, --minutes <minutes>", "How long to pause the hook", "30")
     .action((options: { minutes: string }) => {
       const workspace = findProject();
@@ -187,7 +187,7 @@ export function registerHooksCommand(program: Command): void {
     .description("Remove Backlog-managed pre-commit hooks")
     .option("--repo <id>", "Target one configured repo by id")
     .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Remove hooks from every configured repo in this workspace")
+    .option("--all", "Remove hooks from every configured repo in this project")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean }) => {
       const { targets } = await resolveHookTargets(options);
       for (const target of targets) {

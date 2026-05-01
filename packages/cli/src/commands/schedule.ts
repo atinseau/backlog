@@ -21,18 +21,18 @@ export function registerScheduleCommand(program: Command): void {
   schedule
     .command("simulate")
     .description("Explain what Backlog would run right now")
-    .option("--work-item <id>", "Restrict to one work item")
-    .option("--task <id>", "Restrict to one task")
+    .option("--task <id>", "Restrict to one parent task")
+    .option("--subtask <id>", "Restrict to one subtask")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { workItem?: string; task?: string; json?: boolean }) => {
+    .action((options: { task?: string; subtask?: string; json?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const config = loadConfig(workspace.backlogDir);
       const plan = buildExecutionPlan(workspace.backlogDir, config, {
-        ...(options.workItem ? { workItemId: options.workItem } : {}),
-        ...(options.task ? { taskId: options.task } : {}),
+        ...(options.task ? { workItemId: options.task } : {}),
+        ...(options.subtask ? { taskId: options.subtask } : {}),
       });
 
       if (options.json) {
@@ -61,22 +61,22 @@ export function registerScheduleCommand(program: Command): void {
   schedule
     .command("explain")
     .description("Explain scheduling decisions and ranked agent candidates")
-    .option("--work-item <id>", "Restrict to one work item")
-    .option("--task <id>", "Restrict to one task")
+    .option("--task <id>", "Restrict to one parent task")
+    .option("--subtask <id>", "Restrict to one subtask")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { workItem?: string; task?: string; json?: boolean }) => {
+    .action((options: { task?: string; subtask?: string; json?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      if (!options.workItem && !options.task) {
-        throw new Error("schedule explain requires --task or --work-item.");
+      if (!options.task && !options.subtask) {
+        throw new Error("schedule explain requires --task or --subtask.");
       }
 
       const config = loadConfig(workspace.backlogDir);
       const plan = buildExecutionPlan(workspace.backlogDir, config, {
-        ...(options.workItem ? { workItemId: options.workItem } : {}),
-        ...(options.task ? { taskId: options.task } : {}),
+        ...(options.task ? { workItemId: options.task } : {}),
+        ...(options.subtask ? { taskId: options.subtask } : {}),
       });
       const decisions = [...plan.runnable, ...plan.waiting, ...plan.blocked, ...plan.skipped];
       const payload = decisions.map((decision) => {
@@ -123,13 +123,13 @@ export function registerScheduleCommand(program: Command): void {
   schedule
     .command("run")
     .description("Create runnable execution runs in isolated worktrees")
-    .option("--work-item <id>", "Restrict to one work item")
-    .option("--task <id>", "Restrict to one task")
+    .option("--task <id>", "Restrict to one parent task")
+    .option("--subtask <id>", "Restrict to one subtask")
     .option("--max-start <count>", "Limit the number of runs to start", "1")
     .option("--agent <agent-id>", "Force one agent id")
     .option("--approve", "Required in assist mode")
     .option("--json", "Emit machine-readable JSON")
-    .action(async (options: { workItem?: string; task?: string; maxStart?: string; agent?: string; approve?: boolean; json?: boolean }) => {
+    .action(async (options: { task?: string; subtask?: string; maxStart?: string; agent?: string; approve?: boolean; json?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
@@ -143,8 +143,8 @@ export function registerScheduleCommand(program: Command): void {
       }
 
       const plan = buildExecutionPlan(workspace.backlogDir, config, {
-        ...(options.workItem ? { workItemId: options.workItem } : {}),
-        ...(options.task ? { taskId: options.task } : {}),
+        ...(options.task ? { workItemId: options.task } : {}),
+        ...(options.subtask ? { taskId: options.subtask } : {}),
       });
       const maxStart = parseMaxStart(options.maxStart);
       const { started, skipped } = await startRunsForPlan({

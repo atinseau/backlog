@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createClaim,
   gcOrphanContextPointers,
+  listActiveClaims,
   loadActiveClaim,
   loadActiveClaimIfPresent,
 } from "./claim-store.js";
@@ -39,6 +40,32 @@ describe("loadActiveClaim / loadActiveClaimIfPresent", () => {
   it("loadActiveClaim still throws ENOENT on a missing claim — callers that want soft-fail should use loadActiveClaimIfPresent", () => {
     const backlogDir = tmpBacklogDir();
     expect(() => loadActiveClaim(backlogDir, "CLM-does-not-exist")).toThrowError(/ENOENT/);
+  });
+});
+
+describe("listActiveClaims", () => {
+  it("skips malformed claim files instead of crashing the scan", () => {
+    const backlogDir = tmpBacklogDir();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const claim = createClaim({
+        backlogDir,
+        repo: "demo",
+        repoPath: "/tmp/demo",
+        topic: "feature",
+        paths: ["src/**"],
+      });
+      fs.writeFileSync(
+        path.join(backlogDir, "claims", "active", "claim_bad.json"),
+        "{not valid json",
+        "utf8",
+      );
+
+      expect(listActiveClaims(backlogDir).map((candidate) => candidate.id)).toEqual([claim.id]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("ignoring unreadable claim file"));
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

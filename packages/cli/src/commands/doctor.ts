@@ -8,7 +8,7 @@ import { inspectPreCommitHook } from "@backlog/hooks";
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
-    .description("Validate Backlog workspace health")
+    .description("Validate Backlog project health")
     .option("--repo <id>", "Only inspect one configured repo")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; json?: boolean }) => {
@@ -109,7 +109,7 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       const payload = {
-        workspace: config.project_name,
+        project: config.project_name,
         mode: config.project_mode,
         repoCount: config.repos.length,
         shim: path.join(workspace.backlogDir, "bin", "backlog"),
@@ -123,7 +123,7 @@ export function registerDoctorCommand(program: Command): void {
       }
 
       console.log("Backlog doctor");
-      console.log(`- workspace: ${config.project_name}`);
+      console.log(`- project: ${config.project_name}`);
       console.log(`- mode: ${config.project_mode}`);
       console.log(`- repos: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.backlogDir, "bin", "backlog")}`);

@@ -9,7 +9,7 @@ import {
   loadRegistry,
   saveRegistry,
 } from "./project-registry.js";
-import { userLevelWorkspaceDir } from "./init-layout.js";
+import { userLevelProjectDir } from "./init-layout.js";
 
 // What we hand back to the caller. The CLI uses `reposToReinstallHooksOn`
 // to iterate and call @backlog/hooks::installPreCommitHook on each (we
@@ -121,9 +121,9 @@ export function migrateProjectToUserLevel(options: MigrateToUserLevelOptions): M
     );
   }
 
-  const newRoot = userLevelWorkspaceDir(newName);
+  const newRoot = userLevelProjectDir(newName);
   if (fs.existsSync(path.join(newRoot, "config.toml"))) {
-    throw new Error(`Target ${newRoot} already has a Backlog workspace. Move or remove it first.`);
+    throw new Error(`Target ${newRoot} already has a Backlog project. Move or remove it first.`);
   }
 
   copyDirContents(oldBacklogDir, newRoot);
@@ -291,7 +291,7 @@ export function rollbackProjectMigration(options: RollbackOptions): RollbackResu
   const currentRoot = path.resolve(entry.path);
   const currentBacklogDir = entry.location === "in_repo" ? path.join(currentRoot, ".backlog") : currentRoot;
   if (!fs.existsSync(path.join(currentBacklogDir, "config.toml"))) {
-    throw new Error(`Current workspace at ${currentBacklogDir} has no config.toml.`);
+    throw new Error(`Current project at ${currentBacklogDir} has no config.toml.`);
   }
 
   const history = entry.migration_history ?? [];

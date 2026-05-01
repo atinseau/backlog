@@ -35,6 +35,7 @@
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
+  import { isMissingRepoPathError, relocateRepoPath } from "./lib/repo-relocate.js";
   import {
     fetchBoard,
     fetchCloudStatus,
@@ -49,7 +50,7 @@
     deleteTask,
     discardRun,
     moveTaskToTop,
-    moveWorkItem,
+    moveTask,
     patchTask,
     renameProjectById,
     reorderTask,
@@ -74,7 +75,7 @@
   } from "./lib/types.js";
 
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
-  const WORKSPACE_STORAGE_KEY = "backlog.selected_project_id";
+  const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   // Shell layout persistence — open/closed flags + pixel sizes for the
   // three panels, plus the active section in the navigator and the
   // active tab in the bottom console. Together these fully describe
@@ -111,9 +112,9 @@
 
   // ---- board / data state ----
   let board = $state<BoardResponse | null>(null);
-  let workspaceRepos = $state<Repo[]>([]);
-  let workspaces = $state<ProjectEntry[]>([]);
-  let selectedWorkspaceId = $state<string | null>(null);
+  let projectRepos = $state<Repo[]>([]);
+  let projects = $state<ProjectEntry[]>([]);
+  let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let loadError = $state<string | null>(null);
@@ -146,7 +147,7 @@
   }
   let cloudStatus = $state<CloudStatus | null>(readCachedCloudStatus());
   // Cached list of agents for preflight checks and assignee menus.
-  // Refreshed on workspace switch and whenever the Agents
+  // Refreshed on project switch and whenever the Agents
   // view's onChanged callback fires (so toggling enable / changing
   // model in AgentsView surfaces here within one round-trip).
   let agentsList = $state<AgentSummary[]>([]);
@@ -180,11 +181,13 @@
   let splitTarget = $state<TaskCard | null>(null);
   let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
   let directDirtyPrompt = $state<{ taskId: string; title: string } | null>(null);
+  let dirtyGitPrompt = $state<TaskCard | null>(null);
+  let dirtyGitBypassTaskId = $state<string | null>(null);
   let integrationsTab = $state<"github" | "jira" | "sources">("github");
 
   // ---- shell layout state ----
   let leftOpen = $state(readBool(SHELL_LEFT_OPEN, true));
-  let rightOpen = $state(readBool(SHELL_RIGHT_OPEN, false));
+  let rightOpen = $state(false);
   let bottomOpen = $state(readBool(SHELL_BOTTOM_OPEN, false));
   let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
   let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, 260, 600));
@@ -192,6 +195,7 @@
   let leftSection = $state<SectionKey>("board");
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
+  let gitDiffTarget = $state<{ repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null } | null>(null);
   let profileOpen = $state<"signin" | "signup" | null>(null);
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
@@ -236,7 +240,7 @@
   }
 
 
-  // Repos visible in the kanban — the "fallback" set when the workspace
+  // Repos visible in the kanban — the "fallback" set when the project
   // has no configured repos yet (we surface whatever the cards reference).
   const boardRepoIds = $derived.by(() => {
     if (!board) return [] as string[];
@@ -250,9 +254,10 @@
     return [...set].sort();
   });
   const repoOptions = $derived.by<Repo[]>(() => {
-    if (workspaceRepos.length > 0) return workspaceRepos;
+    if (projectRepos.length > 0) return projectRepos;
     return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
+  const repoGitStatuses = $derived(board?.repo_git_statuses ?? {});
   const repos = $derived(repoOptions.map((r) => r.id));
 
   // Column visibility — when In Review is hidden (default), review-status
@@ -310,7 +315,7 @@
     }
 
     if (!runStatePrimed) {
-      // First refresh after mount or workspace switch — seed the map
+      // First refresh after mount or project switch — seed the map
       // without emitting. The user just landed on the page; existing
       // runs are not "starting" from their point of view.
       runState.clear();
@@ -417,17 +422,17 @@
 
   async function refreshRepos() {
     try {
-      workspaceRepos = await fetchRepos();
+      projectRepos = await fetchRepos();
     } catch (err) {
       console.warn("repo fetch failed", err);
     }
   }
 
-  async function refreshWorkspaces() {
+  async function refreshProjects() {
     try {
-      workspaces = await fetchProjectsList();
+      projects = await fetchProjectsList();
     } catch (err) {
-      console.warn("workspaces fetch failed", err);
+      console.warn("projects fetch failed", err);
     }
   }
 
@@ -444,6 +449,27 @@
     if (id) localStorage.setItem(REPO_STORAGE_KEY, id);
     else localStorage.removeItem(REPO_STORAGE_KEY);
     refresh();
+  }
+
+  async function selectRepo(id: string | null) {
+    error = null;
+    if (!id) {
+      persistRepo(null);
+      return;
+    }
+    const repo = repoOptions.find((candidate) => candidate.id === id);
+    const status = repoGitStatuses[id];
+    if (repo && isMissingRepoPathError(status?.error)) {
+      try {
+        const relocated = await relocateRepoPath(repo.id, repo.path);
+        if (!relocated) return;
+        await refreshRepos();
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+        return;
+      }
+    }
+    persistRepo(id);
   }
 
   function teardownSse() {
@@ -476,21 +502,21 @@
     );
   }
 
-  function applyWorkspace(id: string) {
-    if (id === selectedWorkspaceId) return;
+  function applyProject(id: string) {
+    if (id === selectedProjectId) return;
     error = null;
-    selectedWorkspaceId = id;
+    selectedProjectId = id;
     setCurrentProjectId(id);
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+    localStorage.setItem(PROJECT_STORAGE_KEY, id);
     void touchProjectById(id).catch(() => undefined);
-    const entry = workspaces.find((workspace) => workspace.id === id);
+    const entry = projects.find((project) => project.id === id);
     if (entry?.path) {
-      void window.backlog?.setLastWorkspace?.(entry.path).catch(() => undefined);
+      void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
     }
     selectedRepoId = null;
     localStorage.removeItem(REPO_STORAGE_KEY);
     board = null;
-    workspaceRepos = [];
+    projectRepos = [];
     selectedTaskId = null;
     // Reset the run-status snapshot — the new project's currently-active
     // runs aren't transitions from the user's POV.
@@ -503,34 +529,34 @@
   }
 
   async function bootstrap() {
-    await refreshWorkspaces();
-    let currentWorkspaceId: string | null = null;
+    await refreshProjects();
+    let currentProjectId: string | null = null;
     try {
       const current = await fetchCurrentProject();
-      const match = workspaces.find((w) => w.path === current.root);
-      currentWorkspaceId = match?.id ?? null;
+      const match = projects.find((w) => w.path === current.root);
+      currentProjectId = match?.id ?? null;
     } catch {
-      currentWorkspaceId = null;
+      currentProjectId = null;
     }
 
-    const desktopBridge = typeof window !== "undefined" && Boolean(window.backlog?.setLastWorkspace);
-    let preferred = desktopBridge ? currentWorkspaceId : localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    const known = new Set(workspaces.map((w) => w.id));
+    const desktopBridge = typeof window !== "undefined" && Boolean(window.backlog?.setLastProject);
+    let preferred = desktopBridge ? currentProjectId : localStorage.getItem(PROJECT_STORAGE_KEY);
+    const known = new Set(projects.map((w) => w.id));
     if (preferred && !known.has(preferred)) {
-      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      localStorage.removeItem(PROJECT_STORAGE_KEY);
       preferred = null;
     }
     if (!preferred) {
-      preferred = currentWorkspaceId ?? localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? workspaces[0]?.id ?? null;
+      preferred = currentProjectId ?? localStorage.getItem(PROJECT_STORAGE_KEY) ?? projects[0]?.id ?? null;
     }
     if (preferred) {
-      selectedWorkspaceId = preferred;
+      selectedProjectId = preferred;
       setCurrentProjectId(preferred);
-      localStorage.setItem(WORKSPACE_STORAGE_KEY, preferred);
+      localStorage.setItem(PROJECT_STORAGE_KEY, preferred);
       void touchProjectById(preferred).catch(() => undefined);
-      const entry = workspaces.find((workspace) => workspace.id === preferred);
+      const entry = projects.find((project) => project.id === preferred);
       if (entry?.path && desktopBridge) {
-        void window.backlog?.setLastWorkspace?.(entry.path).catch(() => undefined);
+        void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
       }
     }
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
@@ -545,7 +571,7 @@
     if (!board) return;
     inFlightMove = workItemId;
     try {
-      await moveWorkItem(workItemId, toStatus);
+      await moveTask(workItemId, toStatus);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -608,6 +634,24 @@
     try { await archiveTask(card.id); }
     catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { if (!connected) await refresh(); }
+  }
+  async function handleArchiveColumn(_columnKey: ColumnKey, cards: TaskCard[]) {
+    error = null;
+    let failed = 0;
+    for (const card of cards) {
+      try {
+        await archiveTask(card.id);
+      } catch (err) {
+        failed += 1;
+        error = err instanceof Error ? err.message : String(err);
+      }
+    }
+    if (failed === 0) {
+      toasts?.push("success", t("column.archive_all_done", { count: cards.length }));
+    } else {
+      error = t("column.archive_all_failed", { failed, count: cards.length });
+    }
+    await refresh();
   }
   async function handleUnarchiveCard(card: TaskCard) {
     error = null;
@@ -692,6 +736,15 @@
 
   async function handlePlayCard(card: TaskCard) {
     error = null;
+    if (dirtyGitBypassTaskId !== card.id && dirtyGitCountForCard(card) > 0) {
+      dirtyGitPrompt = card;
+      leftOpen = true;
+      writeBool(SHELL_LEFT_OPEN, true);
+      applySection("commits");
+      return;
+    }
+    dirtyGitPrompt = null;
+    dirtyGitBypassTaskId = null;
     openActivityPanel();
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
@@ -730,6 +783,7 @@
   }
   function toggleRight() {
     rightOpen = !rightOpen;
+    if (!rightOpen) gitDiffTarget = null;
     writeBool(SHELL_RIGHT_OPEN, rightOpen);
   }
   function toggleBottom() {
@@ -741,7 +795,35 @@
   function commitBottomHeight() { writeNum(SHELL_BOTTOM_HEIGHT, bottomHeight); }
 
   function applySection(key: SectionKey) {
+    if (key !== "commits" && gitDiffTarget) {
+      gitDiffTarget = null;
+      rightOpen = false;
+      writeBool(SHELL_RIGHT_OPEN, false);
+    }
     leftSection = key;
+  }
+
+  function openGitDiff(repo: string, file: string, sha?: string | null, base?: string | null, head?: string | null) {
+    gitDiffTarget = { repo, file, sha, base, head };
+    rightOpen = true;
+  }
+
+  function closeGitDiff() {
+    gitDiffTarget = null;
+    rightOpen = false;
+    writeBool(SHELL_RIGHT_OPEN, false);
+  }
+
+  function dirtyGitCountForCard(card: TaskCard): number {
+    if (!board) return 0;
+    const repoIds = new Set<string>(card.repo_targets);
+    for (const task of card.tasks) repoIds.add(task.repo);
+    if (repoIds.size === 0) {
+      return Object.values(board.repo_git_statuses).reduce((sum, status) => sum + status.total, 0);
+    }
+    let total = 0;
+    for (const repoId of repoIds) total += board.repo_git_statuses[repoId]?.total ?? 0;
+    return total;
   }
 
   function selectCard(card: TaskCard) {
@@ -770,7 +852,7 @@
     }
     error = message;
     if (action === "api_keys") apiKeysOpen = true;
-    if (action === "agents") leftSection = "agents";
+    if (action === "agents") applySection("agents");
   }
 
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
@@ -844,18 +926,19 @@
     }
   }
 
-  // Re-pull workspace + board state when the window comes back into focus
+  // Re-pull project + board state when the window comes back into focus
   // or the tab becomes visible again. Catches changes made by the CLI in
-  // another terminal (a new workspace, a task move, a hook install, …) —
-  // SSE handles in-workspace state but not the registry, and background
+  // another terminal (a new project, a task move, a hook install, …) —
+  // SSE handles in-project state but not the registry, and background
   // tabs sometimes drop the connection. Debounced so a quick alt-tab
   // doesn't spam the API.
   let focusRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let gitStatusPoll: ReturnType<typeof setInterval> | null = null;
   function refreshOnFocus() {
     if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
     focusRefreshTimer = setTimeout(() => {
       focusRefreshTimer = null;
-      void refreshWorkspaces();
+      void refreshProjects();
       void refreshRepos();
       void refresh();
       void loadCloudStatus();
@@ -871,7 +954,11 @@
   }
 
   onMount(() => {
+    writeBool(SHELL_RIGHT_OPEN, false);
     bootstrap();
+    gitStatusPoll = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 5000);
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
   });
@@ -879,6 +966,7 @@
     teardownSse();
     if (refreshTimer) clearTimeout(refreshTimer);
     if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
+    if (gitStatusPoll) clearInterval(gitStatusPoll);
     window.removeEventListener("focus", handleFocus);
     document.removeEventListener("visibilitychange", handleVisibility);
   });
@@ -889,15 +977,15 @@
   <header class="topbar">
     <div class="topbar-left">
       <ProjectSelector
-        projects={workspaces}
-        selectedId={selectedWorkspaceId}
-        onSelect={applyWorkspace}
+        projects={projects}
+        selectedId={selectedProjectId}
+        onSelect={applyProject}
         onCreateProject={() => (createProjectOpen = true)}
         onManageProjects={() => (manageProjectsOpen = true)}
         onRename={async (id, name) => {
           try {
             await renameProjectById(id, name);
-            await refreshWorkspaces();
+            await refreshProjects();
           } catch (err) {
             error = err instanceof Error ? err.message : String(err);
           }
@@ -912,7 +1000,7 @@
       />
     </div>
     <div class="topbar-center">
-      <RunStatusDisplay board={board} workspaceId={selectedWorkspaceId} onOpenActivity={openActivityPanel} />
+      <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
     </div>
     <div class="topbar-right">
       <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
@@ -943,10 +1031,11 @@
       <div class="left-host">
         <LeftPanel
           repos={repoOptions}
+          repoGitStatuses={repoGitStatuses}
           selectedRepoId={selectedRepoId}
-          onSelectRepo={persistRepo}
-          onManageRepos={() => { reposShowCreate = false; leftSection = "repos"; }}
-          onCreateRepo={() => { reposShowCreate = true; leftSection = "repos"; }}
+          onSelectRepo={(id) => { void selectRepo(id); }}
+          onManageRepos={() => { reposShowCreate = false; applySection("repos"); }}
+          onCreateRepo={() => { reposShowCreate = true; applySection("repos"); }}
           section={leftSection}
           onSelectSection={applySection}
         />
@@ -956,12 +1045,12 @@
 
     <div class="center">
       <div class="center-main">
-        <!-- Wrap on selectedWorkspaceId so switching projects forces every
+        <!-- Wrap on selectedProjectId so switching projects forces every
              section view to remount. Each view fetches its data on mount,
              which is what we want — the API calls now hit the new
              project. Without this, AgentsView / CommitsView / etc. keep
              showing stale data from the previous project. -->
-        {#key selectedWorkspaceId}
+        {#key selectedProjectId}
         {#if selectedTaskId}
           <TaskDetailDialog
             taskId={selectedTaskId}
@@ -1004,6 +1093,7 @@
                 onPlay={handlePlayCard}
                 onApprove={handleApproveCard}
                 onDiscard={handleDiscardCard}
+                onArchiveAll={handleArchiveColumn}
                 onArchive={handleArchiveCard}
                 onUnarchive={handleUnarchiveCard}
                 onDelete={handleDeleteCard}
@@ -1017,16 +1107,22 @@
         {:else if leftSection === "activity"}
           <ClaimsView
             embedded={true}
-            onClose={() => (leftSection = "board")}
+            onClose={() => applySection("board")}
             onChanged={() => { if (!connected) refresh(); }}
           />
         {:else if leftSection === "commits"}
-          <CommitsView embedded={true} onClose={() => (leftSection = "board")} />
+          <CommitsView
+            embedded={true}
+            selectedRepoId={selectedRepoId}
+            onClose={() => applySection("board")}
+            onOpenDiff={openGitDiff}
+            onCommitted={() => { if (!connected) refresh(); }}
+          />
         {:else if leftSection === "agents"}
           <AgentsView
             embedded={true}
             availableRepos={repos}
-            onClose={() => (leftSection = "board")}
+            onClose={() => applySection("board")}
             onOpenApiKeys={() => (apiKeysOpen = true)}
             onChanged={() => {
               void refreshAgents();
@@ -1036,13 +1132,13 @@
         {:else if leftSection === "users"}
           <UsersView
             embedded={true}
-            onClose={() => (leftSection = "board")}
+            onClose={() => applySection("board")}
           />
         {:else if leftSection === "integrations"}
           <IntegrationsView
             embedded={true}
             defaultTab={integrationsTab}
-            onClose={() => { leftSection = "board"; loadCloudStatus(); }}
+            onClose={() => { applySection("board"); loadCloudStatus(); }}
             onChanged={() => {
               refreshRepos();
               if (!connected) refresh();
@@ -1053,22 +1149,21 @@
         {:else if leftSection === "permissions"}
           <PermissionsView
             embedded={true}
-            availableRepos={repos}
-            onClose={() => (leftSection = "board")}
+            onClose={() => applySection("board")}
             onChanged={() => { if (!connected) refresh(); }}
           />
         {:else if leftSection === "repos"}
           <ReposView
             embedded={true}
             initialShowCreate={reposShowCreate}
-            onClose={() => { reposShowCreate = false; leftSection = "board"; }}
+            onClose={() => { reposShowCreate = false; applySection("board"); }}
             onChanged={() => {
               refreshRepos();
               if (!connected) refresh();
             }}
           />
         {:else if leftSection === "settings"}
-          <SettingsView embedded={true} onClose={() => (leftSection = "board")} />
+          <SettingsView embedded={true} onClose={() => applySection("board")} />
         {/if}
         {/key}
       </div>
@@ -1081,7 +1176,7 @@
         />
         <div class="bottom-host">
           <BottomPanel
-            workspaceId={selectedWorkspaceId}
+            projectId={selectedProjectId}
             onOpenDiff={(runId, file) => (diffTarget = { runId, file })}
           />
         </div>
@@ -1091,7 +1186,11 @@
     {#if rightOpen}
       <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(260, Math.min(600, rightWidth - d)))} onCommit={commitRightWidth} />
       <div class="right-host">
-        <RightPanel workspaceId={selectedWorkspaceId} />
+        <RightPanel
+          projectId={selectedProjectId}
+          gitDiffTarget={gitDiffTarget}
+          onCloseGitDiff={closeGitDiff}
+        />
       </div>
     {/if}
   </div>
@@ -1107,9 +1206,9 @@
     onClose={() => (createProjectOpen = false)}
     onCreated={(project, openRepos) => {
       createProjectOpen = false;
-      refreshWorkspaces().then(() => {
-        applyWorkspace(project.id);
-        if (openRepos) leftSection = "repos";
+      refreshProjects().then(() => {
+        applyProject(project.id);
+        if (openRepos) applySection("repos");
       });
     }}
   />
@@ -1170,6 +1269,45 @@
   />
 {/if}
 
+{#if dirtyGitPrompt}
+  <div class="backdrop" onclick={() => (dirtyGitPrompt = null)} role="presentation">
+    <div
+      class="dirty-git-modal"
+      onclick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      tabindex={-1}
+      onkeydown={(e) => { if (e.key === "Escape") dirtyGitPrompt = null; }}
+    >
+      <h2>{t("git.run_warning.title")}</h2>
+      <p>{t("git.run_warning.body", { count: dirtyGitCountForCard(dirtyGitPrompt) })}</p>
+      <div class="dirty-actions">
+        <button
+          onclick={() => {
+            leftOpen = true;
+            writeBool(SHELL_LEFT_OPEN, true);
+            applySection("commits");
+            dirtyGitPrompt = null;
+          }}
+        >
+          {t("git.run_warning.review")}
+        </button>
+        <button
+          class="primary"
+          onclick={() => {
+            const card = dirtyGitPrompt;
+            if (card) dirtyGitBypassTaskId = card.id;
+            dirtyGitPrompt = null;
+            if (card) void handlePlayCard(card);
+          }}
+        >
+          {t("git.run_warning.continue")}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if createSubTaskTarget}
   <CreateSubTaskDialog
     workItem={createSubTaskTarget}
@@ -1212,8 +1350,8 @@
 
 {#if manageProjectsOpen}
   <ProjectsView
-    onClose={() => { manageProjectsOpen = false; void refreshWorkspaces(); }}
-    onSelect={(id) => applyWorkspace(id)}
+    onClose={() => { manageProjectsOpen = false; void refreshProjects(); }}
+    onSelect={(id) => applyProject(id)}
     onCreateProject={() => (createProjectOpen = true)}
   />
 {/if}
@@ -1311,6 +1449,54 @@
     padding: 8px 24px;
     font-size: 13px;
   }
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--backdrop);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 120;
+  }
+  .dirty-git-modal {
+    width: min(460px, calc(100vw - 32px));
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    box-shadow: var(--shadow-modal);
+    padding: 18px;
+  }
+  .dirty-git-modal h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+  .dirty-git-modal p {
+    margin: 0;
+    color: var(--text-body);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .dirty-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .dirty-actions button {
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 7px 10px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .dirty-actions button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-on);
+  }
 
   .grid {
     flex: 1 1 auto;
@@ -1353,11 +1539,14 @@
   }
 
   .board {
+    flex: 1 1 auto;
+    min-height: 0;
     display: grid;
     grid-template-columns: repeat(var(--columns-count, 4), minmax(240px, 1fr));
     gap: 12px;
     padding: 16px;
-    align-items: start;
+    align-items: stretch;
+    overflow: hidden;
   }
 
   .preflight-banner {

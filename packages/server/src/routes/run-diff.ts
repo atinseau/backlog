@@ -86,14 +86,14 @@ export function runDiffRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/runs/:id/diff", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const runId = c.req.param("id");
     const file = c.req.query("file");
     const base = c.req.query("base") ?? DEFAULT_BASE;
     if (!file) {
       return c.json({ error: "missing_file", detail: "Pass ?file=<repo-relative-path>." }, 400);
     }
-    const run = loadRun(workspace.backlogDir, runId);
+    const run = loadRun(project.backlogDir, runId);
     if (!run) {
       return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
     }

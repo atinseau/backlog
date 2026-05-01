@@ -3,7 +3,7 @@
   // picks ONE agent that will execute the next run — replacing the
   // older "toggle each agent enabled" flow which made it ambiguous
   // who would run the task. Selection persists per-project so each
-  // workspace remembers its preferred runner.
+  // project remembers its preferred runner.
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { formatAgentLabel } from "./agent-label.js";

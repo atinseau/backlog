@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
+  import { relocateRepoPath } from "./repo-relocate.js";
   import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
@@ -172,6 +173,17 @@
     }
   }
 
+  async function handleRelocate(repo: Repo) {
+    try {
+      const relocated = await relocateRepoPath(repo.id, repo.path);
+      if (!relocated) return;
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   load();
 </script>
 
@@ -198,8 +210,8 @@
           </button>
         </header>
         <p class="hooks-hint">{t("hooks.hint")}</p>
-        {#if hooks?.workspace_paused_until}
-          <div class="hook-pause">⏸ {t("hooks.paused_until", { until: hooks.workspace_paused_until })}</div>
+        {#if hooks?.project_paused_until}
+          <div class="hook-pause">⏸ {t("hooks.paused_until", { until: hooks.project_paused_until })}</div>
         {/if}
         <div class="hooks-cli">
           <div><code>backlog hooks install</code> — {t("hooks.cli.install")}</div>
@@ -248,6 +260,9 @@
                 <option value="no-access">{t("repos_view.access_no_access")}</option>
               </select>
               <button onclick={() => handleRename(repo)} title="Renommer">✎</button>
+              <button onclick={() => handleRelocate(repo)}>
+                {t("repos_view.relocate")}
+              </button>
               <button onclick={() => handleToggleEnabled(repo)}>
                 {repo.enabled ? "désactiver" : "activer"}
               </button>
@@ -295,7 +310,7 @@
               <label>Branche<input bind:value={newBranch} placeholder="main" /></label>
             </div>
             <label class="full">
-              Cloner dans <span class="hint">(défaut : workspace/repos/&lt;id&gt;)</span>
+              Cloner dans <span class="hint">(défaut : project/repos/&lt;id&gt;)</span>
               <input bind:value={newCloneInto} placeholder="repos/frontend" />
             </label>
           {:else}

@@ -85,15 +85,15 @@ export function claimsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/claims", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const archivedFlag = c.req.query("archived");
     const archivedOnly = archivedFlag === "1" || archivedFlag === "true";
     const claims = archivedOnly
-      ? listArchivedClaims(workspace.backlogDir)
-      : listActiveClaims(workspace.backlogDir);
+      ? listArchivedClaims(project.backlogDir)
+      : listActiveClaims(project.backlogDir);
     const repo = c.req.query("repo");
     const filtered = repo ? claims.filter((claim) => claim.repo === repo) : claims;
-    const agentsById = new Map(listAgents(workspace.backlogDir).map((agent) => [agent.id, agent]));
+    const agentsById = new Map(listAgents(project.backlogDir).map((agent) => [agent.id, agent]));
     return c.json({
       generated_at: new Date().toISOString(),
       count: filtered.length,
@@ -103,7 +103,7 @@ export function claimsRoutes(): Hono<AppEnv> {
   });
 
   app.get("/claims/check", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const repo = c.req.query("repo");
     const path = c.req.query("path");
     if (!repo || !path) {
@@ -116,7 +116,7 @@ export function claimsRoutes(): Hono<AppEnv> {
       paths: [path],
       mode: "exclusive" as const,
     };
-    const overlaps = findOverlappingClaims(workspace.backlogDir, candidate);
+    const overlaps = findOverlappingClaims(project.backlogDir, candidate);
 
     if (overlaps.length === 0) {
       return c.json({ free: true, claims: [] });
@@ -137,7 +137,7 @@ export function claimsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/claims", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = createClaimBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -153,7 +153,7 @@ export function claimsRoutes(): Hono<AppEnv> {
       paths: body.paths,
       mode: body.mode ?? "exclusive",
     };
-    const overlaps = findOverlappingClaims(workspace.backlogDir, candidate);
+    const overlaps = findOverlappingClaims(project.backlogDir, candidate);
     if (overlaps.length > 0 && (body.mode ?? "exclusive") === "exclusive") {
       const blocking = overlaps[0];
       if (blocking) {
@@ -162,7 +162,7 @@ export function claimsRoutes(): Hono<AppEnv> {
     }
 
     const createInput: Parameters<typeof createClaim>[0] = {
-      backlogDir: workspace.backlogDir,
+      backlogDir: project.backlogDir,
       repo: body.repo,
       repoPath,
       topic: body.topic,
@@ -179,7 +179,7 @@ export function claimsRoutes(): Hono<AppEnv> {
     }
 
     const claim = createClaim(createInput);
-    const gitDir = await resolveGitDirForRepo(workspace.backlogDir, claim.repo);
+    const gitDir = await resolveGitDirForRepo(project.backlogDir, claim.repo);
     if (gitDir) {
       writeContextFile(gitDir, {
         version: 1,
@@ -191,11 +191,11 @@ export function claimsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/claims/:id", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     try {
-      const archived = archiveClaim(workspace.backlogDir, id);
-      const gitDir = await resolveGitDirForRepo(workspace.backlogDir, archived.repo);
+      const archived = archiveClaim(project.backlogDir, id);
+      const gitDir = await resolveGitDirForRepo(project.backlogDir, archived.repo);
       if (gitDir) {
         removeContextFile(gitDir, archived.id);
       }

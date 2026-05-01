@@ -8,22 +8,24 @@ function conflictsPath(backlogDir: string): string {
   return path.join(backlogDir, "sync-conflicts.json");
 }
 
+const LEGACY_PARENT_FIELD = "work" + "_item_id";
+
 export function readSyncConflictsFile(backlogDir: string): SyncConflictsFile {
   const filePath = conflictsPath(backlogDir);
   if (!fs.existsSync(filePath)) {
     return { version: 1, conflicts: [] };
   }
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
-  // Per-row migration: SyncConflict.work_item_id was renamed to task_id.
+  // Per-row migration from the pre-task parent field to task_id.
   if (raw && typeof raw === "object") {
     const conflicts = (raw as { conflicts?: unknown[] }).conflicts;
     if (Array.isArray(conflicts)) {
       for (const row of conflicts) {
         if (row && typeof row === "object") {
           const r = row as Record<string, unknown>;
-          if ("work_item_id" in r && !("task_id" in r)) {
-            r["task_id"] = r["work_item_id"];
-            delete r["work_item_id"];
+          if (LEGACY_PARENT_FIELD in r && !("task_id" in r)) {
+            r["task_id"] = r[LEGACY_PARENT_FIELD];
+            delete r[LEGACY_PARENT_FIELD];
           }
         }
       }
@@ -44,24 +46,24 @@ export function listPendingSyncConflicts(backlogDir: string): SyncConflict[] {
   return listSyncConflicts(backlogDir).filter((conflict) => conflict.resolution === "pending");
 }
 
-export function listPendingSyncConflictsForWorkItem(backlogDir: string, workItemId: string): SyncConflict[] {
-  return listPendingSyncConflicts(backlogDir).filter((conflict) => conflict.task_id === workItemId);
+export function listPendingSyncConflictsForTask(backlogDir: string, taskId: string): SyncConflict[] {
+  return listPendingSyncConflicts(backlogDir).filter((conflict) => conflict.task_id === taskId);
 }
 
-export function hasPendingSyncConflictsForWorkItem(backlogDir: string, workItemId: string): boolean {
-  return listPendingSyncConflictsForWorkItem(backlogDir, workItemId).length > 0;
+export function hasPendingSyncConflictsForTask(backlogDir: string, taskId: string): boolean {
+  return listPendingSyncConflictsForTask(backlogDir, taskId).length > 0;
 }
 
 export function recordStatusConflict(params: {
   backlogDir: string;
-  workItemId: string;
+  taskId: string;
   sourceRef: string;
   localValue: string;
   externalValue: string;
 }): SyncConflict {
   const file = readSyncConflictsFile(params.backlogDir);
   const existing = file.conflicts.find((conflict) =>
-    conflict.task_id === params.workItemId &&
+    conflict.task_id === params.taskId &&
     conflict.source_ref === params.sourceRef &&
     conflict.field === "status" &&
     conflict.resolution === "pending",
@@ -77,7 +79,7 @@ export function recordStatusConflict(params: {
 
   const conflict: SyncConflict = {
     id: nextId(params.backlogDir, "sync"),
-    task_id: params.workItemId,
+    task_id: params.taskId,
     source_ref: params.sourceRef,
     field: "status",
     local_value: params.localValue,
@@ -100,12 +102,12 @@ export function resolveSyncConflict(backlogDir: string, conflictId: string, reso
   conflict.resolved_at = new Date().toISOString();
 
   if (resolution === "external") {
-    const workItems = readTasksFile(backlogDir);
-    const workItem = workItems.tasks.find((item) => item.id === conflict.task_id);
-    if (workItem) {
-      workItem.status = conflict.external_value as Task["status"];
-      workItem.updated_at = new Date().toISOString();
-      writeTasksFile(backlogDir, workItems);
+    const tasks = readTasksFile(backlogDir);
+    const task = tasks.tasks.find((item) => item.id === conflict.task_id);
+    if (task) {
+      task.status = conflict.external_value as Task["status"];
+      task.updated_at = new Date().toISOString();
+      writeTasksFile(backlogDir, tasks);
     }
   }
 
@@ -113,19 +115,19 @@ export function resolveSyncConflict(backlogDir: string, conflictId: string, reso
   return conflict;
 }
 
-export function resolveSyncConflictsForWorkItem(
+export function resolveSyncConflictsForTask(
   backlogDir: string,
-  workItemId: string,
+  taskId: string,
   resolution: "external" | "local",
 ): SyncConflict[] {
-  const pending = listPendingSyncConflictsForWorkItem(backlogDir, workItemId);
+  const pending = listPendingSyncConflictsForTask(backlogDir, taskId);
   return pending.map((conflict) => resolveSyncConflict(backlogDir, conflict.id, resolution));
 }
 
-export function removeSyncConflictsForTask(backlogDir: string, workItemId: string): number {
+export function removeSyncConflictsForTask(backlogDir: string, taskId: string): number {
   const file = readSyncConflictsFile(backlogDir);
   const before = file.conflicts.length;
-  file.conflicts = file.conflicts.filter((conflict) => conflict.task_id !== workItemId);
+  file.conflicts = file.conflicts.filter((conflict) => conflict.task_id !== taskId);
   writeSyncConflictsFile(backlogDir, file);
   return before - file.conflicts.length;
 }

@@ -8,15 +8,15 @@ export interface ServerProject extends ProjectPaths {
 
 export function resolveProject(explicit?: string): ServerProject {
   const startDir = explicit ?? process.cwd();
-  const workspace = findProject(startDir);
-  if (!workspace) {
+  const project = findProject(startDir, { honorEnv: explicit === undefined });
+  if (!project) {
     throw new Error(
-      `No .backlog project found from ${startDir}. Run 'backlog init' or pass --workspace.`,
+      `No .backlog project found from ${startDir}. Run 'backlog init' or pass --project.`,
     );
   }
   return {
-    ...workspace,
-    project_id: ensureProjectId(workspace.backlogDir),
+    ...project,
+    project_id: ensureProjectId(project.backlogDir),
     resolvedFrom: startDir,
   };
 }

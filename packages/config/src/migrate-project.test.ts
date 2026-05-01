@@ -15,7 +15,7 @@ function realTmp(prefix: string): string {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
-// userLevelWorkspaceDir() consults os.homedir() to locate ~/.backlog/<slug>/.
+// userLevelProjectDir() consults os.homedir() to locate ~/.backlog/<slug>/.
 // We point HOME at a sandbox so the migration can't touch the real
 // ~/.backlog/. Save/restore so tests don't leak.
 let savedHome: string | undefined;
@@ -138,8 +138,8 @@ describe("migrateProjectToUserLevel", () => {
     expect(fs.existsSync(path.join(result.newRoot, "config.toml"))).toBe(true);
   });
 
-  it("refuses if the target ~/.backlog/<slug>/ already has a workspace", () => {
-    // Pre-create an unrelated workspace at ~/.backlog/clash/.
+  it("refuses if the target ~/.backlog/<slug>/ already has a project", () => {
+    // Pre-create an unrelated project at ~/.backlog/clash/.
     const collidingDir = path.join(fakeHome, ".backlog", "clash");
     initLayout({ root: collidingDir, projectName: "unrelated", location: "user_level" });
 
@@ -147,7 +147,7 @@ describe("migrateProjectToUserLevel", () => {
 
     expect(() =>
       migrateProjectToUserLevel({ identifier: "clash", registryOptions: { dir: registryDir } }),
-    ).toThrowError(/already has a Backlog workspace/);
+    ).toThrowError(/already has a Backlog project/);
   });
 });
 

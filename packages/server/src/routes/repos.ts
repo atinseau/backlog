@@ -31,19 +31,19 @@ export function reposRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/repos", (c) => {
-    const workspace = c.get("workspace");
-    return c.json({ repos: listRepos(workspace.backlogDir) });
+    const project = c.get("project");
+    return c.json({ repos: listRepos(project.backlogDir) });
   });
 
   app.get("/repos/:id", (c) => {
-    const workspace = c.get("workspace");
-    const repo = getRepo(workspace.backlogDir, c.req.param("id"));
+    const project = c.get("project");
+    const repo = getRepo(project.backlogDir, c.req.param("id"));
     if (!repo) return c.json({ error: "unknown_repo" }, 404);
     return c.json({ repo });
   });
 
   app.post("/repos", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -59,7 +59,7 @@ export function reposRoutes(): Hono<AppEnv> {
         if (parsed.data.role !== undefined) cloneInput.role = parsed.data.role;
         if (parsed.data.enabled !== undefined) cloneInput.enabled = parsed.data.enabled;
         if (parsed.data.access_mode !== undefined) cloneInput.accessMode = parsed.data.access_mode;
-        const repo = await cloneAndAddRepo(workspace.backlogDir, cloneInput);
+        const repo = await cloneAndAddRepo(project.backlogDir, cloneInput);
         return c.json({ repo, cloned: true }, 201);
       }
 
@@ -77,7 +77,7 @@ export function reposRoutes(): Hono<AppEnv> {
       if (parsed.data.role !== undefined) input.role = parsed.data.role;
       if (parsed.data.enabled !== undefined) input.enabled = parsed.data.enabled;
       if (parsed.data.access_mode !== undefined) input.accessMode = parsed.data.access_mode;
-      const repo = addRepo(workspace.backlogDir, input);
+      const repo = addRepo(project.backlogDir, input);
       return c.json({ repo, cloned: false }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -86,7 +86,7 @@ export function reposRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/repos/:id", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -102,7 +102,7 @@ export function reposRoutes(): Hono<AppEnv> {
     if (parsed.data.access_mode !== undefined) input.accessMode = parsed.data.access_mode;
 
     try {
-      const repo = updateRepo(workspace.backlogDir, c.req.param("id"), input);
+      const repo = updateRepo(project.backlogDir, c.req.param("id"), input);
       return c.json({ repo });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -112,10 +112,10 @@ export function reposRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/repos/:id", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const force = c.req.query("force") === "1" || c.req.query("force") === "true";
     try {
-      const repo = removeRepo(workspace.backlogDir, c.req.param("id"), { force });
+      const repo = removeRepo(project.backlogDir, c.req.param("id"), { force });
       return c.json({ repo });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

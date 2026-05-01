@@ -118,7 +118,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     }
     const workItem = getTask(backlogDir, task.task_id);
     if (!workItem) {
-      skipped.push({ taskId: decision.taskId, reasons: ["missing_work_item"] });
+      skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
       continue;
     }
     const repo = config.repos.find((candidate) => candidate.id === task.repo);

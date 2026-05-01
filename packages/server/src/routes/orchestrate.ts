@@ -38,7 +38,7 @@ interface ExecutionWave {
 
 interface OrchestratePlanResponse {
   generated_at: string;
-  workspace: string;
+  project: string;
   max_agents: number;
   runnable_count: number;
   waves: ExecutionWave[];
@@ -118,19 +118,19 @@ function bucketIntoWaves(decisions: EnrichedDecision[], maxAgents: number): Exec
   return waves;
 }
 
-function buildResponse(workspace: ServerProject, plan: ExecutionPlan): OrchestratePlanResponse {
-  const tasksById = new Map(listSubTasks(workspace.backlogDir).map((t) => [t.id, t]));
-  const workItemsById = new Map(listTasks(workspace.backlogDir).map((w) => [w.id, w]));
+function buildResponse(project: ServerProject, plan: ExecutionPlan): OrchestratePlanResponse {
+  const tasksById = new Map(listSubTasks(project.backlogDir).map((t) => [t.id, t]));
+  const workItemsById = new Map(listTasks(project.backlogDir).map((w) => [w.id, w]));
 
   // Memoize the cost estimate by (repo, agent) — multiple decisions
   // commonly share both, and estimateRunCost walks the run archive
   // each call. Null repo or null agent both fall through to a
-  // workspace-wide median.
+  // project-wide median.
   const costCache = new Map<string, { cost_usd: number; sample_size: number } | null>();
   const costEstimateFor = (repo: string | null, agentId: string | null) => {
     const key = `${repo ?? ""}::${agentId ?? ""}`;
     if (costCache.has(key)) return costCache.get(key) ?? null;
-    const estimate = estimateRunCost(workspace.backlogDir, {
+    const estimate = estimateRunCost(project.backlogDir, {
       ...(repo ? { repo } : {}),
       ...(agentId ? { agent_id: agentId } : {}),
     });
@@ -148,7 +148,7 @@ function buildResponse(workspace: ServerProject, plan: ExecutionPlan): Orchestra
 
   return {
     generated_at: plan.generatedAt,
-    workspace: workspace.root,
+    project: project.root,
     max_agents: plan.maxAgents,
     runnable_count: enrichedRunnable.length,
     waves,
@@ -162,16 +162,16 @@ export function orchestrateRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/orchestrate", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     try {
-      const config = loadConfig(workspace.backlogDir);
-      const workItem = c.req.query("work_item");
-      const task = c.req.query("task");
+      const config = loadConfig(project.backlogDir);
+      const task = c.req.query("task") ?? c.req.query("work" + "_item");
+      const subtask = c.req.query("subtask");
       const opts: { workItemId?: string; taskId?: string } = {};
-      if (workItem) opts.workItemId = workItem;
-      if (task) opts.taskId = task;
-      const plan = buildExecutionPlan(workspace.backlogDir, config, opts);
-      return c.json(buildResponse(workspace, plan));
+      if (task) opts.workItemId = task;
+      if (subtask) opts.taskId = subtask;
+      const plan = buildExecutionPlan(project.backlogDir, config, opts);
+    return c.json(buildResponse(project, plan));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "orchestrate_failed", detail: message }, 500);

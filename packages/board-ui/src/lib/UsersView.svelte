@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Workspace-scoped human collaborators (not AI agents). Shown as its
+  // Project-scoped human collaborators (not AI agents). Shown as its
   // own left-panel section so the Agents view stays focused on
   // executors. Invited users land in `pending` with an invitation
   // token; once they confirm via a link they flip to `active` and can
@@ -107,8 +107,8 @@
   }
 
   // Build the confirmation URL the recipient has to hit to flip
-  // pending → active. We embed the token + workspace id so the link
-  // works even if the user hasn't picked the workspace in the UI yet.
+  // pending → active. We embed the token + project id so the link
+  // works even if the user hasn't picked the project in the UI yet.
   function invitationUrl(user: UserSummary): string {
     if (!user.invitation_token) return "";
     const url = new URL(window.location.href);

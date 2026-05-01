@@ -19,6 +19,10 @@
 
   let { availableRepos, onClose, onCreated }: Props = $props();
 
+  function focusOnMount(node: HTMLElement): void {
+    queueMicrotask(() => node.focus());
+  }
+
   type Phase = "input" | "creating" | "splitting" | "proposal" | "applying" | "applied";
 
   let phase = $state<Phase>("input");
@@ -229,7 +233,7 @@
             bind:value={description}
             rows="4"
             required
-            autofocus
+            use:focusOnMount
             placeholder={t("create_task.field.description_help")}
           ></textarea>
           <span class="field-hint">{t("create_task.field.description_title_hint")}</span>
@@ -509,12 +513,6 @@
   }
   .toggle-desc {
     display: block; font-size: 11px; color: var(--text-muted); margin-top: 1px;
-  }
-  .hint {
-    margin: 4px 0 0;
-    font-size: 11px;
-    color: var(--text-subtle);
-    font-style: italic;
   }
   .field-hint {
     display: block;

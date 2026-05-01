@@ -49,7 +49,7 @@ async function makeWorkspaceWithRepo(): Promise<{
 function buildApp(workspace: ServerProject): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("workspace", workspace);
+    c.set("project", workspace);
     await next();
   });
   app.route("/", claimsRoutes());

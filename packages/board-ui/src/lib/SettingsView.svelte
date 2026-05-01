@@ -1,7 +1,7 @@
 <script lang="ts">
   // Project-scoped settings — surfaces that read/write the active
-  // workspace's state (API keys in secrets.json, the chat history we
-  // store keyed by project id, the workspace's own paths). General
+  // project's state (API keys in secrets.json, the chat history we
+  // store keyed by project id, the project's own paths). General
   // app preferences (theme, locale, identity, notifications, CLI,
   // about, reset) live in GeneralSettingsView, opened from the
   // top-right profile dropdown.
@@ -111,22 +111,22 @@
     <!-- Project info -->
     {#if currentProject}
       <section class="block">
-        <h3>{t("settings.workspace.title")}</h3>
-        <p class="hint">{t("settings.workspace.hint")}</p>
+        <h3>{t("settings.project.info_title")}</h3>
+        <p class="hint">{t("settings.project.hint")}</p>
         <div class="info-grid">
           {#if currentProjectEntry}
-            <div><span class="info-label">{t("settings.workspace.name")}</span><strong>{currentProjectEntry.name}</strong></div>
-            <div><span class="info-label">{t("settings.workspace.location")}</span>
+            <div><span class="info-label">{t("settings.project.name")}</span><strong>{currentProjectEntry.name}</strong></div>
+            <div><span class="info-label">{t("settings.project.location")}</span>
               <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "in-repo"}</span>
             </div>
           {/if}
           <div class="full">
-            <span class="info-label">{t("settings.workspace.path")}</span>
+            <span class="info-label">{t("settings.project.path")}</span>
             <code>{currentProject.root}</code>
             <button class="copy" onclick={() => copy(currentProject!.root)} title={t("settings.copy")}>⎘</button>
           </div>
           <div class="full">
-            <span class="info-label">{t("settings.workspace.backlog_dir")}</span>
+            <span class="info-label">{t("settings.project.backlog_dir")}</span>
             <code>{currentProject.backlog_dir}</code>
             <button class="copy" onclick={() => copy(currentProject!.backlog_dir)} title={t("settings.copy")}>⎘</button>
           </div>

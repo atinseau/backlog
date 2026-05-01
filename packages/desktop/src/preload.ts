@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld("backlog", {
   pickFolder(opts?: { title?: string; defaultPath?: string }): Promise<string | null> {
     return ipcRenderer.invoke("backlog:pick-folder", opts ?? {});
   },
+  setLastProject(targetPath: string): Promise<boolean> {
+    return ipcRenderer.invoke("backlog:set-last-project", targetPath);
+  },
   setLastWorkspace(targetPath: string): Promise<boolean> {
     return ipcRenderer.invoke("backlog:set-last-workspace", targetPath);
   },

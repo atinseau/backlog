@@ -23,7 +23,7 @@ describe("renderLaunchdPlist", () => {
     expect(out).toContain("<string>com.backlog.serve</string>");
     expect(out).toContain("<string>/Users/jane/.npm-global/bin/backlog</string>");
     expect(out).toContain("<string>serve</string>");
-    expect(out).toContain("<string>--workspace</string>");
+    expect(out).toContain("<string>--project</string>");
     expect(out).toContain("<string>/Users/jane/Dev/myproject</string>");
     expect(out).toContain("<string>--port</string>");
     expect(out).toContain("<string>7878</string>");
@@ -42,7 +42,7 @@ describe("renderLaunchdPlist", () => {
     expect(out).toContain("/Users/jane/Library/Logs/backlog/serve.error.log");
   });
 
-  it("escapes XML-unsafe characters in workspace paths", () => {
+  it("escapes XML-unsafe characters in project paths", () => {
     const out = renderLaunchdPlist({
       ...baseInput,
       projectRoot: "/Users/jane/Dev/<weird>&'\"path",
@@ -63,7 +63,7 @@ describe("renderSystemdUnit", () => {
   it("calls backlog serve with the right args", () => {
     const out = renderSystemdUnit(baseInput);
     expect(out).toContain(
-      "ExecStart=/Users/jane/.npm-global/bin/backlog serve --workspace /Users/jane/Dev/myproject --port 7878 --no-open",
+      "ExecStart=/Users/jane/.npm-global/bin/backlog serve --project /Users/jane/Dev/myproject --port 7878 --no-open",
     );
   });
 

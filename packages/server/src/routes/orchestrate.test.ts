@@ -8,7 +8,7 @@ import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 import { orchestrateRoutes } from "./orchestrate.js";
 
-function makeWorkspace(): ServerProject {
+function makeProject(): ServerProject {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-orch-route-"));
   initLayout({
     root,
@@ -23,10 +23,10 @@ function makeWorkspace(): ServerProject {
   };
 }
 
-function buildApp(workspace: ServerProject): Hono<AppEnv> {
+function buildApp(project: ServerProject): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("workspace", workspace);
+    c.set("project", project);
     await next();
   });
   app.route("/", orchestrateRoutes());
@@ -34,13 +34,13 @@ function buildApp(workspace: ServerProject): Hono<AppEnv> {
 }
 
 describe("GET /orchestrate", () => {
-  it("returns an empty plan for a fresh workspace", async () => {
-    const app = buildApp(makeWorkspace());
+  it("returns an empty plan for a fresh project", async () => {
+    const app = buildApp(makeProject());
     const res = await app.request("/orchestrate");
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       generated_at: string;
-      workspace: string;
+      project: string;
       max_agents: number;
       runnable_count: number;
       waves: unknown[];
@@ -57,18 +57,18 @@ describe("GET /orchestrate", () => {
     expect(body.max_agents).toBeGreaterThan(0);
   });
 
-  it("accepts a ?work_item= filter without crashing", async () => {
-    const app = buildApp(makeWorkspace());
-    const res = await app.request("/orchestrate?work_item=TASK-does-not-exist");
+  it("accepts a ?task= filter without crashing", async () => {
+    const app = buildApp(makeProject());
+    const res = await app.request("/orchestrate?task=TASK-does-not-exist");
     // Filter for an unknown task = empty plan, not 500.
     expect(res.status).toBe(200);
     const body = (await res.json()) as { runnable_count: number };
     expect(body.runnable_count).toBe(0);
   });
 
-  it("accepts a ?task= filter (the executable subtask) without crashing", async () => {
-    const app = buildApp(makeWorkspace());
-    const res = await app.request("/orchestrate?task=TASK-does-not-exist");
+  it("accepts a ?subtask= filter without crashing", async () => {
+    const app = buildApp(makeProject());
+    const res = await app.request("/orchestrate?subtask=SUBTASK-does-not-exist");
     expect(res.status).toBe(200);
   });
 });

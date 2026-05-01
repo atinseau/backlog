@@ -4,7 +4,7 @@ import { nextId } from "@backlog/config";
 import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
 import { removeSyncConflictsForTask } from "./sync-conflicts.js";
 
-export interface CreateWorkItemInput {
+export interface CreateTaskInput {
   title: string;
   description?: string;
   priority?: "P0" | "P1" | "P2" | "P3";
@@ -24,7 +24,7 @@ export interface CreateWorkItemInput {
   preferredAgents?: string[];
 }
 
-export interface UpdateWorkItemInput {
+export interface UpdateTaskInput {
   title?: string;
   description?: string;
   clearDescription?: boolean;
@@ -45,7 +45,7 @@ export interface UpdateWorkItemInput {
   worktreeMode?: "isolated_worktree" | "direct";
 }
 
-export function createTask(backlogDir: string, input: CreateWorkItemInput): Task {
+export function createTask(backlogDir: string, input: CreateTaskInput): Task {
   const file = readTasksFile(backlogDir);
   const now = new Date().toISOString();
   const item: Task = {
@@ -89,11 +89,11 @@ export function getTask(backlogDir: string, id: string): Task | null {
   return readTasksFile(backlogDir).tasks.find((item) => item.id === id) ?? null;
 }
 
-export function updateTask(backlogDir: string, id: string, input: UpdateWorkItemInput): Task {
+export function updateTask(backlogDir: string, id: string, input: UpdateTaskInput): Task {
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
-    throw new Error(`Unknown work item: ${id}`);
+    throw new Error(`Unknown task: ${id}`);
   }
 
   if (input.title !== undefined) {
@@ -155,7 +155,7 @@ export function updateTaskStatus(backlogDir: string, id: string, status: TaskSta
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
-    throw new Error(`Unknown work item: ${id}`);
+    throw new Error(`Unknown task: ${id}`);
   }
   item.status = parsedStatus;
   item.updated_at = new Date().toISOString();
@@ -171,7 +171,7 @@ export function updateTaskPlanning(
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
-    throw new Error(`Unknown work item: ${id}`);
+    throw new Error(`Unknown task: ${id}`);
   }
   item.planning = {
     ...item.planning,
@@ -211,7 +211,7 @@ export function unarchiveTask(backlogDir: string, id: string): Task {
 export function setTaskEstimate(backlogDir: string, id: string, seconds: number | null): Task {
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === id);
-  if (!item) throw new Error(`Unknown work item: ${id}`);
+  if (!item) throw new Error(`Unknown task: ${id}`);
   if (seconds === null) {
     delete item.estimated_duration_seconds;
   } else {
@@ -225,16 +225,16 @@ export function setTaskEstimate(backlogDir: string, id: string, seconds: number 
   return item;
 }
 
-export interface ReorderWorkItemInput {
+export interface ReorderTaskInput {
   workItemId: string;
   beforeId?: string;
   afterId?: string;
 }
 
-export function reorderTask(backlogDir: string, input: ReorderWorkItemInput): Task {
+export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
   const file = readTasksFile(backlogDir);
   const item = file.tasks.find((candidate) => candidate.id === input.workItemId);
-  if (!item) throw new Error(`Unknown work item: ${input.workItemId}`);
+  if (!item) throw new Error(`Unknown task: ${input.workItemId}`);
 
   const samePriority = file.tasks
     .filter((candidate) => candidate.priority === item.priority)
@@ -316,13 +316,13 @@ export function removeTask(backlogDir: string, id: string, options?: { cascadeTa
   const workFile = readTasksFile(backlogDir);
   const itemIndex = workFile.tasks.findIndex((candidate) => candidate.id === id);
   if (itemIndex < 0) {
-    throw new Error(`Unknown work item: ${id}`);
+    throw new Error(`Unknown task: ${id}`);
   }
 
   const taskFile = readSubTasksFile(backlogDir);
   const linkedTasks = taskFile.subtasks.filter((task) => task.task_id === id);
   if (linkedTasks.length > 0 && !options?.cascadeTasks) {
-    throw new Error(`Work item ${id} still has ${linkedTasks.length} task(s). Re-run with --cascade.`);
+    throw new Error(`Task ${id} still has ${linkedTasks.length} subtask(s). Re-run with --cascade.`);
   }
 
   if (linkedTasks.length > 0) {
@@ -345,7 +345,7 @@ export function removeTask(backlogDir: string, id: string, options?: { cascadeTa
 
   const [removed] = workFile.tasks.splice(itemIndex, 1);
   if (!removed) {
-    throw new Error(`Unknown work item: ${id}`);
+    throw new Error(`Unknown task: ${id}`);
   }
   writeTasksFile(backlogDir, workFile);
   removeSyncConflictsForTask(backlogDir, id);

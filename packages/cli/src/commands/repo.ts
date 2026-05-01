@@ -30,7 +30,7 @@ async function resolveRepoBranch(repoPath: string, fallback: string): Promise<st
 }
 
 export function registerRepoCommand(program: Command): void {
-  const repos = program.command("repos").description("Manage workspace repos");
+  const repos = program.command("repos").description("Manage project repos");
 
   repos
     .command("list")
@@ -92,12 +92,12 @@ export function registerRepoCommand(program: Command): void {
 
   repos
     .command("add")
-    .description("Add one repo to the workspace (local path) or clone from a Git URL")
+    .description("Add one repo to the project (local path) or clone from a Git URL")
     .option("--path <path>", "Path to a local repo (mutually exclusive with --url)")
     .option("--url <url>", "Git URL to clone (e.g. https://github.com/user/repo.git)")
-    .option("--clone-into <path>", "Destination directory for the clone; defaults to <workspace>/repos/<id>")
+    .option("--clone-into <path>", "Destination directory for the clone; defaults to <project-state>/repos/<id>")
     .option("--id <id>", "Repo id; defaults to the repo directory name (or URL slug)")
-    .option("--default-branch <branch>", "Default branch; defaults to the detected git branch or workspace default")
+    .option("--default-branch <branch>", "Default branch; defaults to the detected git branch or project default")
     .option("--role <role>", "Optional repo role")
     .option("--disabled", "Add the repo as disabled")
     .action(async (options: {
@@ -187,9 +187,9 @@ export function registerRepoCommand(program: Command): void {
 
   repos
     .command("remove")
-    .description("Remove one repo from the workspace")
+    .description("Remove one repo from the project")
     .argument("<repo-id>", "Repo id")
-    .option("--force", "Also clean linked tasks, work items, and agent scopes")
+    .option("--force", "Also clean linked tasks, tasks, and agent scopes")
     .action((repoId: string, options: { force?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {

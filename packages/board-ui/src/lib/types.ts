@@ -83,9 +83,24 @@ export interface TaskCard {
   progress_percent: number;
 }
 
+export interface GitStatusSummary {
+  clean: boolean;
+  total: number;
+  added: number;
+  modified: number;
+  deleted: number;
+  renamed: number;
+  untracked: number;
+  conflicted: number;
+  staged: number;
+  unstaged: number;
+  error?: string;
+}
+
 export interface BoardResponse {
   generated_at: string;
-  workspace: string;
+  project: string;
+  repo_git_statuses: Record<string, GitStatusSummary>;
   columns: Record<ColumnKey, TaskCard[]>;
   active_claims_count: number;
   active_runs_count: number;
@@ -117,7 +132,7 @@ export interface AgentSummary {
   model: string | null;
   profile: string | null;
   // Server-side credential probe — true when the executor needs an
-  // API key the workspace doesn't currently have. The UI surfaces a
+  // API key the project doesn't currently have. The UI surfaces a
   // warning and grays the toggle so the user knows enabling it would
   // not actually let the orchestrator pick this agent.
   needs_api_key?: boolean;
@@ -161,9 +176,9 @@ export interface ProjectEntry {
   path: string;
   name: string;
   /**
-   * Where the workspace lives relative to the path:
+   * Where the project lives relative to the path:
    *   "in_repo"     → <path>/.backlog/  (single-repo project)
-   *   "user_level"  → <path> itself is the workspace root, registered
+   *   "user_level"  → <path> itself is the project root, registered
    *                   under ~/.backlog/<slug>/ (multi-repo project)
    *
    * Optional because older registries persisted before this field

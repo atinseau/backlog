@@ -104,7 +104,7 @@ describe("repo-service", () => {
     expect(() => removeRepo(backlogDir, "docs")).toThrowError(/Re-run with --force/);
   });
 
-  it("force-removes repos and cleans linked tasks, work items, and agent scopes", () => {
+  it("force-removes repos and cleans linked tasks, subtasks, and agent scopes", () => {
     addRepo(backlogDir, {
       id: "docs",
       path: "./docs",

@@ -19,22 +19,21 @@ export type { AgentSummary, ProjectEntry, CurrentProject } from "./types.js";
 
 const BASE = "/api/v1";
 
-// Active workspace id used by every api.ts call. App.svelte sets it on mount
-// and on user selection in the WorkspaceSelector. When null, the server falls
-// back to the workspace it was launched with.
-let currentWorkspaceId: string | null = null;
+// Active project id used by every api.ts call. App.svelte sets it on mount
+// and on user selection in the ProjectSelector.
+let currentProjectId: string | null = null;
 
 export function setCurrentProjectId(id: string | null): void {
-  currentWorkspaceId = id;
+  currentProjectId = id;
 }
 
 export function getCurrentProjectId(): string | null {
-  return currentWorkspaceId;
+  return currentProjectId;
 }
 
 export function apiUrl(path: string, query: Record<string, string | undefined> = {}): string {
   const url = new URL(`${BASE}${path}`, window.location.origin);
-  if (currentWorkspaceId) url.searchParams.set("workspace", currentWorkspaceId);
+  if (currentProjectId) url.searchParams.set("project", currentProjectId);
   for (const [key, value] of Object.entries(query)) {
     if (value !== undefined) url.searchParams.set(key, value);
   }
@@ -49,18 +48,18 @@ export async function fetchBoard(opts: { repo?: string } = {}): Promise<BoardRes
   return (await response.json()) as BoardResponse;
 }
 
-// Workspaces (registry) -----------------------------------------------------
+// Projects (registry) -------------------------------------------------------
 
 export async function fetchProjectsList(): Promise<ProjectEntry[]> {
   const response = await fetch(apiUrl("/projects"));
-  if (!response.ok) throw new Error(`Workspaces fetch failed: ${response.status}`);
+  if (!response.ok) throw new Error(`Projects fetch failed: ${response.status}`);
   const json = (await response.json()) as { projects: ProjectEntry[] };
   return json.projects;
 }
 
 export async function fetchCurrentProject(): Promise<CurrentProject> {
   const response = await fetch(apiUrl("/projects/current"));
-  if (!response.ok) throw new Error(`Current workspace fetch failed: ${response.status}`);
+  if (!response.ok) throw new Error(`Current project fetch failed: ${response.status}`);
   return (await response.json()) as CurrentProject;
 }
 
@@ -72,7 +71,7 @@ export async function registerProjectByPath(absolutePath: string): Promise<Proje
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Register workspace failed (${response.status}): ${detail}`);
+    throw new Error(`Register project failed (${response.status}): ${detail}`);
   }
   const json = (await response.json()) as { project: ProjectEntry };
   return json.project;
@@ -81,6 +80,7 @@ export async function registerProjectByPath(absolutePath: string): Promise<Proje
 export interface InitProjectInput {
   path: string;
   name: string;
+  git_url?: string;
   default_branch?: string;
   force?: boolean;
 }
@@ -103,7 +103,7 @@ export async function unregisterProjectById(id: string): Promise<void> {
   const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Unregister workspace failed (${response.status}): ${detail}`);
+    throw new Error(`Unregister project failed (${response.status}): ${detail}`);
   }
 }
 
@@ -126,11 +126,11 @@ export async function touchProjectById(id: string): Promise<void> {
   const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}/touch`), { method: "PUT" });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Touch workspace failed (${response.status}): ${detail}`);
+    throw new Error(`Touch project failed (${response.status}): ${detail}`);
   }
 }
 
-// Permissions / agents / workspace ------------------------------------------
+// Permissions / agents / project --------------------------------------------
 
 export async function fetchAgents(): Promise<AgentSummary[]> {
   const response = await fetch(apiUrl("/agents"));
@@ -263,15 +263,16 @@ export async function refreshUserInvitation(id: string): Promise<import("./types
   return json.user;
 }
 
-export async function fetchWorkspace(): Promise<ProjectInfo> {
-  const response = await fetch(apiUrl("/workspace"));
-  if (!response.ok) throw new Error(`Workspace fetch failed: ${response.status}`);
+export async function fetchProject(): Promise<ProjectInfo> {
+  const response = await fetch(apiUrl("/project"));
+  if (!response.ok) throw new Error(`Project fetch failed: ${response.status}`);
   const json = (await response.json()) as { project: ProjectInfo };
   return json.project;
 }
 
+/** @deprecated Use fetchProject. */
 export async function setAutonomyMode(mode: ProjectInfo["autonomy_mode"]): Promise<void> {
-  const response = await fetch(apiUrl("/workspace/autonomy"), {
+  const response = await fetch(apiUrl("/project/autonomy"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ autonomy_mode: mode }),
@@ -287,7 +288,7 @@ export async function setClaimsConfig(input: {
   enforce_on_commit?: boolean;
   auto_claim_on_commit?: boolean;
 }): Promise<void> {
-  const response = await fetch(apiUrl("/workspace/claims"), {
+  const response = await fetch(apiUrl("/project/claims"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -304,7 +305,7 @@ export interface ReviewConfig {
 }
 
 export async function setReviewConfig(input: ReviewConfig): Promise<{ review: { show_review_column: boolean; auto_reviewer_agent_id?: string } }> {
-  const response = await fetch(apiUrl("/workspace/review"), {
+  const response = await fetch(apiUrl("/project/review"), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -646,13 +647,13 @@ export async function setSubTaskAssignee(id: string, agentId: string | null): Pr
   }
 }
 
-export async function fetchHealth(): Promise<{ ok: boolean; workspace: string; version: string }> {
+export async function fetchHealth(): Promise<{ ok: boolean; project: string; version: string }> {
   const response = await fetch(apiUrl("/health"));
   if (!response.ok) throw new Error(`Health failed: ${response.status}`);
   return response.json();
 }
 
-export async function moveWorkItem(id: string, to: string): Promise<void> {
+export async function moveTask(id: string, to: string): Promise<void> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/move`), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -697,7 +698,7 @@ export interface EnrichedDecision {
   // orchestrator panel corresponds to one subtask, so this is the
   // unique key.
   subtask_id: string;
-  // The parent task (work item) the subtask belongs to.
+  // The parent task (task) the subtask belongs to.
   task_id: string;
   task_title: string | null;
   subtask_title: string | null;
@@ -721,7 +722,7 @@ export interface ExecutionWave {
 
 export interface OrchestratePlan {
   generated_at: string;
-  workspace: string;
+  project: string;
   max_agents: number;
   runnable_count: number;
   waves: ExecutionWave[];
@@ -747,7 +748,7 @@ export interface SplitInput {
 }
 
 export interface SplitResult {
-  work_item: unknown;
+  task: unknown;
   created_tasks: Array<{ id: string; title: string; repo: string; scopes: string[] }>;
   mode: "parallel" | "serial";
 }
@@ -1049,11 +1050,277 @@ export async function fetchTaskDetail(id: string): Promise<{ task: TaskDetail; s
   return (await response.json()) as { task: TaskDetail; subtasks: SubTaskDetail[] };
 }
 
-export async function fetchCommits(limit = 50): Promise<CommitEntry[]> {
-  const response = await fetch(apiUrl("/commits", { limit: String(limit) }));
+export async function fetchCommits(limit = 50, repo?: string | null): Promise<CommitEntry[]> {
+  const response = await fetch(apiUrl("/commits", { limit: String(limit), ...(repo ? { repo } : {}) }));
   if (!response.ok) throw new Error(`Commits fetch failed: ${response.status}`);
   const json = (await response.json()) as { commits: CommitEntry[] };
   return json.commits;
+}
+
+export interface GitChangeEntry {
+  path: string;
+  old_path?: string;
+  kind: "added" | "modified" | "deleted" | "renamed" | "untracked" | "conflicted";
+  index_status: string;
+  working_tree_status: string;
+  staged: boolean;
+  unstaged: boolean;
+}
+
+export interface GitRepoChanges {
+  repo: string;
+  path: string;
+  status: import("./types.js").GitStatusSummary;
+  changes: GitChangeEntry[];
+}
+
+export interface GitCommitFileEntry {
+  path: string;
+  old_path?: string;
+  kind: "added" | "modified" | "deleted" | "renamed";
+}
+
+export async function fetchGitChanges(repo?: string | null): Promise<GitRepoChanges[]> {
+  const response = await fetch(apiUrl("/git/changes", repo ? { repo } : {}));
+  if (!response.ok) throw new Error(`Git changes fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repos: GitRepoChanges[] };
+  return json.repos;
+}
+
+export async function commitGitChanges(input: { repo: string; paths: string[]; message: string }): Promise<{ sha: string; short_sha: string }> {
+  const response = await fetch(apiUrl("/git/commit"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { sha: string; short_sha: string };
+}
+
+export interface GitFileDiff {
+  repo: string;
+  file: string;
+  sha?: string;
+  base?: string;
+  head?: string;
+  diff: string;
+  empty: boolean;
+  kind: GitChangeEntry["kind"] | GitCommitFileEntry["kind"] | null;
+}
+
+export async function fetchGitCommitFiles(repo: string, sha: string): Promise<{ repo: string; sha: string; files: GitCommitFileEntry[] }> {
+  const response = await fetch(apiUrl("/git/commit-files", { repo, sha }));
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    throw new Error(detail || `Git commit files failed: ${response.status}`);
+  }
+  return json as { repo: string; sha: string; files: GitCommitFileEntry[] };
+}
+
+export async function fetchGitFileDiff(repo: string, file: string, opts: { sha?: string; base?: string; head?: string } = {}): Promise<GitFileDiff> {
+  const response = await fetch(apiUrl("/git/diff", { repo, file, ...opts }));
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    throw new Error(detail || `Git diff failed: ${response.status}`);
+  }
+  return json as GitFileDiff;
+}
+
+export interface GitRemoteState {
+  repo: string;
+  branch: string | null;
+  upstream: string | null;
+  remote_url: string | null;
+  ahead: number;
+  behind: number;
+  has_upstream: boolean;
+  error?: string;
+}
+
+export interface GitBranchEntry {
+  name: string;
+  current: boolean;
+  upstream?: string | null;
+}
+
+export interface GitRemoteBranchEntry {
+  name: string;
+  remote: string;
+  short_name: string;
+}
+
+export interface GitRepoBranches {
+  repo: string;
+  path: string;
+  default_branch: string;
+  current_branch: string | null;
+  local: GitBranchEntry[];
+  remote: GitRemoteBranchEntry[];
+  error?: string;
+}
+
+export interface GitBranchPreview {
+  repo: string;
+  source: string;
+  target: string;
+  base: string;
+  commits: CommitEntry[];
+  files: GitCommitFileEntry[];
+}
+
+export interface GitWorktreeEntry {
+  path: string;
+  head: string | null;
+  branch: string | null;
+  detached: boolean;
+  bare: boolean;
+  prunable: boolean;
+  prunable_reason?: string;
+  main: boolean;
+}
+
+export interface GitRepoWorktrees {
+  repo: string;
+  path: string;
+  worktrees: GitWorktreeEntry[];
+  error?: string;
+}
+
+export async function fetchGitRemoteState(repo?: string | null): Promise<GitRemoteState[]> {
+  const response = await fetch(apiUrl("/git/remote", repo ? { repo } : {}));
+  if (!response.ok) throw new Error(`Git remote fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repos: GitRemoteState[] };
+  return json.repos;
+}
+
+export async function fetchGitBranches(repo?: string | null): Promise<GitRepoBranches[]> {
+  const response = await fetch(apiUrl("/git/branches", repo ? { repo } : {}));
+  if (!response.ok) throw new Error(`Git branches fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repos: GitRepoBranches[] };
+  return json.repos;
+}
+
+export async function fetchGitBranchPreview(repo: string, source: string, target?: string | null): Promise<GitBranchPreview> {
+  const response = await fetch(apiUrl("/git/branch-preview", { repo, source, ...(target ? { target } : {}) }));
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    throw new Error(detail || `Git branch preview failed: ${response.status}`);
+  }
+  return json as GitBranchPreview;
+}
+
+export async function checkoutGitBranch(input: {
+  repo: string;
+  branch: string;
+  create?: boolean;
+  start_point?: string;
+}): Promise<{ state: GitRepoBranches }> {
+  const response = await fetch(apiUrl("/git/checkout"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { state: GitRepoBranches };
+}
+
+export async function fetchGitWorktrees(repo?: string | null): Promise<GitRepoWorktrees[]> {
+  const response = await fetch(apiUrl("/git/worktrees", repo ? { repo } : {}));
+  if (!response.ok) throw new Error(`Git worktrees fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repos: GitRepoWorktrees[] };
+  return json.repos;
+}
+
+export async function addGitWorktree(input: { repo: string; path: string; branch?: string }): Promise<{ worktrees: GitWorktreeEntry[] }> {
+  const response = await fetch(apiUrl("/git/worktrees"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { worktrees: GitWorktreeEntry[] };
+}
+
+export async function removeGitWorktree(input: { repo: string; path: string; force?: boolean }): Promise<{ worktrees: GitWorktreeEntry[] }> {
+  const response = await fetch(apiUrl("/git/worktrees/remove"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { worktrees: GitWorktreeEntry[] };
+}
+
+export async function pruneGitWorktrees(repo: string): Promise<{ worktrees: GitWorktreeEntry[] }> {
+  const response = await fetch(apiUrl("/git/worktrees/prune"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { worktrees: GitWorktreeEntry[] };
+}
+
+export async function mergeGitBranch(input: {
+  repo: string;
+  source: string;
+  strategy: "auto" | "ff_only" | "no_ff";
+}): Promise<{ sha: string; short_sha: string; state: GitRepoBranches }> {
+  const response = await fetch(apiUrl("/git/merge"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { sha: string; short_sha: string; state: GitRepoBranches };
+}
+
+export async function syncGitRepo(repo: string): Promise<{ actions: string[]; state: GitRemoteState }> {
+  const response = await fetch(apiUrl("/git/sync"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { actions: string[]; state: GitRemoteState };
 }
 
 // Integrations: GitHub + Jira ----------------------------------------------
@@ -1509,7 +1776,7 @@ export interface HookStatus {
   points_to_backlog_bin: boolean;
 }
 export interface HooksOverview {
-  workspace_paused_until: string | null;
+  project_paused_until: string | null;
   hooks: HookStatus[];
 }
 

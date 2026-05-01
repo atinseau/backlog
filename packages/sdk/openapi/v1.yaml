@@ -61,7 +61,7 @@ components:
         expires_at: { type: string, format: date-time }
       required: [user, token, expires_at]
 
-    Workspace:
+    Project:
       type: object
       properties:
         id: { type: integer, format: int64 }
@@ -71,11 +71,11 @@ components:
         created_at: { type: string, format: date-time }
       required: [id, name, slug, owner_id, created_at]
 
-    WorkItem:
+    Task:
       type: object
       properties:
         id: { type: integer, format: int64 }
-        workspace_id: { type: integer, format: int64 }
+        project_id: { type: integer, format: int64 }
         external_id: { type: string }
         title: { type: string }
         status: { type: string, enum: [ready, in_progress, review, done, blocked, archived] }
@@ -83,20 +83,25 @@ components:
         payload: { type: object, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-      required: [id, workspace_id, external_id, title, status, priority]
+      required: [id, project_id, external_id, title, status, priority]
 
-    Task:
+    Subtask:
       type: object
       properties:
         id: { type: integer, format: int64 }
-        work_item_id: { type: integer, format: int64 }
+        task_id: { type: integer, format: int64 }
         repo: { type: string, nullable: true }
         scope: { type: string, nullable: true }
         status: { type: string, enum: [planned, ready, in_progress, awaiting_review, done, failed, blocked] }
         assigned_agent: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-      required: [id, work_item_id, status]
+      required: [id, task_id, status]
+
+    SubTask:
+      deprecated: true
+      allOf:
+        - $ref: '#/components/schemas/Subtask'
 
     Run:
       type: object
@@ -128,7 +133,7 @@ components:
         limits:
           type: object
           properties:
-            work_items: { type: integer, nullable: true }
+            tasks: { type: integer, nullable: true }
             tasks_per_month: { type: integer, nullable: true }
             members: { type: integer, nullable: true }
             ai_tokens_per_month: { type: integer, nullable: true }
@@ -184,7 +189,7 @@ components:
       type: object
       description: |
         Pass-through of the Anthropic Messages API response. Token usage
-        is also recorded server-side and counted against the workspace
+        is also recorded server-side and counted against the project
         quota; consumers should rely on `/usage` for billing.
       additionalProperties: true
 
@@ -302,9 +307,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /workspaces:
+  /projects:
     get:
-      summary: List accessible workspaces
+      summary: List accessible projects
       responses:
         '200':
           description: OK
@@ -313,11 +318,11 @@ paths:
               schema:
                 type: object
                 properties:
-                  workspaces:
+                  projects:
                     type: array
-                    items: { $ref: '#/components/schemas/Workspace' }
+                    items: { $ref: '#/components/schemas/Project' }
     post:
-      summary: Create a workspace
+      summary: Create a project
       requestBody:
         required: true
         content:
@@ -335,11 +340,11 @@ paths:
               schema:
                 type: object
                 properties:
-                  workspace: { $ref: '#/components/schemas/Workspace' }
+                  project: { $ref: '#/components/schemas/Project' }
 
-  /workspaces/{id}:
+  /projects/{id}:
     get:
-      summary: Show one workspace
+      summary: Show one project
       parameters:
         - name: id
           in: path
@@ -353,13 +358,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  workspace: { $ref: '#/components/schemas/Workspace' }
+                  project: { $ref: '#/components/schemas/Project' }
         '404':
           description: Not found
 
-  /workspaces/{id}/work-items:
+  /projects/{id}/tasks:
     get:
-      summary: List work items in a workspace
+      summary: List tasks in a project
       parameters:
         - name: id
           in: path
@@ -373,11 +378,11 @@ paths:
               schema:
                 type: object
                 properties:
-                  work_items:
+                  tasks:
                     type: array
-                    items: { $ref: '#/components/schemas/WorkItem' }
+                    items: { $ref: '#/components/schemas/Task' }
     post:
-      summary: Create a work item
+      summary: Create a task
       parameters:
         - name: id
           in: path
@@ -404,13 +409,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  work_item: { $ref: '#/components/schemas/WorkItem' }
+                  task: { $ref: '#/components/schemas/Task' }
 
-  /workspaces/{workspace_id}/tasks:
+  /projects/{project_id}/subtasks:
     get:
-      summary: List tasks in a workspace
+      summary: List subtasks in a project
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -422,13 +427,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  tasks:
+                  subtasks:
                     type: array
-                    items: { $ref: '#/components/schemas/Task' }
+                    items: { $ref: '#/components/schemas/Subtask' }
     post:
-      summary: Create a task
+      summary: Create a subtask
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -438,9 +443,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [work_item_id]
+              required: [task_id]
               properties:
-                work_item_id: { type: integer }
+                task_id: { type: integer }
                 repo: { type: string }
                 scope: { type: string }
                 status: { type: string }
@@ -453,13 +458,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  task: { $ref: '#/components/schemas/Task' }
+                  subtask: { $ref: '#/components/schemas/Subtask' }
 
-  /workspaces/{workspace_id}/runs:
+  /projects/{project_id}/runs:
     get:
-      summary: List runs in a workspace
+      summary: List runs in a project
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -480,7 +485,7 @@ paths:
     post:
       summary: Create a run
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -516,11 +521,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BillingConfig' }
 
-  /workspaces/{workspace_id}/billing:
+  /projects/{project_id}/billing:
     get:
-      summary: Current subscription for a workspace
+      summary: Current subscription for a project
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -534,13 +539,13 @@ paths:
                 properties:
                   subscription: { $ref: '#/components/schemas/Subscription' }
         '404':
-          description: Workspace not found or not a member
+          description: Project not found or not a member
 
-  /workspaces/{workspace_id}/billing/checkout:
+  /projects/{project_id}/billing/checkout:
     post:
-      summary: Create a Stripe Checkout Session for upgrading the workspace
+      summary: Create a Stripe Checkout Session for upgrading the project
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -561,16 +566,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CheckoutSession' }
-        '403': { description: Forbidden — only workspace owner can checkout }
-        '404': { description: Workspace not found }
+        '403': { description: Forbidden — only project owner can checkout }
+        '404': { description: Project not found }
         '422': { description: Unknown plan or invalid input }
         '503': { description: Billing is not configured on this server }
 
-  /workspaces/{workspace_id}/billing/portal:
+  /projects/{project_id}/billing/portal:
     post:
-      summary: Create a Stripe Billing Portal session for the workspace
+      summary: Create a Stripe Billing Portal session for the project
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -588,16 +593,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PortalSession' }
-        '403': { description: Forbidden — only workspace owner can manage billing }
-        '404': { description: Workspace not found }
-        '422': { description: No Stripe customer linked yet (workspace never checked out) }
+        '403': { description: Forbidden — only project owner can manage billing }
+        '404': { description: Project not found }
+        '422': { description: No Stripe customer linked yet (project never checked out) }
         '503': { description: Billing is not configured on this server }
 
-  /workspaces/{workspace_id}/usage:
+  /projects/{project_id}/usage:
     get:
       summary: Token spend and remaining quota for the current calendar month
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -608,17 +613,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UsageReport' }
         '404':
-          description: Workspace not found
+          description: Project not found
 
-  /workspaces/{workspace_id}/ai/messages:
+  /projects/{project_id}/ai/messages:
     post:
-      summary: Send a message to Anthropic Claude through the workspace proxy
+      summary: Send a message to Anthropic Claude through the project proxy
       description: |
         Proxies the request to the Anthropic Messages API using a
         server-side API key. Tokens consumed are billed against the
-        workspace's monthly quota (see `/usage`).
+        project's monthly quota (see `/usage`).
       parameters:
-        - name: workspace_id
+        - name: project_id
           in: path
           required: true
           schema: { type: integer }
@@ -634,12 +639,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AiMessageResponse' }
         '402':
-          description: Workspace has hit its monthly token quota
+          description: Project has hit its monthly token quota
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '404':
-          description: Workspace not found
+          description: Project not found
         '502':
           description: Upstream Anthropic error
         '503':
@@ -669,18 +674,18 @@ paths:
         '401':
           description: Signature mismatch
 
-  /webhooks/github/{workspace_slug}:
+  /webhooks/github/{project_slug}:
     post:
       summary: GitHub Issues webhook
       description: |
         Receives GitHub webhook events. Validates `X-Hub-Signature-256`
-        when `GITHUB_WEBHOOK_SECRET` is set in the workspace config.
+        when `GITHUB_WEBHOOK_SECRET` is set in the project config.
 
         Currently handles `issues` events (opened, closed, reopened) and
-        creates/updates a corresponding work item.
+        creates/updates a corresponding task.
       security: []
       parameters:
-        - name: workspace_slug
+        - name: project_slug
           in: path
           required: true
           schema: { type: string }
@@ -703,4 +708,4 @@ paths:
         '401':
           description: Signature mismatch
         '404':
-          description: Workspace not found
+          description: Project not found

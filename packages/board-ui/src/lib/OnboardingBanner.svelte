@@ -3,8 +3,8 @@
   import type { BoardResponse, ProjectEntry, Repo } from "./types.js";
 
   interface Props {
-    workspaces: ProjectEntry[];
-    workspaceRepos: Repo[];
+    projects: ProjectEntry[];
+    projectRepos: Repo[];
     board: BoardResponse | null;
     dismissed: boolean;
     onCreateProject: () => void;
@@ -14,8 +14,8 @@
   }
 
   let {
-    workspaces,
-    workspaceRepos,
+    projects,
+    projectRepos,
     board,
     dismissed,
     onCreateProject,
@@ -44,9 +44,9 @@
   const step = $derived<Step>(
     dismissed
       ? null
-      : workspaces.length === 0
+      : projects.length === 0
         ? "project"
-        : workspaceRepos.length === 0
+        : projectRepos.length === 0
           ? "repos"
           : totalTasks === 0
             ? "task"

@@ -24,9 +24,9 @@ export class AiSplitterUnavailableError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog work item down into a small set of concrete sub-tasks.
+const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog task down into a small set of concrete sub-tasks.
 
-For each work item you receive, propose between 2 and 6 sub-tasks. Each task must:
+For each task you receive, propose between 2 and 6 sub-tasks. Each task must:
 - have a short imperative title (≤ 80 chars)
 - target one of the provided repos (use the exact repo id)
 - include 1 to 6 file scopes (paths or globs, repo-relative) that the task will touch
@@ -77,7 +77,7 @@ const PROPOSAL_SCHEMA = {
 
 function buildUserPrompt(workItem: Task, repos: string[]): string {
   const lines: string[] = [];
-  lines.push(`Work item id: ${workItem.id}`);
+  lines.push(`Task id: ${workItem.id}`);
   lines.push(`Title: ${workItem.title}`);
   lines.push(`Priority: ${workItem.priority}`);
   if (workItem.description) lines.push(`Description: ${workItem.description}`);
@@ -88,9 +88,9 @@ function buildUserPrompt(workItem: Task, repos: string[]): string {
   if (workItem.labels.length > 0) lines.push(`Labels: ${workItem.labels.join(", ")}`);
   lines.push(`Risk hint: ${workItem.planning.risk}`);
   lines.push("");
-  lines.push(`Available repos for this workspace: ${repos.join(", ")}`);
+  lines.push(`Available repos for this project: ${repos.join(", ")}`);
   if (workItem.repo_targets.length > 0) {
-    lines.push(`Preferred repo targets on this work item: ${workItem.repo_targets.join(", ")}`);
+    lines.push(`Preferred repo targets on this task: ${workItem.repo_targets.join(", ")}`);
   }
   lines.push("");
   lines.push("Propose 2 to 6 sub-tasks following the schema. Maximize parallelism where scopes don't overlap.");
@@ -238,7 +238,7 @@ export async function suggestSplit(
   options: SuggestOptions = {},
 ): Promise<SplitProposal> {
   if (repos.length === 0) {
-    throw new Error("No repos available — configure at least one repo in the workspace before splitting.");
+    throw new Error("No repos available — configure at least one repo in the project before splitting.");
   }
   const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
   if (provider === "anthropic") return suggestSplitAnthropic(workItem, repos, options);
@@ -372,7 +372,7 @@ function validateProposal(parsed: unknown, repos: string[], model: string): Spli
     if (!repo) throw new Error(`tasks[${index}].repo is required`);
     if (!repos.includes(repo)) {
       throw new Error(
-        `tasks[${index}].repo='${repo}' is not in the workspace repos [${repos.join(", ")}]`,
+        `tasks[${index}].repo='${repo}' is not in the project repos [${repos.join(", ")}]`,
       );
     }
     if (risk !== "low" && risk !== "medium" && risk !== "high") {

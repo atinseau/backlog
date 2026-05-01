@@ -71,11 +71,11 @@ function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, Math.round(value)));
 }
 
-export interface WorkItemProgressInput {
+export interface TaskRollupProgressInput {
   taskProgresses: Array<{ percent: number; estimateSeconds: number }>;
 }
 
-export function computeTaskProgress(input: WorkItemProgressInput): number {
+export function computeTaskProgress(input: TaskRollupProgressInput): number {
   const { taskProgresses } = input;
   if (taskProgresses.length === 0) return 0;
   const totalDuration = taskProgresses.reduce((sum, t) => sum + Math.max(0, t.estimateSeconds), 0);

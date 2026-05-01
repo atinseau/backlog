@@ -43,8 +43,8 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("add")
-    .description("Create a local work item")
-    .requiredOption("--title <title>", "Work item title")
+    .description("Create a task")
+    .requiredOption("--title <title>", "Task title")
     .option("--description <description>", "Optional description")
     .option("--priority <priority>", "Priority (P0-P3)", "P2")
     .option("--repo <repo...>", "Target repo ids")
@@ -70,21 +70,21 @@ export function registerTaskCommand(program: Command): void {
         ...(options.label ? { labels: options.label } : {}),
         ...(options.acceptance ? { acceptanceCriteria: options.acceptance } : {}),
       });
-      console.log(`Created work item ${item.id}`);
+      console.log(`Created task ${item.id}`);
     });
 
   task
     .command("update")
-    .description("Update work item metadata without editing YAML by hand")
-    .argument("<work-item-id>", "Work item id")
-    .option("--title <title>", "Work item title")
-    .option("--description <description>", "Work item description")
+    .description("Update task metadata without editing YAML by hand")
+    .argument("<task-id>", "Task id")
+    .option("--title <title>", "Task title")
+    .option("--description <description>", "Task description")
     .option("--clear-description", "Remove the current description")
     .option("--priority <priority>", "Priority (P0-P3)")
     .option("--repo <repo>", "Replace target repos", collectValues, [])
     .option("--label <label>", "Replace labels", collectValues, [])
     .option("--acceptance <criterion>", "Replace acceptance criteria", collectValues, [])
-    .option("--dependency <work-item-id>", "Replace work item dependencies", collectValues, [])
+    .option("--dependency <task-id>", "Replace task dependencies", collectValues, [])
     .option("--risk <risk>", "Planning risk")
     .option("--lane <lane>", "Preferred planning lane")
     .option("--clear-lane", "Clear the preferred planning lane")
@@ -126,13 +126,13 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("list")
-    .description("List known work items (archived items hidden by default — pass --archived or --all to include)")
-    .option("--status <status>", "Only show work items in one status")
-    .option("--priority <priority>", "Only show work items at one priority")
-    .option("--repo <repo>", "Only show work items targeting one repo")
-    .option("--label <label>", "Only show work items carrying one label")
-    .option("--archived", "Only show archived work items")
-    .option("--all", "Show every work item including archived")
+    .description("List known tasks (archived tasks hidden by default — pass --archived or --all to include)")
+    .option("--status <status>", "Only show tasks in one status")
+    .option("--priority <priority>", "Only show tasks at one priority")
+    .option("--repo <repo>", "Only show tasks targeting one repo")
+    .option("--label <label>", "Only show tasks carrying one label")
+    .option("--archived", "Only show archived tasks")
+    .option("--all", "Show every task including archived")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { json?: boolean; status?: string; priority?: string; repo?: string; label?: string; archived?: boolean; all?: boolean }) => {
       const workspace = findProject();
@@ -168,7 +168,7 @@ export function registerTaskCommand(program: Command): void {
         return;
       }
       if (items.length === 0) {
-        console.log("No work items yet.");
+        console.log("No tasks yet.");
         return;
       }
       for (const item of items) {
@@ -178,8 +178,8 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("show")
-    .description("Show one work item")
-    .argument("<work-item-id>", "Work item id")
+    .description("Show one task")
+    .argument("<task-id>", "Task id")
     .option("--json", "Emit machine-readable JSON")
     .action((workItemId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -188,13 +188,13 @@ export function registerTaskCommand(program: Command): void {
       }
       const item = getTask(workspace.backlogDir, workItemId);
       if (!item) {
-        throw new Error(`Unknown work item: ${workItemId}`);
+        throw new Error(`Unknown task: ${workItemId}`);
       }
       if (options.json) {
         console.log(JSON.stringify(item, null, 2));
         return;
       }
-      console.log(`Work item: ${item.id}`);
+      console.log(`Task: ${item.id}`);
       console.log(`Title: ${item.title}`);
       console.log(`Status: ${item.status}`);
       console.log(`Priority: ${item.priority}`);
@@ -209,8 +209,8 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("remove")
     .description("Permanently delete a task (and optionally its sub-tasks)")
-    .argument("<work-item-id>", "Work item id")
-    .option("--cascade", "Also remove tasks linked to this work item")
+    .argument("<task-id>", "Task id")
+    .option("--cascade", "Also remove subtasks linked to this task")
     .action((workItemId: string, options: { cascade?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
@@ -225,7 +225,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("archive")
     .description("Archive a task — hides it from the default board / list (status preserved). Reversible with `unarchive`.")
-    .argument("<work-item-id>", "Work item id")
+    .argument("<task-id>", "Task id")
     .action((workItemId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -238,7 +238,7 @@ export function registerTaskCommand(program: Command): void {
   task
     .command("unarchive")
     .description("Restore an archived task to the default views")
-    .argument("<work-item-id>", "Work item id")
+    .argument("<task-id>", "Task id")
     .action((workItemId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -250,8 +250,8 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("move")
-    .description("Move a work item to a new status")
-    .argument("<work-item-id>", "Work item id")
+    .description("Move a task to a new status")
+    .argument("<task-id>", "Task id")
     .argument("<status>", "Target status")
     .action((workItemId: string, status: "backlog" | "ready" | "in_progress" | "review" | "test" | "released" | "done" | "blocked") => {
       const workspace = findProject();
@@ -264,8 +264,8 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("plan")
-    .description("Explain how a work item would execute")
-    .argument("<work-item-id>", "Work item id")
+    .description("Explain how a task would execute")
+    .argument("<task-id>", "Task id")
     .option("--json", "Emit machine-readable JSON")
     .action((workItemId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -280,7 +280,7 @@ export function registerTaskCommand(program: Command): void {
         return;
       }
 
-      console.log(`Work item: ${outline.workItem.id}`);
+      console.log(`Task: ${outline.workItem.id}`);
       console.log(`Title: ${outline.workItem.title}`);
       console.log("");
       console.log("Execution order");
@@ -299,13 +299,13 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("split")
-    .description("Split one work item into executable repo-scoped tasks")
-    .argument("<work-item-id>", "Work item id")
+    .description("Split one task into executable repo-scoped subtasks")
+    .argument("<task-id>", "Task id")
     .option("--repo <repo>", "Override one target repo", collectValues, [])
     .option("--scope <repo=glob>", "Map a scope to one target repo", collectValues, [])
     .option("--mode <mode>", "parallel or serial", "parallel")
     .option("--risk <risk>", "Risk level for created tasks")
-    .option("--force", "Append split tasks even if the work item already has tasks")
+    .option("--force", "Append subtasks even if the task already has subtasks")
     .option("--json", "Emit machine-readable JSON")
     .action((workItemId: string, options: {
       repo: string[];
@@ -322,7 +322,7 @@ export function registerTaskCommand(program: Command): void {
       const config = loadConfig(workspace.backlogDir);
       const item = getTask(workspace.backlogDir, workItemId);
       if (!item) {
-        throw new Error(`Unknown work item: ${workItemId}`);
+        throw new Error(`Unknown task: ${workItemId}`);
       }
 
       const repos = resolveSplitRepos(config, item, options.repo);
@@ -340,7 +340,7 @@ export function registerTaskCommand(program: Command): void {
         return;
       }
 
-      console.log(`Split ${result.workItem.id} into ${result.createdTasks.length} task(s)`);
+      console.log(`Split ${result.workItem.id} into ${result.createdTasks.length} subtask(s)`);
       console.log(`Mode: ${result.mode}`);
       for (const task of result.createdTasks) {
         const dependencyText = task.depends_on.length > 0 ? ` depends_on=${task.depends_on.join(",")}` : "";
@@ -352,7 +352,7 @@ export function registerTaskCommand(program: Command): void {
     .command("import")
     .description("Import work from one source or all enabled sources")
     .argument("[source-id]", "Optional source id")
-    .option("--dry-run", "Fetch without writing work-items.yaml")
+    .option("--dry-run", "Fetch without writing tasks.yaml")
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
@@ -377,10 +377,10 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("estimate")
-    .description("Set or clear the work item override estimate (in seconds)")
-    .argument("<work-item-id>", "Work item id")
+    .description("Set or clear the task override estimate (in seconds)")
+    .argument("<task-id>", "Task id")
     .argument("[seconds]", "Duration in seconds (omit with --clear)")
-    .option("--clear", "Remove the override; the estimate falls back to the sum of task estimates")
+    .option("--clear", "Remove the override; the estimate falls back to the sum of subtask estimates")
     .action((workItemId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {

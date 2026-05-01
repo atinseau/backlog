@@ -1,15 +1,15 @@
-// `backlog migrate <subcommand>` — workspace migrations.
+// `backlog migrate <subcommand>` — project migrations.
 //
 // Currently the only subcommand is `ids`, which renames legacy
 // hex/timestamp IDs (TASK-c4bdf6ac, ST-9a2f, RUN-b71e, CLM-…-…) to
 // the sequential type_NNN format introduced in 1.4. Designed to grow
-// — future workspace migrations register here too.
+// — future project migrations register here too.
 
 import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
-import { migrateWorkspaceIds } from "@backlog/core";
+import { migrateProjectIds } from "@backlog/core";
 
 function ymdHM(): string {
   const d = new Date();
@@ -30,14 +30,14 @@ function copyDirSync(src: string, dest: string): void {
 export function registerMigrateCommand(program: Command): void {
   const migrate = program
     .command("migrate")
-    .description("Run a workspace migration");
+    .description("Run a project migration");
 
   migrate
     .command("ids")
     .description(
       "Rename legacy IDs (TASK-…, ST-…, RUN-…, CLM-…) to the sequential " +
         "task_NNN / subtask_NNN / run_NNN / claim_NNN / sync_NNN format. " +
-        "Backs up the workspace before mutating anything.",
+        "Backs up the project before mutating anything.",
     )
     .option("--dry-run", "Print what would be migrated without writing")
     .option("--no-backup", "Skip the safety backup (advanced; you've been warned)")
@@ -65,7 +65,7 @@ export function registerMigrateCommand(program: Command): void {
         const tmp = `${backlogDir}.dry-run-${ymdHM()}`;
         copyDirSync(backlogDir, tmp);
         try {
-          const report = await migrateWorkspaceIds(tmp);
+          const report = await migrateProjectIds(tmp);
           console.log("Dry-run summary (no changes written):");
           console.log(JSON.stringify(report, null, 2));
         } finally {
@@ -74,7 +74,7 @@ export function registerMigrateCommand(program: Command): void {
         return;
       }
 
-      const report = await migrateWorkspaceIds(backlogDir);
+      const report = await migrateProjectIds(backlogDir);
       console.log("Migrated:");
       for (const [type, counts] of Object.entries(report)) {
         if (type === "renames") continue;

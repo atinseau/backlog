@@ -34,13 +34,13 @@ export function runsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/runs", (c) => {
-    const workspace = c.get("workspace");
-    const runs = listActiveRuns(workspace.backlogDir);
+    const project = c.get("project");
+    const runs = listActiveRuns(project.backlogDir);
     return c.json({ count: runs.length, runs });
   });
 
   app.post("/runs", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = startBodySchema.safeParse(raw ?? {});
     if (!parsed.success) {
@@ -49,7 +49,7 @@ export function runsRoutes(): Hono<AppEnv> {
     const body = parsed.data;
 
     try {
-      const config = loadConfig(workspace.backlogDir);
+      const config = loadConfig(project.backlogDir);
       if (config.autonomy_mode === "observe") {
         return c.json(
           { error: "autonomy_mode_observe", detail: "Runs are disabled in observe mode." },
@@ -73,15 +73,15 @@ export function runsRoutes(): Hono<AppEnv> {
       // for genuinely multi-step work; for "create one file" tasks
       // the auto-shim keeps the Play button honest.
       if (body.task_id && !body.subtask_id) {
-        const existing = listSubTasks(workspace.backlogDir).filter(
+        const existing = listSubTasks(project.backlogDir).filter(
           (s) => s.task_id === body.task_id,
         );
         if (existing.length === 0) {
-          const task = listTasks(workspace.backlogDir).find((t) => t.id === body.task_id);
+          const task = listTasks(project.backlogDir).find((t) => t.id === body.task_id);
           if (task) {
-            const repos = listRepos(workspace.backlogDir);
+            const repos = listRepos(project.backlogDir);
             // Pick a target repo: first explicit repo_target, else first
-            // enabled workspace repo, else the only repo if there is one.
+            // enabled project repo, else the only repo if there is one.
             const repoId =
               task.repo_targets[0] ??
               repos.find((r) => r.enabled)?.id ??
@@ -99,7 +99,7 @@ export function runsRoutes(): Hono<AppEnv> {
               // "auto pick" — the planner ranks all eligible agents.
               const preferred = task.execution_defaults?.preferred_agents ?? [];
               if (preferred.length > 0) subInput.preferredAgents = preferred;
-              createSubTask(workspace.backlogDir, subInput);
+              createSubTask(project.backlogDir, subInput);
             }
           }
         }
@@ -108,10 +108,10 @@ export function runsRoutes(): Hono<AppEnv> {
       const planOpts: { workItemId?: string; taskId?: string } = {};
       if (body.task_id) planOpts.workItemId = body.task_id;
       if (body.subtask_id) planOpts.taskId = body.subtask_id;
-      const plan = buildExecutionPlan(workspace.backlogDir, config, planOpts);
+      const plan = buildExecutionPlan(project.backlogDir, config, planOpts);
 
       const launcherInput: Parameters<typeof startRunsForPlan>[0] = {
-        backlogDir: workspace.backlogDir,
+        backlogDir: project.backlogDir,
         config,
         plan,
         maxStart: body.max_start ?? 1,
@@ -141,9 +141,9 @@ export function runsRoutes(): Hono<AppEnv> {
   // user has to drop to a terminal to clear EN REVUE cards, which
   // is the difference between "looks alive" and "I have to babysit".
   app.post("/runs/:id/approve", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const runId = c.req.param("id");
-    const run = loadRun(workspace.backlogDir, runId);
+    const run = loadRun(project.backlogDir, runId);
     if (!run) {
       return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
     }
@@ -166,7 +166,7 @@ export function runsRoutes(): Hono<AppEnv> {
       if (parsed.data?.merge_strategy) {
         approveOptions.mergeStrategy = parsed.data.merge_strategy;
       }
-      await approveRun(workspace.backlogDir, runId, parsed.data?.summary, approveOptions);
+      await approveRun(project.backlogDir, runId, parsed.data?.summary, approveOptions);
       return c.json({ ok: true, run_id: runId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -180,9 +180,9 @@ export function runsRoutes(): Hono<AppEnv> {
   // runs (not the global orchestrator) need stopping.
   const cancelBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
   app.post("/runs/:id/cancel", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const runId = c.req.param("id");
-    const run = loadRun(workspace.backlogDir, runId);
+    const run = loadRun(project.backlogDir, runId);
     if (!run) {
       return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
     }
@@ -198,7 +198,7 @@ export function runsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      await cancelRun(workspace.backlogDir, runId, parsed.data?.summary);
+      await cancelRun(project.backlogDir, runId, parsed.data?.summary);
       return c.json({ ok: true, run_id: runId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -208,9 +208,9 @@ export function runsRoutes(): Hono<AppEnv> {
 
   const discardBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
   app.post("/runs/:id/discard", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const runId = c.req.param("id");
-    const run = loadRun(workspace.backlogDir, runId);
+    const run = loadRun(project.backlogDir, runId);
     if (!run) {
       return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
     }
@@ -226,7 +226,7 @@ export function runsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      await discardRun(workspace.backlogDir, runId, parsed.data?.summary);
+      await discardRun(project.backlogDir, runId, parsed.data?.summary);
       return c.json({ ok: true, run_id: runId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

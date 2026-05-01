@@ -1,5 +1,5 @@
 // Local app preferences — frontend-only, persisted in localStorage.
-// Distinct from workspace settings (autonomy / claims) which live in
+// Distinct from project settings (autonomy / claims) which live in
 // config.toml on disk and are managed by the Permissions section.
 // These are per-device choices about how the Backlog UI looks and
 // behaves for this user.
@@ -12,7 +12,7 @@ const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
 
 // Keys that get cleared by "Reset local settings". We list them here
 // rather than wildcarding so we don't accidentally drop values stored
-// by other Backlog code we forgot about (e.g. workspace-keyed chat
+// by other Backlog code we forgot about (e.g. project-keyed chat
 // history). A targeted list is safer.
 const APP_PREFERENCE_KEYS = [
   KEY_SHOW_REVIEW,
@@ -33,7 +33,7 @@ const APP_PREFERENCE_KEYS = [
   "backlog.selected_project_id",
 ];
 
-// Per-workspace chat history is stored under "backlog.chat.history.<ws-id>".
+// Per-project chat history is stored under "backlog.chat.history.<ws-id>".
 // Cleared with a wildcard sweep below.
 const CHAT_HISTORY_PREFIX = "backlog.chat.history.";
 

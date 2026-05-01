@@ -98,18 +98,18 @@ export function removeSource(backlogDir: string, id: string, options?: { force?:
     throw new Error(`Unknown source: ${id}`);
   }
 
-  const workItems = readTasksFile(backlogDir);
-  const linkedWorkItems = workItems.tasks.filter((item) => item.source_links.some((link) => link.source_ref === id));
-  if (linkedWorkItems.length > 0 && !options?.force) {
-    throw new Error(`Source ${id} is still linked from ${linkedWorkItems.length} work item(s). Re-run with --force.`);
+  const tasks = readTasksFile(backlogDir);
+  const linkedTasks = tasks.tasks.filter((item) => item.source_links.some((link) => link.source_ref === id));
+  if (linkedTasks.length > 0 && !options?.force) {
+    throw new Error(`Source ${id} is still linked from ${linkedTasks.length} task(s). Re-run with --force.`);
   }
 
-  if (linkedWorkItems.length > 0) {
-    for (const item of workItems.tasks) {
+  if (linkedTasks.length > 0) {
+    for (const item of tasks.tasks) {
       item.source_links = item.source_links.filter((link) => link.source_ref !== id);
       item.updated_at = new Date().toISOString();
     }
-    writeTasksFile(backlogDir, workItems);
+    writeTasksFile(backlogDir, tasks);
   }
 
   const [removed] = file.sources.splice(index, 1);
@@ -169,7 +169,7 @@ export function upsertImportedTasks(backlogDir: string, importedItems: Task[]): 
     if (existing.status !== imported.status && source.source_ref) {
       recordStatusConflict({
         backlogDir,
-        workItemId: existing.id,
+        taskId: existing.id,
         sourceRef: source.source_ref,
         localValue: existing.status,
         externalValue: imported.status,

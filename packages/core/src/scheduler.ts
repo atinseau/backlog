@@ -143,14 +143,14 @@ function scoreTask(task: SubTask, workItem: Task): number {
 function compareRunnableOrder(
   left: EvaluatedDecision,
   right: EvaluatedDecision,
-  workItemsById: Map<string, Task>,
+  tasksById: Map<string, Task>,
 ): number {
-  const leftWorkItem = left.task ? workItemsById.get(left.task.task_id) : undefined;
-  const rightWorkItem = right.task ? workItemsById.get(right.task.task_id) : undefined;
-  if (leftWorkItem && rightWorkItem) {
-    const priorityDiff = taskPriorityWeight(rightWorkItem) - taskPriorityWeight(leftWorkItem);
+  const leftTask = left.task ? tasksById.get(left.task.task_id) : undefined;
+  const rightTask = right.task ? tasksById.get(right.task.task_id) : undefined;
+  if (leftTask && rightTask) {
+    const priorityDiff = taskPriorityWeight(rightTask) - taskPriorityWeight(leftTask);
     if (priorityDiff !== 0) return priorityDiff;
-    const rankDiff = (rightWorkItem.rank ?? 0) - (leftWorkItem.rank ?? 0);
+    const rankDiff = (rightTask.rank ?? 0) - (leftTask.rank ?? 0);
     if (rankDiff !== 0) return rankDiff;
   }
   const subTaskDiff = (right.task?.priority_score ?? 0) - (left.task?.priority_score ?? 0);
@@ -206,7 +206,7 @@ export function buildExecutionPlan(
         workItemId: task.task_id,
         action: "block" as const,
         score: -1000,
-        reasons: ["missing_work_item"],
+        reasons: ["missing_task"],
       };
     }
 
@@ -445,7 +445,7 @@ export interface WorkExecutionOutline {
 export function buildTaskExecutionOutline(backlogDir: string, config: ProjectConfig, workItemId: string): WorkExecutionOutline {
   const workItem = listTasks(backlogDir).find((item) => item.id === workItemId);
   if (!workItem) {
-    throw new Error(`Unknown work item: ${workItemId}`);
+    throw new Error(`Unknown task: ${workItemId}`);
   }
   const tasks = listSubTasks(backlogDir)
     .filter((task) => task.task_id === workItemId)

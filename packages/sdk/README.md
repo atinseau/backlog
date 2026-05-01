@@ -26,27 +26,27 @@ const backlog = new BacklogClient({
 await backlog.signup("alice@example.com", "password123");
 // the SDK now holds your token; subsequent calls are authenticated
 
-const ws = await backlog.createWorkspace("My Team");
-console.log(ws.id, ws.slug);
+const project = await backlog.createProject("My Team");
+console.log(project.id, project.slug);
 
-const item = await backlog.createWorkItem(ws.id, {
-  external_id: "WI-1",
+const task = await backlog.createTask(project.id, {
+  external_id: "TASK-1",
   title: "Implement scheduler",
   priority: "P1",
 });
 
-const items = await backlog.listWorkItems(ws.id);
-console.log(items);
+const tasks = await backlog.listTasks(project.id);
+console.log(tasks);
 
 // Drive an agent through the proxy — tokens metered against your plan
-const reply = await backlog.aiMessages(ws.id, {
+const reply = await backlog.aiMessages(project.id, {
   model: "claude-haiku-4-5-20251001",
   max_tokens: 256,
-  messages: [{ role: "user", content: "Summarize: " + items[0].title }],
+  messages: [{ role: "user", content: "Summarize: " + tasks[0].title }],
 });
 console.log(reply.content);
 
-const usage = await backlog.getUsage(ws.id);
+const usage = await backlog.getUsage(project.id);
 console.log(`${usage.usage.ai_tokens} / ${usage.limits.ai_tokens_per_month} tokens used`);
 ```
 
@@ -58,34 +58,34 @@ console.log(`${usage.usage.ai_tokens} / ${usage.limits.ai_tokens_per_month} toke
 - `logout()` → void
 - `me()` → `{ user }`
 
-### Workspaces
-- `listWorkspaces()` → `Workspace[]`
-- `createWorkspace(name)` → `Workspace`
-- `getWorkspace(id)` → `Workspace`
-
-### Work items
-- `listWorkItems(workspaceId)` → `WorkItem[]`
-- `createWorkItem(workspaceId, input)` → `WorkItem`
+### Projects
+- `listProjects()` → `Project[]`
+- `createProject(name)` → `Project`
+- `getProject(id)` → `Project`
 
 ### Tasks
-- `listTasks(workspaceId)` → `Task[]`
-- `createTask(workspaceId, input)` → `Task`
+- `listTasks(projectId)` → `Task[]`
+- `createTask(projectId, input)` → `Task`
+
+### Subtasks
+- `listSubtasks(projectId)` → `Subtask[]`
+- `createSubtask(projectId, input)` → `Subtask`
 
 ### Runs
-- `listRuns(workspaceId, status?)` → `Run[]`
-- `createRun(workspaceId, input)` → `Run`
+- `listRuns(projectId, status?)` → `Run[]`
+- `createRun(projectId, input)` → `Run`
 
 ### Billing
 - `getBillingConfig()` → `{ publishable_key, prices }` — Stripe.js bootstrap data
-- `getBilling(workspaceId)` → `Subscription` — current plan, status, limits
-- `createCheckoutSession(workspaceId, { plan, interval, success_url, cancel_url })` → `{ url, session_id }`
-- `createPortalSession(workspaceId, { return_url })` → `{ url }`
+- `getBilling(projectId)` → `Subscription` — current plan, status, limits
+- `createCheckoutSession(projectId, { plan, interval, success_url, cancel_url })` → `{ url, session_id }`
+- `createPortalSession(projectId, { return_url })` → `{ url }`
 
 ### Usage
-- `getUsage(workspaceId)` → `UsageReport` — month-to-date AI tokens / calls / quota
+- `getUsage(projectId)` → `UsageReport` — month-to-date AI tokens / calls / quota
 
 ### AI proxy
-- `aiMessages(workspaceId, { model, messages, max_tokens, system, temperature })` → `AiMessageResponse` — Anthropic Messages passthrough, billed against the workspace quota
+- `aiMessages(projectId, { model, messages, max_tokens, system, temperature })` → `AiMessageResponse` — Anthropic Messages passthrough, billed against the project quota
 
 ## Self-hosting the Backlog Cloud backend
 

@@ -68,7 +68,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.post("/subtasks", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -90,7 +90,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
       if (parsed.data.required_capabilities !== undefined) input.requiredCapabilities = parsed.data.required_capabilities;
       if (parsed.data.manual_approval_required !== undefined) input.manualApprovalRequired = parsed.data.manual_approval_required;
-      const task = createSubTask(workspace.backlogDir, input);
+      const task = createSubTask(project.backlogDir, input);
       return c.json({ task }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -100,7 +100,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.post("/subtasks/:id/move", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = moveBodySchema.safeParse(raw);
@@ -108,7 +108,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const updated = updateSubTaskStatus(workspace.backlogDir, id, parsed.data.to);
+      const updated = updateSubTaskStatus(project.backlogDir, id, parsed.data.to);
       return c.json({ task: updated });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -117,7 +117,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.post("/subtasks/:id/reorder", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => ({}));
     const parsed = reorderBodySchema.safeParse(raw ?? {});
@@ -128,7 +128,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
       const input: Parameters<typeof reorderSubTask>[1] = { taskId: id };
       if (parsed.data.before_id !== undefined) input.beforeId = parsed.data.before_id;
       if (parsed.data.after_id !== undefined) input.afterId = parsed.data.after_id;
-      const task = reorderSubTask(workspace.backlogDir, input);
+      const task = reorderSubTask(project.backlogDir, input);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -137,7 +137,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/subtasks/:id/estimate", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = estimateBodySchema.safeParse(raw);
@@ -146,8 +146,8 @@ export function subtasksRoutes(): Hono<AppEnv> {
     }
     try {
       const task = parsed.data.seconds === null
-        ? clearSubTaskEstimate(workspace.backlogDir, id)
-        : setSubTaskEstimate(workspace.backlogDir, id, parsed.data.seconds, parsed.data.source ?? "manual");
+        ? clearSubTaskEstimate(project.backlogDir, id)
+        : setSubTaskEstimate(project.backlogDir, id, parsed.data.seconds, parsed.data.source ?? "manual");
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -159,7 +159,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   // Backed by SubTask.execution.preferred_agents — when this list is
   // non-empty the scheduler restricts itself to those ids.
   app.patch("/subtasks/:id/assignee", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = z
@@ -170,8 +170,8 @@ export function subtasksRoutes(): Hono<AppEnv> {
     }
     try {
       const next = parsed.data.agent_id
-        ? updateSubTask(workspace.backlogDir, id, { preferredAgents: [parsed.data.agent_id] })
-        : updateSubTask(workspace.backlogDir, id, { preferredAgents: [] });
+        ? updateSubTask(project.backlogDir, id, { preferredAgents: [parsed.data.agent_id] })
+        : updateSubTask(project.backlogDir, id, { preferredAgents: [] });
       return c.json({ task: next });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -180,7 +180,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/subtasks/:id/progress", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const raw = await c.req.json().catch(() => null);
     const parsed = progressBodySchema.safeParse(raw);
@@ -188,7 +188,7 @@ export function subtasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const task = setSubTaskProgress(workspace.backlogDir, id, parsed.data.percent);
+      const task = setSubTaskProgress(project.backlogDir, id, parsed.data.percent);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -197,10 +197,10 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.post("/subtasks/:id/archive", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     try {
-      const task = archiveSubTask(workspace.backlogDir, id);
+      const task = archiveSubTask(project.backlogDir, id);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -209,10 +209,10 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.post("/subtasks/:id/unarchive", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     try {
-      const task = unarchiveSubTask(workspace.backlogDir, id);
+      const task = unarchiveSubTask(project.backlogDir, id);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -221,10 +221,10 @@ export function subtasksRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/subtasks/:id", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     try {
-      const task = removeSubTask(workspace.backlogDir, id);
+      const task = removeSubTask(project.backlogDir, id);
       return c.json({ task });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

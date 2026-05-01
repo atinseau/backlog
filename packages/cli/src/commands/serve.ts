@@ -8,6 +8,7 @@ import { startServer, type StartServerOptions } from "@backlog/server";
 interface ServeOptions {
   port: string;
   host: string;
+  project?: string;
   workspace?: string;
   open: boolean;
   uiDist?: string;
@@ -17,11 +18,17 @@ function locateUiDist(explicit?: string): string | undefined {
   if (explicit) return explicit;
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve(here, "public"),
-    resolve(here, "../../server/dist/public"),
+    // Monorepo dev: board-ui builds into packages/server/dist/public.
+    resolve(process.cwd(), "packages/server/dist/public"),
+    // Monorepo dev: board-ui builds into packages/server/dist/public.
+    resolve(here, "../../../server/dist/public"),
+    // Dev CLI after a package build: packages/cli/src/commands/serve.ts -> ../../dist/public.
+    resolve(here, "../../dist/public"),
+    // Published/built CLI: packages/cli/dist/commands/serve.js -> ../public.
+    resolve(here, "../public"),
   ];
   for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(resolve(candidate, "index.html"))) return candidate;
   }
   return undefined;
 }
@@ -46,7 +53,8 @@ export function registerServeCommand(program: Command): void {
     .description("Launch the local Backlog board (Hono server + kanban UI)")
     .option("-p, --port <port>", "TCP port to bind", "7878")
     .option("-h, --host <host>", "Hostname or IP to bind", "127.0.0.1")
-    .option("-w, --workspace <path>", "Workspace directory containing .backlog/")
+    .option("--project <path>", "Project directory containing .backlog/")
+    .option("-w, --workspace <path>", "Compatibility alias for --project")
     .option("--no-open", "Do not open the browser automatically")
     .option("--ui-dist <path>", "Override the UI build directory")
     .action(async (options: ServeOptions) => {
@@ -55,14 +63,21 @@ export function registerServeCommand(program: Command): void {
         throw new Error(`Invalid --port value: ${options.port}`);
       }
 
+      if (options.project && options.workspace) {
+        throw new Error("Use either --project or --workspace, not both.");
+      }
       const startOptions: StartServerOptions = { port, host: options.host };
+      if (options.project) startOptions.project = options.project;
       if (options.workspace) startOptions.workspace = options.workspace;
       const uiDist = locateUiDist(options.uiDist);
       if (uiDist) startOptions.uiDistDir = uiDist;
       const server = await startServer(startOptions);
 
       console.log(`Backlog board listening at ${server.url}`);
-      console.log(`Workspace: ${server.workspace.root}`);
+      console.log(`Project: ${server.project.resolvedFrom}`);
+      if (server.project.root !== server.project.resolvedFrom) {
+        console.log(`Project data: ${server.project.root}`);
+      }
       console.log("Press Ctrl+C to stop.");
 
       if (options.open) {

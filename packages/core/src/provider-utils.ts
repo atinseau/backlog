@@ -5,7 +5,7 @@ import { execa } from "execa";
 import { getSecret } from "@backlog/config";
 
 // Provider env vars sourced from the workspace's encrypted secrets
-// store. Each entry maps a workspace secret key → the env var the
+// store. Each entry maps a project secret key → the env var the
 // provider's CLI expects. We only inject when the env var isn't
 // already set (process.env wins so users can still override per-run
 // via shell). Anthropic / OpenAI are the active set; add others here
@@ -82,8 +82,8 @@ export function buildProviderEnv(
     PATH: expandedPath(),
     ...agent.environment,
     BACKLOG_RUN_ID: run.id,
-    BACKLOG_TASK_ID: task.id,
-    BACKLOG_WORK_ITEM_ID: workItem.id,
+    BACKLOG_TASK_ID: workItem.id,
+    BACKLOG_SUBTASK_ID: task.id,
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
@@ -104,10 +104,10 @@ export function buildProviderPrompt(
       ? "Your file edits affect the user's working copy immediately. Stay within the declared scope."
       : "Stay within the declared scope whenever possible.",
     "",
-    `Work item: ${workItem.id}`,
-    `Work item title: ${workItem.title}`,
-    `SubTask: ${task.id}`,
-    `SubTask title: ${task.title}`,
+    `Task: ${workItem.id}`,
+    `Task title: ${workItem.title}`,
+    `Subtask: ${task.id}`,
+    `Subtask title: ${task.title}`,
     `Repo: ${task.repo}`,
     `Risk: ${task.risk}`,
     "",
@@ -128,10 +128,10 @@ export function buildProviderPrompt(
   ];
 
   if (workItem.description) {
-    lines.splice(5, 0, `Work item description: ${workItem.description}`);
+    lines.splice(5, 0, `Task description: ${workItem.description}`);
   }
   if (workItem.acceptance_criteria.length > 0) {
-    lines.push("", "Work item acceptance criteria:", ...workItem.acceptance_criteria.map((item) => `- ${item}`));
+    lines.push("", "Task acceptance criteria:", ...workItem.acceptance_criteria.map((item) => `- ${item}`));
   }
 
   return lines.join("\n");

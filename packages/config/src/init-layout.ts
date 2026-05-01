@@ -8,12 +8,12 @@ import { generateProjectId } from "./project-id.js";
 
 export interface InitLayoutOptions {
   // For in_repo: the project root that will contain .backlog/.
-  // For user_level: the workspace dir itself (typically ~/.backlog/<name>/).
+  // For user_level: the project data dir itself (typically ~/.backlog/<name>/).
   root: string;
   projectName: string;
   defaultBranch?: string;
   mode?: "embedded" | "control_plane";
-  // Where the workspace data lives: in_repo (default) or user_level.
+  // Where the project data lives: in_repo (default) or user_level.
   location?: ProjectLocation;
   maxAgents?: number;
   force?: boolean;
@@ -27,31 +27,34 @@ export interface InitLayoutResult {
   location: ProjectLocation;
 }
 
-// Returns the conventional path for a user-level workspace given its name:
+// Returns the conventional path for a user-level project given its name:
 // ~/.backlog/<slug>/. Slugified to lowercase-hyphen so the dir is portable
 // across platforms; the canonical, human-friendly name is still kept in
 // config.toml's project_name. Independent of the user-level CONFIG dir
 // (~/Library/Application Support/Backlog/ on macOS) where the registry
 // lives — those are separate concerns.
-export function userLevelWorkspaceDir(projectName: string): string {
+export function userLevelProjectDir(projectName: string): string {
   const slug = projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  if (!slug) throw new Error(`Cannot derive user-level workspace dir from project name: "${projectName}"`);
+  if (!slug) throw new Error(`Cannot derive user-level project dir from project name: "${projectName}"`);
   return path.join(os.homedir(), ".backlog", slug);
 }
+
+/** @deprecated Use userLevelProjectDir. */
+export const userLevelWorkspaceDir = userLevelProjectDir;
 
 export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   const location: ProjectLocation = options.location ?? "in_repo";
   const backlogDir = location === "in_repo" ? path.join(options.root, ".backlog") : options.root;
 
   // For in_repo we still treat the .backlog/ subdir as the marker. For
-  // user_level the workspace dir IS the marker dir, so we use config.toml
+  // user_level the project data dir IS the marker dir, so we use config.toml
   // as the existence test (the dir itself may have been pre-created).
   const marker = location === "in_repo" ? backlogDir : path.join(backlogDir, "config.toml");
   if (fs.existsSync(marker) && !options.force) {
     throw new Error(
       location === "in_repo"
         ? `.backlog already exists at ${backlogDir}`
-        : `Backlog workspace already initialized at ${backlogDir}`,
+        : `Backlog project already initialized at ${backlogDir}`,
     );
   }
 

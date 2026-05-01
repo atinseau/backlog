@@ -243,17 +243,17 @@ describe("completeRun", () => {
     await commitAll(firstWorktree, "add first file");
     await commitAll(secondWorktree, "add second file");
 
-    const firstWorkItem = createTask(backlogDir, { title: "First apply", repoTargets: [repoId] });
+    const firstTaskCard = createTask(backlogDir, { title: "First apply", repoTargets: [repoId] });
     const firstTask = createSubTask(backlogDir, {
-      workItemId: firstWorkItem.id,
+      workItemId: firstTaskCard.id,
       title: "Add first file",
       repo: repoId,
       scopes: ["first.txt"],
       risk: "low",
     });
-    const secondWorkItem = createTask(backlogDir, { title: "Second apply", repoTargets: [repoId] });
+    const secondTaskCard = createTask(backlogDir, { title: "Second apply", repoTargets: [repoId] });
     const secondTask = createSubTask(backlogDir, {
-      workItemId: secondWorkItem.id,
+      workItemId: secondTaskCard.id,
       title: "Add second file",
       repo: repoId,
       scopes: ["second.txt"],
@@ -265,7 +265,7 @@ describe("completeRun", () => {
       backlogDir,
       runId: "RUN-first",
       task: firstTask,
-      workItem: firstWorkItem,
+      workItem: firstTaskCard,
       agent,
       branch: firstBranch,
       worktreePath: firstWorktree,
@@ -275,7 +275,7 @@ describe("completeRun", () => {
       backlogDir,
       runId: "RUN-second",
       task: secondTask,
-      workItem: secondWorkItem,
+      workItem: secondTaskCard,
       agent,
       branch: secondBranch,
       worktreePath: secondWorktree,
@@ -293,7 +293,7 @@ describe("completeRun", () => {
     expect(parents).toHaveLength(3);
     expect(loadRun(backlogDir, "RUN-second")?.status).toBe("succeeded");
     expect(getSubTask(backlogDir, secondTask.id)?.status).toBe("completed");
-    expect(getTask(backlogDir, secondWorkItem.id)?.status).toBe("done");
+    expect(getTask(backlogDir, secondTaskCard.id)?.status).toBe("done");
   });
 
   it("keeps a review run open when apply cannot merge", async () => {

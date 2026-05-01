@@ -21,7 +21,7 @@ function createWorkspace(): string {
 }
 
 describe("splitTask", () => {
-  it("creates one serial task per repo and marks the work item as split", () => {
+  it("creates one serial task per repo and marks the task as split", () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);

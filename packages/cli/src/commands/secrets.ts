@@ -23,7 +23,7 @@ import {
 // `backlog secrets` defaults to the account scope (~/.backlog/secrets.json)
 // because for 99 % of users a single OPENAI_API_KEY / ANTHROPIC_API_KEY
 // covers every project. Pass --project to scope to the current
-// workspace's .backlog/secrets.json (which overrides the account
+// project's .backlog/secrets.json (which overrides the account
 // value at lookup time, useful when a contractor wants a different
 // API tier for one client).
 
@@ -53,7 +53,7 @@ export function registerSecretsCommand(program: Command): void {
     .command("secrets")
     .description(
       "Manage encrypted secrets. Defaults to the account scope " +
-        "(~/.backlog/secrets.json) — pass --project for the current workspace's " +
+        "(~/.backlog/secrets.json) — pass --project for the current project's " +
         "scope (which overrides the account value).",
     );
 

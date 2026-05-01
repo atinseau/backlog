@@ -692,9 +692,9 @@
         <section class="panel">
           {#if !cloudStatus?.signed_in}
             <div class="signin-banner">
-              <p>{t("account.signin_required")}</p>
-              <button class="primary" onclick={() => onOpenProfile?.()}>
-                {t("account.button.signin")}
+              <p>{t("integrations.github.cloud_optional")}</p>
+              <button class="primary" onclick={() => (ghShowOauthConfig = true)}>
+                {t("integrations.github.oauth.configure")}
               </button>
             </div>
           {/if}

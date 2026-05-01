@@ -4,10 +4,10 @@ import { Command } from "commander";
 import {
   initLayout,
   registerProject,
-  userLevelWorkspaceDir,
+  userLevelProjectDir,
   listRegisteredProjects,
 } from "@backlog/config";
-import { detectRepoRoot, detectGitDir, discoverRepoForWorkspace } from "@backlog/git";
+import { cloneRepo, detectGitProvider, detectRepoRoot, detectGitDir, discoverRepoForProject, repoIdFromGitUrl } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
 
 function slugifyWorkspaceName(value: string): string {
@@ -35,6 +35,8 @@ function countChildGitRepos(parent: string): number {
 
 interface InitOptions {
   name?: string;
+  url?: string;
+  cloneInto?: string;
   force?: boolean;
   hooks?: boolean;
   userLevel?: boolean;
@@ -44,14 +46,16 @@ interface InitOptions {
 export function registerInitCommand(program: Command): void {
   program
     .command("init")
-    .description("Initialize a Backlog workspace")
-    .option("--name <name>", "Workspace name")
+    .description("Initialize a Backlog project")
+    .option("--name <name>", "Project name")
+    .option("--url <git-url>", "Clone a remote Git repository before initializing the project")
+    .option("--clone-into <path>", "Destination for --url; defaults to ./<repo>")
     .option(
       "--user-level",
-      "Place the workspace at ~/.backlog/<name>/ instead of <cwd>/.backlog/. Required for multi-repo projects.",
+      "Place project state at ~/.backlog/<name>/ instead of <repo>/.backlog/. Required for multi-repo projects.",
     )
-    .option("--in-repo", "Force in-repo placement (default; .backlog/ is created in the current directory).")
-    .option("--force", "Overwrite an existing workspace")
+    .option("--in-repo", "Force in-repo placement (default; .backlog/ is created in the current repository).")
+    .option("--force", "Overwrite an existing project state directory")
     .option("--hooks", "Install the managed pre-commit hook immediately")
     .action(async (options: InitOptions) => {
       if (options.userLevel && options.inRepo) {
@@ -59,8 +63,23 @@ export function registerInitCommand(program: Command): void {
       }
 
       const cwd = process.cwd();
-      const projectName = options.name ?? (slugifyWorkspaceName(path.basename(cwd)) || "backlog-workspace");
+      const cloneDest = options.url
+        ? path.resolve(cwd, options.cloneInto ?? repoIdFromGitUrl(options.url))
+        : cwd;
+      const sourceRoot = cloneDest;
+      const projectName = options.name ?? (
+        options.url
+          ? (repoIdFromGitUrl(options.url) || "backlog-project")
+          : (slugifyWorkspaceName(path.basename(cwd)) || "backlog-project")
+      );
       const location = options.userLevel ? "user_level" : "in_repo";
+
+      if (options.url) {
+        await cloneRepo({
+          url: options.url,
+          dest: cloneDest,
+        });
+      }
 
       // Hint: when init is run in a dir that contains multiple immediate
       // git-repo subdirs and the user didn't pick a layout explicitly,
@@ -68,11 +87,11 @@ export function registerInitCommand(program: Command): void {
       // in_repo default would land .backlog/ in that parent (which usually
       // isn't itself a repo) — point them at --user-level instead.
       if (!options.userLevel && !options.inRepo) {
-        const childGitRepos = countChildGitRepos(cwd);
+        const childGitRepos = options.url ? 0 : countChildGitRepos(cwd);
         if (childGitRepos >= 2) {
           console.log("");
           console.log(`Detected ${childGitRepos} git repos as direct children of ${cwd}.`);
-          console.log("Tip: for multi-repo projects pass --user-level so the workspace lives at");
+          console.log("Tip: for multi-repo projects pass --user-level so project state lives at");
           console.log(`     ~/.backlog/<slug>/ instead of ${cwd}/.backlog/. Re-run with --in-repo to`);
           console.log("     suppress this hint and keep the in-repo layout.");
           console.log("");
@@ -93,12 +112,22 @@ export function registerInitCommand(program: Command): void {
 
       // user_level: target dir is ~/.backlog/<slug>/. Refuse a silent overwrite
       // unless --force; same for in_repo via initLayout's existing check.
-      const root = location === "user_level" ? userLevelWorkspaceDir(projectName) : cwd;
+      const root = location === "user_level" ? userLevelProjectDir(projectName) : sourceRoot;
 
-      const repos = await discoverRepoForWorkspace(cwd, projectName);
+      let repos = await discoverRepoForProject(sourceRoot, projectName);
+      if (options.url && repos[0]) {
+        repos = [
+          {
+            ...repos[0],
+            id: repoIdFromGitUrl(options.url),
+            git_url: options.url,
+            provider: detectGitProvider(options.url),
+          },
+        ];
+      }
 
       if (location === "user_level" && fs.existsSync(path.join(root, "config.toml")) && !options.force) {
-        throw new Error(`Backlog workspace already initialized at ${root} (use --force to overwrite).`);
+        throw new Error(`Backlog project already initialized at ${root} (use --force to overwrite).`);
       }
 
       const result = initLayout({
@@ -113,7 +142,7 @@ export function registerInitCommand(program: Command): void {
         if (repos.length === 0) {
           throw new Error("Cannot install hooks because the current directory is not inside a git repository.");
         }
-        const repoRoot = await detectRepoRoot(cwd);
+        const repoRoot = await detectRepoRoot(sourceRoot);
         const gitDir = await detectGitDir(repoRoot);
         installPreCommitHook({
           gitDir,
@@ -125,7 +154,7 @@ export function registerInitCommand(program: Command): void {
 
       const registryEntry = registerProject({ projectRoot: root, location });
 
-      console.log(`Initialized Backlog in ${result.backlogDir}`);
+      console.log(`Initialized Backlog project in ${result.backlogDir}`);
       console.log(`Location: ${result.location}`);
       console.log(`Config: ${result.configPath}`);
       console.log(`Shim:   ${result.shimPath}`);

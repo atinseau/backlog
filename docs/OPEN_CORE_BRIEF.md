@@ -6,7 +6,7 @@
 
 Anchor rule from `AGENTS.md` and `docs/ROADMAP.md`: **default mode is fully local; remote is opt-in.** That principle is the open-core boundary. If a feature needs *your* infrastructure to deliver it, it's Cloud. Everything else stays Apache-2.0 forever.
 
-Open-source forever (`packages/cli`, `packages/sdk`, `packages/desktop`, `packages/server`, `packages/board-ui`, all `@backlog/*` workspace packages):
+Open-source forever (`packages/cli`, `packages/sdk`, `packages/desktop`, `packages/server`, `packages/board-ui`, all `@backlog/*` monorepo packages):
 
 - CLI core: `init`, `doctor`, `task`, `claim`, `runs`, `worktree`, `schedule`, `agents`, `sources`, `release`, `hooks`.
 - SDK (`packages/sdk`) — published standalone so anyone can embed the orchestrator. Currently bundled into the CLI tarball per `AGENTS.md`; lift it.
@@ -20,7 +20,7 @@ Cloud / paid only:
 
 - **SMTP email delivery** for invitations, digests, run notifications. Hard gate — running an SMTP relay is a real cost and a real abuse surface.
 - **Hosted auth**: password reset flows, magic links, Google/GitHub OAuth as a *managed* identity layer, SAML/OIDC SSO, SCIM provisioning. (OAuth *as a connector token* stays free; OAuth *as a login mechanism into a hosted tenant* is paid.)
-- **Multi-tenant collaboration**: shared workspace state across machines, presence, real-time board sync, cross-device claim resolution.
+- **Multi-tenant collaboration**: shared project state across machines, presence, real-time board sync, cross-device claim resolution.
 - **Hosted run executors**: Anthropic Managed Agents, hosted ephemeral sandboxes, hosted Codex over our infra. The plumbing (Phase 5 in `ROADMAP.md`) ships open; the *hosted endpoint* is paid.
 - **Run history retention beyond local disk**, cross-device search, replay, artifacts blob storage.
 - **Audit log export** (SOC2-flavored: tamper-evident, retained, exportable to S3/SIEM). Local audit stays free.
@@ -36,7 +36,7 @@ Reference: Linear (per-seat with generous free), Sentry (usage + seats), GitHub 
 | Tier | Who | Includes | Price | Upgrade trigger |
 |---|---|---|---|---|
 | **Free / OSS** | Solo devs, OSS maintainers, anyone running locally | CLI + SDK + Desktop, all features, unlimited local repos, unlimited local runs, all connectors with BYO token | $0 | When you need a second human in the loop with email invites |
-| **Pro** | Power individuals who want hosted backup + multi-machine sync | Free + hosted workspace sync (1 user, N devices), 30-day run history retention, email digests | **$8/mo** | When you add a teammate |
+| **Pro** | Power individuals who want hosted backup + multi-machine sync | Free + hosted project sync (1 user, N devices), 30-day run history retention, email digests | **$8/mo** | When you add a teammate |
 | **Team** | 2–25 person dev teams running agent fleets together | Pro + multi-user collaboration, SMTP invites, SSO via Google/GitHub OAuth, shared run history (90d), basic audit log, hosted ephemeral sandboxes (metered) | **$16/user/mo** | When procurement asks for SAML or SOC2 |
 | **Enterprise** | 25+, regulated industries | Team + SAML/OIDC SSO, SCIM, audit log export, custom retention, on-prem / VPC option, support SLA, DPA | Custom (~$40/user/mo floor) | Sales call |
 

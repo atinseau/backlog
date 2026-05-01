@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { git } from "./git-client.js";
-import { discoverRepoForWorkspace } from "./discover-repo.js";
+import { discoverRepoForProject } from "./discover-repo.js";
 
 async function createRepo(branch = "main"): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-repo-discovery-"));
@@ -14,15 +14,15 @@ async function createRepo(branch = "main"): Promise<string> {
   return root;
 }
 
-describe("discoverRepoForWorkspace", () => {
+describe("discoverRepoForProject", () => {
   it("returns one repo config with a stable id and the current branch", async () => {
     const root = await createRepo("develop");
     const resolvedRoot = fs.realpathSync(root);
-    const repos = await discoverRepoForWorkspace(root, "My Workspace");
+    const repos = await discoverRepoForProject(root, "My Project");
 
     expect(repos).toHaveLength(1);
     expect(repos[0]).toMatchObject({
-      id: "my-workspace",
+      id: "my-project",
       path: resolvedRoot,
       default_branch: "develop",
       enabled: true,
@@ -31,7 +31,7 @@ describe("discoverRepoForWorkspace", () => {
 
   it("returns an empty array outside a git repository", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-no-repo-"));
-    const repos = await discoverRepoForWorkspace(root, "No Repo");
+    const repos = await discoverRepoForProject(root, "No Repo");
     expect(repos).toEqual([]);
   });
 });

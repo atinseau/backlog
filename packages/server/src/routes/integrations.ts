@@ -189,7 +189,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // GitHub --------------------------------------------------------------
 
   app.get("/integrations/github/status", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const token = getSecret(project.backlogDir, GITHUB_TOKEN_KEY);
     return c.json({
       connected: token !== null,
@@ -198,7 +198,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/github/pat", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = githubPatSchema.safeParse(raw);
     if (!parsed.success) {
@@ -215,7 +215,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/integrations/github/pat", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     deleteSecret(project.backlogDir, GITHUB_TOKEN_KEY);
     return c.json({ ok: true });
   });
@@ -245,7 +245,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   }
 
   app.get("/integrations/github/oauth/config", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id: clientId, source } = await resolveGithubClientIdWithFallback(project.backlogDir);
     return c.json({
       device_flow_available: clientId !== null,
@@ -257,7 +257,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/github/oauth/client", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = z.object({ client_id: z.string().min(8) }).safeParse(raw);
     if (!parsed.success) {
@@ -268,13 +268,13 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/integrations/github/oauth/client", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     deleteSecret(project.backlogDir, GITHUB_CLIENT_ID_KEY);
     return c.json({ ok: true });
   });
 
   app.post("/integrations/github/oauth/start", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id: clientId } = await resolveGithubClientIdWithFallback(project.backlogDir);
     if (!clientId) {
       return c.json(
@@ -311,7 +311,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/github/oauth/poll", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id: clientId } = await resolveGithubClientIdWithFallback(project.backlogDir);
     if (!clientId) {
       return c.json({ error: "device_flow_unavailable" }, 400);
@@ -355,7 +355,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.get("/integrations/github/repos", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const token = getSecret(project.backlogDir, GITHUB_TOKEN_KEY);
     if (!token) {
       return c.json({ error: "github_not_connected", detail: "Set a PAT first." }, 400);
@@ -380,7 +380,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/github/clone", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = githubCloneSchema.safeParse(raw);
     if (!parsed.success) {
@@ -454,7 +454,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // GitHub source (issues sync) -----------------------------------------
 
   app.post("/integrations/github/source", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = githubSourceSchema.safeParse(raw);
     if (!parsed.success) {
@@ -498,7 +498,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   }
 
   app.get("/integrations/jira/oauth/config", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id, secret } = resolveJiraClient(project.backlogDir);
     const hasLocalCreds = id !== null && secret !== null;
     const accessToken = getSecret(project.backlogDir, JIRA_ACCESS_TOKEN_KEY);
@@ -518,7 +518,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/jira/oauth/client", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = z
       .object({ client_id: z.string().min(8), client_secret: z.string().min(8) })
@@ -532,14 +532,14 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/integrations/jira/oauth/client", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     deleteSecret(project.backlogDir, JIRA_CLIENT_ID_KEY);
     deleteSecret(project.backlogDir, JIRA_CLIENT_SECRET_KEY);
     return c.json({ ok: true });
   });
 
   app.post("/integrations/jira/oauth/start", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id: clientId, secret: clientSecret } = resolveJiraClient(project.backlogDir);
     const requestUrl = new URL(c.req.url);
 
@@ -631,7 +631,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
       flow.detail = "missing_token_payload";
       return c.html(callbackHtml("error", flow.detail));
     }
-    const project = c.get("workspace");
+    const project = c.get("project");
     setSecret(project.backlogDir, JIRA_ACCESS_TOKEN_KEY, accessToken);
     if (refreshToken) setSecret(project.backlogDir, JIRA_REFRESH_TOKEN_KEY, refreshToken);
     setSecret(project.backlogDir, JIRA_CLOUD_ID_KEY, cloudId);
@@ -655,7 +655,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
       flow.detail = errorParam ?? "missing_code";
       return c.html(callbackHtml("error", flow.detail));
     }
-    const project = c.get("workspace");
+    const project = c.get("project");
     const { id: clientId, secret: clientSecret } = resolveJiraClient(project.backlogDir);
     if (!clientId || !clientSecret) {
       flow.status = "failed";
@@ -760,7 +760,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/jira/source", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = jiraSourceSchema.safeParse(raw);
     if (!parsed.success) {
@@ -800,7 +800,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // Sources & sync ------------------------------------------------------
 
   app.get("/integrations/sources", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const sources = listSources(project.backlogDir).map((source) => ({
       id: source.id,
       kind: source.kind,
@@ -811,7 +811,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/integrations/sources/:id", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     try {
       removeSource(project.backlogDir, id);
@@ -826,7 +826,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/integrations/sources/:id/sync", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const id = c.req.param("id");
     const sources = listSources(project.backlogDir);
     const source = sources.find((candidate) => candidate.id === id);
@@ -874,7 +874,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function forwardCloudAuth(c: any, path: "/auth/signup" | "/auth/login") {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = credentialsSchema.safeParse(raw);
     if (!parsed.success) {
@@ -911,7 +911,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   app.post("/cloud/login", (c) => forwardCloudAuth(c, "/auth/login"));
 
   app.post("/cloud/logout", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     deleteSecret(project.backlogDir, CLOUD_JWT_KEY);
     invalidateCloudCaches();
     return c.json({ ok: true });
@@ -935,7 +935,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // Receives the JWT after the OAuth round-trip lands back on us via
   // backlog-cloud's OmniauthCallbacksController.
   app.get("/cloud/oauth/local-callback", (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const status = c.req.query("status") ?? "failed";
     if (status !== "ok") {
       const detail = c.req.query("detail") ?? status;
@@ -954,7 +954,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // POST /cloud/billing/checkout — opens a Stripe Checkout for Pro upgrade.
   // Returns { url } that the UI opens in a new tab.
   app.post("/cloud/billing/checkout", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) return c.json({ error: "cloud_signin_required" }, 401);
     const raw = await c.req.json().catch(() => ({}));
@@ -976,7 +976,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   // POST /cloud/billing/portal — opens the Stripe Billing Portal so the
   // user can manage their subscription / cancel / update card.
   app.post("/cloud/billing/portal", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) return c.json({ error: "cloud_signin_required" }, 401);
     try {
@@ -994,7 +994,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.get("/cloud/me", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) {
       return c.json({ signed_in: false });
@@ -1022,7 +1022,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
 
   // Register a connected resource so the cloud can enforce quotas.
   app.post("/cloud/repos", async (c) => {
-    const project = c.get("workspace");
+    const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) {
       return c.json({ error: "cloud_signin_required" }, 401);

@@ -234,7 +234,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List accessible workspaces */
+        /** List accessible projects */
         get: {
             parameters: {
                 query?: never;
@@ -251,14 +251,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            workspaces?: components["schemas"]["Workspace"][];
+                            projects?: components["schemas"]["Project"][];
                         };
                     };
                 };
             };
         };
         put?: never;
-        /** Create a workspace */
+        /** Create a project */
         post: {
             parameters: {
                 query?: never;
@@ -281,7 +281,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            workspace?: components["schemas"]["Workspace"];
+                            project?: components["schemas"]["Project"];
                         };
                     };
                 };
@@ -300,7 +300,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Show one workspace */
+        /** Show one project */
         get: {
             parameters: {
                 query?: never;
@@ -319,7 +319,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            workspace?: components["schemas"]["Workspace"];
+                            project?: components["schemas"]["Project"];
                         };
                     };
                 };
@@ -340,14 +340,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/{id}/work-items": {
+    "/projects/{id}/tasks": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List work items in a workspace */
+        /** List tasks in a project */
         get: {
             parameters: {
                 query?: never;
@@ -366,14 +366,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            work_items?: components["schemas"]["Task"][];
+                            tasks?: components["schemas"]["Task"][];
                         };
                     };
                 };
             };
         };
         put?: never;
-        /** Create a work item */
+        /** Create a task */
         post: {
             parameters: {
                 query?: never;
@@ -404,7 +404,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            work_item?: components["schemas"]["Task"];
+                            task?: components["schemas"]["Task"];
                         };
                     };
                 };
@@ -416,14 +416,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/tasks": {
+    "/projects/{project_id}/subtasks": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List tasks in a workspace */
+        /** List subtasks in a project */
         get: {
             parameters: {
                 query?: never;
@@ -442,14 +442,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            tasks?: components["schemas"]["SubTask"][];
+                            subtasks?: components["schemas"]["Subtask"][];
                         };
                     };
                 };
             };
         };
         put?: never;
-        /** Create a task */
+        /** Create a subtask */
         post: {
             parameters: {
                 query?: never;
@@ -478,7 +478,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            task?: components["schemas"]["SubTask"];
+                            subtask?: components["schemas"]["Subtask"];
                         };
                     };
                 };
@@ -497,7 +497,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List runs in a workspace */
+        /** List runs in a project */
         get: {
             parameters: {
                 query?: {
@@ -610,7 +610,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Current subscription for a workspace */
+        /** Current subscription for a project */
         get: {
             parameters: {
                 query?: never;
@@ -633,7 +633,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Workspace not found or not a member */
+                /** @description Project not found or not a member */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -659,7 +659,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a Stripe Checkout Session for upgrading the workspace */
+        /** Create a Stripe Checkout Session for upgrading the project */
         post: {
             parameters: {
                 query?: never;
@@ -699,14 +699,14 @@ export interface paths {
                         "application/json": components["schemas"]["CheckoutSession"];
                     };
                 };
-                /** @description Forbidden — only workspace owner can checkout */
+                /** @description Forbidden — only project owner can checkout */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description Workspace not found */
+                /** @description Project not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -744,7 +744,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a Stripe Billing Portal session for the workspace */
+        /** Create a Stripe Billing Portal session for the project */
         post: {
             parameters: {
                 query?: never;
@@ -772,21 +772,21 @@ export interface paths {
                         "application/json": components["schemas"]["PortalSession"];
                     };
                 };
-                /** @description Forbidden — only workspace owner can manage billing */
+                /** @description Forbidden — only project owner can manage billing */
                 403: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description Workspace not found */
+                /** @description Project not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content?: never;
                 };
-                /** @description No Stripe customer linked yet (workspace never checked out) */
+                /** @description No Stripe customer linked yet (project never checked out) */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -836,7 +836,7 @@ export interface paths {
                         "application/json": components["schemas"]["UsageReport"];
                     };
                 };
-                /** @description Workspace not found */
+                /** @description Project not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -863,10 +863,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Send a message to Anthropic Claude through the workspace proxy
+         * Send a message to Anthropic Claude through the project proxy
          * @description Proxies the request to the Anthropic Messages API using a
          *     server-side API key. Tokens consumed are billed against the
-         *     workspace's monthly quota (see `/usage`).
+         *     project's monthly quota (see `/usage`).
          */
         post: {
             parameters: {
@@ -892,7 +892,7 @@ export interface paths {
                         "application/json": components["schemas"]["AiMessageResponse"];
                     };
                 };
-                /** @description Workspace has hit its monthly token quota */
+                /** @description Project has hit its monthly token quota */
                 402: {
                     headers: {
                         [name: string]: unknown;
@@ -901,7 +901,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description Workspace not found */
+                /** @description Project not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -983,7 +983,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/webhooks/github/{workspace_slug}": {
+    "/webhooks/github/{project_slug}": {
         parameters: {
             query?: never;
             header?: never;
@@ -995,10 +995,10 @@ export interface paths {
         /**
          * GitHub Issues webhook
          * @description Receives GitHub webhook events. Validates `X-Hub-Signature-256`
-         *     when `GITHUB_WEBHOOK_SECRET` is set in the workspace config.
+         *     when `GITHUB_WEBHOOK_SECRET` is set in the project config.
          *
          *     Currently handles `issues` events (opened, closed, reopened) and
-         *     creates/updates a corresponding work item.
+         *     creates/updates a corresponding task.
          */
         post: {
             parameters: {
@@ -1008,7 +1008,7 @@ export interface paths {
                     "X-Hub-Signature-256"?: string;
                 };
                 path: {
-                    workspace_slug: string;
+                    project_slug: string;
                 };
                 cookie?: never;
             };
@@ -1032,7 +1032,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Workspace not found */
+                /** @description Project not found */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -1067,7 +1067,7 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
         };
-        Workspace: {
+        Project: {
             /** Format: int64 */
             id: number;
             name: string;
@@ -1094,7 +1094,7 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        SubTask: {
+        Subtask: {
             /** Format: int64 */
             id: number;
             /** Format: int64 */
@@ -1109,6 +1109,8 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
+        /** @deprecated */
+        SubTask: components["schemas"]["Subtask"];
         Run: {
             /** Format: int64 */
             id: number;
@@ -1142,7 +1144,7 @@ export interface components {
             current_period_end?: string | null;
             cancel_at_period_end?: boolean;
             limits: {
-                work_items?: number | null;
+                tasks?: number | null;
                 tasks_per_month?: number | null;
                 members?: number | null;
                 ai_tokens_per_month?: number | null;
@@ -1182,7 +1184,7 @@ export interface components {
         };
         /**
          * @description Pass-through of the Anthropic Messages API response. Token usage
-         *     is also recorded server-side and counted against the workspace
+         *     is also recorded server-side and counted against the project
          *     quota; consumers should rely on `/usage` for billing.
          */
         AiMessageResponse: {

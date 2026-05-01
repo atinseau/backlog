@@ -24,7 +24,7 @@ import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
 import { subtasksRoutes } from "./routes/subtasks.js";
-import { workItemsRoutes } from "./routes/tasks.js";
+import { tasksRoutes } from "./routes/tasks.js";
 import { usersRoutes } from "./routes/users.js";
 import { staticHandler, staticPlaceholderHandler } from "./static.js";
 import type { ServerProject } from "./project-context.js";
@@ -35,7 +35,7 @@ const VERSION =
   typeof __BACKLOG_SERVER_VERSION__ !== "undefined" ? __BACKLOG_SERVER_VERSION__ : "0.0.0-dev";
 
 export interface BuildAppOptions {
-  workspace: ServerProject;
+  project: ServerProject;
   uiDistDir?: string;
 }
 
@@ -78,7 +78,7 @@ function defaultUiDistDir(): string {
 export function buildApp(options: BuildAppOptions): BuildAppResult {
   const app = new Hono<AppEnv>();
   const buses = new EventBusRegistry();
-  const resolver = new ProjectResolver(options.workspace);
+  const resolver = new ProjectResolver(options.project);
 
   app.use("*", async (c, next) => {
     const start = Date.now();
@@ -89,16 +89,16 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
     }
   });
 
-  // Resolves ?workspace=<wid> (or x-backlog-project header) on every API
-  // request, falling back to the default workspace the server was launched
-  // with. Replies 404 if the requested workspace isn't in the registry.
+  // Resolves ?project=<id> (or x-backlog-project header) on every API
+  // request, falling back to the default project the server was launched
+  // with. Replies 404 if the requested project isn't in the registry.
   app.use("/api/v1/*", resolver.middleware());
 
   app.route("/api/v1", healthRoutes(VERSION));
   app.route("/api/v1", boardRoutes());
   app.route("/api/v1", claimsRoutes());
   app.route("/api/v1", agentsRoutes());
-  app.route("/api/v1", workItemsRoutes());
+  app.route("/api/v1", tasksRoutes());
   app.route("/api/v1", subtasksRoutes());
   app.route("/api/v1", orchestrateRoutes());
   app.route("/api/v1", orchestratorRoutes());
@@ -111,32 +111,32 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", foldersRoutes());
   app.route("/api/v1", runsRoutes());
   app.route("/api/v1", projectRoutes());
-  app.route("/api/v1", projectsRoutes(options.workspace));
+  app.route("/api/v1", projectsRoutes(options.project));
   app.route("/api/v1", commitsRoutes());
   app.route("/api/v1", integrationsRoutes());
   app.route("/api/v1", usersRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 
-  // Hydrate the orchestrator for EVERY registered workspace, not just
+  // Hydrate the orchestrator for EVERY registered project, not just
   // the one the server was launched bound to. The kanban can switch
-  // workspaces via the topbar selector and route API calls to any
-  // registered workspace via the `?workspace=` query param. If we
-  // hydrated only the bound one, switching to another workspace
+  // projects via the topbar selector and route API calls to any
+  // registered project via the `?project=` query param. If we
+  // hydrated only the bound one, switching to another project
   // could surface its stale state — running orchestrator, queued
   // subtasks, orphaned worktrees — none of which had a chance to be
   // cleaned up on this server boot. The user reported exactly this:
   // launched the desktop app (bound to twoody), kanban auto-routed to
   // demo via localStorage, demo's orchestrator.json was `running` from
   // last session, queue picked up stale subtasks, three runs auto-fired.
-  // Hydrating every workspace at startup ensures every door is clean.
+  // Hydrating every project at startup ensures every door is clean.
   void (async () => {
     try {
       const { loadRegistry } = await import("@backlog/config");
       const { hydrateOrchestrator: hydrate } = await import("@backlog/core");
       const registry = loadRegistry();
-      const seenDirs = new Set<string>([options.workspace.backlogDir]);
-      // Always start with the bound workspace.
-      await hydrate(options.workspace.backlogDir).catch(() => undefined);
+      const seenDirs = new Set<string>([options.project.backlogDir]);
+      // Always start with the bound project.
+      await hydrate(options.project.backlogDir).catch(() => undefined);
       for (const project of registry.projects) {
         const root = project.path;
         const dir = project.location === "user_level" ? root : `${root}/.backlog`;

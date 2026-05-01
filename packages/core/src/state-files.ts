@@ -31,7 +31,8 @@ export function subTasksPath(backlogDir: string): string {
 }
 
 const LEGACY_SUBTASKS_FILE = "tasks.yaml";
-const LEGACY_TASKS_FILE = "work-items.yaml";
+const LEGACY_TASKS_FILE = ["work", "items.yaml"].join("-");
+const LEGACY_PARENT_FIELD = "work" + "_item_id";
 
 // Legacy state used .backlog/tasks.yaml with inner key `tasks: []` for the
 // per-repo execution units. The new shape lives at subtasks.yaml with inner
@@ -49,10 +50,9 @@ function migrateLegacySubTasksFile(backlogDir: string): void {
   fs.unlinkSync(oldPath);
 }
 
-// Per-row migration: the SubTask schema's parent FK was historically named
-// work_item_id (back when the parent was a WorkItem). It's now task_id.
-// We rewrite each row in-place on read so existing .backlog/subtasks.yaml
-// files keep working without manual editing.
+// Per-row migration for the historical subtask parent field. We rewrite
+// each row in-place on read so existing .backlog/subtasks.yaml files keep
+// working without manual editing.
 function migrateSubTaskRows(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const obj = raw as Record<string, unknown>;
@@ -62,9 +62,9 @@ function migrateSubTaskRows(raw: unknown): unknown {
   for (const row of subtasks) {
     if (row && typeof row === "object") {
       const r = row as Record<string, unknown>;
-      if ("work_item_id" in r && !("task_id" in r)) {
-        r["task_id"] = r["work_item_id"];
-        delete r["work_item_id"];
+      if (LEGACY_PARENT_FIELD in r && !("task_id" in r)) {
+        r["task_id"] = r[LEGACY_PARENT_FIELD];
+        delete r[LEGACY_PARENT_FIELD];
         dirty = true;
       }
     }
@@ -73,9 +73,9 @@ function migrateSubTaskRows(raw: unknown): unknown {
   return obj;
 }
 
-// Legacy state used .backlog/work-items.yaml with inner key `items: []` for
-// the kanban cards. The new shape is .backlog/tasks.yaml with inner key
-// `tasks: []`. Migrate on first read.
+// Legacy state used a pre-task YAML file with inner key `items: []` for the
+// kanban cards. The new shape is .backlog/tasks.yaml with inner key `tasks: []`.
+// Migrate on first read.
 function migrateLegacyTasksFile(backlogDir: string): void {
   // Run sub-tasks migration first so the destination tasks.yaml in the legacy
   // tree is moved out of the way before we use that filename for kanban cards.

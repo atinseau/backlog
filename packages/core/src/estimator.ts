@@ -7,7 +7,7 @@ import { listSubTasks } from "./state-files.js";
 // edits typically run in 1-3 minutes; medium-risk refactors in 5-10;
 // high-risk migrations in 20-30. The previous flat 30-min fallback
 // over-estimated everything by an order of magnitude and made the
-// "il reste …" pill useless. Once a workspace has 3+ archived runs
+// "il reste …" pill useless. Once a project has 3+ archived runs
 // the median takes over per-repo.
 const FALLBACK_LOW_RISK_SECONDS = 2 * 60;
 const FALLBACK_MEDIUM_RISK_SECONDS = 5 * 60;
@@ -89,7 +89,7 @@ export function estimateSubTask(
     if (run.repo !== task.repo) continue;
     sameRepo.push(duration);
     // Match by subtask_id — `tasksById` is keyed by SubTask.id, while
-    // `run.task_id` is the parent work item's id, which would never hit.
+    // `run.task_id` is the parent task's id, which would never hit.
     const runTask = tasksById.get(run.subtask_id);
     if (lane && runTask?.execution.lane === lane) {
       sameLaneSameRepo.push(duration);
@@ -119,13 +119,13 @@ export function estimateSubTask(
   return { seconds: fallbackForRisk(task.risk), source: "auto", sample_size: 0 };
 }
 
-export function estimateWorkItem(
+export function estimateTask(
   backlogDir: string,
-  workItemId: string,
+  taskId: string,
   ctx?: EstimatorContext,
 ): { seconds: number; task_count: number } {
   const { tasksById } = loadContext(backlogDir, ctx);
-  const tasks = Array.from(tasksById.values()).filter((task) => task.task_id === workItemId);
+  const tasks = Array.from(tasksById.values()).filter((task) => task.task_id === taskId);
   const open = tasks.filter((task) => task.status !== "completed" && task.status !== "canceled");
   let seconds = 0;
   for (const task of open) {

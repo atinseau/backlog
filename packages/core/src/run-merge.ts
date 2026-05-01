@@ -4,7 +4,7 @@ import type { GitMergeStrategy, ProjectConfig, Run } from "@backlog/schemas";
 export interface MergeOptions {
   strategy: GitMergeStrategy;
   // Branch to merge into. Defaults to the repo's `default_branch`
-  // when the workspace `merge_target` isn't set.
+  // when the project `merge_target` isn't set.
   target: string;
 }
 
@@ -97,7 +97,7 @@ export async function mergeRunBranch(input: {
       error: `main checkout is on '${head.stdout.trim()}', not '${opts.target}'`,
     };
   }
-  // Ignore untracked files in the preflight. In in-repo workspaces,
+  // Ignore untracked files in the preflight. In in-repo projects,
   // Backlog's own `.backlog/` state is often untracked and should not
   // make every apply fail. Tracked modifications still block here; if
   // an untracked user file would actually be overwritten by the merge,

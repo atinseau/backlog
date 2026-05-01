@@ -22,8 +22,11 @@ function detectSystem(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-let mode = $state<ThemeMode>(readStoredMode());
-let resolved = $state<ResolvedTheme>(mode === "auto" ? detectSystem() : mode);
+const initialMode = readStoredMode();
+const initialResolved: ResolvedTheme = initialMode === "auto" ? detectSystem() : initialMode;
+
+let mode = $state<ThemeMode>(initialMode);
+let resolved = $state<ResolvedTheme>(initialResolved);
 
 function applyDocumentAttribute(value: ResolvedTheme): void {
   if (typeof document === "undefined") return;
@@ -54,7 +57,7 @@ function ensureSystemListener(): void {
 
 // Initialise on first import (renderer-side only).
 if (typeof window !== "undefined") {
-  applyDocumentAttribute(resolved);
+  applyDocumentAttribute(initialResolved);
   ensureSystemListener();
 }
 

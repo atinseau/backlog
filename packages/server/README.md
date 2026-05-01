@@ -1,6 +1,6 @@
 # @backlog/server
 
-Local HTTP server that exposes a Backlog workspace as a REST + SSE API,
+Local HTTP server that exposes a Backlog project as a REST + SSE API,
 serves the Svelte kanban UI, and powers the `backlog serve` command.
 
 [![license: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue.svg)](./LICENSE)
@@ -12,11 +12,11 @@ serves the Svelte kanban UI, and powers the `backlog serve` command.
 A self-contained Hono app that reads `.backlog/` directly from disk via the
 existing `@backlog/core`, `@backlog/claims`, and `@backlog/config`
 packages. No database, no auth, no shared state — each running instance
-serves exactly one workspace, found via `findWorkspace()` from the cwd or
-explicitly via `--workspace`.
+serves exactly one project, found from the cwd or explicitly via `--project`
+(`--workspace` is still accepted as a compatibility alias).
 
 The REST surface is the same primitives the CLI uses; the SSE channel
-streams workspace mutations within ~200ms of the YAML/JSON files
+streams project mutations within ~200ms of the YAML/JSON files
 changing on disk.
 
 ## Use it via the CLI
@@ -38,7 +38,7 @@ serves the UI from the same binary, and opens the browser. See the root
 ```bash
 corepack pnpm install
 corepack pnpm --filter @backlog/server dev
-# or, to bind a different port / workspace:
+# or, to bind a different port / project:
 PORT=8080 BACKLOG_WORKSPACE=/path/to/repo corepack pnpm --filter @backlog/server dev
 ```
 
@@ -54,10 +54,10 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/health` | Workspace path + server version |
-| `GET` | `/board?project=...&repo=...` | Work items grouped into 4 columns. Cards now embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`. Top-level `total_estimated_seconds` + `total_remaining_seconds`. |
+| `GET` | `/health` | Project path + server version |
+| `GET` | `/board?project=...&repo=...` | Tasks grouped into 4 columns. Cards now embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`. Top-level `total_estimated_seconds` + `total_remaining_seconds`. |
 | `GET` | `/runs?status=...` | Active runs |
-| `GET` | `/orchestrate?work_item=...&task=...` | Wave-bucketed execution plan (read-only — no runs are started) |
+| `GET` | `/orchestrate?task=...&subtask=...` | Wave-bucketed execution plan (read-only — no runs are started) |
 | `GET` | `/events` | SSE: `claim.changed` / `subtask.changed` / `task.changed` / `run.changed` / `project.changed` / `orchestrator.changed` / `repo.changed`, debounced 200ms |
 | `GET` | `/claims` | Active non-expired claims |
 | `GET` | `/claims/check?repo=…&path=…` | Is this path free? Returns `retry_after_seconds` if not |
@@ -65,22 +65,21 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | `DELETE` | `/claims/:id` | Archive a claim |
 | `POST` | `/runs` | Launch runs via the existing scheduler/run-launcher pipeline |
 
-### Work items, tasks
+### Tasks, subtasks
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/work-items` | Create from the kanban (title, project, priority, repos, optional estimate) |
-| `POST` | `/work-items/:id/move` | Drag-drop status change |
-| `POST` | `/work-items/:id/reorder` | Intra-column reorder (sparse `rank` rewrite) |
-| `PATCH` | `/work-items/:id/project` | Attach/detach project |
-| `PATCH` | `/work-items/:id/estimate` | Override / clear the manual estimate |
-| `POST` | `/work-items/:id/split` | Mechanical split (one task per repo) |
-| `POST` | `/work-items/:id/suggest-split` | AI proposal via Claude (needs `ANTHROPIC_API_KEY`) |
-| `POST` | `/work-items/:id/apply-split` | Apply an edited proposal — creates the tasks |
-| `POST` | `/tasks` | Create a task on an existing work item |
+| `POST` | `/tasks` | Create from the kanban (title, project, priority, repos, optional estimate) |
 | `POST` | `/tasks/:id/move` | Drag-drop status change |
-| `POST` | `/tasks/:id/reorder` | Intra-column reorder (sparse `priority_score` rewrite) |
+| `POST` | `/tasks/:id/reorder` | Intra-column reorder (sparse `rank` rewrite) |
 | `PATCH` | `/tasks/:id/estimate` | Set or clear the manual estimate |
+| `POST` | `/tasks/:id/split` | Mechanical split (one subtask per repo) |
+| `POST` | `/tasks/:id/suggest-split` | AI proposal via Claude (needs `ANTHROPIC_API_KEY`) |
+| `POST` | `/tasks/:id/apply-split` | Apply an edited proposal — creates the subtasks |
+| `POST` | `/subtasks` | Create a subtask on an existing task |
+| `POST` | `/subtasks/:id/move` | Drag-drop status change |
+| `POST` | `/subtasks/:id/reorder` | Intra-column reorder (sparse `priority_score` rewrite) |
+| `PATCH` | `/subtasks/:id/estimate` | Set or clear the manual estimate |
 | `PATCH` | `/tasks/:id/progress` | Agent-reported progress 0..100 |
 
 ### Projects, repos, orchestrator, permissions
@@ -97,9 +96,9 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | `PATCH` | `/orchestrator/config` | Edit max/auto/tick without changing mode |
 | `GET` | `/agents` | Configured agents with active-run counts and full permission fields |
 | `PATCH` | `/agents/:id` | Toggle enable, sandbox/success modes, allowed risks/repos, concurrence, model/profile |
-| `GET` | `/workspace` | Workspace info: name, default branch, autonomy mode, claims policy |
-| `PATCH` | `/workspace/autonomy` | Set autonomy mode (observe / assist / delegate / autopilot) |
-| `PATCH` | `/workspace/claims` | Edit `ttl_minutes` and/or `enforce_on_commit` |
+| `GET` | `/project` | Project info: name, default branch, autonomy mode, claims policy |
+| `PATCH` | `/project/autonomy` | Set autonomy mode (observe / assist / delegate / autopilot) |
+| `PATCH` | `/project/claims` | Edit `ttl_minutes` and/or `enforce_on_commit` |
 
 ### Claim collision (the interesting one)
 

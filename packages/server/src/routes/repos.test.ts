@@ -36,7 +36,7 @@ function makeWorkspace(): ServerProject {
 function buildApp(workspace: ServerProject): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("workspace", workspace);
+    c.set("project", workspace);
     await next();
   });
   app.route("/", reposRoutes());
@@ -86,9 +86,9 @@ describe("POST /repos", () => {
   });
 
   it("adds a local-path repo and returns the persisted entry", async () => {
-    const workspace = makeWorkspace();
-    const app = buildApp(workspace);
-    const newPath = path.join(workspace.root, "gamma");
+    const project = makeWorkspace();
+    const app = buildApp(project);
+    const newPath = path.join(project.root, "gamma");
 
     const res = await app.request("/repos", {
       method: "POST",

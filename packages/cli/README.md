@@ -30,8 +30,8 @@ disk, audit log export. See [backlog.so/cloud](https://backlog.so/cloud).
 Backlog is the engine that sits between your backlog and your agents.
 
 It ingests work from sources you already use (Markdown, CSV, Jira, GitHub
-Issues — more on the [roadmap](docs/ROADMAP.md)), decomposes work items
-into scoped, executable tasks, and runs each task in an isolated git
+Issues — more on the [roadmap](docs/ROADMAP.md)), decomposes tasks
+into scoped, executable subtasks, and runs each subtask in an isolated git
 worktree under a file-scope claim so multiple agents can work in parallel
 without stepping on each other.
 
@@ -46,18 +46,18 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 
 | Layer | What it does |
 |-------|--------------|
-| **Sources** | Ingest work items from Markdown, CSV, Jira (and more — see roadmap) |
+| **Sources** | Ingest tasks from Markdown, CSV, Jira (and more — see roadmap) |
 | **Projects** | Group one or many repos under a single banner; tickets can be filtered per-project |
 | **Repos** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
-| **Work items** | High-level units of intent imported from sources |
-| **Tasks** | Repo-scoped executable units split out from work items |
+| **Tasks** | High-level units of intent imported from sources |
+| **Subtasks** | Repo-scoped executable units split out from tasks |
 | **Claims** | Lock file/path scopes so concurrent runs cannot conflict |
 | **Worktrees** | Each run executes in its own isolated git worktree |
 | **Scheduler** | Picks eligible tasks, assigns agents, respects claim conflicts |
 | **Orchestrator** | Persistent ▶/⏸/⏹ loop that re-runs the scheduler on a tick and dispatches runs |
 | **Runs** | Track agent execution with summary, log, changed files, ETA, and live progress |
 | **Review** | Approve, request changes, complete, fail, or handoff each run |
-| **Permissions** | Workspace autonomy mode + per-agent sandbox / risk / repo restrictions |
+| **Permissions** | Project autonomy mode + per-agent sandbox / risk / repo restrictions |
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ npm install -g backlog
 cd ~/Dev/my-repo
 backlog init --name my-project
 
-# Multi-repo project: keep the workspace at ~/.backlog/<slug>/ instead so it
+# Multi-repo project: keep project state at ~/.backlog/<slug>/ instead so it
 # isn't tied to any one repo.
 cd ~/Dev/my-multi-repo-parent
 backlog init --user-level --name my-project
@@ -76,31 +76,31 @@ backlog init --user-level --name my-project
 backlog doctor
 ```
 
-Create a work item, split it into tasks, and run the scheduler:
+Create a task, split it into subtasks, and run the scheduler:
 
 ```bash
-backlog work add --title "Build the scheduler"
-backlog work split task_001 --repo backlog \
+backlog task add --title "Build the scheduler"
+backlog task split task_001 --repo backlog \
   --scope backlog=packages/core/src/**
 backlog task add \
-  --work-item task_001 \
+  --task task_001 \
   --title "Implement scheduler" \
   --repo backlog \
   --preferred-agent manual-default \
   --require-capability edit_code
 backlog schedule simulate
-backlog schedule explain --work-item task_001
+backlog schedule explain --task task_001
 backlog schedule run --approve
 ```
 
-Add a source and sync work items in:
+Add a source and sync tasks in:
 
 ```bash
 backlog sources add markdown --id notes --path backlog.md
 backlog sources sync
-backlog work import
+backlog task import
 backlog sources conflicts
-backlog sources resolve --work-item task_001 --use local
+backlog sources resolve --task task_001 --use local
 ```
 
 ## Run the kanban board
@@ -137,7 +137,7 @@ The topbar carries:
 - **Project selector** + ⚙ Projets modal (CRUD)
 - **▶ Play / ⏸ Pause / ⏹ Stop** trio for the persistent orchestrator (Xcode-style)
 - 📁 **Repos** modal (add a local path *or* clone from a Git URL)
-- 🔒 **Permissions** modal (workspace autonomy + per-agent restrictions)
+- 🔒 **Permissions** modal (project autonomy + per-agent restrictions)
 - ⚙ **Plan** side panel (wave breakdown, agents-max slider, auto toggle, last tick + last error)
 - **+ Ticket** / **+ Claim** quick-create dialogs
 - **Total ETA pill** showing remaining work across the visible columns
@@ -147,14 +147,14 @@ column to reorder by priority (sparse `priority_score` rewrite). Each task
 shows a 4 px progress bar (agent-reported > elapsed/estimate > status
 fallback) with an ETA that ticks every second client-side. The **+ Claim**
 modal creates a file-scope claim with a per-tier retry-after hint on
-collision, and the **✂ Split** action decomposes a work item into tasks
+collision, and the **✂ Split** action decomposes a task into subtasks
 mechanically or via Claude (`ANTHROPIC_API_KEY` required).
 
 The board is served from the same `backlog` binary — no extra install,
 no docker. Kill with Ctrl+C.
 
 ```bash
-backlog serve --port 8080 --workspace ~/Dev/myproject --no-open
+backlog serve --port 8080 --project ~/Dev/myproject --no-open
 backlog serve --host 0.0.0.0    # expose to LAN (no auth — be careful)
 ```
 
@@ -164,22 +164,21 @@ orchestrator state, project changes, and run status changes within ~200ms.
 ## CLI
 
 ```
-backlog init                                          Initialize a workspace
-backlog doctor [--repo <id>] [--json]                 Inspect workspace health
-backlog status [--repo <id>]                          Workspace overview
+backlog init                                          Initialize a project
+backlog doctor [--repo <id>] [--json]                 Inspect project health
+backlog status [--repo <id>]                          Project overview
 
 backlog board    [--url <url>]                        Open the kanban (smart wrapper around serve)
 backlog serve    [--port 7878] [--host 127.0.0.1]
-                 [--workspace <path>] [--no-open]     Launch the kanban board
+                 [--project <path>] [--no-open]       Launch the kanban board
 backlog project  add|list|show|update|archive|remove  Manage projects (groups of repos)
 backlog repos    list|show|add|update|remove          Manage tracked repos
                  [--url <git-url>] [--clone-into]     ...or clone from GitHub / GitLab / etc.
-backlog work     add|list|show|move|update|remove
-                 |plan|split|import|assign-project
-                 |estimate                            Manage work items
 backlog task     add|list|show|move|update|remove
+                 |plan|split|import|estimate          Manage tasks
+backlog subtask  add|list|show|move|update|remove
                  |block|unblock|plan|estimate
-                 |progress                            Manage tasks
+                 |progress                            Manage subtasks
 backlog claim    start|check|finish|list|gc           Manage file-scope claims
                  [--duration <s>] [--agent <id>]
 backlog hooks    status|install|uninstall [--all|--repo <id>]
@@ -211,9 +210,9 @@ backlog repos add --url https://github.com/me/api.git            # cloned to <ws
 backlog project add --slug shipping --name "Shipping" --repo web --repo api
 
 # Create a ticket scoped to the project, split it, and let the orchestrator run.
-backlog work add --title "Stripe integration" --priority P1
+backlog task add --title "Stripe integration" --priority P1
 backlog work assign-project task_001 shipping
-backlog work split task_001 --repo web --repo api
+backlog task split task_001 --repo web --repo api
 backlog orchestrator start --auto --project shipping
 ```
 
@@ -227,11 +226,11 @@ backlog runs list --review --agent codex-default
 backlog sources list --enabled true
 ```
 
-## Workspace state
+## Project state
 
-Backlog stores workspace state in one of two layouts. `backlog init` defaults
+Backlog stores project state in one of two layouts. `backlog init` defaults
 to **in_repo** (the same directory you ran it in); pass `--user-level` to put
-the workspace under your home folder instead. Both layouts hold the same set
+project state under your home folder instead. Both layouts hold the same set
 of files; only the path on disk differs.
 
 **in_repo** (default — best for a single-repo project)
@@ -240,7 +239,7 @@ of files; only the path on disk differs.
 <project root>/.backlog/
 ```
 
-**user_level** (best for multi-repo projects so the workspace lives outside
+**user_level** (best for multi-repo projects so project state lives outside
 any one repo)
 
 ```
@@ -251,11 +250,11 @@ any one repo)
 that doesn't collide with any other registered user-level project. The user
 registry itself lives at `~/.backlog/projects.json` on every platform.
 
-Run into the hook crashing or the workspace not being found?
+Run into the hook crashing or the project not being found?
 [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) covers the five
 that come up most often.
 
-Either way, the layout inside the workspace dir is the same:
+Either way, the layout inside the project state dir is the same:
 
 ```
 config.toml          # project + repos + autonomy_mode + claims TTL
@@ -275,7 +274,7 @@ You can edit YAML by hand, but `backlog repos`, `backlog project`,
 `backlog task`, `backlog orchestrator`, `backlog agents`,
 and `backlog sources` are designed to keep state consistent without manual
 edits. Use `backlog project migrate <id> --to user-level` (or `--to in-repo
---into <repo-id>`) to switch an existing workspace between layouts.
+--into <repo-id>`) to switch an existing project between layouts.
 
 ## Agents
 
@@ -310,12 +309,12 @@ changed files detected in the worktree.
 
 ## Source sync
 
-- `backlog sources push --all` pushes every source-linked work item that
+- `backlog sources push --all` pushes every source-linked task that
   supports outbound sync.
 - `backlog sources push` refuses to push an item while it has pending
   conflicts, unless you pass `--allow-conflicts`.
-- `backlog sources resolve --work-item <id> --use local|external` resolves
-  every pending conflict for that work item in one step.
+- `backlog sources resolve --task <id> --use local|external` resolves
+  every pending conflict for that task in one step.
 
 ## Maintenance
 
@@ -326,7 +325,7 @@ changed files detected in the worktree.
 
 ## Hooks
 
-In multi-repo workspaces, `backlog hooks status|install|uninstall --all` lets
+In multi-repo projects, `backlog hooks status|install|uninstall --all` lets
 you audit or roll out the managed pre-commit hook across every configured
 repo in one pass. You can also target one configured repo explicitly with
 `--repo <id>`.
@@ -345,14 +344,14 @@ supports:
 | Package | Purpose | License |
 |---|---|---|
 | `backlog` (`packages/cli`) | The CLI binary published on npm | Apache-2.0 |
-| `@backlog/core` | Scheduler, run launcher, task/work-item services | Apache-2.0 |
+| `@backlog/core` | Scheduler, run launcher, task services | Apache-2.0 |
 | `@backlog/claims` | Claim store + overlap detection | Apache-2.0 |
-| `@backlog/schemas` | Zod schemas for the workspace state | Apache-2.0 |
+| `@backlog/schemas` | Zod schemas for the project state | Apache-2.0 |
 | `@backlog/server` | Local Hono server + REST/SSE API behind `backlog serve` | BUSL-1.1 |
 | `@backlog/board-ui` | Svelte 5 kanban frontend | Apache-2.0 |
 | `@backlog/git`, `@backlog/hooks`, `@backlog/config`, `@backlog/connectors` | Plumbing | Apache-2.0 |
 
-End users only ever install `backlog` — every workspace package is
+End users only ever install `backlog` — every project package is
 inlined into the published CLI tarball at build time. The split exists
 for development clarity and per-package licensing.
 

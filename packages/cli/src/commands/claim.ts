@@ -131,7 +131,7 @@ async function resolveClaimFromContext(backlogDir: string, repoRoot: string): Pr
   }
   const claim = loadActiveClaimIfPresent(backlogDir, context.claim_id);
   if (!claim) {
-    // Stale pointer: claim file is gone (archived, GC'd, or workspace was
+    // Stale pointer: claim file is gone (archived, GC'd, or project was
     // moved by `backlog project migrate`). Clean up so the user isn't stuck
     // and surface the same "no claim" error they'd see if no pointer existed.
     removeContextFile(gitDir);
@@ -311,7 +311,7 @@ export function registerClaimCommand(program: Command): void {
         claimRecord = await resolveClaimFromContext(workspace.backlogDir, repoRoot);
       } catch (error) {
         // No claim yet for this repo. If --auto was passed AND the
-        // workspace has auto_claim_on_commit enabled, mint one from
+        // project has auto_claim_on_commit enabled, mint one from
         // the staged paths so the commit goes through. Anything else
         // → re-throw the original "Start a claim first" error.
         const config = loadConfig(workspace.backlogDir);
@@ -443,7 +443,7 @@ export function registerClaimCommand(program: Command): void {
       if (!context) {
         if (options.quiet) return;
         throw new Error(
-          `No active local claim pointer in ${gitDir}. Use \`--all\` to sweep every active claim and pointer in this workspace, or \`--quiet\` to suppress this error.`,
+          `No active local claim pointer in ${gitDir}. Use \`--all\` to sweep every active claim and pointer in this project, or \`--quiet\` to suppress this error.`,
         );
       }
 

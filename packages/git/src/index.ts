@@ -5,3 +5,4 @@ export * from "./git-client.js";
 export * from "./git-dir.js";
 export * from "./repo-metadata.js";
 export * from "./staged-paths.js";
+export * from "./status-summary.js";

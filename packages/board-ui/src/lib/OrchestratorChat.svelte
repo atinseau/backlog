@@ -5,7 +5,7 @@
 
   interface Props {
     open: boolean;
-    workspaceId: string | null;
+    projectId: string | null;
     onClose: () => void;
     // When embedded into the BottomPanel, the drawer chrome is dropped
     // (no fixed positioning, no close button — the host's tab bar
@@ -14,7 +14,7 @@
     embedded?: boolean;
   }
 
-  let { open, workspaceId, onClose, embedded = false }: Props = $props();
+  let { open, projectId, onClose, embedded = false }: Props = $props();
 
   // Fetched on mount + refreshed whenever an orchestrator.changed SSE
   // event lands. Drives the visibility / enabled state of the emergency
@@ -54,7 +54,7 @@
   let usage = $state<UsageBucket>({ input: 0, output: 0, cacheRead: 0, cacheCreation: 0 });
   let actionBusy = $state<"pause" | "stop" | null>(null);
 
-  // History is persisted per workspace so switching workspaces doesn't mix
+  // History is persisted per project so switching projects doesn't mix
   // conversations and a tab refresh keeps the thread you were on. Bounded
   // to the last 30 turns so localStorage stays small.
   const HISTORY_KEY_PREFIX = "backlog.chat.history.";
@@ -83,7 +83,7 @@
   }
 
   function saveHistory() {
-    const key = historyKey(workspaceId);
+    const key = historyKey(projectId);
     if (!key) return;
     try {
       const trimmed = history.slice(-MAX_HISTORY);
@@ -98,7 +98,7 @@
   // bubbles and the user couldn't see it. It now lives in the
   // ActivityBanner component (full-width bottom panel) and the chat
   // drawer is back to conversation-only. We still subscribe to the
-  // workspace SSE bus though, just to drive the emergency-button
+  // project SSE bus though, just to drive the emergency-button
   // visibility off `orchestrator.changed`.
   let busSource: EventSource | null = null;
 
@@ -114,16 +114,16 @@
     window.addEventListener("keydown", handleGlobalKey);
   });
 
-  // Single source of truth for workspace-bound setup: this effect runs
-  // once on mount with the initial workspaceId, and again every time it
-  // changes (workspace switch). onMount can't safely do this work
+  // Single source of truth for project-bound setup: this effect runs
+  // once on mount with the initial projectId, and again every time it
+  // changes (project switch). onMount can't safely do this work
   // because the prop may still be null at first paint while App resolves
-  // the active workspace from localStorage.
-  let lastWorkspaceId: string | null | undefined = undefined;
+  // the active project from localStorage.
+  let lastProjectId: string | null | undefined = undefined;
   $effect(() => {
-    const id = workspaceId;
-    if (id === lastWorkspaceId) return;
-    lastWorkspaceId = id;
+    const id = projectId;
+    if (id === lastProjectId) return;
+    lastProjectId = id;
     loadHistory(id);
     attachEventSource();
     void refreshOrchestratorMode();

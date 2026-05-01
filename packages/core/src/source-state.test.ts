@@ -7,11 +7,11 @@ import type { Task } from "@backlog/schemas";
 import { readTasksFile, writeTasksFile } from "./state-files.js";
 import { addSource, getSource, removeSource, setSourceEnabled, updateSource, upsertImportedTasks } from "./source-state.js";
 import {
-  hasPendingSyncConflictsForWorkItem,
+  hasPendingSyncConflictsForTask,
   listPendingSyncConflicts,
-  listPendingSyncConflictsForWorkItem,
+  listPendingSyncConflictsForTask,
   resolveSyncConflict,
-  resolveSyncConflictsForWorkItem,
+  resolveSyncConflictsForTask,
 } from "./sync-conflicts.js";
 
 function createWorkspace(): string {
@@ -103,7 +103,7 @@ describe("upsertImportedTasks", () => {
     });
   });
 
-  it("removes a source and unlinks work items when forced", () => {
+  it("removes a source and unlinks tasks when forced", () => {
     const backlogDir = createWorkspace();
     addSource(backlogDir, {
       id: "sheet",
@@ -129,7 +129,7 @@ describe("upsertImportedTasks", () => {
     expect(readTasksFile(backlogDir).tasks[0]?.source_links).toEqual([]);
   });
 
-  it("creates and updates imported work items by source identity", () => {
+  it("creates and updates imported tasks by source identity", () => {
     const backlogDir = createWorkspace();
     upsertImportedTasks(backlogDir, [importedItem("row-1")]);
     upsertImportedTasks(backlogDir, [{ ...importedItem("row-1"), title: "updated-title" }]);
@@ -158,7 +158,7 @@ describe("upsertImportedTasks", () => {
     expect(updated.tasks[0]?.status).toBe("backlog");
   });
 
-  it("can list and resolve all pending conflicts for one work item", () => {
+  it("can list and resolve all pending conflicts for one task", () => {
     const backlogDir = createWorkspace();
     const base = importedItem("row-3");
     upsertImportedTasks(backlogDir, [base]);
@@ -169,11 +169,11 @@ describe("upsertImportedTasks", () => {
 
     upsertImportedTasks(backlogDir, [{ ...base, status: "backlog" }]);
 
-    expect(hasPendingSyncConflictsForWorkItem(backlogDir, base.id)).toBe(true);
-    expect(listPendingSyncConflictsForWorkItem(backlogDir, base.id)).toHaveLength(1);
+    expect(hasPendingSyncConflictsForTask(backlogDir, base.id)).toBe(true);
+    expect(listPendingSyncConflictsForTask(backlogDir, base.id)).toHaveLength(1);
 
-    const resolved = resolveSyncConflictsForWorkItem(backlogDir, base.id, "local");
+    const resolved = resolveSyncConflictsForTask(backlogDir, base.id, "local");
     expect(resolved).toHaveLength(1);
-    expect(hasPendingSyncConflictsForWorkItem(backlogDir, base.id)).toBe(false);
+    expect(hasPendingSyncConflictsForTask(backlogDir, base.id)).toBe(false);
   });
 });

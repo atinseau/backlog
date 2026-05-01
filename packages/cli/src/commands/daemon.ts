@@ -28,7 +28,7 @@ export function renderLaunchdPlist(input: DaemonRenderInput): string {
   const args = [
     input.binary,
     "serve",
-    "--workspace",
+    "--project",
     input.projectRoot,
     "--port",
     String(input.port),
@@ -79,7 +79,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${input.projectRoot}
-ExecStart=${input.binary} serve --workspace ${input.projectRoot} --port ${input.port} --no-open
+ExecStart=${input.binary} serve --project ${input.projectRoot} --port ${input.port} --no-open
 Restart=on-failure
 RestartSec=5
 StandardOutput=append:${path.join(input.logDir, "serve.log")}
@@ -124,6 +124,7 @@ export function getDaemonPaths(platform: NodeJS.Platform = process.platform, hom
 }
 
 interface InstallOptions {
+  project?: string;
   workspace?: string;
   port: string;
   dryRun?: boolean;
@@ -140,12 +141,12 @@ function resolveBinary(): string {
   return process.argv[1] ?? "backlog";
 }
 
-function resolveWorkspaceRoot(explicit?: string): string {
+function resolveProjectRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
   const found = findProject();
   if (!found) {
     throw new Error(
-      "No .backlog project found in the current directory. Pass --workspace <path> or run from a workspace.",
+      "No .backlog project found in the current directory. Pass --project <path> or run from a project.",
     );
   }
   return found.root;
@@ -159,7 +160,8 @@ export function registerDaemonCommand(program: Command): void {
   daemon
     .command("install")
     .description("Write the launchd/systemd unit for `backlog serve` (does not start it)")
-    .option("-w, --workspace <path>", "Workspace to serve (defaults to the current one)")
+    .option("--project <path>", "Project to serve (defaults to the current one)")
+    .option("-w, --workspace <path>", "Compatibility alias for --project")
     .option("-p, --port <port>", "TCP port to bind", "7878")
     .option("--dry-run", "Print the unit file to stdout instead of writing it")
     .action((options: InstallOptions) => {
@@ -173,7 +175,10 @@ export function registerDaemonCommand(program: Command): void {
       if (Number.isNaN(port) || port <= 0 || port > 65535) {
         throw new Error(`Invalid --port value: ${options.port}`);
       }
-      const projectRoot = resolveWorkspaceRoot(options.workspace);
+      if (options.project && options.workspace) {
+        throw new Error("Use either --project or --workspace, not both.");
+      }
+      const projectRoot = resolveProjectRoot(options.project ?? options.workspace);
       const renderInput: DaemonRenderInput = {
         binary: resolveBinary(),
         projectRoot,

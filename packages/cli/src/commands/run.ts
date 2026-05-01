@@ -53,8 +53,8 @@ export function registerRunCommand(program: Command): void {
     .option("--review", "Only show runs awaiting review")
     .option("--status <status>", "Only show runs in one status")
     .option("--repo <repo>", "Only show runs for one repo")
-    .option("--task <id>", "Only show runs for one task")
-    .option("--work-item <id>", "Only show runs for one work item")
+    .option("--subtask <id>", "Only show runs for one subtask")
+    .option("--task <id>", "Only show runs for one parent task")
     .option("--agent <id>", "Only show runs for one agent")
     .option("--json", "Emit machine-readable JSON")
     .action((options: {
@@ -62,8 +62,8 @@ export function registerRunCommand(program: Command): void {
       review?: boolean;
       status?: string;
       repo?: string;
+      subtask?: string;
       task?: string;
-      workItem?: string;
       agent?: string;
     }) => {
       const workspace = findProject();
@@ -80,10 +80,10 @@ export function registerRunCommand(program: Command): void {
         if (options.repo && run.repo !== options.repo) {
           return false;
         }
-        if (options.task && run.subtask_id !== options.task) {
+        if (options.subtask && run.subtask_id !== options.subtask) {
           return false;
         }
-        if (options.workItem && run.subtask_id !== options.workItem) {
+        if (options.task && run.task_id !== options.task) {
           return false;
         }
         if (options.agent && run.agent_id !== options.agent) {

@@ -26,6 +26,7 @@
     onPlay?: (card: TaskCard) => Promise<void> | void;
     onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
     onDiscard?: (card: TaskCard, runId: string) => Promise<void> | void;
+    onArchiveAll?: (columnKey: ColumnKey, cards: TaskCard[]) => Promise<void> | void;
     // Card-menu actions — proxied to Card.svelte. Pass-through; the
     // App is the source of truth for what each one does.
     onArchive?: (card: TaskCard) => Promise<void> | void;
@@ -37,26 +38,64 @@
     assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchiveAll, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
 
   const FLIP_MS = 180;
+  const PAGE_SIZE = 30;
 
   // The initial-from-prop is intentional: localCards mutates locally
   // during drag-considering and gets re-synced by the $effect below
   // whenever `cards` changes. The reference here only seeds the state.
   // svelte-ignore state_referenced_locally
   let localCards = $state<TaskCard[]>(cards);
+  let visibleLimit = $state(PAGE_SIZE);
+  let archivingAll = $state(false);
 
   $effect(() => {
     localCards = cards;
+    visibleLimit = Math.min(Math.max(visibleLimit, PAGE_SIZE), Math.max(cards.length, PAGE_SIZE));
   });
+
+  const visibleCards = $derived(localCards.slice(0, visibleLimit));
+  const hasMore = $derived(visibleLimit < localCards.length);
+  const archivableCards = $derived(localCards.filter((card) => !isLocked(card)));
+
+  function mergeVisibleWithHidden(nextVisible: TaskCard[]): TaskCard[] {
+    const visibleIds = new Set(nextVisible.map((card) => card.id));
+    const hidden = cards.filter((card) => !visibleIds.has(card.id));
+    return [...nextVisible, ...hidden];
+  }
+
+  function loadMore() {
+    visibleLimit = Math.min(localCards.length, visibleLimit + PAGE_SIZE);
+  }
+
+  function handleScroll(event: Event) {
+    const el = event.currentTarget as HTMLElement;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 160) loadMore();
+  }
+
+  async function archiveAll() {
+    if (!onArchiveAll || archivableCards.length === 0 || archivingAll) return;
+    const ok = typeof window === "undefined" || window.confirm(t("column.archive_all_confirm", {
+      count: archivableCards.length,
+      column: t(COLUMN_KEY_TO_T[columnKey]),
+    }));
+    if (!ok) return;
+    archivingAll = true;
+    try {
+      await onArchiveAll(columnKey, archivableCards);
+    } finally {
+      archivingAll = false;
+    }
+  }
 
   function handleConsider(event: CustomEvent<{ items: TaskCard[] }>) {
     if (columnKey === "done") {
       localCards = cards;
       return;
     }
-    localCards = event.detail.items;
+    localCards = mergeVisibleWithHidden(event.detail.items);
   }
 
   function isBusy(card: TaskCard): boolean {
@@ -89,7 +128,7 @@
     const nextItems = event.detail.items;
     const trigger = event.detail.info.trigger;
     if (trigger !== "droppedIntoZone") {
-      localCards = nextItems;
+      localCards = mergeVisibleWithHidden(nextItems);
       return;
     }
 
@@ -120,14 +159,14 @@
 
     if (!wasAlreadyInColumn) {
       // Cross-column drop → status change.
-      localCards = nextItems;
+      localCards = mergeVisibleWithHidden(nextItems);
       const status = COLUMN_DEFAULT_STATUS[columnKey];
       onMove(droppedId, status, columnKey);
       return;
     }
 
     // Same-column reorder.
-    localCards = nextItems;
+    localCards = mergeVisibleWithHidden(nextItems);
     const newIndex = nextItems.findIndex((card) => card.id === droppedId);
     const oldIndex = cards.findIndex((card) => card.id === droppedId);
     if (newIndex < 0 || newIndex === oldIndex) return;
@@ -153,14 +192,27 @@
 
 <section class="column">
   <header>
-    <h2>{t(COLUMN_KEY_TO_T[columnKey])}</h2>
-    <span class="count">{localCards.length}</span>
+    <div class="column-title">
+      <h2>{t(COLUMN_KEY_TO_T[columnKey])}</h2>
+      <span class="count">{localCards.length}</span>
+    </div>
+    <button
+      type="button"
+      class="archive-all"
+      onclick={() => { void archiveAll(); }}
+      disabled={!onArchiveAll || archivableCards.length === 0 || archivingAll}
+      aria-label={t("column.archive_all")}
+      title={t("column.archive_all")}
+    >
+      {archivingAll ? "…" : "📦"}
+    </button>
   </header>
   <div
     class="cards"
     class:locked-zone={columnKey === "done"}
+    onscroll={handleScroll}
     use:dndzone={{
-      items: localCards,
+      items: visibleCards,
       type: "task",
       flipDurationMs: FLIP_MS,
       dropTargetStyle: {},
@@ -170,13 +222,17 @@
     onconsider={handleConsider}
     onfinalize={handleFinalize}
   >
-    {#each localCards as card (card.id)}
+    {#each visibleCards as card (card.id)}
       <div class="card-shell" class:queue-active={columnKey === "doing" && isBusy(card)} class:queue-waiting={columnKey === "doing" && !isBusy(card)}>
         <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onDiscard} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} {onAssign} {assignees} />
       </div>
     {/each}
     {#if localCards.length === 0}
       <div class="placeholder">—</div>
+    {:else if hasMore}
+      <button type="button" class="load-more" onclick={loadMore}>
+        {t("column.load_more", { count: localCards.length - visibleCards.length })}
+      </button>
     {/if}
   </div>
 </section>
@@ -188,7 +244,8 @@
     padding: 10px;
     display: flex;
     flex-direction: column;
-    min-height: 200px;
+    min-height: 0;
+    overflow: hidden;
   }
   header {
     display: flex;
@@ -196,6 +253,13 @@
     justify-content: space-between;
     margin-bottom: 8px;
     padding: 0 4px;
+    gap: 8px;
+  }
+  .column-title {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   h2 {
     margin: 0;
@@ -211,9 +275,35 @@
     padding: 1px 7px;
     border-radius: 10px;
   }
+  .archive-all {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .archive-all:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+  }
+  .archive-all:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
   .cards {
     flex: 1;
-    min-height: 60px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .cards.locked-zone {
     cursor: default;
@@ -240,5 +330,21 @@
     text-align: center;
     color: var(--text-subtle);
     font-size: 13px;
+  }
+  .load-more {
+    width: 100%;
+    margin-top: 8px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 8px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .load-more:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 </style>

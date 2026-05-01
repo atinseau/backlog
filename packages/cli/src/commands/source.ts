@@ -5,14 +5,14 @@ import {
   addSource,
   getSource,
   getTask,
-  hasPendingSyncConflictsForWorkItem,
+  hasPendingSyncConflictsForTask,
   listPendingSyncConflicts,
   listSources,
   listTasks,
   primarySourceLink,
   removeSource,
   resolveSyncConflict,
-  resolveSyncConflictsForWorkItem,
+  resolveSyncConflictsForTask,
   setSourceEnabled,
   updateSource,
   upsertImportedTasks,
@@ -278,9 +278,9 @@ export function registerSourceCommand(program: Command): void {
 
   sources
     .command("remove")
-    .description("Remove one source, optionally unlinking work items that still reference it")
+    .description("Remove one source, optionally unlinking tasks that still reference it")
     .argument("<source-id>", "Source id")
-    .option("--force", "Also unlink this source from existing work items")
+    .option("--force", "Also unlink this source from existing tasks")
     .action((sourceId: string, options: { force?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
@@ -318,7 +318,7 @@ export function registerSourceCommand(program: Command): void {
     .command("sync")
     .description("Pull work from one source or all enabled sources")
     .argument("[source-id]", "Optional source id")
-    .option("--dry-run", "Fetch without writing work-items.yaml")
+    .option("--dry-run", "Fetch without writing tasks.yaml")
     .action(async (sourceId?: string, options?: { dryRun?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
@@ -343,43 +343,43 @@ export function registerSourceCommand(program: Command): void {
 
   sources
     .command("push")
-    .description("Push a work item status or comment back to its source when supported")
-    .argument("[work-item-id]", "Work item id")
+    .description("Push a task status or comment back to its source when supported")
+    .argument("[task-id]", "Task id")
     .option("--comment <text>", "Optional comment to push")
-    .option("--all", "Push every source-linked work item that supports push")
-    .option("--allow-conflicts", "Allow push even when the work item still has pending sync conflicts")
-    .action(async (workItemId: string | undefined, options: { comment?: string; all?: boolean; allowConflicts?: boolean }) => {
+    .option("--all", "Push every source-linked task that supports push")
+    .option("--allow-conflicts", "Allow push even when the task still has pending sync conflicts")
+    .action(async (taskId: string | undefined, options: { comment?: string; all?: boolean; allowConflicts?: boolean }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      if (!workItemId && !options.all) {
-        throw new Error("sources push requires a <work-item-id> or --all.");
+      if (!taskId && !options.all) {
+        throw new Error("sources push requires a <task-id> or --all.");
       }
       if (options.all && options.comment) {
-        throw new Error("--comment can only be used when pushing a single work item.");
+        throw new Error("--comment can only be used when pushing a single task.");
       }
 
       const items = options.all
         ? listTasks(workspace.backlogDir).filter((item) => primarySourceLink(item)?.source_ref)
-        : [getTask(workspace.backlogDir, workItemId!)].filter(Boolean);
+        : [getTask(workspace.backlogDir, taskId!)].filter(Boolean);
 
       if (items.length === 0) {
-        throw new Error(options.all ? "No source-linked work items to push." : `Unknown work item: ${workItemId}`);
+        throw new Error(options.all ? "No source-linked tasks to push." : `Unknown task: ${taskId}`);
       }
 
-      for (const workItem of items) {
-        if (!workItem) {
+      for (const task of items) {
+        if (!task) {
           continue;
         }
-        if (!options.allowConflicts && hasPendingSyncConflictsForWorkItem(workspace.backlogDir, workItem.id)) {
-          throw new Error(`Work item ${workItem.id} still has pending sync conflicts. Resolve them first or pass --allow-conflicts.`);
+        if (!options.allowConflicts && hasPendingSyncConflictsForTask(workspace.backlogDir, task.id)) {
+          throw new Error(`Task ${task.id} still has pending sync conflicts. Resolve them first or pass --allow-conflicts.`);
         }
 
-        const sourceLink = primarySourceLink(workItem);
+        const sourceLink = primarySourceLink(task);
         if (!sourceLink?.source_ref) {
           if (!options.all) {
-            throw new Error(`Work item ${workItem.id} has no primary source link.`);
+            throw new Error(`Task ${task.id} has no primary source link.`);
           }
           continue;
         }
@@ -396,10 +396,10 @@ export function registerSourceCommand(program: Command): void {
         }
         await connector.push({
           externalId: sourceLink.external_id,
-          status: workItem.status,
+          status: task.status,
           ...(options.comment ? { comment: options.comment } : {}),
         });
-        console.log(`Pushed ${workItem.id} to ${source.id}`);
+        console.log(`Pushed ${task.id} to ${source.id}`);
       }
     });
 
@@ -430,9 +430,9 @@ export function registerSourceCommand(program: Command): void {
     .command("resolve")
     .description("Resolve one sync conflict")
     .argument("[conflict-id]", "Sync conflict id")
-    .option("--work-item <id>", "Resolve every pending conflict for one work item")
+    .option("--task <id>", "Resolve every pending conflict for one task")
     .requiredOption("--use <resolution>", "external or local")
-    .action((conflictId: string | undefined, options: { use: "external" | "local"; workItem?: string }) => {
+    .action((conflictId: string | undefined, options: { use: "external" | "local"; task?: string }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
@@ -440,17 +440,17 @@ export function registerSourceCommand(program: Command): void {
       if (options.use !== "external" && options.use !== "local") {
         throw new Error("--use must be external or local");
       }
-      if (!conflictId && !options.workItem) {
-        throw new Error("sources resolve requires a <conflict-id> or --work-item.");
+      if (!conflictId && !options.task) {
+        throw new Error("sources resolve requires a <conflict-id> or --task.");
       }
 
-      if (options.workItem) {
-        const conflicts = resolveSyncConflictsForWorkItem(workspace.backlogDir, options.workItem, options.use);
+      if (options.task) {
+        const conflicts = resolveSyncConflictsForTask(workspace.backlogDir, options.task, options.use);
         if (conflicts.length === 0) {
-          console.log(`No pending conflicts for ${options.workItem}`);
+          console.log(`No pending conflicts for ${options.task}`);
           return;
         }
-        console.log(`Resolved ${conflicts.length} conflict(s) for ${options.workItem} using ${options.use}`);
+        console.log(`Resolved ${conflicts.length} conflict(s) for ${options.task} using ${options.use}`);
         return;
       }
 

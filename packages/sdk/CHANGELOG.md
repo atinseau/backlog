@@ -10,14 +10,14 @@ First release under the `@osmove/backlog-sdk` scope, aligned with the wider 1.3.
 
 - TypeScript client generated from the OpenAPI 3.0.3 spec at <https://backlog.so/openapi/v1.yaml>. Types are auto-derived from the contract — schema changes surface as compile errors on consumers.
 - `BacklogClient` with bearer-token auth: `signup`, `login`, `logout`, `me`.
-- Workspaces: `listWorkspaces`, `createWorkspace`, `getWorkspace`.
-- Work items: `listWorkItems`, `createWorkItem`.
+- Projects: `listProjects`, `createProject`, `getProject`.
 - Tasks: `listTasks`, `createTask`.
+- Subtasks: `listSubtasks`, `createSubtask`.
 - Runs: `listRuns`, `createRun`.
 - Billing: `getBillingConfig`, `getBilling`, `createCheckoutSession`, `createPortalSession`.
 - Usage: `getUsage` — month-to-date token spend and remaining quota.
-- AI proxy: `aiMessages` — Anthropic Messages passthrough, billed against the workspace quota.
-- Compatibility: the SDK works against `backlog serve`, the Desktop app, and the hosted Backlog Cloud — all three speak the same OpenAPI 3.0.3 contract.
+- AI proxy: `aiMessages` — Anthropic Messages passthrough, billed against the project quota.
+- Compatibility: the SDK targets the hosted Backlog Cloud contract and self-hosted Cloud deployments.
 
 ### Built on
 

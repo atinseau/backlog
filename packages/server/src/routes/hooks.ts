@@ -20,7 +20,7 @@ interface HookStatus {
 }
 
 interface HooksOverview {
-  workspace_paused_until: string | null;
+  project_paused_until: string | null;
   hooks: HookStatus[];
 }
 
@@ -58,14 +58,14 @@ export function hooksRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/hooks/status", (c) => {
-    const workspace = c.get("workspace");
-    const repos = listRepos(workspace.backlogDir);
+    const project = c.get("project");
+    const repos = listRepos(project.backlogDir);
 
     const out: HookStatus[] = [];
     for (const repo of repos) {
       const repoPath = path.isAbsolute(repo.path)
         ? repo.path
-        : path.resolve(workspace.root, repo.path);
+        : path.resolve(project.root, repo.path);
       const gitDir = findGitDir(repoPath);
       if (!gitDir) {
         out.push({
@@ -91,9 +91,9 @@ export function hooksRoutes(): Hono<AppEnv> {
       });
     }
 
-    const pause = readPauseUntil(workspace.backlogDir);
+    const pause = readPauseUntil(project.backlogDir);
     const overview: HooksOverview = {
-      workspace_paused_until: pause,
+      project_paused_until: pause,
       hooks: out,
     };
     return c.json(overview);

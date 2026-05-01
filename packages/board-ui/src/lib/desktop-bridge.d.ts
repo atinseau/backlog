@@ -19,8 +19,10 @@ interface BacklogBridge {
   openExternal: (url: string) => Promise<void>;
   /** Open a native folder picker; returns the selected path or null on cancel. */
   pickFolder: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>;
-  /** Persist the workspace path Desktop should reopen next launch. */
-  setLastWorkspace: (path: string) => Promise<boolean>;
+  /** Persist the project path Desktop should reopen next launch. */
+  setLastProject: (path: string) => Promise<boolean>;
+  /** @deprecated Use setLastProject. */
+  setLastWorkspace?: (path: string) => Promise<boolean>;
   /** Trigger a manual update check. Same backend as the View menu item. */
   checkForUpdates: () => Promise<UpdateStatus | null>;
   /** Restart the app and install a previously-downloaded update. */

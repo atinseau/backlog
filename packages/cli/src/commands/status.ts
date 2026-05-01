@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findProject, listRegisteredProjects, loadConfig } from "@backlog/config";
-import { buildExecutionPlan, buildWorkspaceStatus } from "@backlog/core";
+import { buildExecutionPlan, buildProjectStatus } from "@backlog/core";
 import { listSubTasks } from "@backlog/core";
 
 const DEFAULT_REMOTE_URL = "http://127.0.0.1:7878";
@@ -45,7 +45,7 @@ async function streamRemoteEvents(baseUrl: string): Promise<void> {
 
 // One-line summary of a project for the cross-project --all view.
 // Read directly from disk (registry path → backlogDir → state files);
-// avoids the cost of buildWorkspaceStatus which is overkill here.
+// avoids the cost of buildProjectStatus which is overkill here.
 function summarizeProjectForAllView(entry: ReturnType<typeof listRegisteredProjects>[number]): {
   id: string;
   name: string;
@@ -120,7 +120,7 @@ function runAllStatus(options: { json?: boolean }): void {
   console.log("");
   for (const s of summaries) {
     if (!s.reachable) {
-      console.log(`${s.id} | ${s.name} | [${s.location}] | (workspace not reachable at ${s.path})`);
+      console.log(`${s.id} | ${s.name} | [${s.location}] | (project not reachable at ${s.path})`);
       continue;
     }
     const activity = s.activeRuns > 0 || s.activeClaims > 0 ? ` ⚡ ${s.activeRuns} runs / ${s.activeClaims} claims` : "";
@@ -137,7 +137,7 @@ function runAllStatus(options: { json?: boolean }): void {
 export function registerStatusCommand(program: Command): void {
   program
     .command("status")
-    .description("Show a compact Backlog workspace summary")
+    .description("Show a compact Backlog project summary")
     .option("--repo <id>", "Focus status on one configured repo")
     .option("--all", "Aggregate across every registered project (cross-project view)")
     .option("--json", "Emit machine-readable JSON")
@@ -172,7 +172,7 @@ function runLocalStatus(options: { repo?: string; json?: boolean }): void {
   if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
     throw new Error(`Unknown repo: ${options.repo}`);
   }
-  const status = buildWorkspaceStatus(workspace.root, workspace.backlogDir, config, {
+  const status = buildProjectStatus(workspace.root, workspace.backlogDir, config, {
     ...(options.repo ? { repoId: options.repo } : {}),
   });
   const tasksById = new Map(listSubTasks(workspace.backlogDir).map((task) => [task.id, task]));
@@ -199,26 +199,26 @@ function runLocalStatus(options: { repo?: string; json?: boolean }): void {
   console.log(`Repos: ${status.enabledRepoCount} enabled / ${status.repoCount} configured`);
   console.log(`Active claims: ${status.activeClaims}`);
   console.log(`Active runs: ${status.activeRuns}`);
-  console.log(`Work items: ${status.workItemCount}`);
+  console.log(`Tasks: ${status.taskCount}`);
   console.log(`Pending sync conflicts: ${status.pendingSyncConflicts}`);
   if (status.repoSummaries.length > 0 && (status.repoCount > 1 || status.selectedRepoId)) {
     console.log("Repo detail:");
     for (const repo of status.repoSummaries) {
-      console.log(`- ${repo.id}: enabled=${repo.enabled} work_items=${repo.workItemCount} tasks=${repo.taskCount} active_runs=${repo.activeRuns} active_claims=${repo.activeClaims}`);
+      console.log(`- ${repo.id}: enabled=${repo.enabled} tasks=${repo.taskCount} subtasks=${repo.subtaskCount} active_runs=${repo.activeRuns} active_claims=${repo.activeClaims}`);
     }
   }
-  console.log("Work item states:");
-  for (const [workStatus, count] of Object.entries(status.workItemCounts)) {
+  console.log("Task states:");
+  for (const [workStatus, count] of Object.entries(status.taskStatusCounts)) {
     if (count > 0) {
       console.log(`- ${workStatus}: ${count}`);
     }
   }
-  if (Object.keys(status.taskCounts).length === 0) {
-    console.log("Tasks: none yet");
+  if (Object.keys(status.subtaskStatusCounts).length === 0) {
+    console.log("Subtasks: none yet");
     return;
   }
-  console.log("Tasks:");
-  for (const [taskStatus, count] of Object.entries(status.taskCounts).sort()) {
+  console.log("Subtasks:");
+  for (const [taskStatus, count] of Object.entries(status.subtaskStatusCounts).sort()) {
     console.log(`- ${taskStatus}: ${count}`);
   }
   console.log("");
@@ -230,7 +230,7 @@ function runLocalStatus(options: { repo?: string; json?: boolean }): void {
     console.log("Top next actions:");
     for (const action of status.nextActions) {
       const agentText = action.assignedAgentId ? ` with ${action.assignedAgentId}` : "";
-      console.log(`- Start ${action.taskId}${agentText} (${action.reasons.join(", ")})`);
+      console.log(`- Start ${action.subtaskId}${agentText} (${action.reasons.join(", ")})`);
     }
   }
   if (status.hotConflicts.length > 0) {

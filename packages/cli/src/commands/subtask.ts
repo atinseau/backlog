@@ -38,19 +38,19 @@ export function registerSubTaskCommand(program: Command): void {
 
   task
     .command("add")
-    .description("Create a task for a work item")
-    .requiredOption("--work-item <id>", "Parent work item id")
-    .requiredOption("--title <title>", "SubTask title")
+    .description("Create a subtask for a task")
+    .requiredOption("--task <id>", "Parent task id")
+    .requiredOption("--title <title>", "Subtask title")
     .requiredOption("--repo <repo>", "Target repo id")
-    .option("--scope <scope...>", "SubTask scopes")
-    .option("--depends-on <task...>", "SubTask dependencies")
+    .option("--scope <scope...>", "Subtask scopes")
+    .option("--depends-on <subtask...>", "Subtask dependencies")
     .option("--blocker <reason...>", "Initial blockers")
     .option("--risk <risk>", "Risk level", "medium")
     .option("--preferred-agent <id...>", "Preferred agent ids")
     .option("--require-capability <capability...>", "Required agent capabilities")
     .option("--manual-approval", "Require approval before scheduling")
     .action((options: {
-      workItem: string;
+      task: string;
       title: string;
       repo: string;
       scope?: string[];
@@ -66,7 +66,7 @@ export function registerSubTaskCommand(program: Command): void {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
       const created = createSubTask(workspace.backlogDir, {
-        workItemId: options.workItem,
+        workItemId: options.task,
         title: options.title,
         repo: options.repo,
         ...(options.scope ? { scopes: options.scope } : {}),
@@ -77,14 +77,14 @@ export function registerSubTaskCommand(program: Command): void {
         ...(options.requireCapability ? { requiredCapabilities: options.requireCapability } : {}),
         ...(options.manualApproval ? { manualApprovalRequired: true } : {}),
       });
-      console.log(`Created task ${created.id}`);
+      console.log(`Created subtask ${created.id}`);
     });
 
   task
     .command("update")
     .description("Update task metadata without editing YAML by hand")
-    .argument("<task-id>", "SubTask id")
-    .option("--title <title>", "SubTask title")
+    .argument("<subtask-id>", "Subtask id")
+    .option("--title <title>", "Subtask title")
     .option("--repo <repo>", "Target repo id")
     .option("--scope <scope>", "Replace task scopes", collectValues, [])
     .option("--depends-on <task>", "Replace task dependencies", collectValues, [])
@@ -140,12 +140,12 @@ export function registerSubTaskCommand(program: Command): void {
 
   task
     .command("list")
-    .description("List tasks")
-    .option("--repo <repo>", "Only show tasks for one repo")
-    .option("--status <status>", "Only show tasks in one status")
-    .option("--work-item <id>", "Only show tasks for one work item")
+    .description("List subtasks")
+    .option("--repo <repo>", "Only show subtasks for one repo")
+    .option("--status <status>", "Only show subtasks in one status")
+    .option("--task <id>", "Only show subtasks for one parent task")
     .option("--json", "Emit machine-readable JSON")
-    .action((options: { json?: boolean; repo?: string; status?: string; workItem?: string }) => {
+    .action((options: { json?: boolean; repo?: string; status?: string; task?: string }) => {
       const workspace = findProject();
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
@@ -157,7 +157,7 @@ export function registerSubTaskCommand(program: Command): void {
         if (options.status && item.status !== options.status) {
           return false;
         }
-        if (options.workItem && item.task_id !== options.workItem) {
+        if (options.task && item.task_id !== options.task) {
           return false;
         }
         return true;
@@ -167,7 +167,7 @@ export function registerSubTaskCommand(program: Command): void {
         return;
       }
       if (tasks.length === 0) {
-        console.log("No tasks yet.");
+        console.log("No subtasks yet.");
         return;
       }
       for (const item of tasks) {
@@ -178,7 +178,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("remove")
     .description("Permanently delete a sub-task and drop dependency references to it")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .action((taskId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -191,7 +191,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("archive")
     .description("Archive a sub-task — hides from default views + scheduler skips it. Reversible with `unarchive`.")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .action((taskId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -204,7 +204,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("unarchive")
     .description("Restore an archived sub-task to the default views")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .action((taskId: string) => {
       const workspace = findProject();
       if (!workspace) {
@@ -217,7 +217,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("show")
     .description("Show one task")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -232,11 +232,11 @@ export function registerSubTaskCommand(program: Command): void {
         console.log(JSON.stringify(task, null, 2));
         return;
       }
-      console.log(`SubTask: ${task.id}`);
+      console.log(`Subtask: ${task.id}`);
       console.log(`Title: ${task.title}`);
       console.log(`Repo: ${task.repo}`);
       console.log(`Status: ${task.status}`);
-      console.log(`Work item: ${task.task_id}`);
+      console.log(`Task: ${task.task_id}`);
       if (task.scopes.length > 0) {
         console.log(`Scopes: ${task.scopes.join(", ")}`);
       }
@@ -245,7 +245,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("move")
     .description("Move a task to a new status")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .argument("<status>", "Target task status")
     .action((taskId: string, status: "queued" | "planned" | "running" | "waiting" | "review" | "completed" | "blocked" | "canceled") => {
       const workspace = findProject();
@@ -259,7 +259,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("block")
     .description("Block a task with one or more reasons")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .requiredOption("--reason <text>", "Blocking reason", collectValues, [])
     .action((taskId: string, options: { reason: string[] }) => {
       const workspace = findProject();
@@ -273,7 +273,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("unblock")
     .description("Remove one or all blockers and return the task to planned when clear")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .option("--reason <text>", "Specific blocker to remove", collectValues, [])
     .option("--all", "Remove every blocker")
     .action((taskId: string, options: { reason: string[]; all?: boolean }) => {
@@ -288,7 +288,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("plan")
     .description("Explain one task's scheduling state")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .option("--json", "Emit machine-readable JSON")
     .action((taskId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -305,7 +305,7 @@ export function registerSubTaskCommand(program: Command): void {
         console.log(JSON.stringify(decision, null, 2));
         return;
       }
-      console.log(`SubTask: ${decision.taskId}`);
+      console.log(`Subtask: ${decision.taskId}`);
       console.log(`Action: ${decision.action}`);
       console.log(`Score: ${decision.score}`);
       if (decision.assignedAgentId) {
@@ -317,7 +317,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("estimate")
     .description("Set or clear a manual estimate (in seconds)")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .argument("[seconds]", "Duration in seconds (omit with --clear)")
     .option("--clear", "Remove the manual estimate")
     .action((taskId: string, secondsArg: string | undefined, options: { clear?: boolean }) => {
@@ -344,7 +344,7 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("progress")
     .description("Set the progress percent reported by the agent (0-100)")
-    .argument("<task-id>", "SubTask id")
+    .argument("<task-id>", "Subtask id")
     .argument("<percent>", "Progress percent")
     .action((taskId: string, percentArg: string) => {
       const workspace = findProject();

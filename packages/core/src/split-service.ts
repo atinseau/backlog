@@ -3,7 +3,7 @@ import { createSubTask } from "./subtask-service.js";
 import { listSubTasks } from "./state-files.js";
 import { getTask, updateTaskPlanning, updateTaskStatus } from "./task-service.js";
 
-export interface SplitWorkItemInput {
+export interface SplitTaskInput {
   workItemId: string;
   repos: string[];
   mode: "parallel" | "serial";
@@ -12,13 +12,13 @@ export interface SplitWorkItemInput {
   force?: boolean;
 }
 
-export interface SplitWorkItemResult {
+export interface SplitTaskResult {
   workItem: Task;
   createdTasks: SubTask[];
   mode: "parallel" | "serial";
 }
 
-function priorityScoreForWorkItem(workItem: Task): number {
+function priorityScoreForTask(workItem: Task): number {
   switch (workItem.priority) {
     case "P0":
       return 100;
@@ -55,7 +55,7 @@ export function resolveSplitRepos(config: ProjectConfig, workItem: Task, request
     throw new Error(`Unknown repo ids for split: ${unknown.join(", ")}`);
   }
   if (deduped.length === 0) {
-    throw new Error("Cannot split work item without a target repo. Add repo_targets or pass --repo.");
+    throw new Error("Cannot split task without a target repo. Add repo_targets or pass --repo.");
   }
   return deduped;
 }
@@ -77,10 +77,10 @@ export interface ApplySplitProposalInput {
 export function applySplitProposal(
   backlogDir: string,
   input: ApplySplitProposalInput,
-): SplitWorkItemResult {
+): SplitTaskResult {
   const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
-    throw new Error(`Unknown work item: ${input.workItemId}`);
+    throw new Error(`Unknown task: ${input.workItemId}`);
   }
   if (input.tasks.length === 0) {
     throw new Error("Proposal must contain at least one task");
@@ -89,7 +89,7 @@ export function applySplitProposal(
   const existingTasks = listSubTasks(backlogDir).filter((task) => task.task_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
     throw new Error(
-      `Work item ${input.workItemId} already has ${existingTasks.length} task(s). Pass force=true to append.`,
+      `Task ${input.workItemId} already has ${existingTasks.length} task(s). Pass force=true to append.`,
     );
   }
 
@@ -108,7 +108,7 @@ export function applySplitProposal(
       scopes: proposed.scopes,
       dependsOn,
       risk: proposed.risk,
-      priorityScore: priorityScoreForWorkItem(workItem),
+      priorityScore: priorityScoreForTask(workItem),
       completionCriteria: workItem.acceptance_criteria,
       plannerOrigin: "split",
       lane: proposed.repo,
@@ -131,15 +131,15 @@ export function applySplitProposal(
   };
 }
 
-export function splitTask(backlogDir: string, input: SplitWorkItemInput): SplitWorkItemResult {
+export function splitTask(backlogDir: string, input: SplitTaskInput): SplitTaskResult {
   const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
-    throw new Error(`Unknown work item: ${input.workItemId}`);
+    throw new Error(`Unknown task: ${input.workItemId}`);
   }
 
   const existingTasks = listSubTasks(backlogDir).filter((task) => task.task_id === input.workItemId);
   if (existingTasks.length > 0 && !input.force) {
-    throw new Error(`Work item ${input.workItemId} already has ${existingTasks.length} task(s). Use --force to append more split tasks.`);
+    throw new Error(`Task ${input.workItemId} already has ${existingTasks.length} task(s). Use --force to append more split tasks.`);
   }
 
   const createdTasks: SubTask[] = [];
@@ -153,7 +153,7 @@ export function splitTask(backlogDir: string, input: SplitWorkItemInput): SplitW
       scopes: input.scopeByRepo?.[repo] ?? [],
       dependsOn: input.mode === "serial" && previousTaskId ? [previousTaskId] : [],
       risk: input.risk ?? workItem.planning.risk,
-      priorityScore: priorityScoreForWorkItem(workItem),
+      priorityScore: priorityScoreForTask(workItem),
       completionCriteria: workItem.acceptance_criteria,
       plannerOrigin: "split",
       lane: repo,

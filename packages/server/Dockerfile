@@ -1,7 +1,7 @@
 # @backlog/server — Hono local server, packaged for self-hosted use.
-# The container reads workspace state from /workspace/.backlog/ — mount your
-# Backlog workspace into /workspace via -v "$PWD":/workspace at run time.
-# No DB. No auth. The server writes nothing outside the mounted workspace.
+# The container reads project state from /project/.backlog/ — mount your
+# Backlog project into /project via -v "$PWD":/project at run time.
+# No DB. No auth. The server writes nothing outside the mounted project.
 
 FROM node:22-slim AS build
 
@@ -52,10 +52,10 @@ ENV NODE_ENV=production
 # rely on Docker's `-p` mapping (and your host firewall) for access control.
 ENV HOST=0.0.0.0
 ENV PORT=7878
-# Workspace mount point — must contain a .backlog/ directory.
-ENV BACKLOG_WORKSPACE=/workspace
+# Project mount point — must contain a .backlog/ directory.
+ENV BACKLOG_PROJECT=/project
 
-VOLUME ["/workspace"]
+VOLUME ["/project"]
 EXPOSE 7878
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

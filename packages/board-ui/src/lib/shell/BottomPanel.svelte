@@ -12,11 +12,11 @@
   export type BottomTab = "activity";
 
   interface Props {
-    workspaceId: string | null;
+    projectId: string | null;
     onOpenDiff?: (runId: string, file: string) => void;
   }
 
-  let { workspaceId, onOpenDiff }: Props = $props();
+  let { projectId, onOpenDiff }: Props = $props();
 </script>
 
 <section class="bottom-panel" aria-label="Console">
@@ -24,7 +24,7 @@
     <button class="tab active" role="tab" aria-selected="true">{t("bottom.activity")}</button>
   </div>
   <div class="content">
-    <ActivityBanner workspaceId={workspaceId} onOpenDiff={onOpenDiff} embedded={true} />
+    <ActivityBanner projectId={projectId} onOpenDiff={onOpenDiff} embedded={true} />
   </div>
 </section>
 

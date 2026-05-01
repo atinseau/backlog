@@ -79,7 +79,7 @@
   });
 
   // Continue / Merge button — approves the run (which triggers the
-  // workspace's merge_strategy, falling through to "keep the branch +
+  // project's merge_strategy, falling through to "keep the branch +
   // tear down the worktree" when merge_strategy is "none"). Closes
   // the panel after success.
   async function handleApprove() {
@@ -181,7 +181,7 @@
   <!-- Continue / Merge footer. Hidden when there's no diff or the
        fetch is still loading; otherwise the button lets the user
        approve the run inline. The actual merge / cleanup follows
-       the workspace's git.merge_strategy. -->
+       the project's git.merge_strategy. -->
   {#if canApprove}
     <footer>
       <button class="primary" onclick={handleApprove} disabled={approving} title={t("diff.continue_hint")}>

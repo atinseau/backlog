@@ -16,8 +16,8 @@ export interface PreCommitHookStatus {
 // templates/ directory shipped. Mirrors templates/pre-commit.sh.
 //
 // __BACKLOG_WORKSPACE__ is the dir we hand back to the CLI via
-// BACKLOG_PROJECT_DIR. For in_repo workspaces it's the project root (which
-// contains .backlog/); for user_level workspaces it's the workspace dir
+// BACKLOG_PROJECT_DIR. For in_repo projects it's the project root (which
+// contains .backlog/); for user_level projects it's the project data dir
 // itself (config.toml lives there directly). __BACKLOG_PAUSE_FILE__ is the
 // resolved absolute path to the pause sentinel — different shape for the
 // two layouts.
@@ -33,7 +33,7 @@ BACKLOG_WORKSPACE="__BACKLOG_WORKSPACE__"
 PAUSE_FILE="__BACKLOG_PAUSE_FILE__"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# Tell the CLI exactly which workspace this hook belongs to — covers both
+# Tell the CLI exactly which project this hook belongs to — covers both
 # in_repo (.backlog/ subdir) and user_level (~/.backlog/<name>/) layouts
 # without depending on the upward .backlog/ walk.
 export BACKLOG_PROJECT_DIR="$BACKLOG_WORKSPACE"
@@ -44,7 +44,7 @@ if [[ "\${BACKLOG_SKIP_HOOK:-}" == "1" ]]; then
   exit 0
 fi
 
-# Escape hatch 2: workspace-wide pause set with \`backlog hooks pause\`.
+# Escape hatch 2: project-wide pause set with \`backlog hooks pause\`.
 if [[ -f "$PAUSE_FILE" ]]; then
   PAUSED_UNTIL="$(cat "$PAUSE_FILE" 2>/dev/null | head -1 | tr -d '[:space:]')"
   NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -111,10 +111,10 @@ export function installPreCommitHook(params: {
   gitDir: string;
   backlogBin: string;
   // For in_repo: the project root containing .backlog/.
-  // For user_level: the workspace dir itself (~/.backlog/<name>/).
+  // For user_level: the project data dir itself (~/.backlog/<name>/).
   // Either way: the value we'd hand to BACKLOG_PROJECT_DIR.
   projectRoot: string;
-  // Where the workspace data actually lives. For in_repo this is
+  // Where the project data actually lives. For in_repo this is
   // <projectRoot>/.backlog/; for user_level it equals projectRoot.
   // Defaults to <projectRoot>/.backlog/ to keep older callers working.
   backlogDir?: string;

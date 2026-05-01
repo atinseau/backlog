@@ -18,6 +18,12 @@
     return parts.map((p) => p[0]!.toUpperCase() + p.slice(1)).join(" ");
   }
 
+  function repoSlugFromGitUrl(url: string): string {
+    const trimmed = url.trim().replace(/\/$/, "");
+    const last = trimmed.split(/[/:]/).pop() ?? "";
+    return last.replace(/\.git$/i, "");
+  }
+
   interface Props {
     onClose: () => void;
     onCreated: (project: ProjectEntry, openRepos: boolean) => void;
@@ -25,9 +31,10 @@
 
   let { onClose, onCreated }: Props = $props();
 
-  let mode = $state<"new" | "existing">("new");
+  let mode = $state<"new" | "git" | "existing">("new");
   let name = $state("");
   let path = $state("");
+  let gitUrl = $state("");
   let defaultBranch = $state("main");
   let nameTouched = $state(false);
   let inspection = $state<FolderInspect | null>(null);
@@ -68,20 +75,27 @@
     }
   }
 
+  function prefillFromGitUrl() {
+    const slug = repoSlugFromGitUrl(gitUrl);
+    if (slug && !nameTouched) name = humanizeFolderName(slug);
+  }
+
   async function submit() {
     if (!path.trim()) return;
-    if (mode === "new" && !name.trim()) return;
+    if (mode !== "existing" && !name.trim()) return;
+    if (mode === "git" && !gitUrl.trim()) return;
     busy = true;
     error = null;
     try {
-      const project = mode === "new"
+      const project = mode !== "existing"
         ? await initProject({
             path: path.trim(),
             name: name.trim(),
+            git_url: mode === "git" ? gitUrl.trim() : undefined,
             default_branch: defaultBranch.trim() || undefined,
           })
         : await registerProjectByPath(path.trim());
-      onCreated(project, mode === "new");
+      onCreated(project, mode !== "existing");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -101,15 +115,30 @@
       <button class="tab" class:active={mode === "new"} onclick={() => (mode = "new")}>
         {t("create_project.tab.new")}
       </button>
+      <button class="tab" class:active={mode === "git"} onclick={() => (mode = "git")}>
+        {t("create_project.tab.git")}
+      </button>
       <button class="tab" class:active={mode === "existing"} onclick={() => (mode = "existing")}>
         {t("create_project.tab.existing")}
       </button>
     </div>
 
-    {#if mode === "new"}
-      <p class="muted small">{t("create_project.hint.new")}</p>
+    {#if mode !== "existing"}
+      <p class="muted small">{mode === "git" ? t("create_project.hint.git") : t("create_project.hint.new")}</p>
+      {#if mode === "git"}
+        <label class="field">
+          <span class="label">{t("create_project.field.git_url")}</span>
+          <input
+            type="text"
+            bind:value={gitUrl}
+            oninput={prefillFromGitUrl}
+            placeholder="https://github.com/org/repository.git"
+            autocomplete="off"
+          />
+        </label>
+      {/if}
       <div class="field">
-        <span class="label">{t("create_project.field.path")}</span>
+        <span class="label">{mode === "git" ? t("create_project.field.clone_path") : t("create_project.field.path")}</span>
         {#if isElectron}
           <button class="picker" onclick={pickPath} type="button">
             <span class="picker-icon">📂</span>
@@ -119,7 +148,7 @@
         {:else}
           <input type="text" bind:value={path} placeholder="/Users/jimmy/Dev/my-project" autocomplete="off" />
         {/if}
-        <small>{t("create_project.field.path_help")}</small>
+        <small>{mode === "git" ? t("create_project.field.clone_path_help") : t("create_project.field.path_help")}</small>
       </div>
       <label class="field">
         <span class="label">{t("create_project.field.name")}</span>
@@ -167,12 +196,12 @@
       <button
         class="primary"
         onclick={submit}
-        disabled={busy || !path.trim() || (mode === "new" && !name.trim())}
+        disabled={busy || !path.trim() || (mode !== "existing" && !name.trim()) || (mode === "git" && !gitUrl.trim())}
       >
         {#if busy}
-          {mode === "new" ? t("create_project.button.creating") : t("create_project.button.adding")}
+          {mode === "existing" ? t("create_project.button.adding") : t("create_project.button.creating")}
         {:else}
-          {mode === "new" ? t("create_project.button.create") : t("create_project.button.add")}
+          {mode === "existing" ? t("create_project.button.add") : t("create_project.button.create")}
         {/if}
       </button>
     </div>

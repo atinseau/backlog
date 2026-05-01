@@ -262,14 +262,14 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
 
   const tasksFile = readSubTasksFile(backlogDir);
   const linkedTasks = tasksFile.subtasks.filter((task) => task.repo === repoId);
-  const workItemsFile = readTasksFile(backlogDir);
-  const linkedWorkItems = workItemsFile.tasks.filter((item) => item.repo_targets.includes(repoId) || item.planning.preferred_lane === repoId);
+  const tasksFileForProject = readTasksFile(backlogDir);
+  const linkedProjectTasks = tasksFileForProject.tasks.filter((item) => item.repo_targets.includes(repoId) || item.planning.preferred_lane === repoId);
   const agentsFile = readAgentsFile(backlogDir);
   const linkedAgents = agentsFile.agents.filter((agent) => agent.allowed_repos.includes(repoId));
 
-  if (!options?.force && (linkedTasks.length > 0 || linkedWorkItems.length > 0 || linkedAgents.length > 0)) {
+  if (!options?.force && (linkedTasks.length > 0 || linkedProjectTasks.length > 0 || linkedAgents.length > 0)) {
     throw new Error(
-      `Repo ${repoId} is still referenced by ${linkedTasks.length} task(s), ${linkedWorkItems.length} work item(s), and ${linkedAgents.length} agent(s). Re-run with --force.`,
+      `Repo ${repoId} is still referenced by ${linkedProjectTasks.length} task(s), ${linkedTasks.length} subtask(s), and ${linkedAgents.length} agent(s). Re-run with --force.`,
     );
   }
 
@@ -292,9 +292,9 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
       writeSubTasksFile(backlogDir, tasksFile);
     }
 
-    let workItemsChanged = false;
-    const affectedWorkItems = new Set(linkedTasks.map((task) => task.task_id));
-    for (const item of workItemsFile.tasks) {
+    let projectTasksChanged = false;
+    const affectedProjectTasks = new Set(linkedTasks.map((task) => task.task_id));
+    for (const item of tasksFileForProject.tasks) {
       let changed = false;
       if (item.repo_targets.includes(repoId)) {
         item.repo_targets = item.repo_targets.filter((candidate) => candidate !== repoId);
@@ -304,17 +304,17 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
         delete item.planning.preferred_lane;
         changed = true;
       }
-      if (affectedWorkItems.has(item.id)) {
+      if (affectedProjectTasks.has(item.id)) {
         item.status = deriveTaskStatusFromSubTasks(backlogDir, item.id) ?? "backlog";
         changed = true;
       }
       if (changed) {
         item.updated_at = new Date().toISOString();
-        workItemsChanged = true;
+        projectTasksChanged = true;
       }
     }
-    if (workItemsChanged) {
-      writeTasksFile(backlogDir, workItemsFile);
+    if (projectTasksChanged) {
+      writeTasksFile(backlogDir, tasksFileForProject);
     }
 
     let agentsChanged = false;

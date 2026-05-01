@@ -6,12 +6,12 @@ import { projectLocationSchema } from "./config.js";
 // what to restore (the new path is `path` on the entry; the previous one
 // would otherwise be lost).
 export const projectMigrationRecordSchema = z.object({
-  // Where the workspace lived before this migration. Same shape as
-  // ProjectRegistryEntry.path (project root for in_repo, workspace dir
+  // Where the project lived before this migration. Same shape as
+  // ProjectRegistryEntry.path (project root for in_repo, project data dir
   // for user_level).
   previous_path: z.string().min(1),
   previous_location: projectLocationSchema,
-  // Path to the archived workspace dir (`.migrated-YYYY-MM-DD/`). Empty
+  // Path to the archived project data dir (`.migrated-YYYY-MM-DD/`). Empty
   // when --keep-old was passed and nothing was archived.
   archived_at: z.string().min(1).optional(),
   migrated_at: z.string().datetime(),
@@ -20,7 +20,7 @@ export const projectMigrationRecordSchema = z.object({
 export const projectRegistryEntrySchema = z.object({
   id: z.string().min(1),
   // For in_repo projects: the project root that contains .backlog/.
-  // For user_level projects: the workspace dir itself (e.g. ~/.backlog/<name>/);
+  // For user_level projects: the project data dir itself (e.g. ~/.backlog/<name>/);
   // there is no inner .backlog/ subdirectory in that case.
   path: z.string().min(1),
   name: z.string().min(1),

@@ -2,8 +2,8 @@
   // General app settings — preferences that aren't tied to a specific
   // project: appearance, identity, board layout, notifications, CLI
   // info, onboarding reset, and About. Project-scoped settings (API
-  // keys, chat history, workspace info) live in the left-panel
-  // Paramètres section since they read/write the active workspace.
+  // keys, chat history, project info) live in the left-panel
+  // Paramètres section since they read/write the active project.
   import LocaleToggle from "./LocaleToggle.svelte";
   import ThemeToggle from "./ThemeToggle.svelte";
   import { t } from "./i18n.svelte.js";
@@ -14,7 +14,7 @@
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
-  import { fetchAgents, fetchHealth, fetchWorkspace, setReviewConfig } from "./api.js";
+  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig } from "./api.js";
   import type { AgentSummary } from "./types.js";
 
   interface Props {
@@ -27,9 +27,9 @@
   const notifyRuns = $derived(getNotifyOnRunComplete());
   const displayName = $derived(getDisplayName());
 
-  let health = $state<{ ok: boolean; workspace: string; version: string } | null>(null);
+  let health = $state<{ ok: boolean; project: string; version: string } | null>(null);
 
-  // Workspace-scoped review settings (auto-reviewer agent). Loaded
+  // Project-scoped review settings (auto-reviewer agent). Loaded
   // alongside the agents catalog so the dropdown can render labels.
   let reviewerAgentId = $state<string>("");
   let agentOptions = $state<AgentSummary[]>([]);
@@ -38,17 +38,17 @@
   async function load() {
     try { health = await fetchHealth(); } catch { /* best-effort */ }
     try {
-      const [agents, workspace] = await Promise.all([
+      const [agents, project] = await Promise.all([
         fetchAgents().catch(() => []),
-        fetchWorkspace().catch(() => null),
+        fetchProject().catch(() => null),
       ]);
       agentOptions = agents.filter(
         (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
       );
       // ProjectInfo doesn't expose review yet, so reach into the raw
-      // workspace object via a side fetch — for v1 we just default to
+      // project object via a side fetch — for v1 we just default to
       // "" if the value isn't present client-side.
-      reviewerAgentId = (workspace as unknown as { review?: { auto_reviewer_agent_id?: string } } | null)?.review?.auto_reviewer_agent_id ?? "";
+      reviewerAgentId = (project as unknown as { review?: { auto_reviewer_agent_id?: string } } | null)?.review?.auto_reviewer_agent_id ?? "";
     } catch {
       /* best-effort */
     }
@@ -103,11 +103,11 @@
         <h3>{t("settings.appearance.title")}</h3>
         <p class="hint">{t("settings.appearance.hint")}</p>
         <div class="row">
-          <label>{t("theme.label")}</label>
+          <span class="setting-label">{t("theme.label")}</span>
           <ThemeToggle />
         </div>
         <div class="row">
-          <label>{t("settings.locale")}</label>
+          <span class="setting-label">{t("settings.locale")}</span>
           <LocaleToggle />
         </div>
       </section>
@@ -268,7 +268,7 @@
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 6px 0;
   }
-  .row label { font-size: 13px; color: var(--text-body); }
+  .setting-label { font-size: 13px; color: var(--text-body); }
   .toggle {
     display: flex; align-items: flex-start; gap: 10px;
     cursor: pointer; padding: 6px 0;

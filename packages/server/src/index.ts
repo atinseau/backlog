@@ -3,6 +3,8 @@ import { buildApp, VERSION } from "./app.js";
 import { resolveProject, type ServerProject } from "./project-context.js";
 
 export interface StartServerOptions {
+  project?: string;
+  /** Compatibility alias for `project`. */
   workspace?: string;
   port?: number;
   host?: string;
@@ -13,13 +15,13 @@ export interface RunningServer {
   url: string;
   port: number;
   host: string;
-  workspace: ServerProject;
+  project: ServerProject;
   close: () => Promise<void>;
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
-  const workspace = resolveProject(options.workspace);
-  const appOptions: { workspace: ServerProject; uiDistDir?: string } = { workspace };
+  const project = resolveProject(options.project ?? options.workspace);
+  const appOptions: { project: ServerProject; uiDistDir?: string } = { project };
   if (options.uiDistDir) appOptions.uiDistDir = options.uiDistDir;
   const { app, buses } = buildApp(appOptions);
   const host = options.host ?? "127.0.0.1";
@@ -40,12 +42,12 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
     url: `http://${displayHost}:${boundPort}`,
     port: boundPort,
     host,
-    workspace,
+    project,
     close: async () => {
       // Belt-and-suspenders shutdown. The hydrate side (suspenders)
       // forces orchestrator → idle on next launch. The belt is here:
       // before tearing down the HTTP server, walk every registered
-      // workspace and (a) freeze its orchestrator state to idle so
+      // project and (a) freeze its orchestrator state to idle so
       // there's no surviving "running" flag on disk, (b) cancel any
       // non-terminal active runs with a `shutdown` reason — they
       // would otherwise be reaped as orphaned `interrupted` on next
@@ -60,8 +62,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
           updateRunStatus,
         } = await import("@backlog/core");
         const registry = loadRegistry();
-        const seenDirs = new Set<string>([workspace.backlogDir]);
-        const dirs = [workspace.backlogDir];
+        const seenDirs = new Set<string>([project.backlogDir]);
+        const dirs = [project.backlogDir];
         for (const project of registry.projects) {
           const root = project.path;
           const dir = project.location === "user_level" ? root : `${root}/.backlog`;
@@ -95,7 +97,7 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
               paused_at: null,
             });
           } catch {
-            // best effort per workspace
+            // best effort per project
           }
         }
       } catch {

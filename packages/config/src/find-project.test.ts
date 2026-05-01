@@ -89,6 +89,18 @@ describe("findProject", () => {
     expect(found!.backlogDir).toBe(userWorkspace);
   });
 
+  it("can ignore BACKLOG_PROJECT_DIR when the caller supplies an explicit project", () => {
+    const envRoot = tmp("backlog-fp-env-explicit-");
+    initLayout({ root: envRoot, projectName: "env-demo" });
+    const explicitRoot = tmp("backlog-fp-explicit-");
+    initLayout({ root: explicitRoot, projectName: "explicit-demo" });
+    process.env.BACKLOG_PROJECT_DIR = envRoot;
+
+    const found = findProject(explicitRoot, { honorEnv: false });
+    expect(found!.root).toBe(explicitRoot);
+    expect(found!.backlogDir).toBe(path.join(explicitRoot, ".backlog"));
+  });
+
   it("returns null from the registry fallback when cwd doesn't match any repo", () => {
     const registryDir = tmp("backlog-fp-reg-nomatch-");
     const userWorkspace = tmp("backlog-fp-userlevel-nomatch-");

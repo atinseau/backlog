@@ -23,8 +23,8 @@ export function orchestratorChatRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.post("/orchestrator/chat", async (c) => {
-    const workspace = c.get("workspace");
-    const credentials = resolveChatCredentials(workspace.backlogDir);
+    const project = c.get("project");
+    const credentials = resolveChatCredentials(project.backlogDir);
     if (!credentials) {
       return c.json(
         {
@@ -61,7 +61,7 @@ export function orchestratorChatRoutes(): Hono<AppEnv> {
 
       try {
         await runOrchestratorChat({
-          backlogDir: workspace.backlogDir,
+          backlogDir: project.backlogDir,
           messages,
           credentials,
           ...(parsed.data.model ? { model: parsed.data.model } : {}),

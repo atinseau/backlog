@@ -5,7 +5,7 @@ import { loadConfig } from "./load-config.js";
 
 export interface ProjectPaths {
   // For in_repo: the project root containing the .backlog/ subdirectory.
-  // For user_level: the workspace dir itself (no inner .backlog/).
+  // For user_level: the project data dir itself (no inner .backlog/).
   root: string;
   // The dir containing config.toml + state files. For in_repo this is
   // <root>/.backlog/, for user_level it's the same as `root`.
@@ -13,6 +13,10 @@ export interface ProjectPaths {
 }
 
 export interface FindProjectOptions {
+  // Whether BACKLOG_PROJECT_DIR should override startDir. Enabled by default
+  // for CLI commands and hooks; disabled by server --project/--workspace
+  // because explicit user input must win over an inherited shell env var.
+  honorEnv?: boolean;
   // Override the registry directory (used in tests).
   registryOptions?: RegistryOptions;
   // Skip the registry-based fallback (used when we explicitly want the
@@ -20,7 +24,7 @@ export interface FindProjectOptions {
   skipRegistry?: boolean;
 }
 
-// Cached repo→workspace map keyed by registry path. Invalidated when the
+// Cached repo→project map keyed by registry path. Invalidated when the
 // registry file's mtime changes, so an external `backlog project add`
 // from another process is picked up at the next call. The cache lives
 // for the process's lifetime — short-lived CLI invocations refill on
@@ -29,7 +33,7 @@ export interface FindProjectOptions {
 interface RegistryCacheEntry {
   // Stat key: mtime in ms. Bumping the registry file resets the cache.
   mtimeMs: number;
-  // Each user_level entry's resolved repo paths and workspace dir.
+  // Each user_level entry's resolved repo paths and project data dir.
   workspaces: { workspaceDir: string; repoPaths: string[] }[];
 }
 
@@ -43,22 +47,22 @@ export function clearFindProjectCache(): void {
 }
 
 // 1. BACKLOG_PROJECT_DIR env var lets the pre-commit hook (or any other
-//    out-of-tree caller) point us at a workspace directly. Accepts either
-//    a project root with a .backlog/ subdir or a user_level workspace dir
+//    out-of-tree caller) point us at a project directly. Accepts either
+//    a project root with a .backlog/ subdir or a user_level project data dir
 //    (containing config.toml at its root).
-// 2. If cwd itself is a user_level workspace (has config.toml at its root),
+// 2. If cwd itself is a user_level project (has config.toml at its root),
 //    return that directly. Lets you run `backlog …` from inside
 //    ~/.backlog/<name>/ without going through the registry.
 // 3. Walk up from cwd looking for a .backlog/ subdirectory that contains a
-//    config.toml. Covers in_repo workspaces. The config.toml check matters
+//    config.toml. Covers in_repo projects. The config.toml check matters
 //    because the user-level root ~/.backlog/ ITSELF is a directory named
 //    .backlog — without the check, the walk would mistake it for an
-//    in_repo workspace anytime cwd is under it.
+//    in_repo project anytime cwd is under it.
 // 4. Fall back to the user-level project registry: for each user_level
 //    entry, load its config.toml and check whether cwd sits inside any of
 //    its registered repos. The first match wins.
 export function findProject(startDir = process.cwd(), options: FindProjectOptions = {}): ProjectPaths | null {
-  const envOverride = process.env.BACKLOG_PROJECT_DIR;
+  const envOverride = options.honorEnv === false ? undefined : process.env.BACKLOG_PROJECT_DIR;
   if (envOverride && envOverride.length > 0) {
     const resolved = resolveExplicitDir(envOverride);
     if (resolved) return resolved;
@@ -66,7 +70,7 @@ export function findProject(startDir = process.cwd(), options: FindProjectOption
 
   const cwd = path.resolve(startDir);
 
-  // user_level: cwd is itself the workspace dir.
+  // user_level: cwd is itself the project data dir.
   if (fs.existsSync(path.join(cwd, "config.toml"))) {
     return { root: cwd, backlogDir: cwd };
   }

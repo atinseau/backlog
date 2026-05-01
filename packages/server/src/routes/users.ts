@@ -31,12 +31,12 @@ export function usersRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/users", (c) => {
-    const workspace = c.get("workspace");
-    return c.json({ users: listUsers(workspace.backlogDir) });
+    const project = c.get("project");
+    return c.json({ users: listUsers(project.backlogDir) });
   });
 
   app.post("/users/invite", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = inviteBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -47,7 +47,7 @@ export function usersRoutes(): Hono<AppEnv> {
       if (parsed.data.display_name) input.display_name = parsed.data.display_name;
       if (parsed.data.role) input.role = parsed.data.role;
       if (parsed.data.invited_by) input.invited_by = parsed.data.invited_by;
-      const user = inviteUser(workspace.backlogDir, input);
+      const user = inviteUser(project.backlogDir, input);
       return c.json({ user }, 201);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -56,7 +56,7 @@ export function usersRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/users/:id", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -67,7 +67,7 @@ export function usersRoutes(): Hono<AppEnv> {
       if (parsed.data.display_name !== undefined) input.display_name = parsed.data.display_name;
       if (parsed.data.role !== undefined) input.role = parsed.data.role;
       if (parsed.data.status !== undefined) input.status = parsed.data.status;
-      const user = updateUser(workspace.backlogDir, c.req.param("id"), input);
+      const user = updateUser(project.backlogDir, c.req.param("id"), input);
       return c.json({ user });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -77,9 +77,9 @@ export function usersRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/users/:id", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     try {
-      deleteUser(workspace.backlogDir, c.req.param("id"));
+      deleteUser(project.backlogDir, c.req.param("id"));
       return c.body(null, 204);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -91,9 +91,9 @@ export function usersRoutes(): Hono<AppEnv> {
   // Re-issue the invitation token + expiry. Used by the "Resend
   // invitation" button in the UI when the recipient lost the link.
   app.post("/users/:id/refresh-invitation", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     try {
-      const user = refreshInvitation(workspace.backlogDir, c.req.param("id"));
+      const user = refreshInvitation(project.backlogDir, c.req.param("id"));
       return c.json({ user });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -106,14 +106,14 @@ export function usersRoutes(): Hono<AppEnv> {
   // an email link) to flip their status from pending → active. No auth
   // — the token itself is the credential.
   app.post("/users/confirm", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const token = (raw as { token?: unknown } | null)?.token;
     if (typeof token !== "string" || token.length === 0) {
       return c.json({ error: "missing_token" }, 400);
     }
     try {
-      const user = confirmInvitation(workspace.backlogDir, token);
+      const user = confirmInvitation(project.backlogDir, token);
       return c.json({ user });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

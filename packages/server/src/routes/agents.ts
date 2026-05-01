@@ -13,11 +13,15 @@ function requiredSecretKey(provider: string): string | null {
   return null;
 }
 
+const sandboxModeSchema = z
+  .enum(["read-only", "project-write", "workspace-write", "danger-full-access"])
+  .transform((value) => (value === "project-write" ? "workspace-write" : value));
+
 const updateBodySchema = z
   .object({
     enabled: z.boolean().optional(),
     max_concurrent_runs: z.number().int().positive().optional(),
-    sandbox_mode: z.enum(["read-only", "workspace-write", "danger-full-access"]).nullable().optional(),
+    sandbox_mode: sandboxModeSchema.nullable().optional(),
     success_mode: z.enum(["review", "complete"]).nullable().optional(),
     allowed_repos: z.array(z.string()).optional(),
     allowed_risk: z.array(z.enum(["low", "medium", "high"])).optional(),
@@ -36,7 +40,7 @@ const createBodySchema = z
     profile: z.string().optional(),
     command: z.string().optional(),
     enabled: z.boolean().optional(),
-    sandbox_mode: z.enum(["read-only", "workspace-write", "danger-full-access"]).optional(),
+    sandbox_mode: sandboxModeSchema.optional(),
     success_mode: z.enum(["review", "complete"]).optional(),
     max_concurrent_runs: z.number().int().positive().optional(),
     allowed_risk: z.array(z.enum(["low", "medium", "high"])).optional(),
@@ -49,9 +53,9 @@ export function agentsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/agents", (c) => {
-    const workspace = c.get("workspace");
-    const agents = listAgents(workspace.backlogDir);
-    const runs = listActiveRuns(workspace.backlogDir);
+    const project = c.get("project");
+    const agents = listAgents(project.backlogDir);
+    const runs = listActiveRuns(project.backlogDir);
     const summary = agents.map((agent) => {
       const activeRuns = runs.filter((run) => run.agent_id === agent.id);
       // Surface "is this agent ready to run?" alongside the config.
@@ -59,7 +63,7 @@ export function agentsRoutes(): Hono<AppEnv> {
       // — we don't auto-disable in storage so the user's choice is
       // preserved if they later add the missing key.
       const secretKey = requiredSecretKey(agent.provider);
-      const needsApiKey = secretKey !== null && !hasSecret(workspace.backlogDir, secretKey);
+      const needsApiKey = secretKey !== null && !hasSecret(project.backlogDir, secretKey);
       return {
         id: agent.id,
         display_name: agent.display_name ?? null,
@@ -82,14 +86,14 @@ export function agentsRoutes(): Hono<AppEnv> {
   });
 
   app.post("/agents", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = createBodySchema.safeParse(raw);
     if (!parsed.success) {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const created = addAgent(workspace.backlogDir, {
+      const created = addAgent(project.backlogDir, {
         id: parsed.data.id,
         provider: parsed.data.provider,
         ...(parsed.data.model !== undefined ? { model: parsed.data.model } : {}),
@@ -112,9 +116,9 @@ export function agentsRoutes(): Hono<AppEnv> {
   });
 
   app.delete("/agents/:id", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     try {
-      deleteAgent(workspace.backlogDir, c.req.param("id"));
+      deleteAgent(project.backlogDir, c.req.param("id"));
       return c.body(null, 204);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -124,7 +128,7 @@ export function agentsRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/agents/:id", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = updateBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -148,7 +152,7 @@ export function agentsRoutes(): Hono<AppEnv> {
     else if (parsed.data.display_name !== undefined) input.displayName = parsed.data.display_name;
 
     try {
-      const agent = updateAgent(workspace.backlogDir, c.req.param("id"), input);
+      const agent = updateAgent(project.backlogDir, c.req.param("id"), input);
       return c.json({ agent });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

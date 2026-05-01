@@ -9,14 +9,14 @@ export function eventsRoutes(buses: EventBusRegistry): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/events", (c) => {
-    const workspace = c.get("workspace");
-    const bus = buses.get(workspace);
+    const project = c.get("project");
+    const bus = buses.get(project);
     return streamSSE(c, async (stream) => {
       let id = 0;
       await stream.writeSSE({
         event: "ready",
         id: String(id++),
-        data: JSON.stringify({ ts: new Date().toISOString(), project_id: workspace.project_id }),
+        data: JSON.stringify({ ts: new Date().toISOString(), project_id: project.project_id }),
       });
 
       const unsubscribe = bus.onBoard(async (event) => {

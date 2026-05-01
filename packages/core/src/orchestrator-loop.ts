@@ -294,7 +294,7 @@ function reapOrphanedRuns(backlogDir: string, now: number): void {
       });
       // Subtask back to planned so the scheduler can pick it up again
       // (or the user can trigger a fresh ▶). Use subtask_id, not
-      // task_id — task_id points at the parent work item.
+      // task_id — task_id points at the parent task.
       updateSubTaskStatus(backlogDir, run.subtask_id, "queued");
     } catch {
       // Best-effort cleanup; if the subtask is already gone the run

@@ -6,7 +6,7 @@ import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { createSubTask } from "./subtask-service.js";
 import { createTask, updateTaskStatus } from "./task-service.js";
-import { buildWorkspaceStatus } from "./status-builder.js";
+import { buildProjectStatus } from "./status-builder.js";
 import { createRun } from "./run-store.js";
 import { getAgent } from "./agents.js";
 import { createClaim } from "@backlog/claims";
@@ -41,7 +41,7 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string }> 
   return { root, backlogDir: path.join(root, ".backlog") };
 }
 
-describe("buildWorkspaceStatus", () => {
+describe("buildProjectStatus", () => {
   let root: string;
   let backlogDir: string;
 
@@ -92,21 +92,21 @@ describe("buildWorkspaceStatus", () => {
       paths: ["README.md"],
     });
 
-    const status = buildWorkspaceStatus(root, backlogDir, config);
+    const status = buildProjectStatus(root, backlogDir, config);
     expect(status.repoSummaries).toEqual([
       expect.objectContaining({
         id: "backlog",
         enabled: true,
-        workItemCount: 1,
         taskCount: 1,
+        subtaskCount: 1,
         activeRuns: 0,
         activeClaims: 0,
       }),
       expect.objectContaining({
         id: "docs",
         enabled: false,
-        workItemCount: 1,
         taskCount: 1,
+        subtaskCount: 1,
         activeRuns: 1,
         activeClaims: 1,
       }),
@@ -134,14 +134,14 @@ describe("buildWorkspaceStatus", () => {
       repo: "docs",
     });
 
-    const status = buildWorkspaceStatus(root, backlogDir, config, { repoId: "docs" });
+    const status = buildProjectStatus(root, backlogDir, config, { repoId: "docs" });
     expect(status.selectedRepoId).toBe("docs");
-    expect(status.workItemCount).toBe(1);
+    expect(status.taskCount).toBe(1);
     expect(status.repoSummaries).toHaveLength(1);
     expect(status.repoSummaries[0]).toMatchObject({
       id: "docs",
       taskCount: 1,
-      workItemCount: 1,
+      subtaskCount: 1,
     });
   });
 });

@@ -58,7 +58,7 @@ async function makeGitWorkspace(autonomyMode: "observe" | "assist" | "delegate" 
 function buildApp(workspace: ServerProject): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
-    c.set("workspace", workspace);
+    c.set("project", workspace);
     await next();
   });
   app.route("/", runsRoutes());
@@ -128,8 +128,8 @@ describe("POST /runs", () => {
   });
 
   it("auto-creates a covering subtask and executes task_id runs in direct mode", async () => {
-    const workspace = await makeGitWorkspace("assist");
-    addAgent(workspace.backlogDir, {
+    const project = await makeGitWorkspace("assist");
+    addAgent(project.backlogDir, {
       id: "writer",
       provider: "custom",
       command: "node -e \"require('fs').writeFileSync('task-direct.txt', 'ok\\\\n')\"",
@@ -137,7 +137,7 @@ describe("POST /runs", () => {
       allowedRepos: ["demo"],
       allowedRisk: ["medium"],
     });
-    const task = createTask(workspace.backlogDir, {
+    const task = createTask(project.backlogDir, {
       title: "Write direct file",
       repoTargets: ["demo"],
       autoCommit: false,
@@ -146,7 +146,7 @@ describe("POST /runs", () => {
       preferredAgents: ["writer"],
     });
 
-    const app = buildApp(workspace);
+    const app = buildApp(project);
     const res = await app.request("/runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -158,17 +158,17 @@ describe("POST /runs", () => {
     expect(body.skipped ?? []).toEqual([]);
     expect(body.started).toEqual([
       expect.objectContaining({
-        worktreePath: workspace.root,
+        worktreePath: project.root,
         branch: "main",
       }),
     ]);
-    expect(fs.readFileSync(path.join(workspace.root, "task-direct.txt"), "utf8")).toBe("ok\n");
-    expect(fs.existsSync(path.join(workspace.backlogDir, "worktrees", "demo"))).toBe(false);
+    expect(fs.readFileSync(path.join(project.root, "task-direct.txt"), "utf8")).toBe("ok\n");
+    expect(fs.existsSync(path.join(project.backlogDir, "worktrees", "demo"))).toBe(false);
   });
 
   it("passes explicit dirty direct checkout approval to the launcher", async () => {
-    const workspace = await makeGitWorkspace("assist");
-    addAgent(workspace.backlogDir, {
+    const project = await makeGitWorkspace("assist");
+    addAgent(project.backlogDir, {
       id: "writer",
       provider: "custom",
       command: "node -e \"require('fs').writeFileSync('dirty-direct.txt', 'ok\\\\n')\"",
@@ -176,7 +176,7 @@ describe("POST /runs", () => {
       allowedRepos: ["demo"],
       allowedRisk: ["medium"],
     });
-    const task = createTask(workspace.backlogDir, {
+    const task = createTask(project.backlogDir, {
       title: "Write direct file anyway",
       repoTargets: ["demo"],
       autoCommit: false,
@@ -184,9 +184,9 @@ describe("POST /runs", () => {
       worktreeMode: "direct",
       preferredAgents: ["writer"],
     });
-    fs.writeFileSync(path.join(workspace.root, "human-note.txt"), "already here\n", "utf8");
+    fs.writeFileSync(path.join(project.root, "human-note.txt"), "already here\n", "utf8");
 
-    const app = buildApp(workspace);
+    const app = buildApp(project);
     const res = await app.request("/runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -201,8 +201,8 @@ describe("POST /runs", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as { started?: Array<{ worktreePath: string }>; skipped?: unknown[] };
     expect(body.skipped ?? []).toEqual([]);
-    expect(body.started?.[0]?.worktreePath).toBe(workspace.root);
-    expect(fs.readFileSync(path.join(workspace.root, "dirty-direct.txt"), "utf8")).toBe("ok\n");
-    expect(fs.readFileSync(path.join(workspace.root, "human-note.txt"), "utf8")).toBe("already here\n");
+    expect(body.started?.[0]?.worktreePath).toBe(project.root);
+    expect(fs.readFileSync(path.join(project.root, "dirty-direct.txt"), "utf8")).toBe("ok\n");
+    expect(fs.readFileSync(path.join(project.root, "human-note.txt"), "utf8")).toBe("already here\n");
   });
 });

@@ -24,6 +24,16 @@ function readClaimFile(filePath: string): ClaimRecord {
   return claimRecordSchema.parse(raw);
 }
 
+function readClaimFileIfValid(filePath: string): ClaimRecord | null {
+  try {
+    return readClaimFile(filePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`backlog: ignoring unreadable claim file ${filePath}: ${message}`);
+    return null;
+  }
+}
+
 export function isExpired(claim: ClaimRecord): boolean {
   return new Date(claim.expires_at).getTime() <= Date.now();
 }
@@ -85,7 +95,8 @@ export function listActiveClaims(backlogDir: string): ClaimRecord[] {
   return fs
     .readdirSync(directory)
     .filter((entry) => entry.endsWith(".json"))
-    .map((entry) => readClaimFile(path.join(directory, entry)))
+    .map((entry) => readClaimFileIfValid(path.join(directory, entry)))
+    .filter((claim): claim is ClaimRecord => claim !== null)
     .filter((claim) => !isExpired(claim));
 }
 
@@ -111,7 +122,8 @@ export function listArchivedClaims(backlogDir: string): ClaimRecord[] {
   return fs
     .readdirSync(directory)
     .filter((entry) => entry.endsWith(".json"))
-    .map((entry) => readClaimFile(path.join(directory, entry)))
+    .map((entry) => readClaimFileIfValid(path.join(directory, entry)))
+    .filter((claim): claim is ClaimRecord => claim !== null)
     .sort((a, b) => Date.parse(b.finished_at ?? b.expires_at) - Date.parse(a.finished_at ?? a.expires_at));
 }
 

@@ -6,11 +6,11 @@
 
   interface Props {
     board: BoardResponse | null;
-    workspaceId: string | null;
+    projectId: string | null;
     onOpenActivity?: () => void;
   }
 
-  let { board, workspaceId, onOpenActivity }: Props = $props();
+  let { board, projectId, onOpenActivity }: Props = $props();
 
   type ActivityEvent = {
     ts: string;
@@ -21,7 +21,7 @@
 
   let latest = $state<ActivityEvent | null>(null);
   let source: EventSource | null = null;
-  let lastWorkspaceId: string | null | undefined = undefined;
+  let lastProjectId: string | null | undefined = undefined;
 
   function allSubtasks(): SubTaskCard[] {
     if (!board) return [];
@@ -88,9 +88,9 @@
   }
 
   $effect(() => {
-    const id = workspaceId;
-    if (id === lastWorkspaceId) return;
-    lastWorkspaceId = id;
+    const id = projectId;
+    if (id === lastProjectId) return;
+    lastProjectId = id;
     latest = null;
     if (!id) {
       source?.close();

@@ -7,7 +7,7 @@ import { nextId } from "@backlog/config";
 import { getTask, updateTaskStatus, deriveTaskStatusFromSubTasks } from "./task-service.js";
 import { listSubTasks, readSubTasksFile, writeSubTasksFile } from "./state-files.js";
 
-export interface CreateTaskInput {
+export interface CreateSubTaskInput {
   workItemId: string;
   title: string;
   repo: string;
@@ -25,7 +25,7 @@ export interface CreateTaskInput {
   manualApprovalRequired?: boolean;
 }
 
-export interface UpdateTaskInput {
+export interface UpdateSubTaskInput {
   title?: string;
   repo?: string;
   scopes?: string[];
@@ -42,10 +42,10 @@ export interface UpdateTaskInput {
   plannerLocked?: boolean;
 }
 
-export function createSubTask(backlogDir: string, input: CreateTaskInput): SubTask {
+export function createSubTask(backlogDir: string, input: CreateSubTaskInput): SubTask {
   const workItem = getTask(backlogDir, input.workItemId);
   if (!workItem) {
-    throw new Error(`Unknown work item: ${input.workItemId}`);
+    throw new Error(`Unknown task: ${input.workItemId}`);
   }
 
   const file = readSubTasksFile(backlogDir);
@@ -89,7 +89,7 @@ export function getSubTask(backlogDir: string, id: string): SubTask | null {
   return readSubTasksFile(backlogDir).subtasks.find((task) => task.id === id) ?? null;
 }
 
-export function updateSubTask(backlogDir: string, id: string, input: UpdateTaskInput): SubTask {
+export function updateSubTask(backlogDir: string, id: string, input: UpdateSubTaskInput): SubTask {
   const file = readSubTasksFile(backlogDir);
   const task = file.subtasks.find((candidate) => candidate.id === id);
   if (!task) {
@@ -297,22 +297,22 @@ export function setSubTaskProgress(backlogDir: string, id: string, percent: numb
   return task;
 }
 
-export interface ReorderTaskInput {
+export interface ReorderSubTaskInput {
   taskId: string;
   beforeId?: string;
   afterId?: string;
 }
 
-export function reorderSubTask(backlogDir: string, input: ReorderTaskInput): SubTask {
+export function reorderSubTask(backlogDir: string, input: ReorderSubTaskInput): SubTask {
   const file = readSubTasksFile(backlogDir);
   const task = file.subtasks.find((candidate) => candidate.id === input.taskId);
   if (!task) throw new Error(`Unknown task: ${input.taskId}`);
 
-  const sameWorkItem = file.subtasks
+  const sameParentTask = file.subtasks
     .filter((candidate) => candidate.task_id === task.task_id)
     .sort((a, b) => b.priority_score - a.priority_score);
 
-  const without = sameWorkItem.filter((candidate) => candidate.id !== task.id);
+  const without = sameParentTask.filter((candidate) => candidate.id !== task.id);
 
   let insertIndex = without.length;
   if (input.beforeId) {

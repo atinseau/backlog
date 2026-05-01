@@ -32,7 +32,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "list_runs",
     description:
-      "List active runs (preparing/running/awaiting_review) in the workspace. Returns id, subtask_id, status, agent_id, branch, repo, started_at, last result line.",
+      "List active runs (preparing/running/awaiting_review) in the project. Returns id, subtask_id, status, agent_id, branch, repo, started_at, last result line.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
@@ -54,7 +54,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "list_tasks",
     description:
-      "List parent tasks (work items) and their subtasks with current status. Use this to answer 'what's queued', 'what's running', 'what's blocked'.",
+      "List parent tasks (tasks) and their subtasks with current status. Use this to answer 'what's queued', 'what's running', 'what's blocked'.",
     input_schema: {
       type: "object",
       properties: {
@@ -86,7 +86,7 @@ const TOOLS: Anthropic.Tool[] = [
         },
         max_agents: {
           type: "integer",
-          description: "Optional: cap on parallel runs. Defaults to the workspace config.",
+          description: "Optional: cap on parallel runs. Defaults to the project config.",
         },
       },
       required: [],
@@ -119,7 +119,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_git_settings",
     description:
-      "Read the workspace's git settings: branch_strategy, merge_strategy, merge_target, cleanup_worktree_on_approve, delete_branch_after_merge. Useful when the user asks 'is auto-merge on?' or 'where do my runs end up?'.",
+      "Read the project's git settings: branch_strategy, merge_strategy, merge_target, cleanup_worktree_on_approve, delete_branch_after_merge. Useful when the user asks 'is auto-merge on?' or 'where do my runs end up?'.",
     input_schema: { type: "object", properties: {}, required: [] },
   },
   {
@@ -369,7 +369,7 @@ export class ChatUnavailableError extends Error {
 }
 
 export function resolveChatCredentials(backlogDir: string): ChatCredentials | null {
-  // Resolution order: env var (matches the splitter), then per-workspace
+  // Resolution order: env var (matches the splitter), then per-project
   // encrypted secrets store (so users can `backlog secrets set
   // ANTHROPIC_API_KEY` without juggling shells). OAuth tokens are
   // intentionally NOT supported as a fallback — the public API rejects
@@ -393,7 +393,7 @@ export async function runOrchestratorChat(input: RunChatInput): Promise<void> {
     credentials.apiKey ? { apiKey: credentials.apiKey } : { authToken: credentials.authToken },
   );
 
-  // Workspace context lives in the system prompt as a separate block so the
+  // Project context lives in the system prompt as a separate block so the
   // static instructions stay frozen across turns. The repo list moves slowly
   // enough that hitting cache on it is fine; live state (runs, tasks) is
   // exposed via tools instead of stuffed into the prefix — that way we
@@ -403,7 +403,7 @@ export async function runOrchestratorChat(input: RunChatInput): Promise<void> {
     .filter((r) => r.enabled !== false)
     .map((r) => `- ${r.id} (${r.path})`)
     .join("\n");
-  const workspaceContext = `## Workspace
+  const projectContext = `## Project
 project_id: ${config.project_id ?? "(unset)"}
 project_name: ${config.project_name ?? "(unset)"}
 autonomy_mode: ${config.autonomy_mode}
@@ -429,7 +429,7 @@ ${repoSummary || "  (none configured)"}`;
       thinking: { type: "adaptive" },
       system: [
         { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
-        { type: "text", text: workspaceContext },
+        { type: "text", text: projectContext },
       ],
       tools: TOOLS,
       messages: apiMessages,

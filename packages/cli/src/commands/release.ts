@@ -21,7 +21,7 @@ function renderMarkdown(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot
 }
 
 export function registerReleaseCommand(program: Command): void {
-  const release = program.command("release").description("Inspect repo versions in the workspace");
+  const release = program.command("release").description("Inspect repo versions in the project");
 
   release
     .command("snapshot")

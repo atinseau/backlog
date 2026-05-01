@@ -87,7 +87,7 @@ export function activityRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/activity/stream", (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     return streamSSE(c, async (stream) => {
       let id = 0;
       const cursors = new Map<string, RunCursor>();
@@ -104,8 +104,8 @@ export function activityRoutes(): Hono<AppEnv> {
       // runs so the user sees context the moment they open the drawer
       // (instead of an empty pane until the next event).
       const seedLines: ActivityLine[] = [];
-      for (const run of listActiveRuns(workspace.backlogDir)) {
-        const eventsPath = path.join(workspace.backlogDir, "runs", "active", run.id, "events.ndjson");
+      for (const run of listActiveRuns(project.backlogDir)) {
+        const eventsPath = path.join(project.backlogDir, "runs", "active", run.id, "events.ndjson");
         try {
           const stat = fs.statSync(eventsPath);
           cursors.set(run.id, { run_id: run.id, events_path: eventsPath, offset: stat.size });
@@ -139,9 +139,9 @@ export function activityRoutes(): Hono<AppEnv> {
       // runs, events.ndjson under a few KB).
       while (!aborted) {
         try {
-          for (const run of listActiveRuns(workspace.backlogDir)) {
+          for (const run of listActiveRuns(project.backlogDir)) {
             if (cursors.has(run.id)) continue;
-            const eventsPath = path.join(workspace.backlogDir, "runs", "active", run.id, "events.ndjson");
+            const eventsPath = path.join(project.backlogDir, "runs", "active", run.id, "events.ndjson");
             cursors.set(run.id, { run_id: run.id, events_path: eventsPath, offset: 0 });
           }
           for (const cursor of cursors.values()) {

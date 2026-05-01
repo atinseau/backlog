@@ -14,7 +14,7 @@
 
 - `backlog serve` — local Hono server + Svelte 5 kanban board (BSL 1.1 on the server package, Apache-2.0 on the UI). Boots on `127.0.0.1:7878`, opens the browser, serves the bundled UI from the same `backlog` binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every YAML/JSON mutation in `.backlog/`.
 - Orchestrator side panel — wave-bucketed parallel execution plan reusing `buildExecutionPlan` from `@backlog/core`, with a green ▶ button per runnable task that POSTs `/api/v1/runs` and starts the agent.
-- Mechanical splitter — ✂ button on every work item with no tasks; modal for repos + scopes + parallel/serial mode + risk.
+- Mechanical splitter — ✂ button on every task with no subtasks; modal for repos + scopes + parallel/serial mode + risk.
 - AI splitter (optional) — `🤖 Suggest with AI` tab calls Claude (`claude-opus-4-7` by default, overridable via `BACKLOG_AI_MODEL`) with adaptive thinking and a JSON-schema constrained output. Returns an editable proposal; `Apply` creates the tasks. Requires `ANTHROPIC_API_KEY`; degrades gracefully with a clear error when absent.
 - Claim creation modal — `+ Claim` button opens a form, server returns 409 with `retry_after_seconds`, `retry_after_source`, and blocking-agent metadata when paths overlap.
 
@@ -63,7 +63,7 @@
 - `backlog doctor` — validate workspace health, detect repo configuration drift.
 - `backlog status` — compact workspace summary across configured repos.
 - `backlog repos add|list|show|update|remove` — manage tracked repos.
-- `backlog work add|list|show|move|update|remove|plan|split|import` — manage normalized work items.
+- `backlog task add|list|show|move|update|remove|plan|split|import` — manage normalized tasks.
 - `backlog task add|list|show|move|update|remove|block|unblock|plan` — manage executable tasks.
 - `backlog claim start|check|finish|list|gc` — manage file-scope claims.
 - `backlog hooks install|uninstall|status` — install managed git hooks.

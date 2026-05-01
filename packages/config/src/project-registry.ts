@@ -107,16 +107,16 @@ export function listRegisteredProjects(options?: RegistryOptions): ProjectRegist
   return loadRegistry(options).projects;
 }
 
-export interface RegisterWorkspaceInput {
+export interface RegisterProjectInput {
   // For in_repo: the project root that contains .backlog/.
-  // For user_level: the workspace dir itself (config.toml lives at its root).
+  // For user_level: the project data dir itself (config.toml lives at its root).
   projectRoot: string;
   // If omitted, inferred from disk: presence of <projectRoot>/.backlog/ ⇒
   // in_repo, presence of <projectRoot>/config.toml ⇒ user_level.
   location?: ProjectLocation;
 }
 
-function detectWorkspaceLayout(projectRoot: string): { backlogDir: string; location: ProjectLocation } {
+function detectProjectLayout(projectRoot: string): { backlogDir: string; location: ProjectLocation } {
   const inRepoDir = path.join(projectRoot, ".backlog");
   if (fs.existsSync(inRepoDir) && fs.statSync(inRepoDir).isDirectory()) {
     return { backlogDir: inRepoDir, location: "in_repo" };
@@ -125,16 +125,16 @@ function detectWorkspaceLayout(projectRoot: string): { backlogDir: string; locat
     return { backlogDir: projectRoot, location: "user_level" };
   }
   throw new Error(
-    `No Backlog workspace at ${projectRoot} (looked for .backlog/ and config.toml)`,
+    `No Backlog project at ${projectRoot} (looked for .backlog/ and config.toml)`,
   );
 }
 
 export function registerProject(
-  input: RegisterWorkspaceInput,
+  input: RegisterProjectInput,
   options?: RegistryOptions,
 ): ProjectRegistryEntry {
   const projectRoot = path.resolve(input.projectRoot);
-  const detected = detectWorkspaceLayout(projectRoot);
+  const detected = detectProjectLayout(projectRoot);
   const location = input.location ?? detected.location;
   if (input.location && input.location !== detected.location) {
     throw new Error(

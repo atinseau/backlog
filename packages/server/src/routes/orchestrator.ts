@@ -29,12 +29,12 @@ export function orchestratorRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/orchestrator/state", (c) => {
-    const workspace = c.get("workspace");
-    return c.json({ state: getOrchestratorState(workspace.backlogDir) });
+    const project = c.get("project");
+    return c.json({ state: getOrchestratorState(project.backlogDir) });
   });
 
   app.post("/orchestrator/start", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => ({}));
     const parsed = startBodySchema.safeParse(raw ?? {});
     if (!parsed.success) {
@@ -45,7 +45,7 @@ export function orchestratorRoutes(): Hono<AppEnv> {
       if (parsed.data.max_agents !== undefined) input.max_agents = parsed.data.max_agents;
       if (parsed.data.auto_pick_agents !== undefined) input.auto_pick_agents = parsed.data.auto_pick_agents;
       if (parsed.data.tick_interval_ms !== undefined) input.tick_interval_ms = parsed.data.tick_interval_ms;
-      const state = await startOrchestrator(workspace.backlogDir, input);
+      const state = await startOrchestrator(project.backlogDir, input);
       return c.json({ state });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -54,14 +54,14 @@ export function orchestratorRoutes(): Hono<AppEnv> {
   });
 
   app.post("/orchestrator/pause", (c) => {
-    const workspace = c.get("workspace");
-    return c.json({ state: pauseOrchestrator(workspace.backlogDir) });
+    const project = c.get("project");
+    return c.json({ state: pauseOrchestrator(project.backlogDir) });
   });
 
   app.post("/orchestrator/stop", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     try {
-      const state = await stopOrchestrator(workspace.backlogDir);
+      const state = await stopOrchestrator(project.backlogDir);
       return c.json({ state });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -70,7 +70,7 @@ export function orchestratorRoutes(): Hono<AppEnv> {
   });
 
   app.patch("/orchestrator/config", async (c) => {
-    const workspace = c.get("workspace");
+    const project = c.get("project");
     const raw = await c.req.json().catch(() => null);
     const parsed = configBodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -80,7 +80,7 @@ export function orchestratorRoutes(): Hono<AppEnv> {
     if (parsed.data.max_agents !== undefined) input.max_agents = parsed.data.max_agents;
     if (parsed.data.auto_pick_agents !== undefined) input.auto_pick_agents = parsed.data.auto_pick_agents;
     if (parsed.data.tick_interval_ms !== undefined) input.tick_interval_ms = parsed.data.tick_interval_ms;
-    return c.json({ state: setOrchestratorConfig(workspace.backlogDir, input) });
+    return c.json({ state: setOrchestratorConfig(project.backlogDir, input) });
   });
 
   return app;

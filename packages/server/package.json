@@ -1,7 +1,7 @@
 {
   "name": "@backlog/server",
   "version": "0.1.0",
-  "description": "Local Backlog server — Hono + SSE, exposes the workspace via a Trello-like board (BUSL 1.1).",
+  "description": "Local Backlog server — Hono + SSE, exposes the project via a Trello-like board (BUSL 1.1).",
   "license": "BUSL-1.1",
   "type": "module",
   "main": "./dist/index.js",

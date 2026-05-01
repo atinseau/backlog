@@ -5,7 +5,7 @@
   // section). Mirrors the SettingsView block but stripped of the
   // surrounding chrome.
   //
-  // The keys themselves live in `<workspace>/secrets.json` (encrypted
+  // The keys themselves live in `<project>/secrets.json` (encrypted
   // at rest). Setting one persists across launches and is read by the
   // executor's buildProviderEnv at run time.
   import {

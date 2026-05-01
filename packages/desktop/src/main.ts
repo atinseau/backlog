@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from "electron";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
 import pkg from "electron-updater";
-import { rememberWorkspace, resolveWorkspace } from "./workspace-picker.js";
+import { rememberProject, resolveProject } from "./workspace-picker.js";
 
 // electron-updater ships as a CommonJS module — destructure on the
 // default export so the same import works under both Node CJS and the
@@ -187,9 +187,13 @@ ipcMain.handle("backlog:pick-folder", async (event, opts: unknown) => {
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
 });
+ipcMain.handle("backlog:set-last-project", async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== "string" || !targetPath) return false;
+  return rememberProject(targetPath);
+});
 ipcMain.handle("backlog:set-last-workspace", async (_event, targetPath: unknown) => {
   if (typeof targetPath !== "string" || !targetPath) return false;
-  return rememberWorkspace(targetPath);
+  return rememberProject(targetPath);
 });
 
 // Set the user-facing name early so app.getPath('userData') resolves to a
@@ -221,8 +225,8 @@ async function createWindow(): Promise<void> {
     },
   });
 
-  const workspace = await resolveWorkspace(mainWindow);
-  if (!workspace) {
+  const project = await resolveProject(mainWindow);
+  if (!project) {
     mainWindow.close();
     mainWindow = null;
     app.quit();
@@ -232,7 +236,7 @@ async function createWindow(): Promise<void> {
   serverHandle = await startServer({
     host: "127.0.0.1",
     port: 0,
-    workspace,
+    project,
     uiDistDir: uiDistDir(),
   });
 

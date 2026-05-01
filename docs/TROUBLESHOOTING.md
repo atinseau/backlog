@@ -7,7 +7,7 @@ Five problems that come up often, and the shortest path through each.
 **Symptom**
 
 ```
-ENOENT: no such file or directory, open '<workspace>/claims/active/CLM-…json'
+ENOENT: no such file or directory, open '<project>/claims/active/CLM-…json'
 
 To proceed without a claim:
   - Just this commit:   BACKLOG_SKIP_HOOK=1 git commit ...
@@ -19,7 +19,7 @@ To proceed without a claim:
 isn't in `claims/active/` anymore — usually because:
 
 - the claim expired and got archived by `claim gc`,
-- you migrated the workspace (`project migrate`) and the active dir moved,
+- you migrated the project (`project migrate`) and the active dir moved,
 - another teammate finished the claim from a different machine.
 
 **Fix** `backlog claim check` self-heals on the next run (clears the
@@ -47,14 +47,14 @@ backlog hooks install --repo my-repo     # one repo
 backlog hooks install --all --force      # rewrite an existing non-managed hook
 ```
 
-If you migrate the workspace later (`project migrate`) the hooks need to
+If you migrate the project later (`project migrate`) the hooks need to
 be reinstalled to point at the new path — `migrate` does that
 automatically; if it failed for some repos, the post-migrate output
 tells you and the same `hooks install --all --force` retries.
 
 ---
 
-## 3. Workspace can't be found from cwd
+## 3. Project can't be found from cwd
 
 **Symptom**
 
@@ -62,11 +62,11 @@ tells you and the same `hooks install --all --force` retries.
 No .backlog project found. Run `backlog init` first.
 ```
 
-**Cause** `findProject()` resolves the current workspace by, in order:
+**Cause** `findProject()` resolves the current project by, in order:
 
 1. `BACKLOG_PROJECT_DIR` environment variable (used by the pre-commit hook)
-2. `config.toml` in cwd (you're inside a user-level workspace dir)
-3. A `.backlog/` subdirectory walking up from cwd (in_repo workspaces)
+2. `config.toml` in cwd (you're inside a user-level project dir)
+3. A `.backlog/` subdirectory walking up from cwd (in_repo projects)
 4. The user registry at `~/.backlog/projects.json` — for each
    `user_level` entry, check whether cwd is inside one of its configured
    repos.
@@ -77,11 +77,11 @@ If none of those match, you get the error.
 
 ```sh
 backlog project list                    # see what's registered and where
-backlog project add /path/to/workspace  # register an existing workspace
+backlog project add /path/to/project    # register an existing project
 backlog init [--user-level]             # bootstrap a fresh one
 ```
 
-For a one-shot override, set `BACKLOG_PROJECT_DIR=/path/to/workspace`
+For a one-shot override, set `BACKLOG_PROJECT_DIR=/path/to/project`
 before the command.
 
 ---

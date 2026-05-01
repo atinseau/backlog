@@ -4,7 +4,7 @@
   import { t } from "./i18n.svelte.js";
 
   interface Props {
-    workspaceId: string | null;
+    projectId: string | null;
     onOpenDiff?: (runId: string, file: string) => void;
     // When true (used by the BottomPanel host) the component drops its
     // fixed-position toggle bar and just renders the events list flowing
@@ -13,7 +13,7 @@
     embedded?: boolean;
   }
 
-  let { workspaceId, onOpenDiff, embedded = false }: Props = $props();
+  let { projectId, onOpenDiff, embedded = false }: Props = $props();
 
   // Pull a file path out of the activity event message when one is
   // present. Tool summaries follow the shape "Read foo/bar.rb" /
@@ -150,15 +150,15 @@
     unread = 0;
   }
 
-  // Workspace switch: re-attach (apiUrl now points to a different
-  // workspace) and clear the previous workspace's events from the
+  // Project switch: re-attach (apiUrl now points to a different
+  // project) and clear the previous project's events from the
   // visible list — they'd be misleading since they reference run ids
-  // that aren't in this workspace.
-  let lastWorkspaceId: string | null | undefined = undefined;
+  // that aren't in this project.
+  let lastProjectId: string | null | undefined = undefined;
   $effect(() => {
-    const id = workspaceId;
-    if (id === lastWorkspaceId) return;
-    lastWorkspaceId = id;
+    const id = projectId;
+    if (id === lastProjectId) return;
+    lastProjectId = id;
     events = [];
     unread = 0;
     attach();

@@ -17,7 +17,7 @@ function tmpRegistryDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "backlog-registry-"));
 }
 
-function makeWorkspace(name = "demo"): string {
+function makeProject(name = "demo"): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `backlog-ws-${name}-`));
   initLayout({ root, projectName: name });
   return root;
@@ -61,21 +61,21 @@ describe("loadRegistry / saveRegistry", () => {
 });
 
 describe("registerProject", () => {
-  it("registers a workspace with its id, name, and path", () => {
+  it("registers a project with its id, name, and path", () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace("alpha");
-    const entry = registerProject({ projectRoot: ws }, { dir });
+    const project = makeProject("alpha");
+    const entry = registerProject({ projectRoot: project }, { dir });
     expect(entry.id).toMatch(/^WS-[0-9a-f]{8}$/);
     expect(entry.name).toBe("alpha");
-    expect(entry.path).toBe(ws);
+    expect(entry.path).toBe(project);
     expect(entry.added_at).toEqual(entry.last_opened_at);
   });
 
-  it("dedupes by workspace id (re-register updates the entry)", () => {
+  it("dedupes by project id (re-register updates the entry)", () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace("alpha");
-    const first = registerProject({ projectRoot: ws }, { dir });
-    const second = registerProject({ projectRoot: ws }, { dir });
+    const project = makeProject("alpha");
+    const first = registerProject({ projectRoot: project }, { dir });
+    const second = registerProject({ projectRoot: project }, { dir });
     expect(second.id).toBe(first.id);
     const entries = listRegisteredProjects({ dir });
     expect(entries).toHaveLength(1);
@@ -84,38 +84,38 @@ describe("registerProject", () => {
 
   it("dedupes by path (re-init at the same path replaces the old entry)", () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace("alpha");
-    registerProject({ projectRoot: ws }, { dir });
-    fs.rmSync(path.join(ws, ".backlog"), { recursive: true, force: true });
-    initLayout({ root: ws, projectName: "beta" });
-    const second = registerProject({ projectRoot: ws }, { dir });
+    const project = makeProject("alpha");
+    registerProject({ projectRoot: project }, { dir });
+    fs.rmSync(path.join(project, ".backlog"), { recursive: true, force: true });
+    initLayout({ root: project, projectName: "beta" });
+    const second = registerProject({ projectRoot: project }, { dir });
     const entries = listRegisteredProjects({ dir });
     expect(entries).toHaveLength(1);
     expect(entries[0]!.id).toBe(second.id);
     expect(entries[0]!.name).toBe("beta");
   });
 
-  it("rejects a path with no Backlog workspace", () => {
+  it("rejects a path with no Backlog project", () => {
     const dir = tmpRegistryDir();
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-empty-"));
-    expect(() => registerProject({ projectRoot: empty }, { dir })).toThrow(/No Backlog workspace/);
+    expect(() => registerProject({ projectRoot: empty }, { dir })).toThrow(/No Backlog project/);
   });
 });
 
 describe("unregisterProject", () => {
   it("removes by id", () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace();
-    const entry = registerProject({ projectRoot: ws }, { dir });
+    const project = makeProject();
+    const entry = registerProject({ projectRoot: project }, { dir });
     expect(unregisterProject(entry.id, { dir })?.id).toBe(entry.id);
     expect(listRegisteredProjects({ dir })).toHaveLength(0);
   });
 
   it("removes by path", () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace();
-    const entry = registerProject({ projectRoot: ws }, { dir });
-    expect(unregisterProject(ws, { dir })?.id).toBe(entry.id);
+    const project = makeProject();
+    const entry = registerProject({ projectRoot: project }, { dir });
+    expect(unregisterProject(project, { dir })?.id).toBe(entry.id);
     expect(listRegisteredProjects({ dir })).toHaveLength(0);
   });
 
@@ -128,8 +128,8 @@ describe("unregisterProject", () => {
 describe("touchProject", () => {
   it("updates last_opened_at", async () => {
     const dir = tmpRegistryDir();
-    const ws = makeWorkspace();
-    const entry = registerProject({ projectRoot: ws }, { dir });
+    const project = makeProject();
+    const entry = registerProject({ projectRoot: project }, { dir });
     const original = entry.last_opened_at!;
     await new Promise((r) => setTimeout(r, 5));
     touchProject(entry.id, { dir });

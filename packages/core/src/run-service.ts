@@ -527,7 +527,7 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   }
 }
 
-// Conventional-style commit message generated from the work item +
+// Conventional-style commit message generated from the task +
 // subtask. Format: "<type>(<repo>): <title>\n\nRun: <runId>\nTask: <taskId>"
 // Type defaults to "feat" — backlog runs are predominantly additive
 // work; reviewers can rewrite at merge time if they prefer "fix" /
