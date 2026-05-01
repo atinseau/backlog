@@ -218,6 +218,15 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     });
     await writeWorktreeContext(worktreePath, run.id, claim.id);
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
+    try {
+      const baselineCommit = await git(["rev-parse", "HEAD"], worktreePath);
+      if (baselineCommit.trim()) {
+        addRunArtifact(backlogDir, run.id, { kind: "commit", value: baselineCommit.trim() });
+      }
+    } catch {
+      // Non-fatal: artifact collection after execution will still
+      // capture whatever git state is available for review/discard.
+    }
     appendRunEvent(backlogDir, run.id, {
       ts: new Date().toISOString(),
       type: executionMode === "direct" ? "workspace.direct" : "workspace.worktree",

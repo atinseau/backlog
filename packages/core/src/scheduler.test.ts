@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { initLayout, loadConfig } from "@backlog/config";
 import { createSubTask } from "./subtask-service.js";
-import { createTask } from "./task-service.js";
+import { createTask, reorderTask } from "./task-service.js";
 import { buildExecutionPlan } from "./scheduler.js";
 
 function createWorkspace(): string {
@@ -103,6 +103,35 @@ describe("buildExecutionPlan", () => {
     expect(plan.runnable).toHaveLength(1);
     expect(plan.runnable.some((decision) => decision.taskId === first.id || decision.taskId === second.id)).toBe(true);
     expect(plan.waiting.some((decision) => decision.reasons.some((reason) => reason.startsWith("scope_conflict_with_selected:")))).toBe(true);
+  });
+
+  it("schedules runnable cards in board order within a priority bucket", () => {
+    const root = createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    writeExecutableAgent(backlogDir);
+    const config = loadConfig(backlogDir);
+    const repo = path.basename(root);
+
+    const first = createTask(backlogDir, { title: "First on board", repoTargets: [repo], priority: "P2" });
+    const second = createTask(backlogDir, { title: "Moved to top", repoTargets: [repo], priority: "P2" });
+    reorderTask(backlogDir, { workItemId: second.id, beforeId: first.id });
+    const firstSub = createSubTask(backlogDir, {
+      workItemId: first.id,
+      title: "First subtask",
+      repo,
+      scopes: ["first.txt"],
+      risk: "low",
+    });
+    const secondSub = createSubTask(backlogDir, {
+      workItemId: second.id,
+      title: "Second subtask",
+      repo,
+      scopes: ["second.txt"],
+      risk: "low",
+    });
+
+    const plan = buildExecutionPlan(backlogDir, config);
+    expect(plan.runnable.map((decision) => decision.taskId).slice(0, 2)).toEqual([secondSub.id, firstSub.id]);
   });
 
   it("prefers an explicitly preferred compatible agent", () => {

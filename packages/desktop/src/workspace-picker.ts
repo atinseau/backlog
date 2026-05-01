@@ -32,11 +32,17 @@ function looksLikeWorkspace(p: string): boolean {
   return false;
 }
 
+export function rememberWorkspace(workspacePath: string): boolean {
+  if (!looksLikeWorkspace(workspacePath)) return false;
+  saveState({ lastWorkspace: workspacePath });
+  return true;
+}
+
 export async function resolveWorkspace(window: BrowserWindow): Promise<string | undefined> {
   // Override hook for smoke tests, scripted launches, and "Open With…" flows.
   const fromEnv = process.env.BACKLOG_DESKTOP_WORKSPACE;
   if (fromEnv && looksLikeWorkspace(fromEnv)) {
-    saveState({ lastWorkspace: fromEnv });
+    rememberWorkspace(fromEnv);
     return fromEnv;
   }
 
@@ -51,7 +57,7 @@ export async function resolveWorkspace(window: BrowserWindow): Promise<string | 
 
   if (valid.length === 1) {
     const picked = valid[0]!.path;
-    saveState({ lastWorkspace: picked });
+    rememberWorkspace(picked);
     return picked;
   }
 
@@ -73,7 +79,7 @@ export async function resolveWorkspace(window: BrowserWindow): Promise<string | 
     if (result.response === quitId) return undefined;
     if (result.response < browseId) {
       const picked = valid[result.response]!.path;
-      saveState({ lastWorkspace: picked });
+      rememberWorkspace(picked);
       return picked;
     }
     // result.response === browseId → fall through to Browse…
@@ -95,6 +101,6 @@ export async function resolveWorkspace(window: BrowserWindow): Promise<string | 
     });
     return undefined;
   }
-  saveState({ lastWorkspace: picked });
+  rememberWorkspace(picked);
   return picked;
 }

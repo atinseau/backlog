@@ -175,12 +175,13 @@ export async function collectWorktreeArtifacts(
   return artifacts;
 }
 
-export function successModeForAgent(agent: Agent): "review" | "complete" {
+export function successModeForAgent(agent: Agent, task?: SubTask): "review" | "complete" {
+  if (task) {
+    if (task.execution.manual_approval_required) return "review";
+    if (!agent.success_mode) return "complete";
+  }
   if (agent.success_mode) {
     return agent.success_mode;
-  }
-  if (agent.provider === "codex" || agent.provider === "claude") {
-    return "review";
   }
   return "complete";
 }

@@ -213,16 +213,17 @@ export async function executeClaudeAgentRun(params: {
     }
 
     if (result.exitCode === 0) {
+      const successMode = successModeForAgent(params.agent, params.task);
       await finalizeSuccessfulRun(
         params.backlogDir,
         params.run.id,
         summary || `Claude agent ${params.agent.id} completed successfully`,
-        successModeForAgent(params.agent),
+        successMode,
       );
       appendRunEvent(params.backlogDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: `Claude execution completed with success mode ${successModeForAgent(params.agent)}`,
+        message: `Claude execution completed with success mode ${successMode}`,
       });
       return;
     }

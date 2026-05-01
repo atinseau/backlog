@@ -4,6 +4,18 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.16] - 2026-05-01
+
+Product pass from the user's next real Desktop run after 1.4.15.
+
+- **Desktop reopened the wrong project** — Electron persisted `state.json.lastWorkspace`, but the kanban project switcher only wrote `localStorage`. Because the desktop server starts on a fresh random localhost port each launch, renderer localStorage is not a reliable cross-launch store. **Fix**: switching projects now also updates the Desktop state via IPC, and Desktop bootstrap lets the server's persisted workspace win on launch.
+- **Direct-mode refusal flashed and disappeared** — `refresh()` cleared the shared error banner after a successful board fetch, so `direct_checkout_dirty` appeared for about a second and vanished. The post-create "Démarrer" dialog also closed even when `/runs` returned 202 with zero runs started. **Fix**: action errors are separated from board-load errors, and StartPrompt stays open with the same actionable message the card Play button uses.
+- **Review mode now means review mode** — Claude/Codex defaulted every successful run to `awaiting_review`, so users had to click Appliquer even when the task's "validation manuelle" option was off. **Fix**: normal tasks now complete and move to Done; tasks with manual approval enabled still land in In Review.
+- **Apply now has a real Cancel path** — review cards and the diff panel now show Appliquer + Annuler. Annuler confirms first, then discards the run: isolated worktrees are removed; direct-mode committed runs reset the run commit when it is still HEAD; direct uncommitted files are restored/removed from recorded run artifacts.
+- **Board movement is constrained to sensible states** — Done is no longer a manual drag/drop target, active cards cannot be dragged, and En cours rejects drops that would jump above the running card. The scheduler now respects board order within a priority bucket so the queue is processed top-to-bottom.
+- **Update banner overlays everything** — the auto-update banner is fixed above the full app shell, including the right panel and modals.
+- **Backlog state stays out of agent commits** — auto-commit now also unstages `.backlog/`, so in-repo workspace metadata cannot get swept into direct-mode or worktree run commits.
+
 ## [1.4.15] - 2026-05-01
 
 Follow-up from the user's first 1.4.14 direct-mode test.

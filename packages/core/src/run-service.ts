@@ -1,7 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
 import { loadConfig } from "@backlog/config";
-import type { GitMergeStrategy, ProjectConfig } from "@backlog/schemas";
+import type { GitMergeStrategy, ProjectConfig, Run } from "@backlog/schemas";
+import { execa } from "execa";
 import { cascadeBlockDependents, getSubTask, updateSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { addRunArtifact, appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
@@ -174,6 +177,165 @@ export async function cancelRun(backlogDir: string, runId: string, summary?: str
   const run = updateRunStatus(backlogDir, runId, "canceled", summary ?? "Canceled by operator");
   updateSubTaskStatus(backlogDir, run.subtask_id, "planned");
   updateTaskStatus(backlogDir, run.task_id, "ready");
+  await releaseRunClaims(backlogDir, runId);
+  archiveRun(backlogDir, runId);
+}
+
+async function gitRun(cwd: string, args: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
+  const result = await execa("git", args, { cwd, reject: false });
+  return { exitCode: result.exitCode ?? null, stdout: result.stdout, stderr: result.stderr };
+}
+
+function patchArtifactPath(run: Run): string | null {
+  const artifact = [...run.artifacts].reverse().find((item) => item.kind === "patch");
+  if (!artifact) return null;
+  return path.isAbsolute(artifact.value)
+    ? artifact.value
+    : path.join(run.worktree_path, artifact.value);
+}
+
+function safeRunRelativePath(rootPath: string, value: string): { rel: string; abs: string } | null {
+  const root = path.resolve(rootPath);
+  const abs = path.isAbsolute(value) ? path.resolve(value) : path.resolve(root, value);
+  const rel = path.relative(root, abs);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  return { rel: rel.split(path.sep).join("/"), abs };
+}
+
+function runFileArtifacts(run: Run): Array<{ rel: string; abs: string }> {
+  const seen = new Set<string>();
+  const files: Array<{ rel: string; abs: string }> = [];
+  for (const artifact of run.artifacts) {
+    if (artifact.kind !== "file") continue;
+    const file = safeRunRelativePath(run.worktree_path, artifact.value);
+    if (!file || seen.has(file.rel)) continue;
+    seen.add(file.rel);
+    files.push(file);
+  }
+  return files;
+}
+
+function distinctCommitArtifacts(run: Run): string[] {
+  const seen = new Set<string>();
+  const commits: string[] = [];
+  for (const artifact of run.artifacts) {
+    if (artifact.kind !== "commit" || !artifact.value) continue;
+    if (seen.has(artifact.value)) continue;
+    seen.add(artifact.value);
+    commits.push(artifact.value);
+  }
+  return commits;
+}
+
+function nonBacklogStatusLines(stdout: string): string[] {
+  return stdout.split("\n").map((line) => line.trim()).filter((line) => {
+    if (!line) return false;
+    const file = line.slice(3).trim().replace(/^"|"$/g, "");
+    return file !== ".backlog" && !file.startsWith(".backlog/");
+  });
+}
+
+async function discardDirectRunChanges(run: Run): Promise<string> {
+  const commitArtifacts = distinctCommitArtifacts(run);
+  const latestCommit = commitArtifacts.length > 1 ? commitArtifacts.at(-1) : undefined;
+  if (latestCommit) {
+    const head = await gitRun(run.worktree_path, ["rev-parse", "HEAD"]);
+    if (head.exitCode === 0 && head.stdout.trim() === latestCommit) {
+      const status = await gitRun(run.worktree_path, ["status", "--porcelain"]);
+      const dirty = nonBacklogStatusLines(status.stdout);
+      if (dirty.length > 0) {
+        throw new Error(
+          `Impossible d'annuler automatiquement ${run.id} : le checkout contient des changements locaux après le run. ` +
+          `Commit/stash ces changements, puis relance l'annulation ou fais un revert manuel du commit ${latestCommit.slice(0, 7)}.`,
+        );
+      }
+      const parent = await gitRun(run.worktree_path, ["rev-parse", `${latestCommit}^`]);
+      if (parent.exitCode !== 0 || !parent.stdout.trim()) {
+        throw new Error(`Impossible d'annuler automatiquement ${run.id} : le commit ${latestCommit.slice(0, 7)} n'a pas de parent.`);
+      }
+      const reset = await gitRun(run.worktree_path, ["reset", "--hard", parent.stdout.trim()]);
+      if (reset.exitCode !== 0) {
+        throw new Error(`git reset a échoué : ${(reset.stderr || reset.stdout).trim().slice(0, 400)}`);
+      }
+      return `Reset direct checkout from ${latestCommit.slice(0, 7)} to ${parent.stdout.trim().slice(0, 7)}`;
+    }
+    throw new Error(
+      `Impossible d'annuler automatiquement ${run.id} : le commit du run ${latestCommit.slice(0, 7)} n'est plus le HEAD du checkout. ` +
+      "Un autre commit est arrivé après lui ; fais un revert manuel pour éviter d'effacer du travail plus récent.",
+    );
+  }
+
+  const patchPath = patchArtifactPath(run);
+  if (patchPath && fs.existsSync(patchPath)) {
+    const check = await gitRun(run.worktree_path, ["apply", "--reverse", "--check", patchPath]);
+    if (check.exitCode !== 0) {
+      throw new Error(
+        `Impossible d'annuler automatiquement ${run.id} : le patch du run ne s'applique plus à l'envers. ` +
+        `Le checkout a probablement changé depuis. Détail : ${(check.stderr || check.stdout).trim().slice(0, 300)}`,
+      );
+    }
+    const apply = await gitRun(run.worktree_path, ["apply", "--reverse", patchPath]);
+    if (apply.exitCode !== 0) {
+      throw new Error(`git apply --reverse a échoué : ${(apply.stderr || apply.stdout).trim().slice(0, 400)}`);
+    }
+    return `Reversed direct checkout patch for ${run.id}`;
+  }
+
+  let restoredFiles = 0;
+  for (const { rel, abs } of runFileArtifacts(run)) {
+    const tracked = await gitRun(run.worktree_path, ["ls-files", "--error-unmatch", "--", rel]);
+    if (tracked.exitCode === 0) {
+      const restore = await gitRun(run.worktree_path, ["restore", "--staged", "--worktree", "--", rel]);
+      if (restore.exitCode !== 0) {
+        throw new Error(`git restore ${rel} a échoué : ${(restore.stderr || restore.stdout).trim().slice(0, 300)}`);
+      }
+      restoredFiles++;
+    } else if (fs.existsSync(abs)) {
+      fs.rmSync(abs, { recursive: true, force: true });
+      restoredFiles++;
+    }
+  }
+  if (restoredFiles > 0) {
+    return `Discarded ${restoredFiles} direct checkout file change(s) for ${run.id}`;
+  }
+
+  return `No direct checkout changes to discard for ${run.id}`;
+}
+
+export async function discardRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
+  const run = loadRun(backlogDir, runId);
+  if (!run) {
+    throw new Error(`Unknown run: ${runId}`);
+  }
+  if (run.status !== "awaiting_review") {
+    throw new Error(`Run is '${run.status}', not 'awaiting_review' — nothing to discard.`);
+  }
+
+  const config = loadConfig(backlogDir);
+  const repo = config.repos.find((candidate) => candidate.id === run.repo);
+  let discardSummary = "Discarded reviewed run changes";
+  if (run.execution_mode === "direct") {
+    discardSummary = await discardDirectRunChanges(run);
+  } else if (repo) {
+    const cleanup = await cleanupRunWorktree({
+      worktreePath: run.worktree_path,
+      branch: run.branch,
+      repoPath: repo.path,
+      deleteBranch: true,
+    });
+    discardSummary = cleanup.removedWorktree
+      ? `Removed run worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
+      : `Discard requested, but worktree cleanup failed: ${cleanup.error ?? "unknown"}`;
+  }
+
+  appendRunEvent(backlogDir, runId, {
+    ts: new Date().toISOString(),
+    type: "run.discarded",
+    message: discardSummary,
+  });
+  const updated = updateRunStatus(backlogDir, runId, "canceled", summary ?? "Discarded by operator");
+  updateSubTaskStatus(backlogDir, updated.subtask_id, "planned");
+  updateTaskStatus(backlogDir, updated.task_id, "ready");
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }

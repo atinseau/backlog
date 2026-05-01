@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld("backlog", {
   pickFolder(opts?: { title?: string; defaultPath?: string }): Promise<string | null> {
     return ipcRenderer.invoke("backlog:pick-folder", opts ?? {});
   },
+  setLastWorkspace(targetPath: string): Promise<boolean> {
+    return ipcRenderer.invoke("backlog:set-last-workspace", targetPath);
+  },
 
   // ─── Auto-update surface ──────────────────────────────────────────
   // Manual "Check for Updates" button. Returns the most recent status

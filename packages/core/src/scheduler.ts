@@ -140,6 +140,24 @@ function scoreTask(task: SubTask, workItem: Task): number {
   );
 }
 
+function compareRunnableOrder(
+  left: EvaluatedDecision,
+  right: EvaluatedDecision,
+  workItemsById: Map<string, Task>,
+): number {
+  const leftWorkItem = left.task ? workItemsById.get(left.task.task_id) : undefined;
+  const rightWorkItem = right.task ? workItemsById.get(right.task.task_id) : undefined;
+  if (leftWorkItem && rightWorkItem) {
+    const priorityDiff = taskPriorityWeight(rightWorkItem) - taskPriorityWeight(leftWorkItem);
+    if (priorityDiff !== 0) return priorityDiff;
+    const rankDiff = (rightWorkItem.rank ?? 0) - (leftWorkItem.rank ?? 0);
+    if (rankDiff !== 0) return rankDiff;
+  }
+  const subTaskDiff = (right.task?.priority_score ?? 0) - (left.task?.priority_score ?? 0);
+  if (subTaskDiff !== 0) return subTaskDiff;
+  return right.score - left.score;
+}
+
 export function buildExecutionPlan(
   backlogDir: string,
   config: ProjectConfig,
@@ -281,7 +299,7 @@ export function buildExecutionPlan(
 
   const initialRunnable = evaluated
     .filter((decision) => decision.action === "run")
-    .sort((left, right) => right.score - left.score);
+    .sort((left, right) => compareRunnableOrder(left, right, workItemsById));
 
   const reserved: Array<{ taskId: string; repo: string; scopes: string[] }> = [];
   const plannedRunCounts = new Map(activeRunCounts);

@@ -2,15 +2,18 @@
   import DialogShell from "./DialogShell.svelte";
   import { startRun, startOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
+  import { explainStartRunResult } from "./run-start-errors.js";
 
   interface Props {
     taskId: string;
     subTasksCreated: number;
+    agentId?: string | null;
     onClose: () => void;
     onStarted?: () => void;
+    onBlocked?: (message: string, action: "api_keys" | "agents" | null) => void;
   }
 
-  let { taskId, subTasksCreated, onClose, onStarted }: Props = $props();
+  let { taskId, subTasksCreated, agentId = null, onClose, onStarted, onBlocked }: Props = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -39,7 +42,18 @@
       // explicit approval per run) but wrong here, because the user
       // just clicked "Lancer cette tâche maintenant ?" — that *is* the
       // approval. The two surfaces should behave identically.
-      await startRun({ task_id: taskId, approve: true });
+      const input: Parameters<typeof startRun>[0] = { task_id: taskId, approve: true };
+      if (agentId) input.agent_id = agentId;
+      const result = await startRun(input);
+      if (result.started.length === 0) {
+        const explanation = explainStartRunResult(result) ?? {
+          message: t("card.play_skipped_empty"),
+          action: null,
+        };
+        error = explanation.message;
+        onBlocked?.(explanation.message, explanation.action);
+        return;
+      }
       // Best-effort: keep orchestrator nudged so subsequent ticks pick
       // up any siblings. Non-fatal if it errors (e.g. already running).
       void startOrchestrator({}).catch(() => undefined);

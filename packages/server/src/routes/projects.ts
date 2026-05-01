@@ -12,6 +12,7 @@ import { discoverRepoForWorkspace } from "@backlog/git";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ServerProject } from "../project-context.js";
+import type { AppEnv } from "../project-resolver.js";
 
 const registerBodySchema = z
   .object({
@@ -35,8 +36,8 @@ export interface ProjectsRoutesOptions {
 export function projectsRoutes(
   workspace: ServerProject,
   options: ProjectsRoutesOptions = {},
-): Hono {
-  const app = new Hono();
+): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
   const registry = options.registry;
 
   app.get("/projects", (c) => {
@@ -44,10 +45,11 @@ export function projectsRoutes(
   });
 
   app.get("/projects/current", (c) => {
+    const current = c.get("workspace") ?? workspace;
     return c.json({
-      root: workspace.root,
-      backlog_dir: workspace.backlogDir,
-      resolved_from: workspace.resolvedFrom,
+      root: current.root,
+      backlog_dir: current.backlogDir,
+      resolved_from: current.resolvedFrom,
     });
   });
 

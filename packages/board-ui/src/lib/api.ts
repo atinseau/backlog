@@ -839,6 +839,22 @@ export async function cancelRun(runId: string, summary?: string): Promise<void> 
   }
 }
 
+export async function discardRun(runId: string, summary?: string): Promise<void> {
+  const response = await fetch(apiUrl(`/runs/${encodeURIComponent(runId)}/discard`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(summary ? { summary } : {}),
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(
+      typeof detail === "object" && detail && "detail" in detail
+        ? `Discard failed: ${(detail as { detail: string }).detail}`
+        : `Discard failed: ${response.status}`,
+    );
+  }
+}
+
 export type RunApproveOptions = {
   summary?: string;
   merge_strategy?: "none" | "fast_forward" | "merge_commit";

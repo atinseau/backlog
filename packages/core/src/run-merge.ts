@@ -35,6 +35,7 @@ const INTERNAL_RUN_FILES = [
   ".backlog-codex.log",
   ".backlog-executor.log",
   ".backlog-run.patch",
+  ".backlog",
 ];
 
 async function safeRun(args: string[], cwd: string): Promise<SpawnResult> {

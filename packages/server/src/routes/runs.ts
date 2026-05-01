@@ -4,6 +4,7 @@ import {
   buildExecutionPlan,
   cancelRun,
   createSubTask,
+  discardRun,
   listActiveRuns,
   listRepos,
   listSubTasks,
@@ -200,6 +201,34 @@ export function runsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "cancel_failed", detail: message }, 500);
+    }
+  });
+
+  const discardBodySchema = z.object({ summary: z.string().optional() }).strict().optional();
+  app.post("/runs/:id/discard", async (c) => {
+    const workspace = c.get("workspace");
+    const runId = c.req.param("id");
+    const run = loadRun(workspace.backlogDir, runId);
+    if (!run) {
+      return c.json({ error: "unknown_run", detail: `No run named '${runId}'.` }, 404);
+    }
+    if (run.status !== "awaiting_review") {
+      return c.json(
+        { error: "wrong_status", detail: `Run is '${run.status}', not 'awaiting_review' — nothing to discard.` },
+        409,
+      );
+    }
+    const raw = await c.req.json().catch(() => undefined);
+    const parsed = discardBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      await discardRun(workspace.backlogDir, runId, parsed.data?.summary);
+      return c.json({ ok: true, run_id: runId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "discard_failed", detail: message }, 500);
     }
   });
 

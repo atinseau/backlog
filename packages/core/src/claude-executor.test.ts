@@ -35,7 +35,7 @@ function writeFakeClaudeBinary(root: string): string {
 }
 
 describe("executeClaudeAgentRun", () => {
-  it("runs claude print mode and sends the run to review by default", async () => {
+  it("runs claude print mode and completes by default", async () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const repoId = path.basename(root);
@@ -82,9 +82,59 @@ describe("executeClaudeAgentRun", () => {
     });
 
     const archivedRun = loadRun(backlogDir, "RUN-claude");
-    expect(archivedRun?.status).toBe("awaiting_review");
+    expect(archivedRun?.status).toBe("succeeded");
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "summary")).toBe(true);
     expect(archivedRun?.artifacts.some((artifact) => artifact.kind === "log")).toBe(true);
     expect(fs.existsSync(path.join(root, ".backlog-claude.log"))).toBe(true);
+  });
+
+  it("sends claude runs to review when the task requires manual approval", async () => {
+    const root = createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    const repoId = path.basename(root);
+    const fakeClaudePath = writeFakeClaudeBinary(root);
+
+    const workItem = createTask(backlogDir, { title: "Claude review run", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Implement with review",
+      repo: repoId,
+      scopes: ["README.md"],
+      risk: "low",
+      manualApprovalRequired: true,
+    });
+    const agent: Agent = {
+      id: "claude-test",
+      provider: "claude",
+      command: fakeClaudePath,
+      enabled: true,
+      max_concurrent_runs: 1,
+      allowed_repos: [],
+      allowed_risk: ["low", "medium"],
+      capabilities: ["plan", "edit_code"],
+      environment: {},
+      retry_policy: { mode: "none", max_attempts: 1, reuse_worktree: true },
+    };
+
+    createRun({
+      backlogDir,
+      runId: "RUN-claude-review",
+      task,
+      workItem,
+      agent,
+      branch: "backlog/claude-review",
+      worktreePath: root,
+      claimIds: [],
+    });
+
+    await executeClaudeAgentRun({
+      backlogDir,
+      run: loadRun(backlogDir, "RUN-claude-review")!,
+      task,
+      workItem,
+      agent,
+    });
+
+    expect(loadRun(backlogDir, "RUN-claude-review")?.status).toBe("awaiting_review");
   });
 });

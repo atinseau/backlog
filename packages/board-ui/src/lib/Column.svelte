@@ -25,6 +25,7 @@
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
     onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
+    onDiscard?: (card: TaskCard, runId: string) => Promise<void> | void;
     // Card-menu actions — proxied to Card.svelte. Pass-through; the
     // App is the source of truth for what each one does.
     onArchive?: (card: TaskCard) => Promise<void> | void;
@@ -36,7 +37,7 @@
     assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
   }
 
-  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
+  let { columnKey, cards, onMove, onReorder, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
 
   const FLIP_MS = 180;
 
@@ -51,7 +52,18 @@
   });
 
   function handleConsider(event: CustomEvent<{ items: TaskCard[] }>) {
+    if (columnKey === "done") {
+      localCards = cards;
+      return;
+    }
     localCards = event.detail.items;
+  }
+
+  function isBusy(card: TaskCard): boolean {
+    return card.tasks.some((task) => {
+      const status = task.active_run?.status;
+      return status === "queued" || status === "preparing" || status === "running";
+    });
   }
 
   function isLocked(card: TaskCard): boolean {
@@ -60,6 +72,17 @@
     // would create a confusing race between the agent's status updates
     // and the manual move. Reject the drop and snap back instead.
     return card.tasks.some((t) => t.active_run !== null);
+  }
+
+  function violatesDoingOrder(nextItems: TaskCard[], droppedId: string): boolean {
+    if (columnKey !== "doing") return false;
+    const droppedCard = nextItems.find((card) => card.id === droppedId);
+    if (!droppedCard) return false;
+    if (isBusy(droppedCard)) return true;
+    const firstBusyIndex = nextItems.findIndex(isBusy);
+    if (firstBusyIndex < 0) return false;
+    const newIndex = nextItems.findIndex((card) => card.id === droppedId);
+    return newIndex >= 0 && newIndex <= firstBusyIndex;
   }
 
   function handleFinalize(event: CustomEvent<{ items: TaskCard[]; info: { id: string; trigger: string } }>) {
@@ -74,10 +97,23 @@
     const wasAlreadyInColumn = cards.some((card) => card.id === droppedId);
     const droppedCard = nextItems.find((c) => c.id === droppedId);
 
+    if (columnKey === "done") {
+      localCards = cards;
+      return;
+    }
+
     // Reject drops on locked cards — revert the optimistic UI without
     // calling onMove / onReorder. svelte-dnd-action animates the card
     // back to its origin via the FLIP transition.
     if (droppedCard && isLocked(droppedCard)) {
+      localCards = cards;
+      return;
+    }
+    if (columnKey === "doing" && !wasAlreadyInColumn && cards.some(isBusy)) {
+      localCards = cards;
+      return;
+    }
+    if (violatesDoingOrder(nextItems, droppedId)) {
       localCards = cards;
       return;
     }
@@ -122,13 +158,21 @@
   </header>
   <div
     class="cards"
-    use:dndzone={{ items: localCards, type: "task", flipDurationMs: FLIP_MS, dropTargetStyle: {} }}
+    class:locked-zone={columnKey === "done"}
+    use:dndzone={{
+      items: localCards,
+      type: "task",
+      flipDurationMs: FLIP_MS,
+      dropTargetStyle: {},
+      dragDisabled: columnKey === "done",
+      dropFromOthersDisabled: columnKey === "done",
+    }}
     onconsider={handleConsider}
     onfinalize={handleFinalize}
   >
     {#each localCards as card (card.id)}
-      <div>
-        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} {onAssign} {assignees} />
+      <div class="card-shell" class:queue-active={columnKey === "doing" && isBusy(card)} class:queue-waiting={columnKey === "doing" && !isBusy(card)}>
+        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onDiscard} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} {onAssign} {assignees} />
       </div>
     {/each}
     {#if localCards.length === 0}
@@ -170,6 +214,26 @@
   .cards {
     flex: 1;
     min-height: 60px;
+  }
+  .cards.locked-zone {
+    cursor: default;
+  }
+  .card-shell {
+    position: relative;
+  }
+  .card-shell.queue-active::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 8px;
+    bottom: 16px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--success);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--success) 45%, transparent);
+  }
+  .card-shell.queue-waiting {
+    opacity: 0.92;
   }
   .placeholder {
     padding: 16px 0;

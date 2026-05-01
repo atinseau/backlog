@@ -218,16 +218,17 @@ export async function executeCodexAgentRun(params: {
     }
 
     if (result.exitCode === 0) {
+      const successMode = successModeForAgent(params.agent, params.task);
       await finalizeSuccessfulRun(
         params.backlogDir,
         params.run.id,
         lastMessage || `Codex agent ${params.agent.id} completed successfully`,
-        successModeForAgent(params.agent),
+        successMode,
       );
       appendRunEvent(params.backlogDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: `Codex execution completed with success mode ${successModeForAgent(params.agent)}`,
+        message: `Codex execution completed with success mode ${successMode}`,
       });
       return;
     }

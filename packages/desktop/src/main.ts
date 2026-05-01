@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from "electron";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
 import pkg from "electron-updater";
-import { resolveWorkspace } from "./workspace-picker.js";
+import { rememberWorkspace, resolveWorkspace } from "./workspace-picker.js";
 
 // electron-updater ships as a CommonJS module — destructure on the
 // default export so the same import works under both Node CJS and the
@@ -166,6 +166,10 @@ ipcMain.handle("backlog:pick-folder", async (event, opts: unknown) => {
     : await dialog.showOpenDialog(dialogOptions);
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
+});
+ipcMain.handle("backlog:set-last-workspace", async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== "string" || !targetPath) return false;
+  return rememberWorkspace(targetPath);
 });
 
 // Set the user-facing name early so app.getPath('userData') resolves to a

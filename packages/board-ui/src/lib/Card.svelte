@@ -14,6 +14,7 @@
     onOpen?: (card: TaskCard) => void;
     onPlay?: (card: TaskCard) => Promise<void> | void;
     onApprove?: (card: TaskCard, runId: string) => Promise<void> | void;
+    onDiscard?: (card: TaskCard, runId: string) => Promise<void> | void;
     // Card-menu actions. The card itself wires the trigger (3-dot button
     // + right-click) and renders the menu; the parent decides what
     // happens on each action so it can also refresh / undo / show
@@ -32,7 +33,7 @@
     assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
   }
 
-  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -73,6 +74,7 @@
   );
   let starting = $state(false);
   let approving = $state(false);
+  let discarding = $state(false);
 
   // Find a subtask whose run is awaiting_review — that's the one the
   // ✓ button approves. Cards in EN REVUE typically have exactly one
@@ -82,6 +84,7 @@
     card.tasks.find((t) => t.active_run?.status === "awaiting_review") ?? null,
   );
   const canApprove = $derived(Boolean(onApprove) && awaitingReviewSubtask !== null);
+  const canDiscard = $derived(Boolean(onDiscard) && awaitingReviewSubtask !== null);
 
   function handleSplitClick(event: MouseEvent) {
     event.stopPropagation();
@@ -114,6 +117,19 @@
       await onApprove(card, runId);
     } finally {
       approving = false;
+    }
+  }
+
+  async function handleDiscardClick(event: MouseEvent) {
+    event.stopPropagation();
+    if (!onDiscard || discarding) return;
+    const runId = awaitingReviewSubtask?.active_run?.id;
+    if (!runId) return;
+    discarding = true;
+    try {
+      await onDiscard(card, runId);
+    } finally {
+      discarding = false;
     }
   }
 
@@ -436,7 +452,7 @@
        kebab click / context-menu — see openMenuAt above. -->
 
 
-  {#if canPlay || canApprove || (onSplit && card.tasks.length === 0) || onAddTask}
+  {#if canPlay || canApprove || canDiscard || (onSplit && card.tasks.length === 0) || onAddTask}
     <div class="actions">
       {#if canPlay}
         <button
@@ -459,6 +475,17 @@
           aria-label={t("card.approve")}
           title={t("card.approve")}
         >{#if approving}…{:else}<span aria-hidden="true">✓</span><span>{t("card.apply_button")}</span>{/if}</button>
+      {/if}
+      {#if canDiscard}
+        <button
+          class="icon-btn discard"
+          onclick={handleDiscardClick}
+          onpointerdown={stopButtonPointerEvent}
+          onmousedown={stopButtonPointerEvent}
+          disabled={discarding}
+          aria-label={t("card.discard")}
+          title={t("card.discard")}
+        >{#if discarding}…{:else}<span aria-hidden="true">×</span><span>{t("card.discard_button")}</span>{/if}</button>
       {/if}
       {#if onSplit && card.tasks.length === 0}
         <button
@@ -639,6 +666,19 @@
   .icon-btn.approve:hover:not(:disabled) {
     background: #8b5cf6;
     border-color: #8b5cf6;
+  }
+  .icon-btn.discard {
+    background: var(--danger-bg);
+    border-color: var(--danger);
+    color: var(--danger);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+  }
+  .icon-btn.discard:hover:not(:disabled) {
+    background: var(--danger);
+    color: var(--text-inverse);
   }
   .icon-btn:disabled {
     opacity: 0.5;

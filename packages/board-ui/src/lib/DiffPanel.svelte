@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { approveRun, fetchRunDiff, type RunDiff } from "./api.js";
+  import { approveRun, discardRun, fetchRunDiff, type RunDiff } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
@@ -15,6 +15,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let approving = $state(false);
+  let discarding = $state(false);
 
   // Resizable width persisted across launches. Default 720px, bounded
   // 360..1400 so the panel can't be dragged off-screen on small
@@ -96,6 +97,25 @@
     }
   }
 
+  async function handleDiscard() {
+    if (discarding) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(t("diff.discard_confirm"));
+      if (!ok) return;
+    }
+    discarding = true;
+    error = null;
+    try {
+      await discardRun(runId, "Discarded from diff panel");
+      onApproved?.();
+      onClose();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      discarding = false;
+    }
+  }
+
   function colorFor(line: string): string {
     if (line.startsWith("+++") || line.startsWith("---")) return "head";
     if (line.startsWith("@@")) return "hunk";
@@ -166,6 +186,9 @@
     <footer>
       <button class="primary" onclick={handleApprove} disabled={approving} title={t("diff.continue_hint")}>
         {approving ? t("diff.continue_doing") : t("diff.continue")}
+      </button>
+      <button class="danger" onclick={handleDiscard} disabled={discarding || approving} title={t("diff.discard_hint")}>
+        {discarding ? t("diff.discard_doing") : t("diff.discard")}
       </button>
     </footer>
   {/if}
@@ -300,4 +323,20 @@
   }
   .primary:hover:not(:disabled) { filter: brightness(1.08); }
   .primary:disabled { opacity: 0.6; cursor: wait; }
+  .danger {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: 4px;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .danger:hover:not(:disabled) {
+    background: var(--danger);
+    color: var(--text-inverse);
+  }
+  .danger:disabled { opacity: 0.6; cursor: wait; }
 </style>

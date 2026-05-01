@@ -47,6 +47,7 @@
     archiveTask,
     cancelRun,
     deleteTask,
+    discardRun,
     moveTaskToTop,
     moveWorkItem,
     patchTask,
@@ -54,11 +55,13 @@
     reorderTask,
     setCurrentProjectId,
     startRun,
+    touchProjectById,
     unarchiveTask,
     type CloudStatus,
     type AgentSummary,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
+  import { explainStartRunResult } from "./lib/run-start-errors.js";
   import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
   import {
@@ -113,6 +116,7 @@
   let selectedWorkspaceId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let error = $state<string | null>(null);
+  let loadError = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
   let inFlightMove = $state<string | null>(null);
   let connected = $state(false);
@@ -275,11 +279,11 @@
       const opts: { repo?: string } = {};
       if (selectedRepoId) opts.repo = selectedRepoId;
       board = await fetchBoard(opts);
-      error = null;
+      loadError = null;
       lastUpdated = new Date().toLocaleTimeString("fr-FR");
       diffRunState(board);
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      loadError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -504,9 +508,15 @@
 
   function applyWorkspace(id: string) {
     if (id === selectedWorkspaceId) return;
+    error = null;
     selectedWorkspaceId = id;
     setCurrentProjectId(id);
     localStorage.setItem(WORKSPACE_STORAGE_KEY, id);
+    void touchProjectById(id).catch(() => undefined);
+    const entry = workspaces.find((workspace) => workspace.id === id);
+    if (entry?.path) {
+      void window.backlog?.setLastWorkspace?.(entry.path).catch(() => undefined);
+    }
     selectedRepoId = null;
     localStorage.removeItem(REPO_STORAGE_KEY);
     board = null;
@@ -524,24 +534,34 @@
 
   async function bootstrap() {
     await refreshWorkspaces();
-    let preferred = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+    let currentWorkspaceId: string | null = null;
+    try {
+      const current = await fetchCurrentProject();
+      const match = workspaces.find((w) => w.path === current.root);
+      currentWorkspaceId = match?.id ?? null;
+    } catch {
+      currentWorkspaceId = null;
+    }
+
+    const desktopBridge = typeof window !== "undefined" && Boolean(window.backlog?.setLastWorkspace);
+    let preferred = desktopBridge ? currentWorkspaceId : localStorage.getItem(WORKSPACE_STORAGE_KEY);
     const known = new Set(workspaces.map((w) => w.id));
     if (preferred && !known.has(preferred)) {
       localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       preferred = null;
     }
     if (!preferred) {
-      try {
-        const current = await fetchCurrentProject();
-        const match = workspaces.find((w) => w.path === current.root);
-        preferred = match?.id ?? workspaces[0]?.id ?? null;
-      } catch {
-        preferred = workspaces[0]?.id ?? null;
-      }
+      preferred = currentWorkspaceId ?? localStorage.getItem(WORKSPACE_STORAGE_KEY) ?? workspaces[0]?.id ?? null;
     }
     if (preferred) {
       selectedWorkspaceId = preferred;
       setCurrentProjectId(preferred);
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, preferred);
+      void touchProjectById(preferred).catch(() => undefined);
+      const entry = workspaces.find((workspace) => workspace.id === preferred);
+      if (entry?.path && desktopBridge) {
+        void window.backlog?.setLastWorkspace?.(entry.path).catch(() => undefined);
+      }
     }
     selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
     refresh();
@@ -583,6 +603,24 @@
       await approveRun(runId, { merge_strategy: "fast_forward" });
     } catch (err) {
       error = t("card.approve_failed", {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      if (!connected) await refresh();
+    }
+  }
+
+  async function handleDiscardCard(card: TaskCard, runId: string) {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(t("card.discard_confirm", { title: card.title }));
+      if (!ok) return;
+    }
+    error = null;
+    try {
+      await discardRun(runId, "Discarded from board");
+      toasts?.push("info", t("card.discarded", { title: card.title }));
+    } catch (err) {
+      error = t("card.discard_failed", {
         reason: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -690,75 +728,10 @@
       if (selectedAgentId) runInput.agent_id = selectedAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
-        // Pick the most actionable reason and translate it to a
-        // sentence the user can ACT on, not a wire-format string.
-        // Order matters: reasons with a one-click fix come first.
-        const allReasons = [
-          ...(result.skipped[0]?.reasons ?? []),
-          ...(result.blocked[0]?.reasons ?? []),
-          ...(result.waiting[0]?.reasons ?? []),
-        ];
-        // Strip the agent_blocked: prefix to get the underlying reason.
-        const directReasons = allReasons.flatMap((r) => {
-          const m = r.match(/^agent_blocked:[^:]+:(.+)$/);
-          return m ? [m[1]!] : [r];
-        });
-        // Priority order matters. Earlier the missing_api_key check
-        // came first, but on a workspace with one configured agent
-        // (claude-code, key set) and one unconfigured (codex, no key),
-        // a fresh task could fail with at_capacity (claude-code busy
-        // running another subtask) AND missing_api_key (codex needs
-        // OPENAI_API_KEY). Showing "Configure d'abord ta clé" was
-        // misleading — the user HAS a key, the relevant agent is
-        // simply busy. Only fall through to the api-key message when
-        // the queue has nothing else to say (i.e. no agent is
-        // currently busy on the user's behalf).
-        const hasCapacityReason = directReasons.includes("at_capacity") || directReasons.includes("no_agent_capacity");
-        const apiKeyReason = directReasons.find((r) => r.startsWith("missing_api_key:"));
-        if (hasCapacityReason) {
-          error = t("card.play_at_capacity");
-        } else if (apiKeyReason) {
-          error = t("card.play_no_api_key");
-          apiKeysOpen = true;
-        } else if (directReasons.includes("risk_not_allowed")) {
-          error = t("card.play_risk_not_allowed");
-        } else if (directReasons.some((r) => r.startsWith("missing_capabilities:"))) {
-          error = t("card.play_missing_capabilities");
-        } else if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) {
-          error = t("card.play_repo_blocked");
-        } else if (directReasons.includes("missing_claude_executable") || directReasons.includes("missing_codex_executable")) {
-          error = t("card.play_missing_executable");
-          leftSection = "agents";
-        } else if (directReasons.includes("direct_checkout_dirty")) {
-          error = t("card.play_direct_dirty");
-        } else if (directReasons.includes("direct_checkout_busy")) {
-          error = t("card.play_direct_busy");
-        } else if (directReasons.includes("unknown_repo")) {
-          error = t("card.play_unknown_repo");
-        } else if (directReasons.includes("autonomy_mode_observe")) {
-          error = t("card.play_autonomy_observe");
-        } else if (directReasons.includes("manual_approval_required")) {
-          error = t("card.play_manual_approval");
-        } else if (directReasons.includes("high_risk_requires_higher_autonomy")) {
-          error = t("card.play_high_risk");
-        } else if (directReasons.includes("no_scheduler_capacity")) {
-          error = t("card.play_scheduler_capacity");
-        } else if (directReasons.some((r) => r.startsWith("scope_conflict_with"))) {
-          error = t("card.play_scope_conflict");
-        } else if (directReasons.some((r) => r.startsWith("waiting_on:"))) {
-          error = t("card.play_waiting_on");
-        } else if (directReasons.some((r) => r.startsWith("dependency_failed:"))) {
-          error = t("card.play_dependency_failed");
-        } else if (directReasons.includes("no_compatible_agent")) {
-          error = t("card.play_no_agent");
-          leftSection = "agents";
-        } else if (allReasons.length > 0) {
-          // Fallback — should be unreachable for the common cases above.
-          // Show the raw wire reason but with a friendlier framing.
-          error = t("card.play_skipped", { reason: allReasons[0] });
-        } else {
-          error = t("card.play_skipped_empty");
-        }
+        const explanation = explainStartRunResult(result);
+        error = explanation?.message ?? t("card.play_skipped_empty");
+        if (explanation?.action === "api_keys") apiKeysOpen = true;
+        if (explanation?.action === "agents") leftSection = "agents";
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -918,8 +891,8 @@
     </div>
   </header>
 
-  {#if error}
-    <div class="error">{error}</div>
+  {#if error || loadError}
+    <div class="error">{error ?? loadError}</div>
   {/if}
 
   <div class="grid">
@@ -987,6 +960,7 @@
                 onOpen={selectCard}
                 onPlay={handlePlayCard}
                 onApprove={handleApproveCard}
+                onDiscard={handleDiscardCard}
                 onArchive={handleArchiveCard}
                 onUnarchive={handleUnarchiveCard}
                 onDelete={handleDeleteCard}
@@ -1123,7 +1097,13 @@
   <StartPromptDialog
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
+    agentId={selectedAgentId}
     onClose={() => (startPrompt = null)}
+    onBlocked={(message, action) => {
+      error = message;
+      if (action === "api_keys") apiKeysOpen = true;
+      if (action === "agents") leftSection = "agents";
+    }}
     onStarted={() => {
       // Same UX as clicking the card-level Play: pop the bottom
       // Activity panel open so the user immediately sees logs,
