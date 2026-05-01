@@ -63,14 +63,23 @@ function readNewLines(cursor: RunCursor): { lines: string[]; offset: number } {
 }
 
 function parseLine(line: string, runId: string): ActivityLine | null {
+  const trimmed = line.trim();
+  // Defensive guard for transient stream/tail artifacts. We should
+  // only ever store NDJSON objects here, but a live reader can still
+  // encounter an orphan JSON delimiter from a provider stream or a
+  // partial write. Showing a naked "}" as user-visible activity is
+  // pure noise.
+  if (/^[{}\[\],]+$/.test(trimmed)) {
+    return null;
+  }
   try {
-    const parsed = JSON.parse(line) as Record<string, unknown>;
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     const ts = typeof parsed["ts"] === "string" ? (parsed["ts"] as string) : new Date().toISOString();
     const type = typeof parsed["type"] === "string" ? (parsed["type"] as string) : "raw";
     const event: ActivityLine = { ...parsed, run_id: runId, ts, type };
     return event;
   } catch {
-    return { run_id: runId, ts: new Date().toISOString(), type: "raw", message: line };
+    return { run_id: runId, ts: new Date().toISOString(), type: "raw", message: trimmed };
   }
 }
 

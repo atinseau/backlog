@@ -1229,9 +1229,9 @@
   .topbar, .error { flex-shrink: 0; }
 
   .topbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
     padding: 8px 14px;
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-default);
@@ -1244,12 +1244,13 @@
     gap: 16px;
     flex: 0 1 auto;
     min-width: 0;
+    justify-self: start;
   }
   .topbar-center {
-    flex: 1 1 auto;
-    min-width: 180px;
     display: flex;
     justify-content: center;
+    justify-self: center;
+    min-width: 0;
   }
   .topbar-right {
     display: flex;
@@ -1258,6 +1259,7 @@
     font-size: 12px;
     color: var(--text-muted);
     flex: 0 0 auto;
+    justify-self: end;
   }
   button.primary {
     background: var(--accent);

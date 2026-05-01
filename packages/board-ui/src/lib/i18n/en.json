@@ -114,6 +114,8 @@
   "diff.head": "Current worktree SHA",
   "diff.loading": "Loading diff…",
   "diff.empty": "No diff (file hasn't changed in this run).",
+  "diff.file_empty": "Empty file.",
+  "diff.content_label": "content",
   "diff.resize": "Drag to resize the panel",
   "diff.continue": "Apply to project",
   "diff.continue_doing": "Applying…",

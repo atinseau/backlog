@@ -58,6 +58,7 @@
   async function load() {
     loading = true;
     error = null;
+    diff = null;
     try {
       diff = await fetchRunDiff(runId, file);
     } catch (err) {
@@ -103,6 +104,9 @@
     return "ctx";
   }
 
+  const hasContent = $derived(diff?.content !== undefined);
+  const canApprove = $derived(Boolean(diff && !loading && !error));
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") onClose();
   }
@@ -128,7 +132,9 @@
     </div>
     <div class="meta">
       {#if diff && !loading}
-        <code class="rev" title={t("diff.head")}>{diff.head}</code>
+        <code class="rev" title={hasContent ? t("diff.content_label") : t("diff.head")}>
+          {hasContent ? t("diff.content_label") : diff.head}
+        </code>
       {/if}
       <button class="close" onclick={onClose} aria-label={t("diff.close")} title={t("diff.close_hint")}>✕</button>
     </div>
@@ -139,6 +145,12 @@
       <div class="muted">{t("diff.loading")}</div>
     {:else if error}
       <div class="error">{error}</div>
+    {:else if diff?.content !== undefined}
+      {#if diff.content_empty}
+        <div class="muted">{t("diff.file_empty")}</div>
+      {:else}
+        <pre class="content-view">{#each diff.content.split("\n") as line, i (i)}<span class="line line-ctx">{line || "​"}{"\n"}</span>{/each}</pre>
+      {/if}
     {:else if !diff || diff.empty}
       <div class="muted">{t("diff.empty")}</div>
     {:else}
@@ -150,7 +162,7 @@
        fetch is still loading; otherwise the button lets the user
        approve the run inline. The actual merge / cleanup follows
        the workspace's git.merge_strategy. -->
-  {#if diff && !diff.empty && !loading}
+  {#if canApprove}
     <footer>
       <button class="primary" onclick={handleApprove} disabled={approving} title={t("diff.continue_hint")}>
         {approving ? t("diff.continue_doing") : t("diff.continue")}

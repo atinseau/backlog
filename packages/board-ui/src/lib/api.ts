@@ -806,6 +806,9 @@ export interface RunDiff {
   base: string;
   head: string;
   diff: string;
+  content?: string;
+  content_empty?: boolean;
+  view?: "content" | "diff";
   empty: boolean;
 }
 

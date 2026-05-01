@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { Hono } from "hono";
 import { loadRun } from "@backlog/core";
@@ -44,6 +45,9 @@ interface DiffResult {
   base: string;
   head: string;
   diff: string;
+  content?: string;
+  content_empty?: boolean;
+  view: "content" | "diff";
   // null when there's no diff (file unchanged), or when the path is
   // outside the worktree / doesn't exist yet.
   empty: boolean;
@@ -60,6 +64,22 @@ function safeRelativePath(worktreeRoot: string, requested: string): string | nul
   }
   if (requested.split(path.sep).some((seg) => seg === "..")) return null;
   return requested;
+}
+
+function readTextFile(worktreeRoot: string, rel: string): { ok: true; content: string } | { ok: false } {
+  const target = path.resolve(worktreeRoot, rel);
+  const root = path.resolve(worktreeRoot);
+  const back = path.relative(root, target);
+  if (back.startsWith("..") || path.isAbsolute(back)) return { ok: false };
+  try {
+    const stat = fs.statSync(target);
+    if (!stat.isFile() || stat.size > MAX_OUTPUT_BYTES) return { ok: false };
+    const buf = fs.readFileSync(target);
+    if (buf.includes(0)) return { ok: false };
+    return { ok: true, content: buf.toString("utf8") };
+  } catch {
+    return { ok: false };
+  }
 }
 
 export function runDiffRoutes(): Hono<AppEnv> {
@@ -96,6 +116,22 @@ export function runDiffRoutes(): Hono<AppEnv> {
     // committed yet but have working-tree edits, then to `git diff
     // --no-index /dev/null <file>` for new untracked files.
     try {
+      const content = readTextFile(run.worktree_path, rel);
+      if (content.ok) {
+        const result: DiffResult = {
+          run_id: runId,
+          file: rel,
+          base,
+          head,
+          diff: "",
+          content: content.content,
+          content_empty: content.content.length === 0,
+          view: "content",
+          empty: content.content.length === 0,
+        };
+        return c.json(result);
+      }
+
       let body = (await runGit(["diff", `${base}...`, "--", rel], run.worktree_path)).stdout;
       if (!body.trim()) {
         body = (await runGit(["diff", "--", rel], run.worktree_path)).stdout;
@@ -109,6 +145,7 @@ export function runDiffRoutes(): Hono<AppEnv> {
         base,
         head,
         diff: body,
+        view: "diff",
         empty: !body.trim(),
       };
       return c.json(result);

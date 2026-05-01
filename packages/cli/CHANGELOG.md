@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.15] - 2026-05-01
+
+Follow-up from the user's first 1.4.14 direct-mode test.
+
+- **Activity sometimes showed a naked `}` row** — a transient JSON delimiter / partial provider-stream fragment could be surfaced as `raw` activity by the SSE tailer. **Fix**: activity parsing now drops brace/comma-only fragments server-side, and the UI ignores them defensively too.
+- **Clicking an empty generated file showed a header-only Git diff** — `git diff --no-index /dev/null empty.txt` renders `new file mode 100644` even though the file has no content, which made the right panel look broken. **Fix**: the file panel now reads and displays the current text content when the file exists; empty files show `Fichier vide.`.
+- **Header polish** — the centered run-status display is now centered against the window, not just the remaining space between left/right controls, and the model dropdown chevron is larger.
+
 ## [1.4.14] - 2026-04-30
 
 Follow-up from the user's real Desktop test after 1.4.13: a task created with "Directement dans ta copie" still ran in `.backlog/worktrees/...`, and failed runs appeared as unexplained `blocked` cards.

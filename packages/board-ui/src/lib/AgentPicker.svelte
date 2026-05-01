@@ -156,9 +156,11 @@
     border: 1px solid var(--border);
   }
   .chevron {
-    font-size: 12px;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--text-muted);
     line-height: 1;
+    margin-left: 2px;
   }
 
   .menu {

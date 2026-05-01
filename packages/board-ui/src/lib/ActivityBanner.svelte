@@ -97,6 +97,9 @@
   }
 
   function pushEvent(ev: Omit<ActivityEvent, "id">) {
+    if (ev.type === "raw" && ev.message && /^[{}\[\],]+$/.test(ev.message.trim())) {
+      return;
+    }
     events = [...events, { id: nextId++, ...ev }].slice(-MAX_EVENTS);
     if (!open) unread = Math.min(unread + 1, 99);
     if (open && stickToBottom) void scrollToBottom();

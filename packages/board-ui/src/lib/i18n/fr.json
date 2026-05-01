@@ -114,6 +114,8 @@
   "diff.head": "SHA actuel du worktree",
   "diff.loading": "Chargement du diff…",
   "diff.empty": "Pas de diff (le fichier n'a pas changé dans ce run).",
+  "diff.file_empty": "Fichier vide.",
+  "diff.content_label": "contenu",
   "diff.resize": "Glisser pour redimensionner le panneau",
   "diff.continue": "Appliquer dans le projet",
   "diff.continue_doing": "Application en cours…",
