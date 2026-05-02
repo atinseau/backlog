@@ -2,16 +2,17 @@
 
 Svelte 5 Jira-like kanban frontend for the local Backlog server. Cards drag
 across **À faire / En cours / In Review / Done** *and* within a column to
-reorder priority. The topbar carries:
+reorder priority. The app shell carries:
 
 - a **project selector** (with a CRUD modal)
-- an **Xcode-style ▶ Play / ⏸ Pause / ⏹ Stop** trio for the persistent
+- an **Xcode-style Play / Pause / Stop** trio for the persistent
   orchestrator + a state pill
-- a **📁 Repos** modal to add a local path or clone from GitHub / GitLab /
-  Bitbucket / arbitrary Git URLs
-- a **🔒 Permissions** modal (project autonomy, claims TTL, per-agent
-  sandbox / risk / repo restrictions)
-- a **⚙ Plan** side panel (wave breakdown, agents-max slider, auto toggle,
+- a **Git** section for Changes, History, branches, worktrees, hooks, and sync
+- **Repositories** management to add a local path, clone from GitHub / GitLab /
+  Bitbucket / arbitrary Git URLs, relocate missing repos, and update hooks
+- **Agents** management with per-agent sandbox / risk / repo restrictions
+- a **Runs** section for execution history and review
+- a **Plan** side panel (wave breakdown, agents-max slider, auto toggle,
   last tick / last error)
 - **+ Ticket** and **+ Claim** dialogs
 - a **total ETA pill** showing remaining work across visible columns
@@ -45,7 +46,7 @@ separate frontend deployment.
 ## Build
 
 ```bash
-corepack pnpm --filter @backlog/board-ui build
+pnpm --filter @backlog/board-ui build
 ```
 
 Output: `../server/dist/public/{index.html,assets/*}`. Re-run after every
@@ -55,11 +56,11 @@ change; the dev loop below avoids this.
 
 ```bash
 # Terminal 1 — run the server with the project you're hacking on
-corepack pnpm --filter @backlog/server dev
+pnpm --filter backlog dev serve --project /Users/jimmy/Dev/backlog/backlog-cli --port 7878
 # (PORT=7878 by default)
 
 # Terminal 2 — run Vite with /api proxied to the server
-corepack pnpm --filter @backlog/board-ui dev
+pnpm --filter @backlog/board-ui dev
 # Opens http://127.0.0.1:5173
 ```
 
@@ -71,21 +72,24 @@ end-to-end without rebuilding.
 
 ```
 src/
-├── App.svelte              # 4-column shell, SSE wiring, top-bar
+    ├── App.svelte              # 4-column shell, SSE wiring, app sections
 ├── main.ts                 # Svelte mount
 ├── app.css                 # 6-line global reset
 └── lib/
     ├── Card.svelte                # Card + per-task progress bar + ETA + add-task button
     ├── Column.svelte              # Kanban column; intra-column drag rewrites rank
     ├── ClaimDialog.svelte         # Create-a-claim modal with conflict UI
-    ├── CreateTicketDialog.svelte  # Create a task (title, project, priority, repos)
-    ├── CreateTaskDialog.svelte    # Create a subtask on an existing task
+    ├── CreateTaskDialog.svelte    # Create a task (title, project, priority, repos)
+    ├── CreateSubTaskDialog.svelte # Create a subtask on an existing task
+    ├── CommitsView.svelte         # Git Changes, History, branches, worktrees, sync
+    ├── GitDiffPanel.svelte        # User-friendly diff viewer in the right panel
     ├── OrchestratorControls.svelte  # Topbar ▶/⏸/⏹ trio + state pill (Xcode-style)
     ├── OrchestratorPanel.svelte   # Side panel: waves + agents-max slider + auto toggle
-    ├── PermissionsView.svelte     # Project autonomy + claims TTL + per-agent matrix
+    ├── AgentsView.svelte          # Agents + per-agent restrictions
+    ├── IntegrationsView.svelte    # GitHub/Jira/source integrations
     ├── ProjectSelector.svelte     # Header dropdown
     ├── ProjectsView.svelte        # CRUD modal for projects
-    ├── ReposView.svelte           # CRUD modal with "Local | Cloner Git" tabs
+    ├── ReposView.svelte           # Local paths, Git clones, Cloud remote entry point
     ├── RetryBadge.svelte          # Per-second countdown to claim expiry
     ├── SplitDialog.svelte         # Manual + AI Suggest tabs
     ├── timer.svelte.ts            # Reactive 1 Hz now() + format helpers

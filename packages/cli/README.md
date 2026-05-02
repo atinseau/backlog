@@ -57,7 +57,7 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 | **Orchestrator** | Persistent ▶/⏸/⏹ loop that re-runs the scheduler on a tick and dispatches runs |
 | **Runs** | Track agent execution with summary, log, changed files, ETA, and live progress |
 | **Review** | Approve, request changes, complete, fail, or handoff each run |
-| **Permissions** | Project autonomy mode + per-agent sandbox / risk / repo restrictions |
+| **Agents** | Per-agent permissions, sandbox mode, risk level, repo restrictions |
 
 ## Quickstart
 
@@ -132,13 +132,14 @@ backlog serve
 ```
 
 Both open at `http://127.0.0.1:7878` (Desktop picks a random port).
-The topbar carries:
+The topbar and sidebars carry:
 
-- **Project selector** + ⚙ Projets modal (CRUD)
-- **▶ Play / ⏸ Pause / ⏹ Stop** trio for the persistent orchestrator (Xcode-style)
-- 📁 **Repos** modal (add a local path *or* clone from a Git URL)
-- 🔒 **Permissions** modal (project autonomy + per-agent restrictions)
-- ⚙ **Plan** side panel (wave breakdown, agents-max slider, auto toggle, last tick + last error)
+- **Project selector** + project settings
+- **Play / Pause / Stop** controls for the persistent orchestrator
+- **Git** view with Changes, History, branch/worktree controls, hooks status, and sync
+- **Repositories** management for local paths and cloned Git URLs
+- **Agents** view with per-agent permissions and runtime restrictions
+- **Runs** view for execution history and review
 - **+ Ticket** / **+ Claim** quick-create dialogs
 - **Total ETA pill** showing remaining work across the visible columns
 
@@ -147,7 +148,7 @@ column to reorder by priority (sparse `priority_score` rewrite). Each task
 shows a 4 px progress bar (agent-reported > elapsed/estimate > status
 fallback) with an ETA that ticks every second client-side. The **+ Claim**
 modal creates a file-scope claim with a per-tier retry-after hint on
-collision, and the **✂ Split** action decomposes a task into subtasks
+collision, and the **Split** action decomposes a task into subtasks
 mechanically or via Claude (`ANTHROPIC_API_KEY` required).
 
 The board is served from the same `backlog` binary — no extra install,
@@ -363,18 +364,31 @@ deploy targets.
 
 ## Development
 
+Contributor and agent docs are split by purpose:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) for the human contribution path.
+- [AGENTS.md](AGENTS.md) for repo-specific instructions Codex and other agents
+  must follow.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for architecture, naming,
+  local setup, UI conventions, Git behavior, and Cloud boundaries.
+- [RELEASING.md](RELEASING.md) for version bumps, checks, tags, publishing,
+  Desktop updates, and deployment verification.
+
 ```bash
-corepack pnpm install
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm build
+pnpm install
+pnpm typecheck
+pnpm --filter @backlog/board-ui typecheck
+pnpm test
+pnpm --filter "backlog..." build
+pnpm --filter @backlog/desktop build
+pnpm --filter backlog pack:check
 ```
 
 Issues, PRs, and design discussions welcome.
 
 ## Sister projects
 
-- [Backlog Desktop](https://backlog.so/desktop) — native kanban for the same orchestrator engine, currently in Apple notarisation (waitlist)
+- [Backlog Desktop](https://backlog.so/desktop) — native kanban for the same orchestrator engine
 - [`@osmove/backlog-sdk`](https://www.npmjs.com/package/@osmove/backlog-sdk) — TypeScript client generated from the OpenAPI 3.0.3 spec
 - [Backlog Cloud](https://backlog.so/cloud) — managed hosted backend (private development, waitlist)
 - [`lint`](https://www.npmjs.com/package/lint) — universal linter CLI with AI-powered code review

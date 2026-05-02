@@ -26,7 +26,7 @@ Board polish and archive-column reliability.
 
 - **Archive column now really clears cards** — the board API filters archived parent tasks and subtasks, so a refresh no longer rehydrates cards that were just archived.
 - **Column archive uses the same three-dot affordance as cards** and keeps the column clean immediately after confirmation.
-- **Navigation is tidier** — Activity is now Runs, Integrations moved under the profile menu, Permissions is removed from the sidebar, and Settings is now Project settings.
+- **Navigation is tidier** — Activity is now Runs, Integrations moved under the profile menu, the old permission entry is removed from the sidebar, and Settings is now Project settings.
 
 ## [1.4.20] - 2026-05-01
 
@@ -34,7 +34,7 @@ Git/project management pass from the user's local board workflow.
 
 - **Workspaces are now projects** across the CLI, server, Desktop bridge, and board UI; projects can be created from local folders or cloned Git repositories.
 - **Git is now a first-class board section** with Changes/History, branch management, merge previews, clean diffs, remote sync, worktrees, missing-repo relocation, and dirty-repo warnings before starting runs.
-- **Legacy “work items” naming is gone** from user-facing copy and APIs now consistently expose tasks/subtasks.
+- **Legacy task terminology is gone** from user-facing copy and APIs now consistently expose tasks/subtasks.
 - **Board ergonomics improved** with column archive-all actions, per-column incremental loading, project/repo selectors, and agent permissions moved into the Agents screen.
 
 ## [1.4.19] - 2026-05-01
@@ -269,13 +269,13 @@ The natural follow-up to 1.2.0. Brings the open-core boundary, the Desktop previ
 
 ### Kanban board (`backlog serve`)
 
-- **`backlog serve`** — local Hono server + Svelte 5 kanban board on `127.0.0.1:7878`, single binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every state mutation. Project dropdown + ⚙ Projects modal, 📁 Repos modal, 🔒 Permissions modal, ✂ splitter, `+ Ticket` and `+ Claim` modals.
+- **`backlog serve`** — local Hono server + Svelte 5 kanban board on `127.0.0.1:7878`, single binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every state mutation. Project dropdown, Projects, Repos, agent restrictions, splitter, `+ Ticket` and `+ Claim` modals.
 - **Persistent orchestrator** — start/pause/stop a background loop that re-builds the execution plan and dispatches runs every `tick_interval_ms` (default 5s). Pause is soft (active runs keep going), stop drains. Hydrates only when `last_tick_at < 60s` to avoid surprise auto-launches. CLI: `backlog orchestrator start|pause|stop|status|config`. UI: ▶ ⏸ ⏹ trio in the topbar.
-- **Live time estimates and progress** — every task gets `estimated_duration_seconds` (manual override or median of archived runs filtered by repo+lane, fallback 30 min) plus a derived `progress_percent`. Work-item progress is duration-weighted. The `/board` payload exposes `progress_percent`, `eta`, `elapsed_seconds`, `total_estimated_seconds`, `total_remaining_seconds`. UI shows a 4 px progress bar per task, ETA badge ticking every second, plus a global ETA pill.
+- **Live time estimates and progress** — every task gets `estimated_duration_seconds` (manual override or median of archived runs filtered by repo+lane, fallback 30 min) plus a derived `progress_percent`. Task progress is duration-weighted. The `/board` payload exposes `progress_percent`, `eta`, `elapsed_seconds`, `total_estimated_seconds`, `total_remaining_seconds`. UI shows a 4 px progress bar per task, ETA badge ticking every second, plus a global ETA pill.
 - **Drag-to-reorder inside columns** — rewrites sparse task ranking metadata. Cross-column drag still triggers status change.
 - **Repo management UI + API** — `/api/v1/repos` (GET/POST/PATCH/DELETE) wraps `@backlog/core`'s repo-service. List, add, rename, enable/disable, force-delete repos from the kanban.
 - **GitHub / GitLab / Bitbucket / arbitrary Git URL clone** — repos can be added by URL. `RepoConfig` gains `git_url` and `provider`. `cloneAndAddRepo()` clones into `<workspace>/repos/<id>` by default. CLI: `backlog repos add --url ...`.
-- **Permissions screen** — toggle workspace autonomy mode (observe / assist / delegate / autopilot), edit per-claim TTL and `enforce_on_commit`, configure each agent (enable, sandbox mode, success mode, concurrence, allowed risks, allowed repos).
+- **Agent restrictions screen** — toggle workspace autonomy mode (observe / assist / delegate / autopilot), edit per-claim TTL and `enforce_on_commit`, configure each agent (enable, sandbox mode, success mode, concurrence, allowed risks, allowed repos).
 - **Mechanical splitter + AI splitter** — ✂ button on tasks without subtasks. AI tab calls Claude (`claude-opus-4-7` by default, overridable via `BACKLOG_AI_MODEL`) with adaptive thinking and JSON-schema constrained output. Requires `ANTHROPIC_API_KEY`; degrades gracefully without.
 
 ### CLI commands
