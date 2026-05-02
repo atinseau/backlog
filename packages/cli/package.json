@@ -17,6 +17,7 @@
     "build": "pnpm --filter @backlog/board-ui build && tsup",
     "build:tsc": "tsc -b",
     "dev": "tsx src/bin.ts",
+    "pack:check": "npm pack --dry-run",
     "prepublishOnly": "pnpm --filter @backlog/board-ui build && tsup"
   },
   "engines": {
