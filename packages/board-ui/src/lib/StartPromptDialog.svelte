@@ -10,7 +10,7 @@
     agentId?: string | null;
     onClose: () => void;
     onStarted?: () => void;
-    onBlocked?: (message: string, action: StartRunAction) => void;
+    onBlocked?: (message: string, action: StartRunAction, taskId: string) => void;
   }
 
   let { taskId, subTasksCreated, agentId = null, onClose, onStarted, onBlocked }: Props = $props();
@@ -36,8 +36,10 @@
   // orchestrator too, so any *other* queued subtasks (from a prior
   // split) catch up in the same click.
   async function startNow() {
+    if (busy) return;
     busy = true;
     error = null;
+    onClose();
     try {
       // approve: true matches what Card.svelte's Play button does. In
       // `assist` autonomy mode the server otherwise refuses with
@@ -55,16 +57,16 @@
           action: null,
         };
         error = explanation.message;
-        onBlocked?.(explanation.message, explanation.action);
+        onBlocked?.(explanation.message, explanation.action, taskId);
         return;
       }
       // Best-effort: keep orchestrator nudged so subsequent ticks pick
       // up any siblings. Non-fatal if it errors (e.g. already running).
       void startOrchestrator({}).catch(() => undefined);
       onStarted?.();
-      onClose();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      onBlocked?.(error, null, taskId);
     } finally {
       busy = false;
     }

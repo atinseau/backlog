@@ -1,6 +1,12 @@
 import path from "node:path";
 import { Command } from "commander";
-import { findProject, loadConfig } from "@backlog/config";
+import {
+  findProject,
+  isLocalShimUpToDate,
+  loadConfig,
+  pickLocalShimProjectRoot,
+  writeLocalShim,
+} from "@backlog/config";
 import { detectGitDir, detectRepoRoot } from "@backlog/git";
 import {
   clearPause,
@@ -73,13 +79,21 @@ export function registerHooksCommand(program: Command): void {
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; json?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
       const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
+      const shimProjectRoot = pickLocalShimProjectRoot(workspace.root, targets.map((target) => target.root));
+      const shimUpToDate = isLocalShimUpToDate(workspace.backlogDir, shimProjectRoot);
       const statuses = [];
       for (const target of targets) {
         const gitDir = await detectGitDir(target.root);
+        const hookStatus = inspectPreCommitHook(gitDir, backlogBin, {
+          projectRoot: workspace.root,
+          backlogDir: workspace.backlogDir,
+        });
         statuses.push({
           repoId: target.id,
           repoRoot: target.root,
-          ...inspectPreCommitHook(gitDir, backlogBin),
+          ...hookStatus,
+          shimUpToDate,
+          upToDate: hookStatus.upToDate && shimUpToDate,
         });
       }
 
@@ -103,6 +117,8 @@ export function registerHooksCommand(program: Command): void {
           console.log(`Backlog bin: ${status.backlogBin}`);
         }
         console.log(`Points to local shim: ${status.pointsToBacklogBin}`);
+        console.log(`Local shim up to date: ${status.shimUpToDate}`);
+        console.log(`Up to date: ${status.upToDate}`);
       }
     });
 
@@ -115,7 +131,8 @@ export function registerHooksCommand(program: Command): void {
     .option("--force", "Replace an existing non-Backlog hook")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; force?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
-      const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
+      const shimProjectRoot = pickLocalShimProjectRoot(workspace.root, targets.map((target) => target.root));
+      const backlogBin = writeLocalShim(workspace.backlogDir, shimProjectRoot);
       for (const target of targets) {
         const gitDir = await detectGitDir(target.root);
         const hookPath = installPreCommitHook({

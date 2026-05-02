@@ -45,10 +45,15 @@
       agentOptions = agents.filter(
         (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
       );
-      // ProjectInfo doesn't expose review yet, so reach into the raw
-      // project object via a side fetch — for v1 we just default to
-      // "" if the value isn't present client-side.
-      reviewerAgentId = (project as unknown as { review?: { auto_reviewer_agent_id?: string } } | null)?.review?.auto_reviewer_agent_id ?? "";
+      const review = (project as unknown as { review?: { show_review_column?: boolean; auto_reviewer_agent_id?: string } } | null)?.review;
+      if (review?.show_review_column) {
+        setShowReviewColumn(review.show_review_column);
+      } else if (getShowReviewColumn()) {
+        await setReviewConfig({ show_review_column: true });
+      } else if (review?.show_review_column !== undefined) {
+        setShowReviewColumn(false);
+      }
+      reviewerAgentId = review?.auto_reviewer_agent_id ?? "";
     } catch {
       /* best-effort */
     }
@@ -71,8 +76,17 @@
     navigator.clipboard?.writeText(text).catch(() => undefined);
   }
 
-  function toggleReview(event: Event) {
-    setShowReviewColumn((event.currentTarget as HTMLInputElement).checked);
+  async function toggleReview(event: Event) {
+    const value = (event.currentTarget as HTMLInputElement).checked;
+    setShowReviewColumn(value);
+    reviewerSaving = true;
+    try {
+      await setReviewConfig({ show_review_column: value });
+    } catch {
+      setShowReviewColumn(!value);
+    } finally {
+      reviewerSaving = false;
+    }
   }
   function toggleNotify(event: Event) {
     const value = (event.currentTarget as HTMLInputElement).checked;

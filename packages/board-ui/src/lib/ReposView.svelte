@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
   import { relocateRepoPath } from "./repo-relocate.js";
-  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
+  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, installRepoHook, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
   // Bridge exposed by packages/desktop's preload.ts is typed once in
@@ -34,6 +34,7 @@
   let error = $state<string | null>(null);
   let hooks = $state<HooksOverview | null>(null);
   let hooksLoading = $state(false);
+  let installingHookFor = $state<string | null>(null);
 
   function hookStatusOf(repoId: string): HookStatus | undefined {
     return hooks?.hooks.find((h) => h.repo_id === repoId);
@@ -42,10 +43,15 @@
     if (!status) return { label: t("hooks.status.unknown"), tone: "off" };
     if (!status.git_dir) return { label: t("hooks.status.no_git"), tone: "missing" };
     if (!status.exists) return { label: t("hooks.status.not_installed"), tone: "off" };
-    if (status.managed && status.points_to_backlog_bin) return { label: t("hooks.status.managed"), tone: "ok" };
+    if (status.managed && status.points_to_backlog_bin && status.up_to_date) return { label: t("hooks.status.current"), tone: "ok" };
+    if (status.managed && status.points_to_backlog_bin) return { label: t("hooks.status.outdated"), tone: "warn" };
     if (status.exists && !status.managed) return { label: t("hooks.status.foreign"), tone: "warn" };
     return { label: t("hooks.status.outdated"), tone: "warn" };
   }
+
+  const outdatedManagedHooks = $derived(hooks?.hooks.filter((status) =>
+    status.exists && status.managed && status.points_to_backlog_bin && !status.up_to_date,
+  ) ?? []);
 
   async function loadHooks() {
     hooksLoading = true;
@@ -55,6 +61,18 @@
       // best effort — leave previous state
     } finally {
       hooksLoading = false;
+    }
+  }
+
+  async function updateHook(repoId: string) {
+    installingHookFor = repoId;
+    try {
+      await installRepoHook(repoId);
+      await loadHooks();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      installingHookFor = null;
     }
   }
 
@@ -213,6 +231,11 @@
         {#if hooks?.project_paused_until}
           <div class="hook-pause">⏸ {t("hooks.paused_until", { until: hooks.project_paused_until })}</div>
         {/if}
+        {#if outdatedManagedHooks.length > 0}
+          <div class="hook-update-warning">
+            <span>{t("hooks.update_available", { count: outdatedManagedHooks.length })}</span>
+          </div>
+        {/if}
         <div class="hooks-cli">
           <div><code>backlog hooks install</code> — {t("hooks.cli.install")}</div>
           <div><code>backlog hooks status</code> — {t("hooks.cli.status")}</div>
@@ -238,6 +261,16 @@
                 <span class="hook-badge hook-{hookLabel.tone}" title={hookStatus?.hook_path ?? ""}>
                   hook : {hookLabel.label}
                 </span>
+                {#if hookStatus?.exists && hookStatus.managed && hookStatus.points_to_backlog_bin && !hookStatus.up_to_date}
+                  <button
+                    class="hook-update"
+                    onclick={() => updateHook(repo.id)}
+                    disabled={installingHookFor === repo.id}
+                    title={t("hooks.update_button")}
+                  >
+                    {installingHookFor === repo.id ? "…" : t("hooks.update_button")}
+                  </button>
+                {/if}
               </div>
               <button
                 class="path-link"
@@ -454,6 +487,15 @@
     color: var(--warning);
     font-size: 12px;
   }
+  .hook-update-warning {
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 12px;
+    line-height: 1.35;
+  }
   .hooks-cli {
     display: flex;
     flex-direction: column;
@@ -481,6 +523,23 @@
   .hook-warn    { background: var(--warning-bg); color: var(--warning); }
   .hook-off     { background: var(--bg-hover); color: var(--text-muted); }
   .hook-missing { background: var(--danger-bg); color: var(--danger); }
+  .hook-update {
+    border: 1px solid var(--border-default);
+    background: var(--bg-hover);
+    color: var(--text-body);
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 7px;
+    cursor: pointer;
+  }
+  .hook-update:hover:not(:disabled) {
+    border-color: var(--warning);
+    color: var(--warning);
+  }
+  .hook-update:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
   .hint-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
   .picker {
     display: flex; align-items: center; gap: 8px;

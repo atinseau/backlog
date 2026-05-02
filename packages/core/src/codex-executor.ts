@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
+import { loadConfig } from "@backlog/config";
 import { addRunArtifact, appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, resolveExecutable, successModeForAgent } from "./provider-utils.js";
@@ -218,7 +219,7 @@ export async function executeCodexAgentRun(params: {
     }
 
     if (result.exitCode === 0) {
-      const successMode = successModeForAgent(params.agent, params.task);
+      const successMode = successModeForAgent(params.agent, params.task, loadConfig(params.backlogDir));
       await finalizeSuccessfulRun(
         params.backlogDir,
         params.run.id,

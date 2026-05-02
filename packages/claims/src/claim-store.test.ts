@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  archiveClaim,
   createClaim,
   gcOrphanContextPointers,
   listActiveClaims,
@@ -37,9 +38,28 @@ describe("loadActiveClaim / loadActiveClaimIfPresent", () => {
     expect(loadActiveClaimIfPresent(backlogDir, "CLM-does-not-exist")).toBeNull();
   });
 
-  it("loadActiveClaim still throws ENOENT on a missing claim — callers that want soft-fail should use loadActiveClaimIfPresent", () => {
+  it("loadActiveClaim still throws on a missing claim — callers that want soft-fail should use loadActiveClaimIfPresent", () => {
     const backlogDir = tmpBacklogDir();
-    expect(() => loadActiveClaim(backlogDir, "CLM-does-not-exist")).toThrowError(/ENOENT/);
+    expect(() => loadActiveClaim(backlogDir, "CLM-does-not-exist")).toThrowError(/Unknown claim/);
+  });
+
+  it("finds and archives legacy claim files whose filename differs from the claim id", () => {
+    const backlogDir = tmpBacklogDir();
+    const claim = createClaim({
+      backlogDir,
+      repo: "demo",
+      repoPath: "/tmp/demo",
+      topic: "legacy",
+      paths: ["src/**"],
+    });
+    const canonicalPath = path.join(backlogDir, "claims", "active", `${claim.id}.json`);
+    const legacyPath = path.join(backlogDir, "claims", "active", "CLM-legacy-name.json");
+    fs.renameSync(canonicalPath, legacyPath);
+
+    expect(loadActiveClaim(backlogDir, claim.id).id).toBe(claim.id);
+    archiveClaim(backlogDir, claim.id);
+    expect(fs.existsSync(legacyPath)).toBe(false);
+    expect(fs.existsSync(path.join(backlogDir, "claims", "archive", `${claim.id}.json`))).toBe(true);
   });
 });
 

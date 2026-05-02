@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
+import { loadConfig } from "@backlog/config";
 import { appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
-import { completeRun, failRun } from "./run-service.js";
+import { failRun, finalizeSuccessfulRun } from "./run-service.js";
+import { successModeForAgent } from "./provider-utils.js";
 
 function buildEnv(agent: Agent, run: Run, task: SubTask, workItem: Task): NodeJS.ProcessEnv {
   return {
@@ -54,11 +56,17 @@ export async function executeCustomAgentRun(params: {
     );
 
     if (result.exitCode === 0) {
-      await completeRun(params.backlogDir, params.run.id, `Custom agent ${params.agent.id} completed successfully`);
+      const successMode = successModeForAgent(params.agent, params.task, loadConfig(params.backlogDir));
+      await finalizeSuccessfulRun(
+        params.backlogDir,
+        params.run.id,
+        `Custom agent ${params.agent.id} completed successfully`,
+        successMode,
+      );
       appendRunEvent(params.backlogDir, params.run.id, {
         ts: new Date().toISOString(),
         type: "executor.success",
-        message: `Custom command exited successfully`,
+        message: `Custom command exited successfully with success mode ${successMode}`,
       });
       return;
     }

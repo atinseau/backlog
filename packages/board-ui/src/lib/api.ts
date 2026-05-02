@@ -1774,6 +1774,8 @@ export interface HookStatus {
   exists: boolean;
   managed: boolean;
   points_to_backlog_bin: boolean;
+  shim_up_to_date: boolean;
+  up_to_date: boolean;
 }
 export interface HooksOverview {
   project_paused_until: string | null;
@@ -1784,4 +1786,16 @@ export async function fetchHooksStatus(): Promise<HooksOverview> {
   const response = await fetch(apiUrl("/hooks/status"));
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return (await response.json()) as HooksOverview;
+}
+
+export async function installRepoHook(repoId: string, opts: { force?: boolean } = {}): Promise<HookStatus> {
+  const response = await fetch(apiUrl("/hooks/install"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo_id: repoId, ...(opts.force ? { force: true } : {}) }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${await response.text().catch(() => "")}`);
+  }
+  return (await response.json()) as HookStatus;
 }

@@ -19,6 +19,18 @@ function claimFilePath(directory: string, claimId: string): string {
   return path.join(directory, `${claimId}.json`);
 }
 
+function findClaimFilePath(directory: string, claimId: string): string | null {
+  const direct = claimFilePath(directory, claimId);
+  if (fs.existsSync(direct)) return direct;
+  if (!fs.existsSync(directory)) return null;
+  for (const entry of fs.readdirSync(directory).filter((candidate) => candidate.endsWith(".json"))) {
+    const filePath = path.join(directory, entry);
+    const claim = readClaimFileIfValid(filePath);
+    if (claim?.id === claimId) return filePath;
+  }
+  return null;
+}
+
 function readClaimFile(filePath: string): ClaimRecord {
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
   return claimRecordSchema.parse(raw);
@@ -101,7 +113,9 @@ export function listActiveClaims(backlogDir: string): ClaimRecord[] {
 }
 
 export function loadActiveClaim(backlogDir: string, claimId: string): ClaimRecord {
-  return readClaimFile(claimFilePath(activeClaimsDir(backlogDir), claimId));
+  const filePath = findClaimFilePath(activeClaimsDir(backlogDir), claimId);
+  if (!filePath) throw new Error(`Unknown claim: ${claimId}`);
+  return readClaimFile(filePath);
 }
 
 // Like loadActiveClaim, but returns null if the on-disk file is missing
@@ -109,8 +123,8 @@ export function loadActiveClaim(backlogDir: string, claimId: string): ClaimRecor
 // pointer to a claim id (e.g. .git/backlog-context.json) and need to
 // distinguish "stale pointer" from real errors.
 export function loadActiveClaimIfPresent(backlogDir: string, claimId: string): ClaimRecord | null {
-  const filePath = claimFilePath(activeClaimsDir(backlogDir), claimId);
-  if (!fs.existsSync(filePath)) return null;
+  const filePath = findClaimFilePath(activeClaimsDir(backlogDir), claimId);
+  if (!filePath) return null;
   return readClaimFile(filePath);
 }
 
@@ -146,7 +160,8 @@ export function findOverlappingClaims(
 }
 
 export function archiveClaim(backlogDir: string, claimId: string): ClaimRecord {
-  const activePath = claimFilePath(activeClaimsDir(backlogDir), claimId);
+  const activePath = findClaimFilePath(activeClaimsDir(backlogDir), claimId);
+  if (!activePath) throw new Error(`Unknown claim: ${claimId}`);
   const claim = loadActiveClaim(backlogDir, claimId);
   const archived: ClaimRecord = {
     ...claim,

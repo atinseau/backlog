@@ -304,26 +304,32 @@ export function registerClaimCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
+      const project = workspace;
 
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
-      let claimRecord: ClaimRecord;
-      try {
-        claimRecord = await resolveClaimFromContext(workspace.backlogDir, repoRoot);
-      } catch (error) {
-        // No claim yet for this repo. If --auto was passed AND the
-        // project has auto_claim_on_commit enabled, mint one from
-        // the staged paths so the commit goes through. Anything else
-        // → re-throw the original "Start a claim first" error.
-        const config = loadConfig(workspace.backlogDir);
+      const gitDir = await detectGitDir(repoRoot);
+
+      async function autoClaimOrThrow(error: unknown, opts: { allowExpiredBypass?: boolean } = {}): Promise<ClaimRecord | null> {
+        // No claim yet for this repo. If --auto was passed AND the project has
+        // auto_claim_on_commit enabled, mint one from the staged paths so the
+        // commit goes through. Expired context is special: it is old local
+        // state, so it should never block a commit by itself.
+        const config = loadConfig(project.backlogDir);
         const wantsAuto = options.auto === true && config.claims.auto_claim_on_commit;
-        if (!wantsAuto) throw error;
+        if (!wantsAuto) {
+          if (opts.allowExpiredBypass) {
+            console.log("Expired claim archived; no auto-claim configured. Commit allowed without claim validation.");
+            return null;
+          }
+          throw error;
+        }
 
         const stagedForAuto = options.staged ? await stagedPaths(repoRoot) : options.path ?? [];
         if (stagedForAuto.length === 0) {
           // Nothing staged → nothing to claim. Let the commit through
           // (empty commits / amend-only / merge commits land here).
           console.log("No staged paths; auto-claim skipped.");
-          return;
+          return null;
         }
 
         const repo = resolveRepo(config.repos, undefined, repoRoot);
@@ -331,7 +337,7 @@ export function registerClaimCommand(program: Command): void {
         const scopes = compactScopes(stagedForAuto);
         const sourceMetadata = { ...detectClaimSourceMetadata(), auto: "1" };
         const created = createClaim({
-          backlogDir: workspace.backlogDir,
+          backlogDir: project.backlogDir,
           repo: repo.id,
           repoPath: repo.path,
           topic,
@@ -340,18 +346,32 @@ export function registerClaimCommand(program: Command): void {
           ttlMinutes: config.claims.ttl_minutes,
           metadata: sourceMetadata,
         });
-        const gitDir = await detectGitDir(repoRoot);
         writeContextFile(gitDir, {
           version: 1,
           claim_id: created.id,
           updated_at: new Date().toISOString(),
         });
         console.log(`backlog: auto-claimed ${created.id} (${topic}) covering ${scopes.length} scope(s).`);
-        claimRecord = created;
+        return created;
       }
 
-      if (isExpired(claimRecord)) {
-        throw new Error(`Claim ${claimRecord.id} expired at ${claimRecord.expires_at}.`);
+      let claimRecord: ClaimRecord | null;
+      try {
+        claimRecord = await resolveClaimFromContext(project.backlogDir, repoRoot);
+      } catch (error) {
+        claimRecord = await autoClaimOrThrow(error);
+      }
+      if (!claimRecord) return;
+
+      if (claimRecord && isExpired(claimRecord)) {
+        archiveClaim(project.backlogDir, claimRecord.id);
+        removeContextFile(gitDir);
+        console.log(`backlog: archived expired claim ${claimRecord.id} (expired at ${claimRecord.expires_at}).`);
+        claimRecord = await autoClaimOrThrow(
+          new Error(`Claim ${claimRecord.id} expired at ${claimRecord.expires_at}.`),
+          { allowExpiredBypass: true },
+        );
+        if (!claimRecord) return;
       }
 
       const paths = options.staged ? await stagedPaths(repoRoot) : options.path ?? [];
@@ -367,7 +387,7 @@ export function registerClaimCommand(program: Command): void {
         );
       }
 
-      const overlaps = findOverlappingClaims(workspace.backlogDir, claimRecord)
+      const overlaps = findOverlappingClaims(project.backlogDir, claimRecord)
         .flatMap((otherClaim) =>
           paths
             .filter((candidate) => pathsCoveredByScopes(otherClaim.paths, [candidate]).length === 0)

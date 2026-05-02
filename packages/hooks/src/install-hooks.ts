@@ -10,6 +10,7 @@ export interface PreCommitHookStatus {
   managed: boolean;
   backlogBin?: string;
   pointsToBacklogBin: boolean;
+  upToDate: boolean;
 }
 
 // Inline template — keeps the bundled CLI tarball self-contained, no
@@ -82,7 +83,24 @@ function readTemplate(): string {
   return PRE_COMMIT_TEMPLATE;
 }
 
-export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCommitHookStatus {
+function renderPreCommitHook(params: {
+  backlogBin: string;
+  projectRoot: string;
+  backlogDir?: string;
+}): string {
+  const backlogDir = params.backlogDir ?? path.join(params.projectRoot, ".backlog");
+  const pauseFile = path.join(backlogDir, PAUSE_FILE_NAME);
+  return readTemplate()
+    .replace("__BACKLOG_BIN__", params.backlogBin)
+    .replace("__BACKLOG_WORKSPACE__", params.projectRoot)
+    .replace("__BACKLOG_PAUSE_FILE__", pauseFile);
+}
+
+export function inspectPreCommitHook(
+  gitDir: string,
+  backlogBin?: string,
+  expected?: { projectRoot: string; backlogDir?: string },
+): PreCommitHookStatus {
   const hookPath = path.join(gitDir, "hooks", "pre-commit");
   if (!fs.existsSync(hookPath)) {
     return {
@@ -90,6 +108,7 @@ export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCo
       exists: false,
       managed: false,
       pointsToBacklogBin: false,
+      upToDate: false,
     };
   }
 
@@ -97,13 +116,25 @@ export function inspectPreCommitHook(gitDir: string, backlogBin?: string): PreCo
   const managed = contents.includes(MANAGED_HOOK_MARKER);
   const backlogBinMatch = contents.match(/BACKLOG_BIN="([^"]+)"/);
   const configuredBin = backlogBinMatch?.[1];
+  const pointsToBacklogBin = backlogBin ? configuredBin === backlogBin : Boolean(configuredBin);
+  const upToDate = Boolean(
+    managed &&
+    backlogBin &&
+    expected &&
+    contents === renderPreCommitHook({
+      backlogBin,
+      projectRoot: expected.projectRoot,
+      ...(expected.backlogDir ? { backlogDir: expected.backlogDir } : {}),
+    }),
+  );
 
   return {
     hookPath,
     exists: true,
     managed,
     ...(configuredBin ? { backlogBin: configuredBin } : {}),
-    pointsToBacklogBin: backlogBin ? configuredBin === backlogBin : Boolean(configuredBin),
+    pointsToBacklogBin,
+    upToDate,
   };
 }
 
@@ -128,12 +159,11 @@ export function installPreCommitHook(params: {
     );
   }
 
-  const backlogDir = params.backlogDir ?? path.join(params.projectRoot, ".backlog");
-  const pauseFile = path.join(backlogDir, PAUSE_FILE_NAME);
-  const rendered = readTemplate()
-    .replace("__BACKLOG_BIN__", params.backlogBin)
-    .replace("__BACKLOG_WORKSPACE__", params.projectRoot)
-    .replace("__BACKLOG_PAUSE_FILE__", pauseFile);
+  const rendered = renderPreCommitHook({
+    backlogBin: params.backlogBin,
+    projectRoot: params.projectRoot,
+    ...(params.backlogDir ? { backlogDir: params.backlogDir } : {}),
+  });
   fs.mkdirSync(path.dirname(hookPath), { recursive: true });
   fs.writeFileSync(hookPath, rendered, "utf8");
   fs.chmodSync(hookPath, 0o755);

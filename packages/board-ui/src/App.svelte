@@ -54,6 +54,7 @@
     renameProjectById,
     reorderTask,
     setCurrentProjectId,
+    setReviewConfig,
     startRun,
     touchProjectById,
     unarchiveTask,
@@ -524,6 +525,9 @@
     refresh();
     refreshRepos();
     refreshAgents();
+    if (getShowReviewColumn()) {
+      void setReviewConfig({ show_review_column: true }).catch(() => undefined);
+    }
     connectSse();
   }
 
@@ -562,6 +566,9 @@
     refresh();
     refreshRepos();
     refreshAgents();
+    if (getShowReviewColumn()) {
+      void setReviewConfig({ show_review_column: true }).catch(() => undefined);
+    }
     connectSse();
     loadCloudStatus();
   }
@@ -1234,11 +1241,9 @@
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
     onClose={() => (startPrompt = null)}
-    onBlocked={(message, action) => {
-      const prompt = startPrompt;
-      const card = prompt ? findCardById(prompt.taskId) : null;
-      surfaceStartRunBlock(message, action, card ?? (prompt ? { id: prompt.taskId, title: prompt.taskId } : null));
-      if (action === "direct_dirty") startPrompt = null;
+    onBlocked={(message, action, taskId) => {
+      const card = findCardById(taskId);
+      surfaceStartRunBlock(message, action, card ?? { id: taskId, title: taskId });
     }}
     onStarted={() => {
       // Same UX as clicking the card-level Play: pop the bottom

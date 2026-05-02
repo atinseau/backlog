@@ -31,6 +31,7 @@ describe("inspectPreCommitHook", () => {
       exists: false,
       managed: false,
       pointsToBacklogBin: false,
+      upToDate: false,
     });
   });
 
@@ -48,6 +49,43 @@ describe("inspectPreCommitHook", () => {
       managed: true,
       backlogBin,
       pointsToBacklogBin: true,
+      upToDate: false,
+    });
+  });
+
+  it("reports when a managed hook matches the current template", () => {
+    const gitDir = createGitDir();
+    const backlogBin = "/tmp/backlog/bin/backlog";
+    const projectRoot = "/tmp/backlog";
+    installPreCommitHook({
+      gitDir,
+      backlogBin,
+      projectRoot,
+    });
+
+    expect(inspectPreCommitHook(gitDir, backlogBin, { projectRoot })).toMatchObject({
+      exists: true,
+      managed: true,
+      pointsToBacklogBin: true,
+      upToDate: true,
+    });
+  });
+
+  it("reports an older managed hook as outdated", () => {
+    const gitDir = createGitDir();
+    const hookPath = path.join(gitDir, "hooks", "pre-commit");
+    const backlogBin = "/tmp/backlog/bin/backlog";
+    fs.writeFileSync(
+      hookPath,
+      `#!/usr/bin/env bash\n# Managed by Backlog\nBACKLOG_BIN="${backlogBin}"\n`,
+      "utf8",
+    );
+
+    expect(inspectPreCommitHook(gitDir, backlogBin, { projectRoot: "/tmp/backlog" })).toMatchObject({
+      exists: true,
+      managed: true,
+      pointsToBacklogBin: true,
+      upToDate: false,
     });
   });
 
@@ -60,6 +98,7 @@ describe("inspectPreCommitHook", () => {
       exists: true,
       managed: false,
       pointsToBacklogBin: false,
+      upToDate: false,
     });
   });
 

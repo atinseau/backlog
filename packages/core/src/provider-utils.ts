@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Agent, Artifact, Run, SubTask, Task } from "@backlog/schemas";
+import type { Agent, Artifact, ProjectConfig, Run, SubTask, Task } from "@backlog/schemas";
 import { execa } from "execa";
 import { getSecret } from "@backlog/config";
 
@@ -175,9 +175,11 @@ export async function collectWorktreeArtifacts(
   return artifacts;
 }
 
-export function successModeForAgent(agent: Agent, task?: SubTask): "review" | "complete" {
+export function successModeForAgent(agent: Agent, task?: SubTask, config?: ProjectConfig): "review" | "complete" {
   if (task) {
-    return task.execution.manual_approval_required ? "review" : "complete";
+    if (task.execution.manual_approval_required) return "review";
+    if (config?.review.show_review_column) return "review";
+    return "complete";
   }
   if (agent.success_mode) {
     return agent.success_mode;

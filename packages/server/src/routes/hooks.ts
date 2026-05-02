@@ -1,5 +1,6 @@
 import { listRepos } from "@backlog/core";
-import { inspectPreCommitHook, readPauseUntil } from "@backlog/hooks";
+import { isLocalShimUpToDate, pickLocalShimProjectRoot, writeLocalShim } from "@backlog/config";
+import { inspectPreCommitHook, installPreCommitHook, readPauseUntil } from "@backlog/hooks";
 import { Hono } from "hono";
 import path from "node:path";
 import fs from "node:fs";
@@ -17,6 +18,8 @@ interface HookStatus {
   exists: boolean;
   managed: boolean;
   points_to_backlog_bin: boolean;
+  shim_up_to_date: boolean;
+  up_to_date: boolean;
 }
 
 interface HooksOverview {
@@ -54,18 +57,26 @@ function findGitDir(repoPath: string): string | null {
   }
 }
 
+function resolveRepoPath(projectRoot: string, repoPath: string): string {
+  return path.isAbsolute(repoPath)
+    ? repoPath
+    : path.resolve(projectRoot, repoPath);
+}
+
 export function hooksRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/hooks/status", (c) => {
     const project = c.get("project");
     const repos = listRepos(project.backlogDir);
+    const backlogBin = path.join(project.backlogDir, "bin", "backlog");
+    const repoPaths = repos.map((repo) => resolveRepoPath(project.root, repo.path));
+    const shimProjectRoot = pickLocalShimProjectRoot(project.root, repoPaths);
+    const shimUpToDate = isLocalShimUpToDate(project.backlogDir, shimProjectRoot);
 
     const out: HookStatus[] = [];
     for (const repo of repos) {
-      const repoPath = path.isAbsolute(repo.path)
-        ? repo.path
-        : path.resolve(project.root, repo.path);
+      const repoPath = resolveRepoPath(project.root, repo.path);
       const gitDir = findGitDir(repoPath);
       if (!gitDir) {
         out.push({
@@ -76,10 +87,15 @@ export function hooksRoutes(): Hono<AppEnv> {
           exists: false,
           managed: false,
           points_to_backlog_bin: false,
+          shim_up_to_date: shimUpToDate,
+          up_to_date: false,
         });
         continue;
       }
-      const status = inspectPreCommitHook(gitDir);
+      const status = inspectPreCommitHook(gitDir, backlogBin, {
+        projectRoot: project.root,
+        backlogDir: project.backlogDir,
+      });
       out.push({
         repo_id: repo.id,
         repo_path: repoPath,
@@ -88,6 +104,8 @@ export function hooksRoutes(): Hono<AppEnv> {
         exists: status.exists,
         managed: status.managed,
         points_to_backlog_bin: status.pointsToBacklogBin,
+        shim_up_to_date: shimUpToDate,
+        up_to_date: status.upToDate && shimUpToDate,
       });
     }
 
@@ -97,6 +115,52 @@ export function hooksRoutes(): Hono<AppEnv> {
       hooks: out,
     };
     return c.json(overview);
+  });
+
+  app.post("/hooks/install", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null) as { repo_id?: unknown; force?: unknown } | null;
+    const repoId = typeof raw?.repo_id === "string" ? raw.repo_id : "";
+    const force = raw?.force === true;
+    if (!repoId) return c.json({ error: "missing_repo_id" }, 400);
+
+    const repo = listRepos(project.backlogDir).find((candidate) => candidate.id === repoId);
+    if (!repo) return c.json({ error: "unknown_repo", repo_id: repoId }, 404);
+
+    const repoPath = resolveRepoPath(project.root, repo.path);
+    const gitDir = findGitDir(repoPath);
+    if (!gitDir) return c.json({ error: "not_a_git_repo", repo_id: repoId, repo_path: repoPath }, 400);
+
+    try {
+      const shimProjectRoot = pickLocalShimProjectRoot(project.root, [repoPath]);
+      const backlogBin = writeLocalShim(project.backlogDir, shimProjectRoot);
+      const hookPath = installPreCommitHook({
+        gitDir,
+        backlogBin,
+        projectRoot: project.root,
+        backlogDir: project.backlogDir,
+        ...(force ? { force: true } : {}),
+      });
+      const status = inspectPreCommitHook(gitDir, backlogBin, {
+        projectRoot: project.root,
+        backlogDir: project.backlogDir,
+      });
+      const shimUpToDate = isLocalShimUpToDate(project.backlogDir, shimProjectRoot);
+      return c.json({
+        repo_id: repo.id,
+        repo_path: repoPath,
+        git_dir: gitDir,
+        hook_path: hookPath,
+        exists: status.exists,
+        managed: status.managed,
+        points_to_backlog_bin: status.pointsToBacklogBin,
+        shim_up_to_date: shimUpToDate,
+        up_to_date: status.upToDate && shimUpToDate,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "install_failed", detail: message }, 409);
+    }
   });
 
   return app;

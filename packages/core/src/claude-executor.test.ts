@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { initLayout } from "@backlog/config";
+import { initLayout, loadConfig, saveConfig } from "@backlog/config";
 import type { Agent } from "@backlog/schemas";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { createRun, loadRun } from "./run-store.js";
@@ -137,5 +137,57 @@ describe("executeClaudeAgentRun", () => {
     });
 
     expect(loadRun(backlogDir, "RUN-claude-review")?.status).toBe("awaiting_review");
+  });
+
+  it("sends successful runs to review when the project review column is enabled", async () => {
+    const root = createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    const repoId = path.basename(root);
+    const fakeClaudePath = writeFakeClaudeBinary(root);
+    const config = loadConfig(backlogDir);
+    config.review.show_review_column = true;
+    saveConfig(backlogDir, config);
+
+    const workItem = createTask(backlogDir, { title: "Claude manual review project", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Implement with project review",
+      repo: repoId,
+      scopes: ["README.md"],
+      risk: "low",
+    });
+    const agent: Agent = {
+      id: "claude-test",
+      provider: "claude",
+      command: fakeClaudePath,
+      enabled: true,
+      max_concurrent_runs: 1,
+      allowed_repos: [],
+      allowed_risk: ["low", "medium"],
+      capabilities: ["plan", "edit_code"],
+      environment: {},
+      retry_policy: { mode: "none", max_attempts: 1, reuse_worktree: true },
+    };
+
+    createRun({
+      backlogDir,
+      runId: "RUN-claude-project-review",
+      task,
+      workItem,
+      agent,
+      branch: "backlog/claude-project-review",
+      worktreePath: root,
+      claimIds: [],
+    });
+
+    await executeClaudeAgentRun({
+      backlogDir,
+      run: loadRun(backlogDir, "RUN-claude-project-review")!,
+      task,
+      workItem,
+      agent,
+    });
+
+    expect(loadRun(backlogDir, "RUN-claude-project-review")?.status).toBe("awaiting_review");
   });
 });
