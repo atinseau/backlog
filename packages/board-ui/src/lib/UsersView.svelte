@@ -1,13 +1,9 @@
 <script lang="ts">
-  // Project-scoped human collaborators (not AI agents). Shown as its
-  // own left-panel section so the Agents view stays focused on
-  // executors. Invited users land in `pending` with an invitation
-  // token; once they confirm via a link they flip to `active` and can
-  // be picked as the assignee on a sub-task alongside AI agents.
-  //
-  // Email delivery is not wired in v1 — the invitation link is shown
-  // inline so the inviter can share it manually.
-  import { deleteUser, fetchUsers, inviteUser, patchUser, refreshUserInvitation } from "./api.js";
+  // Project-scoped human collaborators (not AI agents). In a local
+  // project this is only an assignable people list: real invitations
+  // require Backlog Cloud because there is no shared local endpoint to
+  // accept an invite from another machine.
+  import { createUser, deleteUser, fetchUsers, patchUser } from "./api.js";
   import { t } from "./i18n.svelte.js";
   import type { UserRole, UserSummary } from "./types.js";
 
@@ -23,12 +19,11 @@
   let error = $state<string | null>(null);
   let busyId = $state<string | null>(null);
   let confirmingDeleteId = $state<string | null>(null);
-  let copiedId = $state<string | null>(null);
 
-  // Inline invitation form state. Null until the user clicks the
-  // "Invite" button.
-  let inviteForm = $state<{ email: string; display_name: string; role: UserRole } | null>(null);
-  let inviting = $state(false);
+  // Inline local collaborator form state. Null until the user clicks
+  // the "Add person" button.
+  let addForm = $state<{ email: string; display_name: string; role: UserRole } | null>(null);
+  let adding = $state(false);
 
   async function load() {
     loading = true;
@@ -42,25 +37,25 @@
     }
   }
 
-  function startInvite() {
-    inviteForm = { email: "", display_name: "", role: "member" };
+  function startAdd() {
+    addForm = { email: "", display_name: "", role: "member" };
   }
 
-  async function submitInvite() {
-    if (!inviteForm) return;
-    const email = inviteForm.email.trim();
+  async function submitAdd() {
+    if (!addForm) return;
+    const email = normalizeEmail(addForm.email);
     if (!email) return;
-    inviting = true;
+    adding = true;
     try {
-      const input: Parameters<typeof inviteUser>[0] = { email, role: inviteForm.role };
-      if (inviteForm.display_name.trim()) input.display_name = inviteForm.display_name.trim();
-      await inviteUser(input);
-      inviteForm = null;
+      const input: Parameters<typeof createUser>[0] = { email, role: addForm.role };
+      if (addForm.display_name.trim()) input.display_name = addForm.display_name.trim();
+      await createUser(input);
+      addForm = null;
       await load();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
-      inviting = false;
+      adding = false;
     }
   }
 
@@ -94,42 +89,16 @@
     }
   }
 
-  async function resend(user: UserSummary) {
-    busyId = user.id;
-    try {
-      await refreshUserInvitation(user.id);
-      await load();
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      busyId = null;
-    }
+  function normalizeEmail(value: string): string {
+    return value.trim().toLowerCase();
   }
 
-  // Build the confirmation URL the recipient has to hit to flip
-  // pending → active. We embed the token + project id so the link
-  // works even if the user hasn't picked the project in the UI yet.
-  function invitationUrl(user: UserSummary): string {
-    if (!user.invitation_token) return "";
-    const url = new URL(window.location.href);
-    url.hash = `#/invitation/confirm?token=${encodeURIComponent(user.invitation_token)}`;
-    return url.toString();
+  function displayName(user: UserSummary): string {
+    return user.display_name?.trim() || user.email.split("@")[0] || user.email;
   }
 
-  async function copyInviteLink(user: UserSummary) {
-    const link = invitationUrl(user);
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      copiedId = user.id;
-      setTimeout(() => {
-        if (copiedId === user.id) copiedId = null;
-      }, 1500);
-    } catch {
-      // Clipboard blocked — fall back to selecting the input text via
-      // a hidden textarea would be overkill here. The link is visible
-      // inline, the user can manually select it.
-    }
+  function mailtoHref(email: string): string {
+    return `mailto:${encodeURIComponent(email)}`;
   }
 
   function formatDate(iso: string): string {
@@ -152,8 +121,8 @@
     <div class="header-actions">
       <button
         class="btn-primary"
-        onclick={startInvite}
-        disabled={inviteForm !== null}
+        onclick={startAdd}
+        disabled={addForm !== null}
         type="button"
       >+ {t("users_view.invite_button")}</button>
       {#if !embedded}
@@ -166,31 +135,35 @@
     <div class="error">{error}</div>
   {/if}
 
-  {#if inviteForm}
-    <div class="invite-form">
+  {#if addForm}
+    <form class="invite-form" onsubmit={(e) => { e.preventDefault(); submitAdd(); }}>
       <div class="invite-grid">
         <label class="field">
           <span class="lbl">{t("users_view.invite_email")}</span>
           <input
             type="email"
+            inputmode="email"
+            autocomplete="email"
+            autocapitalize="off"
+            spellcheck="false"
             placeholder={t("users_view.invite_email_placeholder")}
-            value={inviteForm.email}
-            oninput={(e) => (inviteForm!.email = (e.currentTarget as HTMLInputElement).value)}
+            value={addForm.email}
+            oninput={(e) => (addForm!.email = (e.currentTarget as HTMLInputElement).value)}
           />
         </label>
         <label class="field">
           <span class="lbl">{t("users_view.invite_name")}</span>
           <input
             placeholder={t("users_view.invite_name_placeholder")}
-            value={inviteForm.display_name}
-            oninput={(e) => (inviteForm!.display_name = (e.currentTarget as HTMLInputElement).value)}
+            value={addForm.display_name}
+            oninput={(e) => (addForm!.display_name = (e.currentTarget as HTMLInputElement).value)}
           />
         </label>
         <label class="field narrow">
           <span class="lbl">{t("users_view.invite_role")}</span>
           <select
-            value={inviteForm.role}
-            onchange={(e) => (inviteForm!.role = (e.currentTarget as HTMLSelectElement).value as UserRole)}
+            value={addForm.role}
+            onchange={(e) => (addForm!.role = (e.currentTarget as HTMLSelectElement).value as UserRole)}
           >
             <option value="owner">{t("users_view.role_owner")}</option>
             <option value="admin">{t("users_view.role_admin")}</option>
@@ -200,22 +173,21 @@
         </label>
       </div>
       <div class="invite-actions">
-        <button class="btn-secondary" onclick={() => (inviteForm = null)} type="button">
+        <button class="btn-secondary" onclick={() => (addForm = null)} type="button">
           {t("users_view.invite_cancel")}
         </button>
         <button
           class="btn-primary"
-          onclick={submitInvite}
-          disabled={inviting || !inviteForm.email.trim()}
-          type="button"
-        >{inviting ? "…" : t("users_view.invite_submit")}</button>
+          disabled={adding || !normalizeEmail(addForm.email)}
+          type="submit"
+        >{adding ? "…" : t("users_view.invite_submit")}</button>
       </div>
-    </div>
+    </form>
   {/if}
 
   {#if loading}
     <div class="loading">{t("agents_view.loading")}</div>
-  {:else if users.length === 0 && !inviteForm}
+  {:else if users.length === 0 && !addForm}
     <div class="loading">{t("users_view.empty")}</div>
   {:else}
     <ul class="users">
@@ -223,8 +195,8 @@
         <li class:status-pending={user.status === "pending"} class:status-removed={user.status === "removed"}>
           <div class="row-main">
             <div class="ident">
-              <strong>{user.display_name}</strong>
-              <span class="email">{user.email}</span>
+              <strong>{displayName(user)}</strong>
+              <a class="email" href={mailtoHref(user.email)} title={user.email}>{user.email}</a>
               <span class="status status-{user.status}">{t(`users_view.status_${user.status}`)}</span>
             </div>
             <div class="controls">
@@ -239,14 +211,6 @@
                 <option value="member">{t("users_view.role_member")}</option>
                 <option value="guest">{t("users_view.role_guest")}</option>
               </select>
-              {#if user.status === "pending"}
-                <button
-                  class="btn-secondary"
-                  type="button"
-                  onclick={() => resend(user)}
-                  disabled={busyId === user.id}
-                >{t("users_view.invitation_resend")}</button>
-              {/if}
               {#if confirmingDeleteId === user.id}
                 <button class="btn-danger" type="button" onclick={() => handleDelete(user)} disabled={busyId === user.id}>
                   {t("users_view.delete_yes")}
@@ -260,27 +224,11 @@
                   type="button"
                   onclick={() => handleDelete(user)}
                   disabled={busyId === user.id}
-                  title={t("users_view.delete_confirm", { name: user.display_name })}
+                  title={t("users_view.delete_confirm", { name: displayName(user) })}
                 >{t("users_view.delete_button")}</button>
               {/if}
             </div>
           </div>
-
-          {#if user.status === "pending" && user.invitation_token}
-            <div class="invite-link">
-              <span class="lbl">{t("users_view.invitation_link")}</span>
-              <code class="link">{invitationUrl(user)}</code>
-              <button class="btn-secondary" type="button" onclick={() => copyInviteLink(user)}>
-                {copiedId === user.id ? t("users_view.invitation_copied") : t("users_view.invitation_copy")}
-              </button>
-              <p class="hint">
-                {t("users_view.invitation_pending_hint")}
-                {#if user.invitation_expires_at}
-                  · {t("users_view.invitation_expires", { when: formatDate(user.invitation_expires_at) })}
-                {/if}
-              </p>
-            </div>
-          {/if}
 
           <div class="meta">
             <span>{t("users_view.invited_at", { when: formatDate(user.invited_at) })}</span>
@@ -421,6 +369,13 @@
   }
   .ident strong { font-size: 14px; }
   .email { font-size: 12px; color: var(--text-muted); font-family: ui-monospace, monospace; }
+  a.email {
+    text-decoration: none;
+  }
+  a.email:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
 
   .status {
     font-size: 10px;
@@ -446,34 +401,6 @@
     border-radius: 4px;
     font-size: 12px;
     background: var(--bg-surface);
-  }
-
-  .invite-link {
-    background: var(--bg-elevated);
-    border: 1px dashed var(--border-strong);
-    border-radius: 6px;
-    padding: 10px 12px;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  }
-  .invite-link .lbl { flex-basis: 100%; }
-  .invite-link .link {
-    flex: 1; min-width: 240px;
-    background: var(--bg-input);
-    color: var(--text-secondary);
-    padding: 4px 8px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .hint {
-    flex-basis: 100%;
-    margin: 0;
-    font-size: 11px;
-    color: var(--text-muted);
-    font-style: italic;
   }
 
   .meta {

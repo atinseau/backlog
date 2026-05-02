@@ -180,6 +180,28 @@ describe("buildExecutionPlan", () => {
     expect(plan.runnable[0]?.assignedAgentId).toBe("preferred");
   });
 
+  it("still schedules manual-approval tasks in assist mode", () => {
+    const root = createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    writeExecutableAgent(backlogDir);
+    const config = loadConfig(backlogDir);
+    config.autonomy_mode = "assist";
+
+    const work = createTask(backlogDir, { title: "Review after run", repoTargets: [path.basename(root)] });
+    const task = createSubTask(backlogDir, {
+      workItemId: work.id,
+      title: "Implement then wait for review",
+      repo: path.basename(root),
+      scopes: ["README.md"],
+      risk: "low",
+      manualApprovalRequired: true,
+    });
+
+    const plan = buildExecutionPlan(backlogDir, config);
+    expect(plan.runnable.find((decision) => decision.taskId === task.id)).toBeTruthy();
+    expect(plan.blocked.find((decision) => decision.taskId === task.id)?.reasons ?? []).not.toContain("manual_approval_required");
+  });
+
   it("blocks tasks when no agent satisfies required capabilities", () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");

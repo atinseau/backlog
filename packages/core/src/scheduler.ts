@@ -120,9 +120,6 @@ function policyReasons(task: SubTask, config: ProjectConfig): string[] {
   if (config.autonomy_mode === "observe") {
     reasons.push("autonomy_mode_observe");
   }
-  if (config.autonomy_mode === "assist" && task.execution.manual_approval_required) {
-    reasons.push("manual_approval_required");
-  }
   if ((config.autonomy_mode === "assist" || config.autonomy_mode === "delegate") && task.risk === "high") {
     reasons.push("high_risk_requires_higher_autonomy");
   }

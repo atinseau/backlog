@@ -78,7 +78,7 @@
 
   // svelte-ignore state_referenced_locally
   let showCreate = $state(initialShowCreate);
-  let createMode = $state<"local" | "clone">("local");
+  let createMode = $state<"local" | "clone" | "remote-github">("local");
   let newId = $state("");
   let newPath = $state("");
   let newGitUrl = $state("");
@@ -107,6 +107,10 @@
 
   async function handleCreate(event: SubmitEvent) {
     event.preventDefault();
+    if (createMode === "remote-github") {
+      error = t("repos_view.remote.not_available");
+      return;
+    }
     creating = true;
     try {
       const input: Parameters<typeof createRepo>[0] = {};
@@ -202,6 +206,14 @@
     }
   }
 
+  function providerLabel(provider: Repo["provider"]): string {
+    if (provider === "github") return "GitHub";
+    if (provider === "gitlab") return "GitLab";
+    if (provider === "bitbucket") return "Bitbucket";
+    if (provider === "other") return "Git";
+    return "Local";
+  }
+
   load();
 </script>
 
@@ -253,6 +265,9 @@
             <div class="info">
               <div class="title-row">
                 <strong>{repo.id}</strong>
+                {#if repo.provider && repo.provider !== "local"}
+                  <span class="provider-badge provider-{repo.provider}">{providerLabel(repo.provider)}</span>
+                {/if}
                 {#if repo.role}<span class="role">{repo.role}</span>{/if}
                 <span class="access-pill access-{accessMode}" title={t(`repos_view.access_hint_${accessMode.replace("-", "_")}`)}>
                   {t(`repos_view.access_${accessMode.replace("-", "_")}`)}
@@ -281,6 +296,9 @@
                 <span class="path-text">{repo.path}</span>
               </button>
               <span class="branch">branche par défaut : {repo.default_branch}</span>
+              {#if repo.git_url}
+                <span class="git-url">{repo.git_url}</span>
+              {/if}
             </div>
             <div class="actions">
               <select
@@ -327,9 +345,29 @@
             >
               ⬇ Cloner Git
             </button>
+            <button
+              type="button"
+              class="tab"
+              class:active={createMode === "remote-github"}
+              onclick={() => (createMode = "remote-github")}
+            >
+              {t("repos_view.add.remote_github")}
+            </button>
           </div>
 
-          {#if createMode === "clone"}
+          {#if createMode === "remote-github"}
+            <section class="remote-panel">
+              <div>
+                <h3>{t("repos_view.remote.title")}</h3>
+                <p>{t("repos_view.remote.body")}</p>
+              </div>
+              <div class="remote-state">
+                <span class="remote-dot"></span>
+                <span>{t("repos_view.remote.cloud_required")}</span>
+              </div>
+              <p class="remote-note">{t("repos_view.remote.clone_fallback")}</p>
+            </section>
+          {:else if createMode === "clone"}
             <label class="full">
               URL Git
               <input
@@ -367,22 +405,24 @@
             </div>
           {/if}
 
-          <div class="row">
-            <label>
-              {t("repos_view.access_mode")}
-              <select bind:value={newAccessMode}>
-                <option value="read-write">{t("repos_view.access_read_write")}</option>
-                <option value="read-only">{t("repos_view.access_read_only")}</option>
-                <option value="no-access">{t("repos_view.access_no_access")}</option>
-              </select>
-              <span class="hint">{t(`repos_view.access_hint_${newAccessMode.replace("-", "_")}`)}</span>
-            </label>
-            <label>Rôle (optionnel)<input bind:value={newRole} placeholder="api / web / firmware" /></label>
-          </div>
+          {#if createMode !== "remote-github"}
+            <div class="row">
+              <label>
+                {t("repos_view.access_mode")}
+                <select bind:value={newAccessMode}>
+                  <option value="read-write">{t("repos_view.access_read_write")}</option>
+                  <option value="read-only">{t("repos_view.access_read_only")}</option>
+                  <option value="no-access">{t("repos_view.access_no_access")}</option>
+                </select>
+                <span class="hint">{t(`repos_view.access_hint_${newAccessMode.replace("-", "_")}`)}</span>
+              </label>
+              <label>Rôle (optionnel)<input bind:value={newRole} placeholder="api / web / firmware" /></label>
+            </div>
+          {/if}
           <div class="form-actions">
             <button type="button" onclick={() => (showCreate = false)}>annuler</button>
-            <button class="primary" type="submit" disabled={creating}>
-              {creating ? (createMode === "clone" ? "clonage…" : "ajout…") : (createMode === "clone" ? "cloner" : "ajouter")}
+            <button class="primary" type="submit" disabled={creating || createMode === "remote-github"}>
+              {createMode === "remote-github" ? t("repos_view.remote.button_disabled") : creating ? (createMode === "clone" ? "clonage…" : "ajout…") : (createMode === "clone" ? "cloner" : "ajouter")}
             </button>
           </div>
         </form>
@@ -615,6 +655,24 @@
     padding: 1px 6px;
     border-radius: 3px;
   }
+  .provider-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+  .provider-github {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .provider-gitlab,
+  .provider-bitbucket,
+  .provider-other {
+    background: var(--accent-bg);
+    color: var(--accent-text);
+  }
   .off {
     font-size: 11px;
     background: var(--danger-bg);
@@ -676,6 +734,15 @@
     font-size: 11px;
     color: var(--text-muted);
   }
+  .git-url {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
   .actions {
     display: flex;
     gap: 4px;
@@ -721,6 +788,48 @@
     background: var(--accent);
     color: white;
     border-color: var(--accent);
+  }
+  .remote-panel {
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .remote-panel h3 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .remote-panel p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-muted);
+  }
+  .remote-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    padding: 5px 8px;
+    border-radius: 4px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .remote-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .remote-note {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 10px;
   }
   .hint {
     color: var(--text-subtle);

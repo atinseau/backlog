@@ -4,7 +4,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { usersFileSchema, type User, type UserRole, type UsersFile } from "@backlog/schemas";
 
-// Workspace-scoped human collaborator store. Lives at .backlog/users.yaml
+// Project-scoped human collaborator store. Lives at .backlog/users.yaml
 // alongside agents.yaml. The data model intentionally mirrors agents:
 // list, get, add, update, delete — so the UI can treat them with the
 // same patterns (assignee dropdown, manage view, etc.).
@@ -40,6 +40,12 @@ export interface InviteUserInput {
   display_name?: string;
   role?: UserRole;
   invited_by?: string;
+}
+
+export interface CreateLocalUserInput {
+  email: string;
+  display_name?: string;
+  role?: UserRole;
 }
 
 // Generate a stable id from the email — slugified, deduplicated against
@@ -95,6 +101,40 @@ export function inviteUser(backlogDir: string, input: InviteUserInput): User {
   if (input.invited_by) user.invited_by = input.invited_by;
   // Collision guard: if the slug already exists for a different email,
   // disambiguate by suffixing a short hash.
+  if (file.users.some((u) => u.id === user.id)) {
+    user.id = `${user.id}-${crypto.randomBytes(3).toString("hex")}`;
+  }
+  file.users.push(user);
+  writeFile(backlogDir, file);
+  return user;
+}
+
+export function createLocalUser(backlogDir: string, input: CreateLocalUserInput): User {
+  const file = readFile(backlogDir);
+  const now = new Date().toISOString();
+  const email = input.email.trim().toLowerCase();
+  const existing = file.users.find((u) => u.email.toLowerCase() === email);
+  if (existing) {
+    existing.status = "active";
+    delete existing.invitation_token;
+    delete existing.invitation_expires_at;
+    existing.confirmed_at = existing.confirmed_at ?? now;
+    if (input.display_name?.trim()) existing.display_name = input.display_name.trim();
+    if (input.role) existing.role = input.role;
+    writeFile(backlogDir, file);
+    return existing;
+  }
+
+  const localPart = email.split("@")[0] ?? email;
+  const user: User = {
+    id: deriveId(email),
+    email,
+    display_name: input.display_name?.trim() || localPart,
+    role: input.role ?? "member",
+    status: "active",
+    invited_at: now,
+    confirmed_at: now,
+  };
   if (file.users.some((u) => u.id === user.id)) {
     user.id = `${user.id}-${crypto.randomBytes(3).toString("hex")}`;
   }

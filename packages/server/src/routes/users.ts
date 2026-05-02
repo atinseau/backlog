@@ -1,5 +1,6 @@
 import {
   confirmInvitation,
+  createLocalUser,
   deleteUser,
   inviteUser,
   listUsers,
@@ -12,8 +13,8 @@ import type { AppEnv } from "../project-resolver.js";
 
 const inviteBodySchema = z
   .object({
-    email: z.string().email(),
-    display_name: z.string().min(1).optional(),
+    email: z.string().trim().toLowerCase().email(),
+    display_name: z.string().trim().min(1).optional(),
     role: z.enum(["owner", "admin", "member", "guest"]).optional(),
     invited_by: z.string().optional(),
   })
@@ -33,6 +34,25 @@ export function usersRoutes(): Hono<AppEnv> {
   app.get("/users", (c) => {
     const project = c.get("project");
     return c.json({ users: listUsers(project.backlogDir) });
+  });
+
+  app.post("/users", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = inviteBodySchema.omit({ invited_by: true }).safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      const input: Parameters<typeof createLocalUser>[1] = { email: parsed.data.email };
+      if (parsed.data.display_name) input.display_name = parsed.data.display_name;
+      if (parsed.data.role) input.role = parsed.data.role;
+      const user = createLocalUser(project.backlogDir, input);
+      return c.json({ user }, 201);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "create_failed", detail: message }, 400);
+    }
   });
 
   app.post("/users/invite", async (c) => {
@@ -88,8 +108,9 @@ export function usersRoutes(): Hono<AppEnv> {
     }
   });
 
-  // Re-issue the invitation token + expiry. Used by the "Resend
-  // invitation" button in the UI when the recipient lost the link.
+  // Re-issue the invitation token + expiry. Kept for Cloud-backed
+  // invitation flows; the local Users screen creates active people
+  // directly because a localhost project cannot receive remote invites.
   app.post("/users/:id/refresh-invitation", (c) => {
     const project = c.get("project");
     try {

@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.22] - 2026-05-02
+
+Local people management and Cloud repository groundwork.
+
+- **Local users are now local people, not fake invites** — the Users screen adds active assignees immediately through `/users`, trims/normalizes emails, and no longer exposes invitation links in a local project.
+- **Manual approval wording is corrected** — manual approval now means the completed task stays in In Review; it no longer prevents a task from starting automatically.
+- **GitHub remote groundwork started** — Repositories now surfaces provider/git URL metadata and includes a Backlog Cloud-gated “Remote GitHub” entry point while local clone remains the available path.
+
 ## [1.4.21] - 2026-05-02
 
 Board polish and archive-column reliability.

@@ -217,6 +217,20 @@ export interface InviteUserInput {
   role?: import("./types.js").UserRole;
 }
 
+export async function createUser(input: InviteUserInput): Promise<import("./types.js").UserSummary> {
+  const response = await fetch(apiUrl("/users"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create user failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { user: import("./types.js").UserSummary };
+  return json.user;
+}
+
 export async function inviteUser(input: InviteUserInput): Promise<import("./types.js").UserSummary> {
   const response = await fetch(apiUrl("/users/invite"), {
     method: "POST",

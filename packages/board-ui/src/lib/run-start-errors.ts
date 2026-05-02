@@ -35,7 +35,6 @@ export function explainStartRunResult(result: StartRunResult): StartRunExplanati
   if (directReasons.includes("direct_checkout_busy")) return { message: t("card.play_direct_busy"), action: null };
   if (directReasons.includes("unknown_repo")) return { message: t("card.play_unknown_repo"), action: null };
   if (directReasons.includes("autonomy_mode_observe")) return { message: t("card.play_autonomy_observe"), action: null };
-  if (directReasons.includes("manual_approval_required")) return { message: t("card.play_manual_approval"), action: null };
   if (directReasons.includes("high_risk_requires_higher_autonomy")) return { message: t("card.play_high_risk"), action: null };
   if (directReasons.includes("no_scheduler_capacity")) return { message: t("card.play_scheduler_capacity"), action: null };
   if (directReasons.some((reason) => reason.startsWith("scope_conflict_with"))) return { message: t("card.play_scope_conflict"), action: null };
