@@ -10,7 +10,6 @@
   import UsersView from "./lib/UsersView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
-  import PermissionsView from "./lib/PermissionsView.svelte";
   import ReposView from "./lib/ReposView.svelte";
   import SettingsView from "./lib/SettingsView.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
@@ -171,7 +170,7 @@
     return out;
   });
   // ---- modal / dialog state ----
-  // Section views (Activity / Commits / Agents / Integrations / Permissions
+  // Section views (Activity / Commits / Agents / Integrations
   // / Repos) used to be modals; they're now rendered inline in the center
   // when their section is active. The remaining modal state below is for
   // genuinely-modal flows (create / split / start prompt / project create).
@@ -1016,6 +1015,7 @@
         cloudStatus={cloudStatus}
         onOpenProfile={(mode) => (profileOpen = mode)}
         onOpenSettings={() => (generalSettingsOpen = true)}
+        onOpenIntegrations={() => applySection("integrations")}
         onOpenApiKeys={() => (apiKeysOpen = true)}
         onChanged={loadCloudStatus}
       />
@@ -1146,12 +1146,6 @@
             }}
             onOpenProfile={() => (profileOpen = "signin")}
           />
-        {:else if leftSection === "permissions"}
-          <PermissionsView
-            embedded={true}
-            onClose={() => applySection("board")}
-            onChanged={() => { if (!connected) refresh(); }}
-          />
         {:else if leftSection === "repos"}
           <ReposView
             embedded={true}
@@ -1199,7 +1193,7 @@
 
 <!-- Genuinely-modal flows (creation forms, prompts) — not driven by the
      left-panel section navigation. Section views (Activity / Commits /
-     Agents / Integrations / Permissions / Repos) render inline in the
+     Agents / Integrations / Repos) render inline in the
      center column above. -->
 {#if createProjectOpen}
   <CreateProjectDialog

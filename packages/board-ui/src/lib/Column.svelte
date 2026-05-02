@@ -77,14 +77,21 @@
 
   async function archiveAll() {
     if (!onArchiveAll || archivableCards.length === 0 || archivingAll) return;
+    const cardsToArchive = archivableCards;
     const ok = typeof window === "undefined" || window.confirm(t("column.archive_all_confirm", {
-      count: archivableCards.length,
+      count: cardsToArchive.length,
       column: t(COLUMN_KEY_TO_T[columnKey]),
     }));
     if (!ok) return;
     archivingAll = true;
+    const previousCards = localCards;
+    const archivedIds = new Set(cardsToArchive.map((card) => card.id));
+    localCards = localCards.filter((card) => !archivedIds.has(card.id));
     try {
-      await onArchiveAll(columnKey, archivableCards);
+      await onArchiveAll(columnKey, cardsToArchive);
+    } catch (err) {
+      localCards = previousCards;
+      throw err;
     } finally {
       archivingAll = false;
     }
@@ -204,7 +211,7 @@
       aria-label={t("column.archive_all")}
       title={t("column.archive_all")}
     >
-      {archivingAll ? "…" : "📦"}
+      {archivingAll ? "…" : "⋮"}
     </button>
   </header>
   <div

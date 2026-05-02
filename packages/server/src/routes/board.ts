@@ -147,8 +147,8 @@ async function buildRepoGitStatuses(project: ServerProject): Promise<Record<stri
 }
 
 async function buildBoard(project: ServerProject, filters: BoardFilters): Promise<BoardResponse> {
-  const parentTasks = listTasks(project.backlogDir);
-  const tasks = listSubTasks(project.backlogDir);
+  const parentTasks = listTasks(project.backlogDir).filter((task) => !task.archived_at);
+  const tasks = listSubTasks(project.backlogDir).filter((task) => !task.archived_at);
   const claims = listActiveClaims(project.backlogDir);
   const runs = listActiveRuns(project.backlogDir);
   const repoGitStatuses = await buildRepoGitStatuses(project);

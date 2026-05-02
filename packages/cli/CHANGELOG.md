@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.21] - 2026-05-02
+
+Board polish and archive-column reliability.
+
+- **Archive column now really clears cards** — the board API filters archived parent tasks and subtasks, so a refresh no longer rehydrates cards that were just archived.
+- **Column archive uses the same three-dot affordance as cards** and keeps the column clean immediately after confirmation.
+- **Navigation is tidier** — Activity is now Runs, Integrations moved under the profile menu, Permissions is removed from the sidebar, and Settings is now Project settings.
+
 ## [1.4.20] - 2026-05-01
 
 Git/project management pass from the user's local board workflow.

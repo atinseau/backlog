@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, registerProject } from "@backlog/config";
-import { addRepo } from "@backlog/core";
+import { addRepo, archiveTask, createTask } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
@@ -86,5 +86,25 @@ describe("board route under multi-project resolver", () => {
       modified: 1,
       untracked: 1,
     });
+  });
+
+  it("hides archived tasks from the board", async () => {
+    const registryDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-board-mw-reg-"));
+    const project = makeProject("archive");
+    const visible = createTask(project.backlogDir, { title: "visible task" });
+    const archived = createTask(project.backlogDir, { title: "archived task" });
+    archiveTask(project.backlogDir, archived.id);
+
+    const resolver = new ProjectResolver(project, { dir: registryDir });
+    const app = new Hono<AppEnv>();
+    app.use("*", resolver.middleware());
+    app.route("/", boardRoutes());
+
+    const res = await app.request("/board");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { columns: Record<string, Array<{ id: string }>> };
+    const ids = Object.values(body.columns).flat().map((card) => card.id);
+    expect(ids).toContain(visible.id);
+    expect(ids).not.toContain(archived.id);
   });
 });

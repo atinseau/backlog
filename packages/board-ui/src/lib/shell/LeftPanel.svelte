@@ -16,7 +16,6 @@
     | "agents"
     | "users"
     | "integrations"
-    | "permissions"
     | "repos"
     | "settings";
 
@@ -44,12 +43,10 @@
 
   const SECTIONS: { key: SectionKey; label: () => string; icon: string }[] = [
     { key: "board", label: () => t("nav.board"), icon: "▦" },
-    { key: "activity", label: () => t("topbar.activity"), icon: "⏱" },
+    { key: "activity", label: () => t("nav.runs"), icon: "⏱" },
     { key: "commits", label: () => t("nav.git"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
     { key: "users", label: () => t("nav.users"), icon: "👥" },
-    { key: "integrations", label: () => t("nav.integrations"), icon: "🔌" },
-    { key: "permissions", label: () => t("nav.permissions"), icon: "🔒" },
     { key: "repos", label: () => t("nav.repos"), icon: "📦" },
     { key: "settings", label: () => t("nav.settings"), icon: "⚙" },
   ];
