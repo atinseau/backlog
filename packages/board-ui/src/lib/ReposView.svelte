@@ -35,6 +35,7 @@
   let hooks = $state<HooksOverview | null>(null);
   let hooksLoading = $state(false);
   let installingHookFor = $state<string | null>(null);
+  const ALL_HOOKS = "__all__";
 
   function hookStatusOf(repoId: string): HookStatus | undefined {
     return hooks?.hooks.find((h) => h.repo_id === repoId);
@@ -52,6 +53,13 @@
   const outdatedManagedHooks = $derived(hooks?.hooks.filter((status) =>
     status.exists && status.managed && status.points_to_backlog_bin && !status.up_to_date,
   ) ?? []);
+  const hookActionTargets = $derived(hooks?.hooks.filter((status) =>
+    Boolean(status.git_dir) && (
+      !status.exists ||
+      (status.managed && status.points_to_backlog_bin && !status.up_to_date)
+    ),
+  ) ?? []);
+  const missingHookCount = $derived(hookActionTargets.filter((status) => !status.exists).length);
 
   async function loadHooks() {
     hooksLoading = true;
@@ -68,6 +76,21 @@
     installingHookFor = repoId;
     try {
       await installRepoHook(repoId);
+      await loadHooks();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      installingHookFor = null;
+    }
+  }
+
+  async function updateAllHooks() {
+    if (hookActionTargets.length === 0) return;
+    installingHookFor = ALL_HOOKS;
+    try {
+      for (const status of hookActionTargets) {
+        await installRepoHook(status.repo_id);
+      }
       await loadHooks();
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -169,13 +192,11 @@
     }
   }
 
-  async function handleDelete(repo: Repo) {
-    const force = confirm(
-      `Supprimer le repo "${repo.id}" ?\n\nOK = supprimer (avec --force pour cascader sur tâches/sous-tâches/agents)\nAnnuler = abandonner.`,
-    );
-    if (!force) return;
+  async function handleRemove(repo: Repo) {
+    const confirmed = confirm(t("repos_view.button.remove_confirm", { repo: repo.id }));
+    if (!confirmed) return;
     try {
-      await deleteRepo(repo.id, { force: true });
+      await deleteRepo(repo.id);
       await load();
       onChanged?.();
     } catch (err) {
@@ -246,6 +267,24 @@
         {#if outdatedManagedHooks.length > 0}
           <div class="hook-update-warning">
             <span>{t("hooks.update_available", { count: outdatedManagedHooks.length })}</span>
+            <button
+              class="hook-update primary-action"
+              onclick={updateAllHooks}
+              disabled={installingHookFor !== null || hookActionTargets.length === 0}
+            >
+              {installingHookFor === ALL_HOOKS ? "…" : t("hooks.update_all_button")}
+            </button>
+          </div>
+        {:else if missingHookCount > 0}
+          <div class="hook-update-warning">
+            <span>{t("hooks.install_missing", { count: missingHookCount })}</span>
+            <button
+              class="hook-update primary-action"
+              onclick={updateAllHooks}
+              disabled={installingHookFor !== null || hookActionTargets.length === 0}
+            >
+              {installingHookFor === ALL_HOOKS ? "…" : t("hooks.install_missing_button")}
+            </button>
           </div>
         {/if}
         <div class="hooks-cli">
@@ -280,7 +319,7 @@
                   <button
                     class="hook-update"
                     onclick={() => updateHook(repo.id)}
-                    disabled={installingHookFor === repo.id}
+                    disabled={installingHookFor !== null}
                     title={t("hooks.update_button")}
                   >
                     {installingHookFor === repo.id ? "…" : t("hooks.update_button")}
@@ -310,14 +349,14 @@
                 <option value="read-only">{t("repos_view.access_read_only")}</option>
                 <option value="no-access">{t("repos_view.access_no_access")}</option>
               </select>
-              <button onclick={() => handleRename(repo)} title="Renommer">✎</button>
+              <button onclick={() => handleRename(repo)} title={t("repos_view.rename")}>✎</button>
               <button onclick={() => handleRelocate(repo)}>
                 {t("repos_view.relocate")}
               </button>
               <button onclick={() => handleToggleEnabled(repo)}>
-                {repo.enabled ? "désactiver" : "activer"}
+                {repo.enabled ? t("repos_view.toggle.disabled") : t("repos_view.toggle.enabled")}
               </button>
-              <button class="danger" onclick={() => handleDelete(repo)}>supprimer</button>
+              <button class="remove" onclick={() => handleRemove(repo)}>{t("repos_view.button.remove")}</button>
             </div>
           </li>
         {/each}
@@ -535,6 +574,10 @@
     color: var(--warning);
     font-size: 12px;
     line-height: 1.35;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
   }
   .hooks-cli {
     display: flex;
@@ -572,9 +615,20 @@
     padding: 2px 7px;
     cursor: pointer;
   }
+  .hook-update.primary-action {
+    flex-shrink: 0;
+    background: var(--warning);
+    border-color: var(--warning);
+    color: white;
+  }
   .hook-update:hover:not(:disabled) {
     border-color: var(--warning);
     color: var(--warning);
+  }
+  .hook-update.primary-action:hover:not(:disabled) {
+    background: var(--warning);
+    color: white;
+    filter: brightness(0.96);
   }
   .hook-update:disabled {
     opacity: 0.6;
@@ -756,7 +810,12 @@
     cursor: pointer;
     font-size: 12px;
   }
-  button.danger { color: var(--danger); }
+  button:not(.path-link):not(.picker):not(.close) {
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+  }
+  button.remove { color: var(--warning); }
   button.add {
     margin: 12px 20px;
     align-self: flex-start;

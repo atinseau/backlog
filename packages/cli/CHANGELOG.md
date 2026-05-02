@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.23] - 2026-05-02
+
+Repository settings safety pass.
+
+- **Hook maintenance is visible** — Repositories now shows a top-level action to install missing hooks or update outdated Backlog-managed hooks.
+- **Repository removal is safer** — the UI now says **Remove** / **Retirer**, confirms that only Backlog is detached, and no longer uses the force cascade path.
+- **Repository actions are clearer** — buttons in the Repositories screen now render with uppercase command labels.
+
 ## [1.4.22] - 2026-05-02
 
 Local people management and Cloud repository groundwork.
