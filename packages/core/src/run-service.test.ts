@@ -15,6 +15,8 @@ import { getAgent } from "./agents.js";
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-run-"));
   await git(["init", "-b", "main"], root);
+  await git(["config", "user.name", "Backlog"], root);
+  await git(["config", "user.email", "backlog@example.com"], root);
   fs.writeFileSync(path.join(root, "README.md"), "smoke\n", "utf8");
   await git(["add", "README.md"], root);
   // Inline identity per call so the test doesn't depend on global git
