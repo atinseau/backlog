@@ -411,6 +411,37 @@ paths:
                 properties:
                   task: { $ref: '#/components/schemas/Task' }
 
+  /projects/{id}/tasks/{task_id}:
+    patch:
+      summary: Update a task (partial — payload is deep-merged)
+      parameters:
+        - { name: id,      in: path, required: true, schema: { type: integer } }
+        - { name: task_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                status: { type: string }
+                priority: { type: string }
+                payload: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task: { $ref: '#/components/schemas/Task' }
+        '404':
+          description: Task or project not found
+        '422':
+          description: Invalid input
+
   /projects/{project_id}/subtasks:
     get:
       summary: List subtasks in a project

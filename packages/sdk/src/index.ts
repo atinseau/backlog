@@ -158,6 +158,24 @@ export class BacklogClient {
     return data.task;
   }
 
+  async updateTask(
+    projectId: number,
+    taskId: number,
+    input: {
+      title?: string;
+      status?: string;
+      priority?: string;
+      payload?: Record<string, unknown>;
+    },
+  ): Promise<Task> {
+    const { data, error } = await this.client.PATCH("/projects/{id}/tasks/{task_id}", {
+      params: { path: { id: projectId, task_id: taskId } },
+      body: input,
+    });
+    if (error || !data?.task) throw new BacklogApiError("update task failed", error);
+    return data.task;
+  }
+
   // ── Subtasks ─────────────────────────────────────────────────────────
 
   async listSubtasks(projectId: number): Promise<Subtask[]> {
