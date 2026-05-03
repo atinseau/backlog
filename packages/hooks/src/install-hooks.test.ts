@@ -153,7 +153,7 @@ describe("rendered hook template — escape hatches", () => {
     const hook = rendered();
     expect(hook).toContain("BACKLOG_SKIP_HOOK=1 git commit");
     expect(hook).toContain("backlog hooks pause");
-    expect(hook).toContain("backlog hooks uninstall");
+    expect(hook).toContain("backlog hooks disable");
   });
 });
 

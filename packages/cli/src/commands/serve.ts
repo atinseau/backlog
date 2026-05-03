@@ -12,6 +12,7 @@ interface ServeOptions {
   workspace?: string;
   open: boolean;
   uiDist?: string;
+  openUrl?: string;
 }
 
 function locateUiDist(explicit?: string): string | undefined {
@@ -47,6 +48,11 @@ function openInBrowser(url: string): void {
   }
 }
 
+function resolveBrowserUrl(serverUrl: string, openUrl?: string): string {
+  if (!openUrl) return serverUrl;
+  return new URL(openUrl, serverUrl).toString();
+}
+
 export function registerServeCommand(program: Command): void {
   program
     .command("serve")
@@ -56,6 +62,7 @@ export function registerServeCommand(program: Command): void {
     .option("--project <path>", "Project directory containing .backlog/")
     .option("-w, --workspace <path>", "Compatibility alias for --project")
     .option("--no-open", "Do not open the browser automatically")
+    .option("--open-url <url>", "Override the browser URL to open; relative URLs resolve against the local server")
     .option("--ui-dist <path>", "Override the UI build directory")
     .action(async (options: ServeOptions) => {
       const port = Number.parseInt(options.port, 10);
@@ -81,7 +88,7 @@ export function registerServeCommand(program: Command): void {
       console.log("Press Ctrl+C to stop.");
 
       if (options.open) {
-        openInBrowser(server.url);
+        openInBrowser(resolveBrowserUrl(server.url, options.openUrl));
       }
 
       let shuttingDown = false;

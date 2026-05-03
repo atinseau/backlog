@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.24] - 2026-05-03
+
+CLI and Desktop release with local-project CLI polish and a Desktop version fix.
+
+- **Desktop Settings now shows the real version** — the embedded server health endpoint is stamped with the Desktop app version at build time instead of falling back to `0.0.0-dev`.
+- **`backlog` opens the board by default** — running `backlog` is now an alias for `backlog board`, and launching it from inside a git checkout opens that project with the matching repository selected.
+- **CLI status/hooks commands are sturdier** — `backlog status` no longer chokes on hook output, README command coverage was smoke-tested, and `backlog hooks disable` / `backlog hooks stop` are available to turn off the project hook gate.
+
 ## [1.4.23] - 2026-05-02
 
 Repository settings safety pass.

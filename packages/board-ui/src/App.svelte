@@ -76,6 +76,10 @@
 
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
+  const PROJECT_PICK_STORAGE_KEY = "backlog.project_picker_requested";
+  const LAUNCH_PROJECT_PARAMS = ["project", "workspace"];
+  const LAUNCH_REPO_PARAM = "repo";
+  const LAUNCH_PICK_PROJECT_PARAM = "pick_project";
   // Shell layout persistence — open/closed flags + pixel sizes for the
   // three panels, plus the active section in the navigator and the
   // active tab in the bottom console. Together these fully describe
@@ -108,6 +112,32 @@
   function writeNum(key: string, value: number): void {
     if (typeof localStorage === "undefined") return;
     localStorage.setItem(key, String(Math.round(value)));
+  }
+  function readLaunchParams(): { projectId: string | null; repoId: string | null; pickProject: boolean } {
+    if (typeof window === "undefined") {
+      return { projectId: null, repoId: null, pickProject: false };
+    }
+    const params = new URLSearchParams(window.location.search);
+    const projectId = LAUNCH_PROJECT_PARAMS.map((key) => params.get(key)).find(Boolean) ?? null;
+    return {
+      projectId,
+      repoId: params.get(LAUNCH_REPO_PARAM),
+      pickProject: params.get(LAUNCH_PICK_PROJECT_PARAM) === "1",
+    };
+  }
+  function clearLaunchParams(): void {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    let changed = false;
+    for (const key of [...LAUNCH_PROJECT_PARAMS, LAUNCH_REPO_PARAM, LAUNCH_PICK_PROJECT_PARAM]) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
   }
 
   // ---- board / data state ----
@@ -276,6 +306,14 @@
   }
 
   async function refresh() {
+    if (!selectedProjectId) {
+      board = null;
+      loadError = null;
+      lastUpdated = null;
+      runState.clear();
+      runStatePrimed = false;
+      return;
+    }
     try {
       const opts: { repo?: string } = {};
       if (selectedRepoId) opts.repo = selectedRepoId;
@@ -363,11 +401,20 @@
   }
 
   async function refreshUsers() {
+    if (!selectedProjectId) {
+      usersList = [];
+      return;
+    }
     try { usersList = await fetchUsers(); }
     catch { usersList = []; }
   }
 
   async function refreshAgents() {
+    if (!selectedProjectId) {
+      agentsList = [];
+      usersList = [];
+      return;
+    }
     try { agentsList = await fetchAgents(); }
     catch { agentsList = []; }
     // Users + agents share the assignee picker — keep them in sync.
@@ -421,6 +468,10 @@
   });
 
   async function refreshRepos() {
+    if (!selectedProjectId) {
+      projectRepos = [];
+      return;
+    }
     try {
       projectRepos = await fetchRepos();
     } catch (err) {
@@ -484,6 +535,7 @@
 
   function connectSse() {
     teardownSse();
+    if (!selectedProjectId) return;
     sse = subscribeToBoard(
       (type) => {
         if (type === "ping" || type === "ready") return;
@@ -502,19 +554,21 @@
     );
   }
 
-  function applyProject(id: string) {
+  function applyProject(id: string, options: { repoId?: string | null } = {}) {
     if (id === selectedProjectId) return;
     error = null;
     selectedProjectId = id;
     setCurrentProjectId(id);
     localStorage.setItem(PROJECT_STORAGE_KEY, id);
+    localStorage.removeItem(PROJECT_PICK_STORAGE_KEY);
     void touchProjectById(id).catch(() => undefined);
     const entry = projects.find((project) => project.id === id);
     if (entry?.path) {
       void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
     }
-    selectedRepoId = null;
-    localStorage.removeItem(REPO_STORAGE_KEY);
+    selectedRepoId = options.repoId ?? null;
+    if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
+    else localStorage.removeItem(REPO_STORAGE_KEY);
     board = null;
     projectRepos = [];
     selectedTaskId = null;
@@ -525,7 +579,7 @@
     refresh();
     refreshRepos();
     refreshAgents();
-    if (getShowReviewColumn()) {
+    if (selectedProjectId && getShowReviewColumn()) {
       void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
     connectSse();
@@ -533,6 +587,7 @@
 
   async function bootstrap() {
     await refreshProjects();
+    const launch = readLaunchParams();
     let currentProjectId: string | null = null;
     try {
       const current = await fetchCurrentProject();
@@ -543,34 +598,47 @@
     }
 
     const desktopBridge = typeof window !== "undefined" && Boolean(window.backlog?.setLastProject);
-    let preferred = desktopBridge ? currentProjectId : localStorage.getItem(PROJECT_STORAGE_KEY);
     const known = new Set(projects.map((w) => w.id));
+    const forcedProject = Boolean(launch.projectId);
+    const shouldPickProject = launch.pickProject || localStorage.getItem(PROJECT_PICK_STORAGE_KEY) === "1";
+    let preferred = launch.projectId ?? (shouldPickProject ? null : (desktopBridge ? currentProjectId : localStorage.getItem(PROJECT_STORAGE_KEY)));
     if (preferred && !known.has(preferred)) {
       localStorage.removeItem(PROJECT_STORAGE_KEY);
       preferred = null;
     }
-    if (!preferred) {
+    if (!preferred && !shouldPickProject && !forcedProject) {
       preferred = currentProjectId ?? localStorage.getItem(PROJECT_STORAGE_KEY) ?? projects[0]?.id ?? null;
     }
     if (preferred) {
       selectedProjectId = preferred;
       setCurrentProjectId(preferred);
       localStorage.setItem(PROJECT_STORAGE_KEY, preferred);
+      localStorage.removeItem(PROJECT_PICK_STORAGE_KEY);
       void touchProjectById(preferred).catch(() => undefined);
       const entry = projects.find((project) => project.id === preferred);
       if (entry?.path && desktopBridge) {
         void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
       }
+      selectedRepoId = launch.repoId ?? localStorage.getItem(REPO_STORAGE_KEY);
+      if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
+      else localStorage.removeItem(REPO_STORAGE_KEY);
+    } else if (shouldPickProject) {
+      selectedProjectId = null;
+      selectedRepoId = null;
+      setCurrentProjectId(null);
+      localStorage.removeItem(PROJECT_STORAGE_KEY);
+      localStorage.removeItem(REPO_STORAGE_KEY);
+      localStorage.setItem(PROJECT_PICK_STORAGE_KEY, "1");
     }
-    selectedRepoId = localStorage.getItem(REPO_STORAGE_KEY);
+    clearLaunchParams();
     refresh();
     refreshRepos();
     refreshAgents();
-    if (getShowReviewColumn()) {
+    if (selectedProjectId && getShowReviewColumn()) {
       void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
     connectSse();
-    loadCloudStatus();
+    if (selectedProjectId) loadCloudStatus();
   }
 
   async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
@@ -772,6 +840,10 @@
     // Falls back to the global orchestrator if there's nothing to run
     // so the action still toggles mode for advanced users.
     error = null;
+    if (!selectedProjectId) {
+      error = t("project_prompt.select_required");
+      return;
+    }
     openActivityPanel();
     if (!board) return;
     const next = board.columns.todo?.[0];
@@ -947,7 +1019,7 @@
       void refreshProjects();
       void refreshRepos();
       void refresh();
-      void loadCloudStatus();
+      if (selectedProjectId) void loadCloudStatus();
       // Re-establish SSE if the connection died while backgrounded.
       if (!connected) connectSse();
     }, 80);
@@ -1009,7 +1081,7 @@
       <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
     </div>
     <div class="topbar-right">
-      <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+      <button class="primary" onclick={() => (createTaskOpen = true)} disabled={!selectedProjectId}>{t("topbar.new_task")}</button>
       <PanelToggles
         leftOpen={leftOpen}
         bottomOpen={bottomOpen}
@@ -1058,7 +1130,30 @@
              project. Without this, AgentsView / CommitsView / etc. keep
              showing stale data from the previous project. -->
         {#key selectedProjectId}
-        {#if selectedTaskId}
+        {#if !selectedProjectId}
+          <div class="project-prompt">
+            <div class="project-prompt-inner">
+              <h2>{t("project_prompt.title")}</h2>
+              {#if projects.length === 0}
+                <p>{t("project_prompt.empty")}</p>
+                <button class="primary" onclick={() => (createProjectOpen = true)}>{t("onboarding.project.cta")}</button>
+              {:else}
+                <div class="project-choices">
+                  {#each projects as project (project.id)}
+                    <button class="project-choice" onclick={() => applyProject(project.id)}>
+                      <span>{project.name}</span>
+                      <small>{project.path}</small>
+                    </button>
+                  {/each}
+                </div>
+                <div class="project-prompt-actions">
+                  <button onclick={() => (manageProjectsOpen = true)}>{t("selector.manage_projects")}</button>
+                  <button class="primary" onclick={() => (createProjectOpen = true)}>{t("selector.new_project_short")}</button>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {:else if selectedTaskId}
           <TaskDetailDialog
             taskId={selectedTaskId}
             embedded={true}
@@ -1441,6 +1536,10 @@
     font-size: 13px;
   }
   button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 
   .error {
     background: var(--warning-bg);
@@ -1529,6 +1628,84 @@
     display: flex;
     flex-direction: column;
     overflow: auto;
+  }
+  .project-prompt {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .project-prompt-inner {
+    width: min(560px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .project-prompt h2 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--text-primary);
+  }
+  .project-prompt p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+  .project-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .project-choice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: 10px 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .project-choice:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+  }
+  .project-choice span {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .project-choice small {
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .project-prompt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .project-prompt-actions button,
+  .project-prompt-inner > button {
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 7px 10px;
+    font: inherit;
+    cursor: pointer;
+  }
+  .project-prompt-actions button.primary,
+  .project-prompt-inner > button.primary {
+    background: var(--accent);
+    color: var(--accent-on);
+    border-color: var(--accent);
   }
   .bottom-host {
     height: var(--bottom-h);

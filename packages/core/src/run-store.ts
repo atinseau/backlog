@@ -16,6 +16,8 @@ function runDirectory(baseDir: string, runId: string): string {
   return path.join(baseDir, runId);
 }
 
+const warnedUnreadableRunFiles = new Set<string>();
+
 export function nextRunId(backlogDir: string): string {
   return nextId(backlogDir, "run");
 }
@@ -80,6 +82,20 @@ export function appendRunEvent(backlogDir: string, runId: string, event: Record<
   fs.appendFileSync(eventsPath, JSON.stringify(event) + "\n", "utf8");
 }
 
+function readRunFileIfValid(filePath: string): Run | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
+    return runSchema.parse(raw);
+  } catch (error) {
+    if (!warnedUnreadableRunFiles.has(filePath)) {
+      warnedUnreadableRunFiles.add(filePath);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`backlog: ignoring unreadable run file ${filePath}: ${message}`);
+    }
+    return null;
+  }
+}
+
 export function listActiveRuns(backlogDir: string): Run[] {
   const directory = activeRunsDir(backlogDir);
   if (!fs.existsSync(directory)) {
@@ -87,10 +103,8 @@ export function listActiveRuns(backlogDir: string): Run[] {
   }
   return fs.readdirSync(directory)
     .filter((entry) => fs.existsSync(path.join(directory, entry, "run.json")))
-    .map((entry) => {
-      const raw = JSON.parse(fs.readFileSync(path.join(directory, entry, "run.json"), "utf8")) as unknown;
-      return runSchema.parse(raw);
-    })
+    .map((entry) => readRunFileIfValid(path.join(directory, entry, "run.json")))
+    .filter((run): run is Run => run !== null)
     .filter((run) => !isTerminalRunStatus(run.status));
 }
 
@@ -190,9 +204,11 @@ export function listAllRuns(backlogDir: string): Run[] {
       if (!fs.existsSync(filePath)) {
         continue;
       }
-      const raw = JSON.parse(fs.readFileSync(filePath, "utf8")) as unknown;
-      runs.push(runSchema.parse(raw));
-      seen.add(entry);
+      const run = readRunFileIfValid(filePath);
+      if (run) {
+        runs.push(run);
+        seen.add(entry);
+      }
     }
   }
   return runs;
@@ -205,10 +221,8 @@ export function listArchivedRuns(backlogDir: string): Run[] {
   }
   return fs.readdirSync(directory)
     .filter((entry) => fs.existsSync(path.join(directory, entry, "run.json")))
-    .map((entry) => {
-      const raw = JSON.parse(fs.readFileSync(path.join(directory, entry, "run.json"), "utf8")) as unknown;
-      return runSchema.parse(raw);
-    });
+    .map((entry) => readRunFileIfValid(path.join(directory, entry, "run.json")))
+    .filter((run): run is Run => run !== null);
 }
 
 export function archiveRun(backlogDir: string, runId: string): Run {

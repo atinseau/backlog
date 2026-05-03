@@ -47,7 +47,7 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 | Layer | What it does |
 |-------|--------------|
 | **Sources** | Ingest tasks from Markdown, CSV, Jira (and more — see roadmap) |
-| **Projects** | Group one or many repos under a single banner; tickets can be filtered per-project |
+| **Projects** | Group one or many repos under a single banner; tasks can be filtered per-project |
 | **Repos** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
 | **Tasks** | High-level units of intent imported from sources |
 | **Subtasks** | Repo-scoped executable units split out from tasks |
@@ -112,6 +112,8 @@ Svelte UI, same `@backlog/server`:
 # Option A — CLI: smart shortcut that opens the kanban in your browser.
 #   - If a server is already running, just opens the URL.
 #   - Otherwise spawns `backlog serve` and blocks until Ctrl+C.
+#   - `backlog` with no subcommand is the same shortcut.
+#   - From inside a tracked repo, it opens that project + repo directly.
 backlog board
 ```
 
@@ -140,7 +142,7 @@ The topbar and sidebars carry:
 - **Repositories** management for local paths and cloned Git URLs
 - **Agents** view with per-agent permissions and runtime restrictions
 - **Runs** view for execution history and review
-- **+ Ticket** / **+ Claim** quick-create dialogs
+- **+ Task** / **+ Claim** quick-create dialogs
 - **Total ETA pill** showing remaining work across the visible columns
 
 Cards drag between **À faire / En cours / In Review / Done**, *and* within a
@@ -169,10 +171,13 @@ backlog init                                          Initialize a project
 backlog doctor [--repo <id>] [--json]                 Inspect project health
 backlog status [--repo <id>]                          Project overview
 
+backlog                                                   Alias of `backlog board`
 backlog board    [--url <url>]                        Open the kanban (smart wrapper around serve)
 backlog serve    [--port 7878] [--host 127.0.0.1]
-                 [--project <path>] [--no-open]       Launch the kanban board
-backlog project  add|list|show|update|archive|remove  Manage projects (groups of repos)
+                 [--project <path>] [--no-open]
+                 [--open-url <url>]                   Launch the kanban board
+backlog project  add|list|remove|path|migrate
+                 |migrate-rollback|export|import     Manage projects (groups of repos)
 backlog repos    list|show|add|update|remove          Manage tracked repos
                  [--url <git-url>] [--clone-into]     ...or clone from GitHub / GitLab / etc.
 backlog task     add|list|show|move|update|remove
@@ -182,7 +187,8 @@ backlog subtask  add|list|show|move|update|remove
                  |progress                            Manage subtasks
 backlog claim    start|check|finish|list|gc           Manage file-scope claims
                  [--duration <s>] [--agent <id>]
-backlog hooks    status|install|uninstall [--all|--repo <id>]
+backlog hooks    status|install|pause|resume|disable
+                 |stop|enable|uninstall [--all|--repo <id>]
                                                       Manage git hooks
 backlog orchestrator start|pause|stop|status|config   Persistent run dispatcher
                  [--max-agents N] [--auto] [--project <slug>]
@@ -203,25 +209,22 @@ backlog worktree list|gc                              Inspect tracked worktrees
 ### Common multi-project flow
 
 ```bash
-# Add repos either by local path or by Git URL.
+# Start a multi-repo project, then add repos by local path or Git URL.
+backlog init --name "Shipping" --user-level
 backlog repos add --path /Users/me/Dev/web                       # local
-backlog repos add --url https://github.com/me/api.git            # cloned to <ws>/repos/api
+backlog repos add --url https://github.com/me/api.git            # cloned to <project>/repos/api
 
-# Group them under a project — works with one or many repos.
-backlog project add --slug shipping --name "Shipping" --repo web --repo api
-
-# Create a ticket scoped to the project, split it, and let the orchestrator run.
+# Create a task scoped to the project, split it, and let the orchestrator run.
 backlog task add --title "Stripe integration" --priority P1
-backlog work assign-project task_001 shipping
 backlog task split task_001 --repo web --repo api
-backlog orchestrator start --auto --project shipping
+backlog orchestrator start --auto
 ```
 
 Most `list` commands support practical filters, for example:
 
 ```bash
 backlog repos list --enabled true
-backlog work list --status ready --repo backlog
+backlog worktree list --repo backlog
 backlog task list --repo backlog --status blocked
 backlog runs list --review --agent codex-default
 backlog sources list --enabled true
@@ -260,7 +263,7 @@ Either way, the layout inside the project state dir is the same:
 ```
 config.toml          # project + repos + autonomy_mode + claims TTL
                      # (project_location = "in_repo" | "user_level")
-tasks.yaml           # tickets (incl. project_id, rank, estimate)
+tasks.yaml           # tasks (incl. project_id, rank, estimate)
 subtasks.yaml        # executable units split out from tasks
 orchestrator.json    # persistent ▶/⏸/⏹ state
 sources.yaml
@@ -330,6 +333,11 @@ In multi-repo projects, `backlog hooks status|install|uninstall --all` lets
 you audit or roll out the managed pre-commit hook across every configured
 repo in one pass. You can also target one configured repo explicitly with
 `--repo <id>`.
+
+`backlog hooks status` reports whether the hook and the local shim are up
+to date. If not, it prints the exact `backlog hooks install ...` command to
+run. `backlog hooks disable` (alias: `stop`) turns the hook gate off for the
+project until `backlog hooks resume` (alias: `enable`).
 
 ## Release snapshots
 

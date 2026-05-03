@@ -70,7 +70,7 @@ if ! "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged --auto; then
 To proceed without a claim:
   - Just this commit:   BACKLOG_SKIP_HOOK=1 git commit ...
   - For 30 minutes:     backlog hooks pause
-  - Permanently here:   backlog hooks uninstall
+  - Until re-enabled:    backlog hooks disable
 
 Or set claims.auto_claim_on_commit = true in config.toml so the hook
 mints an ad-hoc claim from your staged paths instead of blocking.

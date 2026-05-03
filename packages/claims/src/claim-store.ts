@@ -19,6 +19,8 @@ function claimFilePath(directory: string, claimId: string): string {
   return path.join(directory, `${claimId}.json`);
 }
 
+const warnedUnreadableClaimFiles = new Set<string>();
+
 function findClaimFilePath(directory: string, claimId: string): string | null {
   const direct = claimFilePath(directory, claimId);
   if (fs.existsSync(direct)) return direct;
@@ -40,8 +42,11 @@ function readClaimFileIfValid(filePath: string): ClaimRecord | null {
   try {
     return readClaimFile(filePath);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`backlog: ignoring unreadable claim file ${filePath}: ${message}`);
+    if (!warnedUnreadableClaimFiles.has(filePath)) {
+      warnedUnreadableClaimFiles.add(filePath);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`backlog: ignoring unreadable claim file ${filePath}: ${message}`);
+    }
     return null;
   }
 }
@@ -192,7 +197,10 @@ export function garbageCollectExpiredClaims(backlogDir: string): ClaimGcResult {
 
   for (const entry of fs.readdirSync(directory).filter((candidate) => candidate.endsWith(".json"))) {
     const filePath = path.join(directory, entry);
-    const claim = readClaimFile(filePath);
+    const claim = readClaimFileIfValid(filePath);
+    if (!claim) {
+      continue;
+    }
     if (!isExpired(claim)) {
       continue;
     }

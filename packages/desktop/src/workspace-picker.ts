@@ -61,34 +61,11 @@ export async function resolveProject(window: BrowserWindow): Promise<string | un
   const registry = loadRegistry();
   const valid = registry.projects.filter((p) => looksLikeProject(p.path));
 
-  if (valid.length === 1) {
-    const picked = valid[0]!.path;
-    rememberProject(picked);
-    return picked;
-  }
-
-  if (valid.length > 1) {
-    const labels = valid.map(
-      (p) => `${p.name} (${p.location === "user_level" ? "user-level" : "in-repo"})`,
+  if (valid.length > 0) {
+    const [picked] = valid.sort(
+      (a, b) => Date.parse(b.last_opened_at ?? b.added_at) - Date.parse(a.last_opened_at ?? a.added_at),
     );
-    const buttons = [...labels, "Browse…", "Quit"];
-    const browseId = labels.length;
-    const quitId = labels.length + 1;
-    const result = await dialog.showMessageBox(window, {
-      type: "question",
-      title: "Choose a Backlog project",
-      message: "Which project would you like to open?",
-      buttons,
-      cancelId: quitId,
-      defaultId: 0,
-    });
-    if (result.response === quitId) return undefined;
-    if (result.response < browseId) {
-      const picked = valid[result.response]!.path;
-      rememberProject(picked);
-      return picked;
-    }
-    // result.response === browseId → fall through to Browse…
+    return picked?.path;
   }
 
   const browse = await dialog.showOpenDialog(window, {

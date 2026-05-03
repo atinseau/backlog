@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { registerAgentCommand } from "./commands/agent.js";
-import { registerBoardCommand } from "./commands/board.js";
+import { runBoardCommand, registerBoardCommand } from "./commands/board.js";
 import { registerClaimCommand } from "./commands/claim.js";
 import { registerDaemonCommand } from "./commands/daemon.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
@@ -57,6 +57,10 @@ registerSourceCommand(program);
 registerTaskCommand(program);
 registerProjectCommand(program);
 registerWorktreeCommand(program);
+
+program.action(async () => {
+  await runBoardCommand();
+});
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

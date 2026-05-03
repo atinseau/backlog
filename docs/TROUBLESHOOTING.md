@@ -12,7 +12,7 @@ ENOENT: no such file or directory, open '<project>/claims/active/CLM-…json'
 To proceed without a claim:
   - Just this commit:   BACKLOG_SKIP_HOOK=1 git commit ...
   - For 30 minutes:     backlog hooks pause
-  - Permanently here:   backlog hooks uninstall
+  - Until re-enabled:    backlog hooks disable
 ```
 
 **Cause** The repo's `.git/backlog-context.json` references a claim that
@@ -45,12 +45,17 @@ hook printed work too.
 backlog hooks install --all              # install everywhere
 backlog hooks install --repo my-repo     # one repo
 backlog hooks install --all --force      # rewrite an existing non-managed hook
+backlog hooks status --all               # shows current/outdated/missing
 ```
 
 If you migrate the project later (`project migrate`) the hooks need to
 be reinstalled to point at the new path — `migrate` does that
 automatically; if it failed for some repos, the post-migrate output
 tells you and the same `hooks install --all --force` retries.
+
+To stop the hook gate without removing the hook file, use
+`backlog hooks disable` (or `backlog hooks stop`). Re-enable it with
+`backlog hooks resume` (or `backlog hooks enable`).
 
 ---
 

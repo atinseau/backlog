@@ -1,6 +1,8 @@
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "tsup";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 // We emit ESM for the main process (Electron 28+ supports it) so that
 // pure-ESM transitive deps like execa can be imported normally rather than
@@ -19,6 +21,9 @@ export default defineConfig([
     clean: true,
     dts: false,
     shims: true,
+    define: {
+      __BACKLOG_SERVER_VERSION__: JSON.stringify(pkg.version),
+    },
     outDir: "dist",
     outExtension: () => ({ js: ".mjs" }),
     // Bundled CJS deps (cross-spawn -> child_process, etc.) call require()

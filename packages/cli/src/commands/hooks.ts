@@ -21,7 +21,10 @@ import {
 interface HookTarget {
   id: string;
   root: string;
+  configured: boolean;
 }
+
+const DISABLED_UNTIL = "9999-12-31T23:59:59Z";
 
 async function resolveHookTargets(options: {
   repo?: string;
@@ -40,7 +43,7 @@ async function resolveHookTargets(options: {
     }
     return {
       workspace,
-      targets: config.repos.map((repo) => ({ id: repo.id, root: repo.path })),
+      targets: config.repos.map((repo) => ({ id: repo.id, root: repo.path, configured: true })),
     };
   }
 
@@ -55,15 +58,53 @@ async function resolveHookTargets(options: {
     }
     return {
       workspace,
-      targets: [{ id: repo.id, root: repo.path }],
+      targets: [{ id: repo.id, root: repo.path, configured: true }],
     };
   }
 
   const repoRoot = options.repoRoot ?? await detectRepoRoot();
   return {
     workspace,
-    targets: [{ id: path.basename(repoRoot), root: repoRoot }],
+    targets: [{ id: path.basename(repoRoot), root: repoRoot, configured: false }],
   };
+}
+
+function installCommandFor(target: HookTarget, options: { force?: boolean } = {}): string {
+  const scope = target.configured ? `--repo ${target.id}` : `--repo-root ${target.root}`;
+  return `backlog hooks install ${scope}${options.force ? " --force" : ""}`;
+}
+
+function hookStatusLabel(status: {
+  exists: boolean;
+  managed: boolean;
+  pointsToBacklogBin: boolean;
+  shimUpToDate: boolean;
+  upToDate: boolean;
+}): { state: "current" | "missing" | "unmanaged" | "outdated"; detail: string; force: boolean } {
+  if (!status.exists) {
+    return { state: "missing", detail: "No pre-commit hook is installed.", force: false };
+  }
+  if (!status.managed) {
+    return { state: "unmanaged", detail: "A non-Backlog pre-commit hook exists.", force: true };
+  }
+  if (!status.pointsToBacklogBin) {
+    return { state: "outdated", detail: "The hook points at an old Backlog shim.", force: false };
+  }
+  if (!status.shimUpToDate) {
+    return { state: "outdated", detail: "The local Backlog shim is outdated.", force: false };
+  }
+  if (!status.upToDate) {
+    return { state: "outdated", detail: "The managed hook template is outdated.", force: false };
+  }
+  return { state: "current", detail: "Hook and local shim are up to date.", force: false };
+}
+
+function formatPauseState(until: string | null): string {
+  if (!until) return "enabled";
+  const expires = Date.parse(until);
+  if (Number.isFinite(expires) && expires <= Date.now()) return `pause expired (${until})`;
+  if (until === DISABLED_UNTIL) return "disabled";
+  return `paused until ${until}`;
 }
 
 export function registerHooksCommand(program: Command): void {
@@ -81,6 +122,7 @@ export function registerHooksCommand(program: Command): void {
       const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
       const shimProjectRoot = pickLocalShimProjectRoot(workspace.root, targets.map((target) => target.root));
       const shimUpToDate = isLocalShimUpToDate(workspace.backlogDir, shimProjectRoot);
+      const projectPausedUntil = readPauseUntil(workspace.backlogDir);
       const statuses = [];
       for (const target of targets) {
         const gitDir = await detectGitDir(target.root);
@@ -88,12 +130,20 @@ export function registerHooksCommand(program: Command): void {
           projectRoot: workspace.root,
           backlogDir: workspace.backlogDir,
         });
-        statuses.push({
-          repoId: target.id,
-          repoRoot: target.root,
+        const aggregate = {
           ...hookStatus,
           shimUpToDate,
           upToDate: hookStatus.upToDate && shimUpToDate,
+        };
+        const health = hookStatusLabel(aggregate);
+        statuses.push({
+          repoId: target.id,
+          repoRoot: target.root,
+          ...aggregate,
+          status: health.state,
+          statusDetail: health.detail,
+          action: health.state === "current" ? null : installCommandFor(target, { force: health.force }),
+          projectPausedUntil,
         });
       }
 
@@ -102,6 +152,7 @@ export function registerHooksCommand(program: Command): void {
         return;
       }
 
+      console.log(`Project hook gate: ${formatPauseState(projectPausedUntil)}`);
       for (const [index, status] of statuses.entries()) {
         if (statuses.length > 1) {
           if (index > 0) {
@@ -119,6 +170,10 @@ export function registerHooksCommand(program: Command): void {
         console.log(`Points to local shim: ${status.pointsToBacklogBin}`);
         console.log(`Local shim up to date: ${status.shimUpToDate}`);
         console.log(`Up to date: ${status.upToDate}`);
+        console.log(`Status: ${status.status} — ${status.statusDetail}`);
+        if (status.action) {
+          console.log(`Action: ${status.action}`);
+        }
       }
     });
 
@@ -168,6 +223,7 @@ export function registerHooksCommand(program: Command): void {
 
   hooks
     .command("resume")
+    .alias("enable")
     .description("Resume the pre-commit hook by clearing an active pause")
     .action(() => {
       const workspace = findProject();
@@ -183,6 +239,21 @@ export function registerHooksCommand(program: Command): void {
     });
 
   hooks
+    .command("disable")
+    .alias("stop")
+    .description("Disable the pre-commit hook gate for this project until `backlog hooks resume`")
+    .action(() => {
+      const workspace = findProject();
+      if (!workspace) {
+        throw new Error("No .backlog project found. Run `backlog init` first.");
+      }
+      const pausePath = writePauseUntil(workspace.backlogDir, DISABLED_UNTIL);
+      console.log("Pre-commit hook gate disabled for this project.");
+      console.log(`Pause file: ${pausePath}`);
+      console.log("Run 'backlog hooks resume' (or 'backlog hooks enable') to re-enable it.");
+    });
+
+  hooks
     .command("paused")
     .description("Print the current pause expiration, if any")
     .action(() => {
@@ -193,6 +264,10 @@ export function registerHooksCommand(program: Command): void {
       const until = readPauseUntil(workspace.backlogDir);
       if (!until) {
         console.log("Not paused.");
+        return;
+      }
+      if (until === DISABLED_UNTIL) {
+        console.log("Disabled until re-enabled.");
         return;
       }
       const expired = Date.parse(until) <= Date.now();

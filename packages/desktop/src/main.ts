@@ -240,7 +240,7 @@ async function createWindow(): Promise<void> {
     uiDistDir: uiDistDir(),
   });
 
-  await mainWindow.loadURL(serverHandle.url);
+  await mainWindow.loadURL(new URL("?pick_project=1", serverHandle.url).toString());
   mainWindow.show();
 
   // Route any window.open(url) the renderer attempts to the OS default
