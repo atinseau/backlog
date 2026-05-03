@@ -240,6 +240,10 @@
   let cliLaunchPrompt = $state<HealthResponse | null>(null);
   let cliLaunchBusy = $state(false);
   let cliLaunchError = $state<string | null>(null);
+  const projectShellReady = $derived(Boolean(selectedProjectId));
+  const showLeftPanel = $derived(Boolean(projectShellReady && leftOpen));
+  const showBottomPanel = $derived(Boolean(projectShellReady && bottomOpen));
+  const showRightPanel = $derived(Boolean(projectShellReady && rightOpen));
 
   // ---- runtime infra ----
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -1156,27 +1160,33 @@
           }
         }}
       />
-      <OrchestratorControls
-        onError={(message) => (error = message)}
-        onStarted={openActivityPanel}
-        onPlay={handleTopbarPlay}
-        externalActive={hasInFlightRun}
-        onStopActiveRuns={handleStopActiveRuns}
-      />
+      {#if projectShellReady}
+        <OrchestratorControls
+          onError={(message) => (error = message)}
+          onStarted={openActivityPanel}
+          onPlay={handleTopbarPlay}
+          externalActive={hasInFlightRun}
+          onStopActiveRuns={handleStopActiveRuns}
+        />
+      {/if}
     </div>
     <div class="topbar-center">
-      <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
+      {#if projectShellReady}
+        <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
+      {/if}
     </div>
     <div class="topbar-right">
-      <button class="primary" onclick={() => (createTaskOpen = true)} disabled={!selectedProjectId}>{t("topbar.new_task")}</button>
-      <PanelToggles
-        leftOpen={leftOpen}
-        bottomOpen={bottomOpen}
-        rightOpen={rightOpen}
-        onToggleLeft={toggleLeft}
-        onToggleBottom={toggleBottom}
-        onToggleRight={toggleRight}
-      />
+      {#if projectShellReady}
+        <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+        <PanelToggles
+          leftOpen={leftOpen}
+          bottomOpen={bottomOpen}
+          rightOpen={rightOpen}
+          onToggleLeft={toggleLeft}
+          onToggleBottom={toggleBottom}
+          onToggleRight={toggleRight}
+        />
+      {/if}
       <ProfileMenu
         cloudStatus={cloudStatus}
         onOpenProfile={(mode) => (profileOpen = mode)}
@@ -1193,7 +1203,7 @@
   {/if}
 
   <div class="grid">
-    {#if leftOpen}
+    {#if showLeftPanel}
       <div class="left-host">
         <LeftPanel
           repos={repoOptions}
@@ -1351,7 +1361,7 @@
         {/key}
       </div>
 
-      {#if bottomOpen}
+      {#if showBottomPanel}
         <Splitter
           orientation="horizontal"
           onResize={(d) => (bottomHeight = Math.max(120, Math.min(600, bottomHeight - d)))}
@@ -1366,7 +1376,7 @@
       {/if}
     </div>
 
-    {#if rightOpen}
+    {#if showRightPanel}
       <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(260, Math.min(600, rightWidth - d)))} onCommit={commitRightWidth} />
       <div class="right-host">
         <RightPanel

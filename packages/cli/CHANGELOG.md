@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.30] - 2026-05-03
+
+Desktop launch polish and French copy cleanup.
+
+- **Desktop project selection no longer shows inactive project navigation** — when Desktop opens without a selected project, the project shell panels stay hidden until a project is chosen.
+- **French UI copy now consistently uses formal address** — removed remaining `tu/ton/ta/tes` wording from user-facing French strings, including the update banner.
+
 ## [1.4.29] - 2026-05-03
 
 Git Changes cleanup.
