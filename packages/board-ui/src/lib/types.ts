@@ -199,7 +199,9 @@ export type RepoAccessMode = "read-write" | "read-only" | "no-access";
 
 export interface Repo {
   id: string;
+  name?: string;
   path: string;
+  path_exists?: boolean;
   default_branch: string;
   role?: string;
   enabled: boolean;

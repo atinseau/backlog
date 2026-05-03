@@ -14,7 +14,7 @@
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
-  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig } from "./api.js";
+  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig, type HealthResponse } from "./api.js";
   import type { AgentSummary } from "./types.js";
 
   interface Props {
@@ -27,7 +27,11 @@
   const notifyRuns = $derived(getNotifyOnRunComplete());
   const displayName = $derived(getDisplayName());
 
-  let health = $state<{ ok: boolean; project: string; version: string } | null>(null);
+  let health = $state<HealthResponse | null>(null);
+  const desktopVersion = $derived(health?.app_version ?? health?.version ?? "—");
+  const cliVersion = $derived(health?.cli?.version ?? null);
+  const cliOutdated = $derived(Boolean(cliVersion && desktopVersion !== "—" && cliVersion !== desktopVersion));
+  const cliInstallCommand = "npm install -g backlog@latest";
 
   // Project-scoped review settings (auto-reviewer agent). Loaded
   // alongside the agents catalog so the dropdown can render labels.
@@ -190,13 +194,38 @@
         <h3>{t("settings.cli.title")}</h3>
         <p class="hint">{t("settings.cli.hint")}</p>
         <div class="info-grid">
-          <div><span class="info-label">{t("settings.cli.version")}</span><strong>{health?.version ?? "—"}</strong></div>
+          <div><span class="info-label">{t("settings.cli.desktop_version")}</span><strong>{desktopVersion}</strong></div>
+          <div>
+            <span class="info-label">{t("settings.cli.installed_version")}</span>
+            <strong class:warn={cliOutdated}>
+              {#if health?.cli?.available}
+                {cliVersion ?? t("settings.cli.unknown_version")}
+              {:else if health}
+                {t("settings.cli.not_found")}
+              {:else}
+                —
+              {/if}
+            </strong>
+          </div>
+          {#if health?.cli?.path}
+            <div class="full">
+              <span class="info-label">{t("settings.cli.installed_path")}</span>
+              <code class="path-code">{health.cli.path}</code>
+            </div>
+          {/if}
           <div><span class="info-label">{t("settings.cli.npm")}</span><a href="https://www.npmjs.com/package/backlog" target="_blank" rel="noopener noreferrer">backlog ↗</a></div>
         </div>
+        {#if cliOutdated}
+          <p class="version-warning">{t("settings.cli.outdated", { installed: cliVersion ?? "—", current: desktopVersion })}</p>
+        {:else if health?.cli?.available}
+          <p class="version-ok">{t("settings.cli.current")}</p>
+        {:else if health}
+          <p class="version-warning">{t("settings.cli.install_hint")}</p>
+        {/if}
         <div class="cli-block">
           <div class="cli-row">
-            <code>npm install -g backlog</code>
-            <button class="copy" onclick={() => copy("npm install -g backlog")} title={t("settings.copy")}>⎘</button>
+            <code>{cliInstallCommand}</code>
+            <button class="copy" onclick={() => copy(cliInstallCommand)} title={t("settings.copy")}>⎘</button>
           </div>
           <div class="cli-row">
             <code>pnpm add -g backlog</code>
@@ -227,7 +256,7 @@
       <section class="block">
         <h3>{t("settings.about.title")}</h3>
         <div class="info-grid">
-          <div><span class="info-label">Backlog</span><strong>v{health?.version ?? "—"}</strong></div>
+          <div><span class="info-label">Backlog</span><strong>v{desktopVersion}</strong></div>
           <div><span class="info-label">{t("settings.about.license")}</span><strong>Apache-2.0</strong></div>
           <div class="full"><a href="https://github.com/osmove/backlog" target="_blank" rel="noopener noreferrer">github.com/osmove/backlog ↗</a></div>
           <div class="full"><a href="https://github.com/osmove/backlog/issues" target="_blank" rel="noopener noreferrer">{t("settings.about.report_issue")} ↗</a></div>
@@ -348,6 +377,31 @@
   .info-label {
     font-size: 11px; color: var(--text-muted);
     text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;
+  }
+  .info-grid strong.warn {
+    color: var(--warning);
+  }
+  .path-code {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    padding: 3px 6px;
+  }
+  .version-warning,
+  .version-ok {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .version-warning {
+    color: var(--warning);
+  }
+  .version-ok {
+    color: var(--success);
   }
   .info-grid a { color: var(--accent-text); text-decoration: none; }
   .info-grid a:hover { text-decoration: underline; }

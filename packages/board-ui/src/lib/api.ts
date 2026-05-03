@@ -661,7 +661,23 @@ export async function setSubTaskAssignee(id: string, agentId: string | null): Pr
   }
 }
 
-export async function fetchHealth(): Promise<{ ok: boolean; project: string; version: string }> {
+export interface CliStatus {
+  available: boolean;
+  path: string | null;
+  version: string | null;
+  error?: string;
+}
+
+export interface HealthResponse {
+  ok: boolean;
+  project: string;
+  version: string;
+  app_version?: string;
+  server_version?: string;
+  cli?: CliStatus;
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
   const response = await fetch(apiUrl("/health"));
   if (!response.ok) throw new Error(`Health failed: ${response.status}`);
   return response.json();

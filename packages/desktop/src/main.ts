@@ -376,6 +376,21 @@ function buildMenu(): void {
 }
 
 let isQuitting = false;
+const QUIT_SERVER_CLOSE_TIMEOUT_MS = 1_200;
+
+async function closeServerForQuit(handle: RunningServer): Promise<void> {
+  let timeout: NodeJS.Timeout | null = null;
+  await Promise.race([
+    handle.close(),
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, QUIT_SERVER_CLOSE_TIMEOUT_MS);
+    }),
+  ]).catch(() => {
+    // Best effort — do not make Cmd+Q depend on local cleanup finishing.
+  }).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
 
 app.whenReady().then(async () => {
   buildMenu();
@@ -453,11 +468,7 @@ app.on("before-quit", (event) => {
   isQuitting = true;
   const handle = serverHandle;
   serverHandle = null;
-  handle
-    .close()
-    .catch(() => {
-      // Best effort — don't block shutdown if the server hangs.
-    })
+  closeServerForQuit(handle)
     .finally(() => {
       // CRITICAL: must be `app.quit()`, NOT `app.exit(0)`. The latter
       // skips the `will-quit` and `quit` events, which is exactly where

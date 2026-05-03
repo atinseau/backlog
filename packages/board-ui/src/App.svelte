@@ -510,7 +510,7 @@
     }
     const repo = repoOptions.find((candidate) => candidate.id === id);
     const status = repoGitStatuses[id];
-    if (repo && isMissingRepoPathError(status?.error)) {
+    if (repo && (repo.path_exists === false || isMissingRepoPathError(status?.error))) {
       try {
         const relocated = await relocateRepoPath(repo.id, repo.path);
         if (!relocated) return;

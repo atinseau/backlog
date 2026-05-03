@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
+  import { repoDisplayName, repoIdentityHint } from "./repo-display.js";
   import { relocateRepoPath } from "./repo-relocate.js";
   import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, installRepoHook, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
@@ -148,7 +149,6 @@
         if (newCloneInto.trim()) input.clone_into = newCloneInto.trim();
       } else {
         if (!newPath.trim()) throw new Error("Chemin local requis");
-        if (!newId.trim()) throw new Error("Id requis");
         if (!newBranch.trim()) throw new Error("Branche par défaut requise");
         input.path = newPath.trim();
       }
@@ -205,7 +205,7 @@
   }
 
   async function handleRename(repo: Repo) {
-    const next = prompt(`Renommer le repo ${repo.id} →`, repo.id);
+    const next = prompt(`Renommer l'identifiant interne du repo ${repo.id} →`, repo.id);
     if (!next || next === repo.id) return;
     try {
       await updateRepo(repo.id, { id: next });
@@ -300,10 +300,13 @@
           {@const hookStatus = hookStatusOf(repo.id)}
           {@const hookLabel = hookStatusLabel(hookStatus)}
           {@const accessMode = repo.access_mode ?? "read-write"}
+          {@const displayName = repoDisplayName(repo)}
+          {@const identityHint = repoIdentityHint(repo)}
           <li class:disabled={!repo.enabled}>
             <div class="info">
               <div class="title-row">
-                <strong>{repo.id}</strong>
+                <strong>{displayName}</strong>
+                {#if identityHint}<span class="repo-id" title="ID interne">id: {identityHint}</span>{/if}
                 {#if repo.provider && repo.provider !== "local"}
                   <span class="provider-badge provider-{repo.provider}">{providerLabel(repo.provider)}</span>
                 {/if}
@@ -326,6 +329,15 @@
                   </button>
                 {/if}
               </div>
+              {#if repo.path_exists === false}
+                <div class="missing-repo">
+                  <div>
+                    <strong>{t("repos_view.missing_title", { repo: displayName })}</strong>
+                    <span>{t("repos_view.missing_body", { path: repo.path })}</span>
+                  </div>
+                  <button type="button" onclick={() => handleRelocate(repo)}>{t("repos_view.relocate")}</button>
+                </div>
+              {/if}
               <button
                 class="path-link"
                 onclick={(e) => { e.stopPropagation(); openInFinder(repo.path); }}
@@ -349,7 +361,7 @@
                 <option value="read-only">{t("repos_view.access_read_only")}</option>
                 <option value="no-access">{t("repos_view.access_no_access")}</option>
               </select>
-              <button onclick={() => handleRename(repo)} title={t("repos_view.rename")}>✎</button>
+              <button onclick={() => handleRename(repo)} title={t("repos_view.rename_id")}>✎</button>
               <button onclick={() => handleRelocate(repo)}>
                 {t("repos_view.relocate")}
               </button>
@@ -425,7 +437,7 @@
             </label>
           {:else}
             <div class="row">
-              <label>Id<input bind:value={newId} placeholder="frontend" required pattern="[a-zA-Z0-9_-]+" /></label>
+              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="frontend" pattern="[a-zA-Z0-9_-]*" /></label>
               <label>Branche par défaut<input bind:value={newBranch} placeholder="main" /></label>
             </div>
             <div class="full">
@@ -709,6 +721,14 @@
     padding: 1px 6px;
     border-radius: 3px;
   }
+  .repo-id {
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
   .provider-badge {
     font-size: 10px;
     padding: 1px 6px;
@@ -779,6 +799,38 @@
   }
   .path-link:hover .path-text {
     text-decoration: underline;
+  }
+  .missing-repo {
+    margin: 4px 0 3px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+    border-radius: 5px;
+    background: var(--warning-bg);
+    color: var(--warning);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .missing-repo div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .missing-repo strong {
+    font-size: 12px;
+  }
+  .missing-repo span {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .missing-repo button {
+    flex-shrink: 0;
+    border-color: color-mix(in srgb, var(--warning) 40%, var(--border-strong));
   }
   .path-icon {
     flex-shrink: 0;

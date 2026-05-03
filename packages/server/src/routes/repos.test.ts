@@ -48,10 +48,12 @@ describe("GET /repos", () => {
     const app = buildApp(makeWorkspace());
     const res = await app.request("/repos");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { repos: { id: string; enabled: boolean }[] };
+    const body = (await res.json()) as { repos: { id: string; name: string; enabled: boolean; path_exists: boolean }[] };
     expect(body.repos.map((r) => r.id).sort()).toEqual(["alpha", "beta"]);
     const beta = body.repos.find((r) => r.id === "beta")!;
+    expect(beta.name).toBe("beta");
     expect(beta.enabled).toBe(false);
+    expect(beta.path_exists).toBe(true);
   });
 });
 
@@ -96,13 +98,33 @@ describe("POST /repos", () => {
       body: JSON.stringify({ id: "gamma", path: newPath, default_branch: "main" }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { repo: { id: string; path: string } };
+    const body = (await res.json()) as { repo: { id: string; name: string; path: string } };
     expect(body.repo.id).toBe("gamma");
+    expect(body.repo.name).toBe("gamma");
     expect(body.repo.path).toBe(newPath);
 
     // Visible in the list now.
     const list = (await (await app.request("/repos")).json()) as { repos: { id: string }[] };
     expect(list.repos.map((r) => r.id).sort()).toEqual(["alpha", "beta", "gamma"]);
+  });
+
+  it("defaults a local repo id to the folder name", async () => {
+    const project = makeWorkspace();
+    const app = buildApp(project);
+    const newPath = path.join(project.root, "twoody-backlog");
+    fs.mkdirSync(newPath, { recursive: true });
+
+    const res = await app.request("/repos", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: newPath }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { repo: { id: string; name: string; default_branch: string } };
+    expect(body.repo.id).toBe("twoody-backlog");
+    expect(body.repo.name).toBe("twoody-backlog");
+    expect(body.repo.default_branch).toBe("main");
   });
 });
 

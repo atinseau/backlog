@@ -5,6 +5,7 @@
   // / manage repositories without leaving the panel.
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
+  import { repoDisplayName } from "./repo-display.js";
   import { isMissingRepoPathError } from "./repo-relocate.js";
   import type { GitStatusSummary, Repo } from "./types.js";
 
@@ -25,7 +26,7 @@
 
   const selected = $derived(repos.find((r) => r.id === selectedId) ?? null);
   const triggerLabel = $derived(
-    selected ? selected.id : t("selector.all_repos", { count: repos.length }),
+    selected ? repoDisplayName(selected) : t("selector.all_repos", { count: repos.length }),
   );
   const aggregateStatus = $derived(aggregateGitStatus(repos, gitStatuses));
   const selectedStatus = $derived(selected ? gitStatuses[selected.id] : aggregateStatus);
@@ -49,6 +50,7 @@
     const total = emptyStatus();
     for (const repo of items) {
       const status = statuses[repo.id];
+      if (repo.path_exists === false && !total.error) total.error = "missing_repo_path";
       if (!status) continue;
       if (status.error && !total.error) total.error = status.error;
       total.added += status.added;
@@ -72,7 +74,7 @@
 
   function statusTitle(status: GitStatusSummary | undefined): string {
     if (!status) return t("git_status.unknown");
-    if (isMissingRepoPathError(status.error)) return t("git_status.missing_repo");
+    if (isMissingRepoPathError(status.error) || status.error === "missing_repo_path") return t("git_status.missing_repo");
     if (status.error) return t("git_status.unavailable");
     if (status.total === 0) return t("git_status.clean");
     return [
@@ -83,6 +85,11 @@
       statusPart("untracked", "git_status.untracked", status),
       statusPart("conflicted", "git_status.conflicted", status),
     ].filter((part): part is string => Boolean(part)).join(", ");
+  }
+
+  function repoStatusTitle(repo: Repo, status: GitStatusSummary | undefined): string {
+    if (repo.path_exists === false) return t("git_status.missing_repo");
+    return statusTitle(status);
   }
 
   function toggle() { open = !open; }
@@ -125,8 +132,8 @@
   >
     <span class="repo-icon" aria-hidden="true">📦</span>
     <span class="name">{triggerLabel}</span>
-    {#if selectedStatus?.error}
-      <span class="dirty-badge" title={statusTitle(selectedStatus)} aria-label={statusTitle(selectedStatus)}>
+    {#if selected && (selected.path_exists === false || selectedStatus?.error)}
+      <span class="dirty-badge" title={repoStatusTitle(selected, selectedStatus)} aria-label={repoStatusTitle(selected, selectedStatus)}>
         !
       </span>
     {:else if selectedStatus && selectedStatus.total > 0}
@@ -166,10 +173,10 @@
             disabled={!repo.enabled}
             onclick={() => pick(repo.id)}
           >
-            <span class="item-name">{repo.id}</span>
+            <span class="item-name">{repoDisplayName(repo)}</span>
             {#if !repo.enabled}<span class="off">disabled</span>{/if}
-            {#if gitStatuses[repo.id]?.error}
-              <span class="dirty-badge" title={statusTitle(gitStatuses[repo.id])} aria-label={statusTitle(gitStatuses[repo.id])}>
+            {#if repo.path_exists === false || gitStatuses[repo.id]?.error}
+              <span class="dirty-badge" title={repoStatusTitle(repo, gitStatuses[repo.id])} aria-label={repoStatusTitle(repo, gitStatuses[repo.id])}>
                 !
               </span>
             {:else if gitStatuses[repo.id]?.total > 0}

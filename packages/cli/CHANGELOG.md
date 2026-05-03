@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.25] - 2026-05-03
+
+Desktop/CLI alignment and repository path polish.
+
+- **Settings now shows the installed terminal CLI separately** — Desktop still shows its own app/server version, but the CLI panel now resolves `backlog -v` through the user's shell, displays the binary path, and warns when the terminal CLI is older than the Desktop app.
+- **Repositories use the folder name as their visible name** — the stable internal id remains visible only as a small hint when it differs, local repo creation can derive the id from the selected folder, and missing paths are called out with a direct Relocate action.
+- **Cmd+Q no longer needs a second press** — Desktop shutdown now gives the embedded server a short cleanup window, then continues quitting instead of waiting indefinitely.
+
 ## [1.4.24] - 2026-05-03
 
 CLI and Desktop release with local-project CLI polish and a Desktop version fix.
