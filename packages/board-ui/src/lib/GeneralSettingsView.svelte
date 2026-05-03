@@ -14,7 +14,7 @@
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
-  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig, type HealthResponse } from "./api.js";
+  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig, updateBacklogCli, type HealthResponse } from "./api.js";
   import type { AgentSummary } from "./types.js";
 
   interface Props {
@@ -31,7 +31,10 @@
   const desktopVersion = $derived(health?.app_version ?? health?.version ?? "—");
   const cliVersion = $derived(health?.cli?.version ?? null);
   const cliOutdated = $derived(Boolean(cliVersion && desktopVersion !== "—" && cliVersion !== desktopVersion));
-  const cliInstallCommand = "npm install -g backlog@latest";
+  const cliInstallCommand = $derived(health?.cli?.update_command ?? "npm install -g backlog");
+  let cliActionBusy = $state(false);
+  let cliActionError = $state<string | null>(null);
+  let cliActionMessage = $state<string | null>(null);
 
   // Project-scoped review settings (auto-reviewer agent). Loaded
   // alongside the agents catalog so the dropdown can render labels.
@@ -40,7 +43,7 @@
   let reviewerSaving = $state(false);
 
   async function load() {
-    try { health = await fetchHealth(); } catch { /* best-effort */ }
+    try { health = await fetchHealth({ refreshCli: true }); } catch { /* best-effort */ }
     try {
       const [agents, project] = await Promise.all([
         fetchAgents().catch(() => []),
@@ -78,6 +81,27 @@
 
   function copy(text: string): void {
     navigator.clipboard?.writeText(text).catch(() => undefined);
+  }
+
+  async function updateCliFromSettings(): Promise<void> {
+    cliActionBusy = true;
+    cliActionError = null;
+    cliActionMessage = null;
+    try {
+      const result = await updateBacklogCli();
+      health = health
+        ? { ...health, cli: result.status }
+        : { ok: true, project: "", version: desktopVersion, app_version: desktopVersion, server_version: desktopVersion, cli: result.status };
+      cliActionMessage = t("settings.cli.update_success", {
+        version: result.status.version ?? t("settings.cli.unknown_version"),
+      });
+      health = await fetchHealth({ refreshCli: true });
+    } catch (error) {
+      cliActionError = error instanceof Error ? error.message : String(error);
+      try { health = await fetchHealth({ refreshCli: true }); } catch { /* best-effort */ }
+    } finally {
+      cliActionBusy = false;
+    }
   }
 
   async function toggleReview(event: Event) {
@@ -222,14 +246,35 @@
         {:else if health}
           <p class="version-warning">{t("settings.cli.install_hint")}</p>
         {/if}
+        {#if health}
+          <div class="cli-actions">
+            <button
+              class="primary-action"
+              type="button"
+              onclick={updateCliFromSettings}
+              disabled={cliActionBusy}
+            >
+              {#if cliActionBusy}
+                {t("settings.cli.updating_button")}
+              {:else if health.cli?.available}
+                {t("settings.cli.update_button")}
+              {:else}
+                {t("settings.cli.install_button")}
+              {/if}
+            </button>
+            <span class="hint">{t("settings.cli.auto_update_hint", { command: cliInstallCommand })}</span>
+          </div>
+        {/if}
+        {#if cliActionMessage}
+          <p class="version-ok">{cliActionMessage}</p>
+        {/if}
+        {#if cliActionError}
+          <p class="version-warning">{t("settings.cli.update_failed", { error: cliActionError })}</p>
+        {/if}
         <div class="cli-block">
           <div class="cli-row">
             <code>{cliInstallCommand}</code>
             <button class="copy" onclick={() => copy(cliInstallCommand)} title={t("settings.copy")}>⎘</button>
-          </div>
-          <div class="cli-row">
-            <code>pnpm add -g backlog</code>
-            <button class="copy" onclick={() => copy("pnpm add -g backlog")} title={t("settings.copy")}>⎘</button>
           </div>
           <div class="cli-row">
             <code>backlog --help</code>
@@ -405,6 +450,31 @@
   }
   .info-grid a { color: var(--accent-text); text-decoration: none; }
   .info-grid a:hover { text-decoration: underline; }
+
+  .cli-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .primary-action {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-on);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+  .primary-action:hover:not(:disabled) { filter: brightness(0.98); }
+  .primary-action:disabled {
+    cursor: default;
+    opacity: 0.65;
+  }
 
   .cli-block { display: flex; flex-direction: column; gap: 4px; }
   .cli-row { display: flex; align-items: center; gap: 6px; }

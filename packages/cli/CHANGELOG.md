@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.26] - 2026-05-03
+
+Desktop CLI detection and update flow.
+
+- **Desktop now finds the real terminal CLI from GUI launches** — the server checks common npm/pnpm/node-manager bin folders such as `~/.npm-global/bin`, so Settings shows the same `backlog -v` version the user's terminal sees.
+- **Settings can update the CLI directly** — outdated or missing CLI installs now show an automatic **UPDATE CLI** / **INSTALL CLI** action that runs `npm install -g backlog` without `@latest`, then refreshes the detected version.
+- **Desktop checks the CLI on launch** — when the terminal CLI is missing or older than the Desktop app, Backlog shows a small startup prompt offering to update it.
+
 ## [1.4.25] - 2026-05-03
 
 Desktop/CLI alignment and repository path polish.

@@ -665,6 +665,7 @@ export interface CliStatus {
   available: boolean;
   path: string | null;
   version: string | null;
+  update_command: string;
   error?: string;
 }
 
@@ -677,10 +678,30 @@ export interface HealthResponse {
   cli?: CliStatus;
 }
 
-export async function fetchHealth(): Promise<HealthResponse> {
-  const response = await fetch(apiUrl("/health"));
+export async function fetchHealth(opts: { refreshCli?: boolean } = {}): Promise<HealthResponse> {
+  const response = await fetch(apiUrl("/health", { refresh_cli: opts.refreshCli ? "1" : undefined }));
   if (!response.ok) throw new Error(`Health failed: ${response.status}`);
   return response.json();
+}
+
+export interface CliUpdateResponse {
+  ok: boolean;
+  command: string;
+  manager_path: string | null;
+  status: CliStatus;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+}
+
+export async function updateBacklogCli(): Promise<CliUpdateResponse> {
+  const response = await fetch(apiUrl("/cli/update"), { method: "POST" });
+  const json = (await response.json().catch(() => null)) as CliUpdateResponse | null;
+  if (!response.ok) {
+    throw new Error(json?.error ?? `CLI update failed (${response.status})`);
+  }
+  if (!json) throw new Error("CLI update failed");
+  return json;
 }
 
 export async function moveTask(id: string, to: string): Promise<void> {

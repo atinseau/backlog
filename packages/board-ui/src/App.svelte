@@ -41,6 +41,7 @@
     fetchCurrentProject,
     fetchRepos,
     fetchAgents,
+    fetchHealth,
     fetchProjectsList,
     fetchUsers,
     approveRun,
@@ -58,8 +59,10 @@
     startRun,
     touchProjectById,
     unarchiveTask,
+    updateBacklogCli,
     type CloudStatus,
     type AgentSummary,
+    type HealthResponse,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
   import { explainStartRunResult, type StartRunAction } from "./lib/run-start-errors.js";
@@ -234,6 +237,9 @@
   // dropdown action, jump straight into the create form. Reset to
   // false on any other path to the section.
   let reposShowCreate = $state(false);
+  let cliLaunchPrompt = $state<HealthResponse | null>(null);
+  let cliLaunchBusy = $state(false);
+  let cliLaunchError = $state<string | null>(null);
 
   // ---- runtime infra ----
   let pollFallback: ReturnType<typeof setInterval> | null = null;
@@ -1031,9 +1037,48 @@
     if (document.visibilityState === "visible") refreshOnFocus();
   }
 
+  function shouldPromptForCliUpdate(health: HealthResponse): boolean {
+    if (typeof window === "undefined" || !window.backlog) return false;
+    const desktopVersion = health.app_version ?? health.version;
+    if (!desktopVersion || desktopVersion === "—") return false;
+    const cli = health.cli;
+    return !cli?.available || !cli.version || cli.version !== desktopVersion;
+  }
+
+  async function checkCliOnLaunch(): Promise<void> {
+    try {
+      const health = await fetchHealth({ refreshCli: true });
+      if (shouldPromptForCliUpdate(health)) {
+        cliLaunchPrompt = health;
+      }
+    } catch {
+      // Best-effort: failing this check should never block the board.
+    }
+  }
+
+  async function updateCliFromLaunchPrompt(): Promise<void> {
+    cliLaunchBusy = true;
+    cliLaunchError = null;
+    try {
+      const result = await updateBacklogCli();
+      const refreshed = await fetchHealth({ refreshCli: true }).catch(() => null);
+      cliLaunchPrompt = refreshed ?? (cliLaunchPrompt ? { ...cliLaunchPrompt, cli: result.status } : null);
+      const desktopVersion = cliLaunchPrompt?.app_version ?? cliLaunchPrompt?.version;
+      if (result.status.version && desktopVersion && result.status.version === desktopVersion) {
+        cliLaunchPrompt = null;
+        toasts?.push("success", t("settings.cli.update_success", { version: result.status.version }));
+      }
+    } catch (error) {
+      cliLaunchError = error instanceof Error ? error.message : String(error);
+    } finally {
+      cliLaunchBusy = false;
+    }
+  }
+
   onMount(() => {
     writeBool(SHELL_RIGHT_OPEN, false);
     bootstrap();
+    void checkCliOnLaunch();
     gitStatusPoll = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
     }, 5000);
@@ -1052,6 +1097,42 @@
 
 <div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
   <UpdateBanner />
+  {#if cliLaunchPrompt}
+    <div class="cli-launch-prompt" role="status">
+      <div class="cli-launch-copy">
+        <strong>{t("settings.cli.launch_prompt_title")}</strong>
+        <span>
+          {#if cliLaunchPrompt.cli?.available}
+            {t("settings.cli.launch_prompt_body", {
+              installed: cliLaunchPrompt.cli.version ?? t("settings.cli.unknown_version"),
+              current: cliLaunchPrompt.app_version ?? cliLaunchPrompt.version,
+            })}
+          {:else}
+            {t("settings.cli.launch_prompt_install_body", {
+              current: cliLaunchPrompt.app_version ?? cliLaunchPrompt.version,
+            })}
+          {/if}
+        </span>
+        {#if cliLaunchError}
+          <span class="cli-launch-error">{t("settings.cli.update_failed", { error: cliLaunchError })}</span>
+        {/if}
+      </div>
+      <div class="cli-launch-actions">
+        <button type="button" class="primary small" onclick={updateCliFromLaunchPrompt} disabled={cliLaunchBusy}>
+          {#if cliLaunchBusy}
+            {t("settings.cli.updating_button")}
+          {:else if cliLaunchPrompt.cli?.available}
+            {t("settings.cli.update_button")}
+          {:else}
+            {t("settings.cli.install_button")}
+          {/if}
+        </button>
+        <button type="button" class="ghost small" onclick={() => (cliLaunchPrompt = null)} disabled={cliLaunchBusy}>
+          {t("settings.cli.later_button")}
+        </button>
+      </div>
+    </div>
+  {/if}
   <header class="topbar">
     <div class="topbar-left">
       <ProjectSelector
@@ -1492,6 +1573,64 @@
     color: var(--text-primary);
   }
   .topbar, .error { flex-shrink: 0; }
+
+  .cli-launch-prompt {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 8800;
+    width: min(460px, calc(100vw - 32px));
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--warning);
+    border-radius: 6px;
+    box-shadow: var(--shadow-modal);
+    padding: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .cli-launch-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-body);
+  }
+  .cli-launch-copy strong {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .cli-launch-error {
+    color: var(--warning);
+  }
+  .cli-launch-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  button.small {
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  button.ghost.small {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.ghost.small:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
 
   .topbar {
     display: grid;
