@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld("backlog", {
   checkForUpdates(): Promise<UpdateStatus | null> {
     return ipcRenderer.invoke("backlog:update-check");
   },
+  // Download the update after the user accepts the available version.
+  downloadUpdate(): Promise<UpdateStatus | null> {
+    return ipcRenderer.invoke("backlog:update-download");
+  },
   // Restart the app and install the downloaded update. The renderer
   // should only call this when status.kind === "downloaded".
   installUpdate(): Promise<void> {

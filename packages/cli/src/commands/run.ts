@@ -12,6 +12,7 @@ import {
   getRunEvents,
   getRunHandoffPath,
   getSubTask,
+  isTerminalRunStatus,
   listAllRuns,
   loadRun,
   requestRunChanges,
@@ -52,6 +53,8 @@ export function registerRunCommand(program: Command): void {
     .description("List known runs")
     .option("--review", "Only show runs awaiting review")
     .option("--status <status>", "Only show runs in one status")
+    .option("--active", "Only show active runs")
+    .option("--archived", "Only show archived runs")
     .option("--repo <repo>", "Only show runs for one repo")
     .option("--subtask <id>", "Only show runs for one subtask")
     .option("--task <id>", "Only show runs for one parent task")
@@ -61,6 +64,8 @@ export function registerRunCommand(program: Command): void {
       json?: boolean;
       review?: boolean;
       status?: string;
+      active?: boolean;
+      archived?: boolean;
       repo?: string;
       subtask?: string;
       task?: string;
@@ -70,7 +75,17 @@ export function registerRunCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
+      if (options.active && options.archived) {
+        throw new Error("Use either --active or --archived, not both.");
+      }
       const runs = listAllRuns(workspace.backlogDir).filter((run) => {
+        const active = !isTerminalRunStatus(run.status);
+        if (options.active && !active) {
+          return false;
+        }
+        if (options.archived && active) {
+          return false;
+        }
         if (options.review && run.status !== "awaiting_review") {
           return false;
         }
@@ -90,17 +105,25 @@ export function registerRunCommand(program: Command): void {
           return false;
         }
         return true;
+      }).sort((a, b) => {
+        const aActive = !isTerminalRunStatus(a.status);
+        const bActive = !isTerminalRunStatus(b.status);
+        if (aActive !== bActive) return aActive ? -1 : 1;
+        const aTime = Date.parse(a.finished_at ?? a.started_at ?? "");
+        const bTime = Date.parse(b.finished_at ?? b.started_at ?? "");
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
       });
       if (options.json) {
         console.log(JSON.stringify(runs, null, 2));
         return;
       }
       if (runs.length === 0) {
-        console.log(options.review ? "No runs awaiting review." : "No active runs.");
+        console.log(options.review ? "No runs awaiting review." : "No runs.");
         return;
       }
       for (const run of runs) {
-        console.log(`${run.id} | ${run.subtask_id} | ${run.repo} | ${run.agent_id} | ${run.status}`);
+        const bucket = isTerminalRunStatus(run.status) ? "archived" : "active";
+        console.log(`${run.id} | ${bucket} | ${run.subtask_id} | ${run.repo} | ${run.agent_id} | ${run.status} | ${run.execution_mode} | claims=${run.claim_ids.length}`);
       }
     });
 

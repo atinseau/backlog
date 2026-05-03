@@ -1,41 +1,98 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
+  import {
+    approveRun,
+    archiveClaim,
+    cancelRun,
+    discardRun,
+    fetchAllClaims,
+    fetchRuns,
+    type EnrichedRun,
+  } from "./api.js";
   import { t } from "./i18n.svelte.js";
-  import { archiveClaim, fetchAllClaims } from "./api.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { ClaimRecord } from "./types.js";
-  import { onDestroy } from "svelte";
 
   interface Props {
     onClose: () => void;
     onChanged?: () => void;
-    // When true, render inline (no backdrop, no close button) so the
-    // host can place the view in a panel rather than a modal.
     embedded?: boolean;
   }
+
+  type Tab = "all" | "active" | "archived";
+  type Selection = { kind: "run"; id: string } | { kind: "claim"; id: string };
 
   let { onClose, onChanged, embedded = false }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
 
+  let runs = $state<EnrichedRun[]>([]);
   let activeClaims = $state<ClaimRecord[]>([]);
   let archivedClaims = $state<ClaimRecord[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let archiving = $state<string | null>(null);
-  let tab = $state<"active" | "archived">("active");
+  let busyAction = $state<string | null>(null);
+  let tab = $state<Tab>("all");
+  let selection = $state<Selection | null>(null);
 
-  const claims = $derived(tab === "active" ? activeClaims : archivedClaims);
+  const visibleRuns = $derived.by(() => runsFor(tab, runs));
+  const linkedClaimIds = $derived.by(() => new Set(runs.flatMap((run) => run.claim_ids)));
+  const allLooseClaims = $derived.by(() =>
+    [...activeClaims, ...archivedClaims].filter((claim) => !linkedClaimIds.has(claim.id)),
+  );
+  const activeLooseClaims = $derived.by(() => activeClaims.filter((claim) => !linkedClaimIds.has(claim.id)));
+  const archivedLooseClaims = $derived.by(() => archivedClaims.filter((claim) => !linkedClaimIds.has(claim.id)));
+  const looseClaims = $derived.by(() => claimsFor(tab).filter((claim) => !linkedClaimIds.has(claim.id)));
+  const selectedRun = $derived.by(() => {
+    const current = selection;
+    if (current?.kind !== "run") return null;
+    return runs.find((run) => run.id === current.id) ?? null;
+  });
+  const selectedClaim = $derived.by(() => {
+    const current = selection;
+    if (current?.kind !== "claim") return null;
+    return [...activeClaims, ...archivedClaims].find((claim) => claim.id === current.id) ?? null;
+  });
+
+  function runsFor(next: Tab, source = runs): EnrichedRun[] {
+    if (next === "active") return source.filter((run) => run.active);
+    if (next === "archived") return source.filter((run) => !run.active);
+    return source;
+  }
+
+  function claimsFor(next: Tab): ClaimRecord[] {
+    if (next === "active") return activeClaims;
+    if (next === "archived") return archivedClaims;
+    return [...activeClaims, ...archivedClaims];
+  }
+
+  function firstSelection(next: Tab = tab, source = runs): Selection | null {
+    const firstRun = runsFor(next, source)[0];
+    if (firstRun) return { kind: "run", id: firstRun.id };
+    const linked = new Set(source.flatMap((run) => run.claim_ids));
+    const firstClaim = claimsFor(next).find((claim) => !linked.has(claim.id));
+    return firstClaim ? { kind: "claim", id: firstClaim.id } : null;
+  }
+
+  function selectionVisible(next: Tab, current: Selection | null): boolean {
+    if (!current) return false;
+    if (current.kind === "run") return runsFor(next).some((run) => run.id === current.id);
+    return claimsFor(next).some((claim) => claim.id === current.id && !linkedClaimIds.has(claim.id));
+  }
 
   async function load() {
     loading = true;
     try {
-      const [a, ar] = await Promise.all([
+      const [nextRuns, active, archived] = await Promise.all([
+        fetchRuns({ scope: "all" }),
         fetchAllClaims({}),
         fetchAllClaims({ archived: true }),
       ]);
-      activeClaims = a;
-      archivedClaims = ar;
+      runs = nextRuns;
+      activeClaims = active;
+      archivedClaims = archived;
+      if (!selection || !selectionVisible(tab, selection)) selection = firstSelection(tab, nextRuns);
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -44,55 +101,115 @@
     }
   }
 
-  function switchTab(next: "active" | "archived") {
+  function switchTab(next: Tab) {
     tab = next;
+    if (!selectionVisible(next, selection)) selection = firstSelection(next);
   }
 
-  function agentLabel(claim: ClaimRecord): string {
+  function ownerLabel(run: EnrichedRun): string {
+    const parts = [run.owner.display_name || run.owner.id];
+    const detail = [run.owner.provider, run.owner.model, run.owner.profile].filter(Boolean).join(" · ");
+    if (detail) parts.push(`(${detail})`);
+    return parts.join(" ");
+  }
+
+  function runTitle(run: EnrichedRun): string {
+    return run.subtask?.title || run.task?.title || run.subtask_id;
+  }
+
+  function statusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      queued: "En file",
+      preparing: "Preparation",
+      running: "En cours",
+      awaiting_review: "En review",
+      succeeded: "Termine",
+      failed: "Echec",
+      blocked: "Bloque",
+      interrupted: "Interrompu",
+      canceled: "Annule",
+    };
+    return labels[status] ?? status;
+  }
+
+  function modeLabel(mode: string): string {
+    return mode === "direct" ? "Direct" : "Worktree isole";
+  }
+
+  function formatDate(value?: string | null): string {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+  }
+
+  function runDuration(run: EnrichedRun): string {
+    if (!run.started_at) return "—";
+    const start = Date.parse(run.started_at);
+    if (!Number.isFinite(start)) return "—";
+    const end = run.finished_at ? Date.parse(run.finished_at) : timer.now;
+    if (!Number.isFinite(end)) return "—";
+    return formatDuration(Math.max(0, Math.round((end - start) / 1000)));
+  }
+
+  function claimExpired(claim: ClaimRecord): boolean {
+    const expiresMs = Date.parse(claim.expires_at);
+    return Number.isFinite(expiresMs) && expiresMs < timer.now;
+  }
+
+  function claimAge(claim: ClaimRecord): string {
+    const createdMs = Date.parse(claim.created_at);
+    if (!Number.isFinite(createdMs)) return "—";
+    return formatDuration(Math.max(0, Math.round((timer.now - createdMs) / 1000)));
+  }
+
+  function claimAgentLabel(claim: ClaimRecord): string {
     if (claim.agent) {
-      const parts = [claim.agent.provider];
-      if (claim.agent.model) parts.push(claim.agent.model);
-      if (claim.agent.profile) parts.push(`(${claim.agent.profile})`);
-      return parts.join(" · ");
+      return [claim.agent.provider, claim.agent.model, claim.agent.profile ? `(${claim.agent.profile})` : null]
+        .filter(Boolean)
+        .join(" · ");
     }
-    if (claim.agent_id) return claim.agent_id;
-    if (claim.metadata?.source) {
-      const parts = [claim.metadata.source];
-      if (claim.metadata.model) parts.push(claim.metadata.model);
-      return parts.join(" · ");
-    }
-    return "aucun agent attribué";
+    return claim.agent_id ?? "non attribue";
   }
 
-  function sessionResumeUrl(claim: ClaimRecord): string | null {
-    if (claim.metadata?.source !== "claude-code") return null;
-    const id = claim.metadata.session_id;
-    if (!id) return null;
-    return `claude://resume/${id}`;
+  function canCancel(run: EnrichedRun): boolean {
+    return run.status === "queued" || run.status === "preparing" || run.status === "running";
   }
 
-  async function copyToClipboard(text: string) {
+  function eventTime(event: Record<string, unknown>): string {
+    return typeof event.ts === "string" ? formatDate(event.ts) : "";
+  }
+
+  function eventText(event: Record<string, unknown>): string {
+    const type = typeof event.type === "string" ? event.type : null;
+    const message = typeof event.message === "string" ? event.message : null;
+    return [type, message].filter(Boolean).join(" · ") || JSON.stringify(event);
+  }
+
+  async function runAction(run: EnrichedRun, action: "cancel" | "approve" | "discard") {
+    const labels = {
+      cancel: "annuler",
+      approve: "approuver",
+      discard: "rejeter",
+    };
+    if (!confirm(`Confirmer : ${labels[action]} ${run.id} ?`)) return;
+    busyAction = `${action}:${run.id}`;
     try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // ignore — older browsers fall back to manual copy
+      if (action === "cancel") await cancelRun(run.id, "Stopped from Runs");
+      if (action === "approve") await approveRun(run.id, { summary: "Approved from Runs", merge_strategy: "merge_commit" });
+      if (action === "discard") await discardRun(run.id, "Discarded from Runs");
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      busyAction = null;
     }
   }
-
-  // Keys we render with bespoke chips; everything else falls back to the
-  // generic key=value chip.
-  const SPECIAL_META_KEYS = new Set([
-    "source",
-    "session_id",
-    "session_title",
-    "session_cwd",
-    "model",
-    "entrypoint",
-  ]);
 
   async function handleArchive(claim: ClaimRecord) {
-    if (!confirm(`Finir le claim "${claim.topic}" ?\n\nIl sera archivé et libérera ses paths.`)) return;
-    archiving = claim.id;
+    if (!confirm(`Finir cette protection ?\n\n${claim.topic}`)) return;
+    busyAction = `claim:${claim.id}`;
     try {
       await archiveClaim(claim.id);
       await load();
@@ -100,162 +217,275 @@
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
-      archiving = null;
+      busyAction = null;
     }
-  }
-
-  function isExpired(claim: ClaimRecord): boolean {
-    const expiresMs = Date.parse(claim.expires_at);
-    return Number.isFinite(expiresMs) && expiresMs < timer.now;
-  }
-
-  function ageSeconds(claim: ClaimRecord): number {
-    const createdMs = Date.parse(claim.created_at);
-    return Math.max(0, Math.round((timer.now - createdMs) / 1000));
   }
 
   load();
 </script>
 
+{#snippet pathsList(paths: string[], empty = "Aucun fichier precise")}
+  {#if paths.length > 0}
+    <ul class="paths">
+      {#each paths as file (file)}
+        <li>{file === "." || file === "/" || file === "*" || file === "**" ? "Tout le repository" : file}</li>
+      {/each}
+    </ul>
+  {:else}
+    <p class="muted">{empty}</p>
+  {/if}
+{/snippet}
+
 {#snippet body()}
-    <header>
-      <div class="title-block">
-        <h2>{t("claims_view.title")}</h2>
-        <div class="tabs">
-          <button class="tab" class:active={tab === "active"} onclick={() => switchTab("active")}>
-            Actifs ({activeClaims.length})
-          </button>
-          <button class="tab" class:active={tab === "archived"} onclick={() => switchTab("archived")}>
-            Archivés ({archivedClaims.length})
-          </button>
-        </div>
+  <header>
+    <div class="title-block">
+      <h2>{t("claims_view.title")}</h2>
+      <div class="tabs">
+        <button class="tab" class:active={tab === "all"} onclick={() => switchTab("all")}>
+          {t("claims_view.tab.all")} ({runs.length + allLooseClaims.length})
+        </button>
+        <button class="tab" class:active={tab === "active"} onclick={() => switchTab("active")}>
+          {t("claims_view.tab.active")} ({runs.filter((run) => run.active).length + activeLooseClaims.length})
+        </button>
+        <button class="tab" class:active={tab === "archived"} onclick={() => switchTab("archived")}>
+          {t("claims_view.tab.archived")} ({runs.filter((run) => !run.active).length + archivedLooseClaims.length})
+        </button>
       </div>
-      <div class="header-actions">
-        <button class="refresh" onclick={load} title="Rafraîchir">↻</button>
-        {#if !embedded}
-          <button class="close" onclick={onClose}>✕</button>
-        {/if}
-      </div>
-    </header>
+    </div>
+    <div class="header-actions">
+      <button class="refresh" onclick={load} title="Rafraichir">Rafraichir</button>
+      {#if !embedded}
+        <button class="close" onclick={onClose}>x</button>
+      {/if}
+    </div>
+  </header>
 
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
+  {#if error}
+    <div class="error">{error}</div>
+  {/if}
 
-    {#if loading}
-      <div class="loading">chargement…</div>
-    {:else if claims.length === 0}
-      <div class="empty">
-        {#if tab === "active"}
-          Aucun claim actif. Crée-en un avec <code>backlog claim start</code> ou via le bouton <strong>+ Claim</strong>.
-        {:else}
-          Aucun claim archivé.
-        {/if}
-      </div>
-    {:else}
-      <ul class="claims">
-        {#each claims as claim (claim.id)}
-          <li class:expired={tab === "active" && isExpired(claim)} class:archived={tab === "archived"}>
-            <header class="claim-header">
-              <div class="title-line">
+  {#if loading}
+    <div class="loading">Chargement...</div>
+  {:else if visibleRuns.length === 0 && looseClaims.length === 0}
+    <div class="empty">Aucun run a afficher.</div>
+  {:else}
+    <div class="runs-layout">
+      <aside class="run-list" aria-label="Runs">
+        {#each visibleRuns as run, index (run.id)}
+          {#if tab === "all" && (index === 0 || visibleRuns[index - 1]?.active !== run.active)}
+            <div class="group-title">{run.active ? "Actifs" : "Archives"}</div>
+          {/if}
+          <button
+            class="run-row"
+            class:active={selection?.kind === "run" && selection.id === run.id}
+            onclick={() => (selection = { kind: "run", id: run.id })}
+          >
+            <span class="row-top">
+              <strong>{runTitle(run)}</strong>
+              <span class="status status-{run.status}">{statusLabel(run.status)}</span>
+            </span>
+            <span class="row-meta">
+              <span>{run.repo}</span>
+              <span>{ownerLabel(run)}</span>
+              <span>{runDuration(run)}</span>
+            </span>
+            <span class="row-meta small">
+              <code>{run.id}</code>
+              <span>{run.protects_repository ? "protege tout le repository" : `${run.protected_paths.length || run.planned_paths.length} fichier(s)`}</span>
+            </span>
+          </button>
+        {/each}
+
+        {#if looseClaims.length > 0}
+          <div class="group-title">Protections sans run</div>
+          {#each looseClaims as claim (claim.id)}
+            <button
+              class="run-row claim-row"
+              class:active={selection?.kind === "claim" && selection.id === claim.id}
+              onclick={() => (selection = { kind: "claim", id: claim.id })}
+            >
+              <span class="row-top">
                 <strong>{claim.topic}</strong>
-                <span class="mode mode-{claim.mode}">{claim.mode}</span>
-                {#if tab === "active" && isExpired(claim)}<span class="expired-tag">expiré</span>{/if}
-                {#if tab === "archived"}<span class="archived-tag">archivé</span>{/if}
-              </div>
-              {#if tab === "active"}
-                <button
-                  class="finish"
-                  onclick={() => handleArchive(claim)}
-                  disabled={archiving === claim.id}
-                  title="Finir / archiver le claim"
-                >
-                  {archiving === claim.id ? "…" : "Finir"}
-                </button>
-              {/if}
-            </header>
+                <span class="status">{claim.status === "active" && claimExpired(claim) ? "Expiree" : claim.status}</span>
+              </span>
+              <span class="row-meta">
+                <span>{claim.repo}</span>
+                <span>{claimAgentLabel(claim)}</span>
+                <span>{claim.paths.length} fichier(s)</span>
+              </span>
+              <span class="row-meta small"><code>{claim.id}</code></span>
+            </button>
+          {/each}
+        {/if}
+      </aside>
 
-            <div class="row">
-              <span class="repo">{claim.repo}</span>
-              <span class="agent" class:unknown={!claim.agent_id}>→ {agentLabel(claim)}</span>
-              <span class="id">{claim.id}</span>
+      <section class="detail" aria-label="Details">
+        {#if selectedRun}
+          <div class="detail-header">
+            <div>
+              <p class="eyebrow">{selectedRun.id}</p>
+              <h3>{runTitle(selectedRun)}</h3>
             </div>
+            <span class="status status-{selectedRun.status}">{statusLabel(selectedRun.status)}</span>
+          </div>
 
-            <ul class="paths">
-              {#each claim.paths as path (path)}
-                <li>{path}</li>
-              {/each}
-            </ul>
+          <div class="detail-actions">
+            {#if canCancel(selectedRun)}
+              <button onclick={() => runAction(selectedRun, "cancel")} disabled={busyAction === `cancel:${selectedRun.id}`}>
+                Annuler
+              </button>
+            {/if}
+            {#if selectedRun.status === "awaiting_review"}
+              <button onclick={() => runAction(selectedRun, "approve")} disabled={busyAction === `approve:${selectedRun.id}`}>
+                Approuver
+              </button>
+              <button onclick={() => runAction(selectedRun, "discard")} disabled={busyAction === `discard:${selectedRun.id}`}>
+                Rejeter
+              </button>
+            {/if}
+          </div>
 
-            {#if claim.metadata && Object.keys(claim.metadata).length > 0}
-              {#if claim.metadata.session_title}
-                <div class="session-title" title={claim.metadata.session_title}>
-                  💬 {claim.metadata.session_title}
+          <div class="info-grid">
+            <div><span>Appartient a</span><strong>{ownerLabel(selectedRun)}</strong></div>
+            <div><span>Repository</span><strong>{selectedRun.repo}</strong></div>
+            <div><span>Execution</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
+            <div><span>Duree</span><strong>{runDuration(selectedRun)}</strong></div>
+            <div><span>Debut</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
+            <div><span>Fin</span><strong>{formatDate(selectedRun.finished_at)}</strong></div>
+            <div><span>Branche</span><code>{selectedRun.branch}</code></div>
+            <div><span>Worktree</span><code>{selectedRun.worktree_path}</code></div>
+          </div>
+
+          {#if selectedRun.task || selectedRun.subtask}
+            <section class="block">
+              <h4>Tache</h4>
+              {#if selectedRun.task}
+                <p><strong>{selectedRun.task.title}</strong> <code>{selectedRun.task.id}</code></p>
+              {/if}
+              {#if selectedRun.subtask}
+                <p>{selectedRun.subtask.title} <code>{selectedRun.subtask.id}</code></p>
+                <div class="chips">
+                  <span>{selectedRun.subtask.status}</span>
+                  <span>{selectedRun.subtask.risk}</span>
+                  <span>{selectedRun.subtask.claim_mode}</span>
+                  {#if selectedRun.subtask.manual_approval_required}<span>review manuelle</span>{/if}
                 </div>
               {/if}
-              <div class="metadata">
-                {#if claim.metadata.source}
-                  <span class="meta-chip source">{claim.metadata.source}</span>
-                {/if}
-                {#if claim.metadata.model}
-                  <span class="meta-chip model">{claim.metadata.model}</span>
-                {/if}
-                {#if claim.metadata.session_id}
-                  {@const resumeUrl = sessionResumeUrl(claim)}
-                  {#if resumeUrl}
-                    <a
-                      class="meta-chip session"
-                      href={resumeUrl}
-                      title="Reprendre cette session dans Claude Code"
-                    >
-                      ↗ session {claim.metadata.session_id.slice(0, 8)}
-                    </a>
-                  {:else}
-                    <button
-                      class="meta-chip session"
-                      onclick={() => copyToClipboard(claim.metadata!.session_id!)}
-                      title="Copier l'id de session"
-                    >
-                      session {claim.metadata.session_id.slice(0, 8)}
-                    </button>
-                  {/if}
-                {/if}
-                {#if claim.metadata.entrypoint && claim.metadata.entrypoint !== "claude-desktop"}
-                  <span class="meta-chip">{claim.metadata.entrypoint}</span>
-                {/if}
-                {#each Object.entries(claim.metadata).filter(([key]) => !SPECIAL_META_KEYS.has(key)) as [key, value] (key)}
-                  <span class="meta-chip"><strong>{key}</strong>={value}</span>
+            </section>
+          {/if}
+
+          <section class="block">
+            <h4>Protection</h4>
+            {#if selectedRun.protects_repository}
+              <p class="notice">Ce run protege tout le repository.</p>
+            {/if}
+            {#if selectedRun.claims.length > 0}
+              {#each selectedRun.claims as claim (claim.id)}
+                <div class="claim-detail">
+                  <div class="claim-title">
+                    <strong>{claim.topic}</strong>
+                    <span>{claim.mode}</span>
+                    <code>{claim.id}</code>
+                  </div>
+                  {@render pathsList(claim.paths)}
+                  <p class="muted">
+                    {claim.status} · {claimAgentLabel(claim)} · expire {formatRemaining(claim.expires_at, timer.now) ?? "maintenant"}
+                  </p>
+                </div>
+              {/each}
+            {:else}
+              <p class="muted">Aucune protection active liee au run.</p>
+            {/if}
+            {#if selectedRun.planned_paths.length > 0}
+              <h5>Scopes prevus</h5>
+              {@render pathsList(selectedRun.planned_paths)}
+            {/if}
+          </section>
+
+          {#if selectedRun.artifacts.length > 0}
+            <section class="block">
+              <h4>Artefacts</h4>
+              <ul class="artifact-list">
+                {#each selectedRun.artifacts as artifact, index (`${artifact.kind}:${artifact.value}:${index}`)}
+                  <li><span>{artifact.kind}</span><code>{artifact.value}</code></li>
+                {/each}
+              </ul>
+            </section>
+          {/if}
+
+          {#if selectedRun.handoff_path || selectedRun.result}
+            <section class="block">
+              <h4>Resultat</h4>
+              {#if selectedRun.result}<p>{selectedRun.result}</p>{/if}
+              {#if selectedRun.handoff_path}<p><span class="muted">Handoff</span> <code>{selectedRun.handoff_path}</code></p>{/if}
+            </section>
+          {/if}
+
+          {#if selectedRun.events.length > 0}
+            <section class="block">
+              <h4>Evenements</h4>
+              <ol class="events">
+                {#each selectedRun.events as event, index (index)}
+                  <li>
+                    <span>{eventTime(event)}</span>
+                    <p>{eventText(event)}</p>
+                  </li>
+                {/each}
+              </ol>
+            </section>
+          {/if}
+
+          <details class="raw">
+            <summary>Donnees completes</summary>
+            <pre>{JSON.stringify(selectedRun, null, 2)}</pre>
+          </details>
+        {:else if selectedClaim}
+          <div class="detail-header">
+            <div>
+              <p class="eyebrow">{selectedClaim.id}</p>
+              <h3>{selectedClaim.topic}</h3>
+            </div>
+            <span class="status">{selectedClaim.status === "active" && claimExpired(selectedClaim) ? "Expiree" : selectedClaim.status}</span>
+          </div>
+          {#if selectedClaim.status === "active"}
+            <div class="detail-actions">
+              <button onclick={() => handleArchive(selectedClaim)} disabled={busyAction === `claim:${selectedClaim.id}`}>
+                Finir
+              </button>
+            </div>
+          {/if}
+          <div class="info-grid">
+            <div><span>Repository</span><strong>{selectedClaim.repo}</strong></div>
+            <div><span>Appartient a</span><strong>{claimAgentLabel(selectedClaim)}</strong></div>
+            <div><span>Mode</span><strong>{selectedClaim.mode}</strong></div>
+            <div><span>Age</span><strong>{claimAge(selectedClaim)}</strong></div>
+            <div><span>Debut</span><strong>{formatDate(selectedClaim.created_at)}</strong></div>
+            <div><span>Expire</span><strong>{formatDate(selectedClaim.expires_at)}</strong></div>
+          </div>
+          <section class="block">
+            <h4>Fichiers proteges</h4>
+            {@render pathsList(selectedClaim.paths)}
+          </section>
+          {#if selectedClaim.metadata && Object.keys(selectedClaim.metadata).length > 0}
+            <section class="block">
+              <h4>Metadonnees</h4>
+              <div class="chips">
+                {#each Object.entries(selectedClaim.metadata) as [key, value] (key)}
+                  <span><strong>{key}</strong>: {value}</span>
                 {/each}
               </div>
-            {/if}
-
-            <div class="meta">
-              <span>créé il y a {formatDuration(ageSeconds(claim))}</span>
-              <span class="dot">·</span>
-              {#if tab === "active"}
-                <span>
-                  {#if isExpired(claim)}
-                    expiré
-                  {:else}
-                    expire dans {formatRemaining(claim.expires_at, timer.now) ?? "moins d'une seconde"}
-                  {/if}
-                </span>
-                {#if claim.expected_finish_at}
-                  <span class="dot">·</span>
-                  <span>fin estimée : {formatRemaining(claim.expected_finish_at, timer.now) ?? "dépassée"}</span>
-                {/if}
-              {:else}
-                {#if claim.finished_at}
-                  <span>terminé il y a {formatDuration(Math.max(0, Math.round((timer.now - Date.parse(claim.finished_at)) / 1000)))}</span>
-                {:else}
-                  <span>archivé après expiration</span>
-                {/if}
-              {/if}
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+            </section>
+          {/if}
+          <details class="raw">
+            <summary>Donnees completes</summary>
+            <pre>{JSON.stringify(selectedClaim, null, 2)}</pre>
+          </details>
+        {:else}
+          <div class="empty">Selectionne un run pour voir ses details.</div>
+        {/if}
+      </section>
+    </div>
+  {/if}
 {/snippet}
 
 {#if embedded}
@@ -283,9 +513,9 @@
     color: var(--text-primary);
     border-radius: 8px;
     box-shadow: var(--shadow-modal);
-    max-width: 640px;
-    width: 92%;
-    max-height: 80vh;
+    max-width: 980px;
+    width: 94%;
+    max-height: 84vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -300,20 +530,25 @@
     overflow: hidden;
   }
   header {
-    padding: 16px 20px;
+    padding: 14px 18px;
     border-bottom: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    flex: 0 0 auto;
   }
   .title-block {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex: 1;
+    min-width: 0;
   }
-  h2 { margin: 0; font-size: 16px; }
+  h2, h3, h4, h5, p { margin: 0; }
+  h2 { font-size: 16px; }
+  h3 { font-size: 18px; }
+  h4 { font-size: 13px; color: var(--text-primary); }
+  h5 { font-size: 12px; color: var(--text-secondary); margin: 10px 0 4px; }
   .tabs {
     display: flex;
     gap: 4px;
@@ -336,197 +571,301 @@
     color: var(--text-primary);
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
   }
-  .header-actions { display: flex; gap: 4px; }
-  .refresh, .close {
-    background: transparent;
+  .header-actions { display: flex; gap: 6px; }
+  .refresh, .close, .detail-actions button {
+    background: var(--bg-hover);
     border: 1px solid var(--border-strong);
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 4px 10px;
     cursor: pointer;
-    font-size: 13px;
-    color: var(--text-secondary);
+    font-size: 12px;
+    color: var(--text-primary);
   }
-  .close { border: none; font-size: 18px; }
-  .refresh:hover { background: var(--bg-hover); }
-  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
-  .loading { padding: 32px; text-align: center; color: var(--text-muted); }
-  .empty {
-    padding: 32px 20px;
+  .refresh:hover, .detail-actions button:hover:not(:disabled) { background: var(--bg-active); }
+  .close { border: none; font-size: 16px; padding: 2px 8px; }
+  .error { background: var(--warning-bg); color: var(--warning); padding: 8px 18px; font-size: 12px; }
+  .loading, .empty {
+    padding: 32px;
     text-align: center;
     color: var(--text-muted);
     font-size: 13px;
   }
-  .empty code {
-    font-family: ui-monospace, monospace;
-    background: var(--bg-hover);
-    padding: 1px 4px;
-    border-radius: 3px;
+  .runs-layout {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(280px, 38%) minmax(0, 1fr);
+    overflow: hidden;
   }
-  .claims {
-    list-style: none;
-    margin: 0;
-    padding: 8px 0;
+  .run-list {
+    border-right: 1px solid var(--border-default);
     overflow-y: auto;
-    flex: 1;
+    padding: 8px;
+    background: var(--bg-muted);
   }
-  .claims > li {
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border-subtle);
+  .group-title {
+    padding: 8px 8px 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .run-row {
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
+    text-align: left;
+    cursor: pointer;
   }
-  .claims > li.expired { background: var(--warning-bg); opacity: 0.7; }
-  .claims > li.archived { opacity: 0.85; }
-  .claim-header {
+  .run-row:hover { background: var(--bg-hover); }
+  .run-row.active {
+    background: var(--bg-surface);
+    border-color: var(--border-strong);
+  }
+  .claim-row { opacity: 0.92; }
+  .row-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    border: none;
-    padding: 0;
+    min-width: 0;
   }
-  .title-line {
+  .row-top strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .row-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .row-meta.small { color: var(--text-subtle); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    background: var(--bg-hover);
+    color: var(--text-body);
+    padding: 1px 4px;
+    border-radius: 3px;
+    word-break: break-all;
+  }
+  .status {
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 999px;
+    padding: 2px 7px;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+  }
+  .status-running, .status-preparing, .status-queued {
+    background: var(--accent-bg);
+    color: var(--accent-text);
+  }
+  .status-awaiting_review {
+    background: var(--warning-bg);
+    color: var(--warning);
+  }
+  .status-succeeded {
+    background: var(--success-bg);
+    color: var(--success);
+  }
+  .status-failed, .status-blocked, .status-canceled, .status-interrupted {
+    background: var(--danger-bg);
+    color: var(--danger);
+  }
+  .detail {
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .eyebrow {
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  .detail-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .detail-actions button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .info-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-muted);
+    min-width: 0;
+  }
+  .info-grid span, .muted {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .info-grid strong {
+    font-size: 13px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .block {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .notice {
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    color: var(--accent-text);
+    background: var(--accent-bg);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chips span {
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: var(--bg-hover);
+    color: var(--text-body);
+    font-size: 11px;
+  }
+  .claim-detail {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--bg-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .claim-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1;
-  }
-  .mode {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-  }
-  .mode-exclusive { background: var(--danger-bg); color: var(--danger); }
-  .mode-shared { background: var(--success-bg); color: var(--success); }
-  .expired-tag, .archived-tag {
-    font-size: 10px;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    padding: 1px 6px;
-    border-radius: 3px;
-  }
-  .archived-tag {
-    background: var(--accent-bg);
-    color: #a78bfa;
-  }
-  .finish {
-    background: var(--bg-hover);
-    border: 1px solid var(--border-strong);
-    border-radius: 4px;
-    padding: 3px 10px;
-    cursor: pointer;
-    font-size: 12px;
-    color: var(--text-primary);
-    flex-shrink: 0;
-  }
-  .finish:hover:not(:disabled) {
-    background: var(--danger-bg);
-    color: var(--danger);
-    border-color: var(--danger);
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    color: var(--text-muted);
     flex-wrap: wrap;
   }
-  .repo {
-    background: var(--accent-bg);
-    color: var(--accent-text);
-    padding: 1px 6px;
-    border-radius: 3px;
-  }
-  .agent {
-    background: var(--accent-bg);
-    color: #a78bfa;
-    padding: 1px 6px;
-    border-radius: 3px;
-  }
-  .agent.unknown {
-    background: transparent;
-    color: var(--text-subtle);
-    padding-left: 0;
-    font-style: italic;
-  }
-  .id {
-    font-family: ui-monospace, monospace;
-    color: var(--text-subtle);
-    margin-left: auto;
+  .claim-title span {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-muted);
   }
   .paths {
     list-style: none;
     margin: 0;
-    padding: 0;
-    font-family: ui-monospace, monospace;
+    padding: 7px 9px;
+    border-radius: 5px;
+    background: var(--bg-hover);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     color: var(--text-body);
-    background: var(--bg-muted);
-    border-radius: 4px;
-    padding: 6px 10px;
   }
-  .paths li { padding: 1px 0; word-break: break-all; }
-  .session-title {
+  .paths li {
+    padding: 2px 0;
+    overflow-wrap: anywhere;
+  }
+  .artifact-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .artifact-list li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    min-width: 0;
+  }
+  .artifact-list span {
+    min-width: 78px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .events {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .events li span {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .events li p {
+    margin-top: 2px;
     font-size: 12px;
     color: var(--text-body);
-    background: var(--bg-muted);
-    border-left: 3px solid #a78bfa;
-    padding: 4px 8px;
-    border-radius: 3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
-  .metadata {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    font-size: 11px;
-    align-items: center;
+  .raw {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 12px;
   }
-  .meta-chip {
-    background: var(--accent-bg);
-    color: #a78bfa;
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-family: ui-monospace, monospace;
-    border: none;
-    font-size: 11px;
-    cursor: default;
-  }
-  .meta-chip strong {
-    font-weight: 600;
-    margin-right: 2px;
-  }
-  .meta-chip.source {
-    background: var(--success-bg);
-    color: var(--success);
-  }
-  .meta-chip.model {
-    background: var(--accent-bg);
-    color: var(--accent-text);
-  }
-  a.meta-chip.session,
-  button.meta-chip.session {
-    background: var(--accent-bg);
-    color: #a78bfa;
-    text-decoration: none;
+  .raw summary {
     cursor: pointer;
-  }
-  a.meta-chip.session:hover,
-  button.meta-chip.session:hover {
-    background: var(--accent-bg);
-  }
-  .meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
     color: var(--text-muted);
+    font-size: 12px;
   }
-  .dot { opacity: 0.5; }
+  .raw pre {
+    margin: 8px 0 0;
+    padding: 10px;
+    background: var(--bg-muted);
+    border-radius: 6px;
+    overflow: auto;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  @media (max-width: 860px) {
+    .runs-layout {
+      grid-template-columns: 1fr;
+    }
+    .run-list {
+      max-height: 260px;
+      border-right: none;
+      border-bottom: 1px solid var(--border-default);
+    }
+    .title-block {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
 </style>

@@ -25,6 +25,8 @@ interface BacklogBridge {
   setLastWorkspace?: (path: string) => Promise<boolean>;
   /** Trigger a manual update check. Same backend as the View menu item. */
   checkForUpdates: () => Promise<UpdateStatus | null>;
+  /** Download an available update after explicit user confirmation. */
+  downloadUpdate: () => Promise<UpdateStatus | null>;
   /** Restart the app and install a previously-downloaded update. */
   installUpdate: () => Promise<void>;
   /** Latest known update status (replayed for late subscribers). */

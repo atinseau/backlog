@@ -26,10 +26,10 @@ ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
   await shell.openExternal(url);
 });
 // Update lifecycle, exposed to the renderer so the kanban can show an
-// in-app banner ("update available", "downloading…", "ready to restart")
-// in addition to the native macOS notification. Two surfaces use this:
-// the View → Check for Updates menu item below, and the UpdateBanner
-// component in board-ui. Both share the same IPC channel.
+// in-app banner ("update available", "downloading…", "ready to restart").
+// Updates are never downloaded or installed without an explicit user click:
+// launch/menu checks only discover availability, the renderer then calls
+// downloadUpdate(), and installUpdate() is reserved for the final restart.
 type UpdateStatus =
   | { kind: "checking" }
   | { kind: "available"; version: string }
@@ -137,9 +137,8 @@ function finishUpdateError(raw: string): UpdateStatus {
 }
 
 ipcMain.handle("backlog:update-check", async () => {
-  // Respond fast — checkForUpdates resolves once the manifest is fetched,
-  // not after the download finishes. The renderer pivots its UI on the
-  // status events broadcast above.
+  // Respond fast — with autoDownload=false, checkForUpdates only fetches
+  // the manifest. The renderer decides whether the user wants to download.
   if (process.env.NODE_ENV === "development") {
     return { kind: "error", message: "auto-update disabled in dev builds" } as UpdateStatus;
   }
@@ -150,6 +149,19 @@ ipcMain.handle("backlog:update-check", async () => {
       return finishNoUpdate({ version: app.getVersion() });
     }
     return lastUpdateStatus ?? { kind: "checking" };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    return finishUpdateError(raw);
+  }
+});
+
+ipcMain.handle("backlog:update-download", async () => {
+  if (process.env.NODE_ENV === "development") {
+    return { kind: "error", message: "auto-update disabled in dev builds" } as UpdateStatus;
+  }
+  try {
+    await autoUpdater.downloadUpdate();
+    return lastUpdateStatus ?? { kind: "downloading", percent: 0, transferred: 0, total: 0 };
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
     return finishUpdateError(raw);
@@ -404,17 +416,14 @@ app.whenReady().then(async () => {
 
   // Auto-update check. electron-updater reads the publish config from
   // electron-builder.yml at build time + the latest-mac.yml uploaded
-  // alongside each release. checkForUpdatesAndNotify shows a native
-  // notification when an update is downloaded; clicking it prompts to
-  // restart and install. Skipped in dev (no builder metadata bundled).
+  // alongside each release. We only check availability automatically:
+  // downloading and installing both require explicit clicks in the banner.
   // Failures (no internet, GitHub rate-limited, malformed manifest)
-  // are logged and swallowed — never crash the app over an update
-  // check.
+  // are logged and swallowed — never crash the app over an update check.
   if (process.env.NODE_ENV !== "development") {
     try {
-      // Auto-download is on by default; we only opt out of auto-install
-      // so the user keeps control over when the restart happens.
-      autoUpdater.autoInstallOnAppQuit = true;
+      autoUpdater.autoDownload = false;
+      autoUpdater.autoInstallOnAppQuit = false;
       autoUpdater.on("checking-for-update", () => {
         if (manualUpdateCheckVisible) {
           broadcastUpdateStatus({ kind: "checking" });
@@ -446,10 +455,10 @@ app.whenReady().then(async () => {
         },
       );
       autoUpdater.on("update-downloaded", (info: { version: string }) => {
-        console.log(`[auto-update] downloaded ${info.version} — will install on quit`);
+        console.log(`[auto-update] downloaded ${info.version} — waiting for explicit restart`);
         broadcastUpdateStatus({ kind: "downloaded", version: info.version });
       });
-      void autoUpdater.checkForUpdatesAndNotify();
+      void autoUpdater.checkForUpdates();
     } catch (err) {
       console.warn("[auto-update] init failed:", err instanceof Error ? err.message : err);
     }
@@ -470,17 +479,8 @@ app.on("before-quit", (event) => {
   serverHandle = null;
   closeServerForQuit(handle)
     .finally(() => {
-      // CRITICAL: must be `app.quit()`, NOT `app.exit(0)`. The latter
-      // skips the `will-quit` and `quit` events, which is exactly where
-      // electron-updater hooks `autoInstallOnAppQuit` to actually run
-      // the installer for a downloaded update. Using `app.exit()` here
-      // (the original implementation) silently broke auto-update — the
-      // .dmg got fetched into ~/Library/Caches/backlog-updater/ but the
-      // installer never ran on quit, so users stayed pinned to their
-      // installed version no matter how many times they quit + relaunched.
-      //
-      // app.quit() re-fires before-quit. The isQuitting guard above
-      // catches the second call and early-returns, so we don't loop.
+          // app.quit() re-fires before-quit. The isQuitting guard above
+          // catches the second call and early-returns, so we don't loop.
       app.quit();
     });
 });

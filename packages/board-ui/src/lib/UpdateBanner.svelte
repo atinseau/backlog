@@ -1,15 +1,13 @@
 <script lang="ts">
-  // In-app banner that surfaces auto-update progress. Mirrors the macOS
-  // native notification flow but is visible on every platform and gives
-  // the user a "Restart now" button instead of the implicit "install on
-  // next quit" — many users leave the app open for days, so the silent
-  // queue isn't enough on its own.
+  // In-app banner that surfaces Desktop update progress. Updates are
+  // opt-in at every step: Backlog may discover an available version, but
+  // download and install both require explicit button clicks.
   //
   // Status flow:
   //   idle (no banner)
   //   → checking (manual check only)
-  //   → available (toast: "Update found, downloading…")
-  //   → downloading (progress bar in the banner)
+  //   → available (banner: "Update available" + Download button)
+  //   → downloading (progress bar)
   //   → downloaded (banner: "Backlog X.Y.Z ready" + Restart button)
   //   → error (banner: dismissible warning)
   //
@@ -80,6 +78,11 @@
     await window.backlog?.installUpdate();
   }
 
+  async function download() {
+    const next = await window.backlog?.downloadUpdate();
+    if (next) status = next;
+  }
+
   // Skip the banner entirely if the user dismissed this exact state
   // (e.g. they X'd out an error — don't keep nagging them on the same
   // error string).
@@ -107,7 +110,7 @@
         <span class="update-banner__title">{t("update.up_to_date", { version: status.version })}</span>
       {:else if status.kind === "available"}
         <span class="update-banner__title">{t("update.available", { version: status.version })}</span>
-        <span class="update-banner__detail">{t("update.downloading_in_background")}</span>
+        <span class="update-banner__detail">{t("update.available_detail")}</span>
       {:else if status.kind === "downloading"}
         <span class="update-banner__title">{t("update.downloading")}</span>
         <div class="update-banner__progress">
@@ -131,10 +134,12 @@
     </div>
 
     <div class="update-banner__actions">
-      {#if status.kind === "downloaded"}
+      {#if status.kind === "available"}
+        <button class="btn-primary" onclick={download}>{t("update.download")}</button>
+      {:else if status.kind === "downloaded"}
         <button class="btn-primary" onclick={restart}>{t("update.restart_now")}</button>
       {/if}
-      {#if status.kind === "error" || status.kind === "downloaded" || status.kind === "not-available"}
+      {#if status.kind === "available" || status.kind === "error" || status.kind === "downloaded" || status.kind === "not-available"}
         <button class="btn-dismiss" onclick={dismiss} aria-label={t("update.dismiss")}>×</button>
       {/if}
     </div>

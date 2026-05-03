@@ -841,6 +841,71 @@ export interface StartRunResult {
   blocked: Array<{ subtask_id: string; reasons: string[] }>;
 }
 
+export interface RunOwner {
+  id: string;
+  display_name?: string | null;
+  provider: string;
+  model?: string | null;
+  profile?: string | null;
+}
+
+export interface RunTaskInfo {
+  id: string;
+  title: string;
+  status: string;
+  priority?: string;
+  labels?: string[];
+  repo_targets?: string[];
+}
+
+export interface RunSubTaskInfo {
+  id: string;
+  title: string;
+  status: string;
+  scopes: string[];
+  claim_mode: "exclusive" | "shared";
+  risk: "low" | "medium" | "high";
+  priority_score: number;
+  preferred_agents?: string[];
+  manual_approval_required?: boolean;
+}
+
+export interface EnrichedRun {
+  version: 1;
+  id: string;
+  subtask_id: string;
+  task_id: string;
+  repo: string;
+  branch: string;
+  agent_id: string;
+  provider: string;
+  status: string;
+  claim_ids: string[];
+  execution_mode: "isolated_worktree" | "direct";
+  worktree_path: string;
+  artifacts: Array<{ kind: string; value: string }>;
+  result: string | null;
+  started_at?: string;
+  finished_at?: string;
+  active: boolean;
+  task: RunTaskInfo | null;
+  subtask: RunSubTaskInfo | null;
+  owner: RunOwner;
+  claims: ClaimRecord[];
+  protected_paths: string[];
+  planned_paths: string[];
+  protects_repository: boolean;
+  handoff_path: string | null;
+  events: Array<Record<string, unknown>>;
+}
+
+export async function fetchRuns(opts: { scope?: "active" | "archived" | "all" } = {}): Promise<EnrichedRun[]> {
+  const response = await fetch(apiUrl("/runs", { scope: opts.scope }));
+  if (!response.ok) throw new Error(`Runs fetch failed: ${response.status}`);
+  const json = (await response.json()) as { runs: EnrichedRun[] };
+  return json.runs;
+}
+
 export async function startRun(input: StartRunInput): Promise<StartRunResult> {
   const response = await fetch(apiUrl("/runs"), {
     method: "POST",

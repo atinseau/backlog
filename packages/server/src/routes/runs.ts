@@ -5,13 +5,19 @@ import {
   cancelRun,
   createSubTask,
   discardRun,
+  getRunEvents,
+  getRunHandoffPath,
   listActiveRuns,
+  listAgents,
+  listAllRuns,
+  listArchivedRuns,
   listRepos,
   listSubTasks,
   listTasks,
   loadRun,
   startRunsForPlan,
 } from "@backlog/core";
+import { listArchivedClaims, loadActiveClaimIfPresent } from "@backlog/claims";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
@@ -30,13 +36,119 @@ const approveBodySchema = z.object({
   merge_strategy: z.enum(["none", "fast_forward", "merge_commit"]).optional(),
 }).strict().optional();
 
+function runSortTime(run: ReturnType<typeof listAllRuns>[number]): number {
+  const raw = run.finished_at ?? run.started_at;
+  const time = raw ? Date.parse(raw) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function parseRunEvent(line: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(line) as unknown;
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+  } catch {
+    // Fall through to a displayable plain event.
+  }
+  return { message: line };
+}
+
+function isWholeRepoPath(scope: string): boolean {
+  const normalized = scope.trim();
+  return normalized === "" || normalized === "." || normalized === "/" || normalized === "*" || normalized === "**";
+}
+
 export function runsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/runs", (c) => {
     const project = c.get("project");
-    const runs = listActiveRuns(project.backlogDir);
-    return c.json({ count: runs.length, runs });
+    const scope = c.req.query("scope") ?? "active";
+    const activeIds = new Set(listActiveRuns(project.backlogDir).map((run) => run.id));
+    const sourceRuns =
+      scope === "all"
+        ? listAllRuns(project.backlogDir)
+        : scope === "archived"
+          ? listArchivedRuns(project.backlogDir)
+          : listActiveRuns(project.backlogDir);
+    const tasksById = new Map(listTasks(project.backlogDir).map((task) => [task.id, task]));
+    const subTasksById = new Map(listSubTasks(project.backlogDir).map((task) => [task.id, task]));
+    const agentsById = new Map(listAgents(project.backlogDir).map((agent) => [agent.id, agent]));
+    const archivedClaimsById = new Map(listArchivedClaims(project.backlogDir).map((claim) => [claim.id, claim]));
+    const claimForId = (id: string) =>
+      loadActiveClaimIfPresent(project.backlogDir, id) ?? archivedClaimsById.get(id) ?? null;
+
+    const runs = sourceRuns
+      .map((run) => {
+        const active = activeIds.has(run.id);
+        const task = tasksById.get(run.task_id) ?? null;
+        const subtask = subTasksById.get(run.subtask_id) ?? null;
+        const agent = agentsById.get(run.agent_id) ?? null;
+        const claims = run.claim_ids
+          .map(claimForId)
+          .filter((claim): claim is NonNullable<ReturnType<typeof claimForId>> => claim !== null);
+        const protectedPaths = [...new Set(claims.flatMap((claim) => claim.paths))];
+        const plannedPaths = subtask?.scopes ?? [];
+        return {
+          ...run,
+          active,
+          task: task
+            ? {
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                labels: task.labels,
+                repo_targets: task.repo_targets,
+              }
+            : null,
+          subtask: subtask
+            ? {
+                id: subtask.id,
+                title: subtask.title,
+                status: subtask.status,
+                scopes: subtask.scopes,
+                claim_mode: subtask.claim_mode,
+                risk: subtask.risk,
+                priority_score: subtask.priority_score,
+                preferred_agents: subtask.execution.preferred_agents,
+                manual_approval_required: subtask.execution.manual_approval_required,
+              }
+            : null,
+          owner: agent
+            ? {
+                id: agent.id,
+                display_name: agent.display_name ?? null,
+                provider: agent.provider,
+                model: agent.model ?? null,
+                profile: agent.profile ?? null,
+              }
+            : {
+                id: run.agent_id,
+                display_name: null,
+                provider: run.provider,
+                model: null,
+                profile: null,
+              },
+          claims,
+          protected_paths: protectedPaths,
+          planned_paths: plannedPaths,
+          protects_repository:
+            protectedPaths.some(isWholeRepoPath) ||
+            (protectedPaths.length === 0 && plannedPaths.some(isWholeRepoPath)),
+          handoff_path: getRunHandoffPath(project.backlogDir, run.id),
+          events: getRunEvents(project.backlogDir, run.id).map(parseRunEvent),
+        };
+      })
+      .sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return runSortTime(b) - runSortTime(a);
+      });
+    return c.json({
+      count: runs.length,
+      active_count: runs.filter((run) => run.active).length,
+      archived_count: runs.filter((run) => !run.active).length,
+      runs,
+    });
   });
 
   app.post("/runs", async (c) => {

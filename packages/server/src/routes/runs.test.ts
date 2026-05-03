@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, loadConfig, saveConfig } from "@backlog/config";
-import { addAgent, createTask } from "@backlog/core";
+import { createClaim } from "@backlog/claims";
+import { addAgent, archiveRun, createRun, createSubTask, createTask } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
@@ -73,6 +74,75 @@ describe("GET /runs", () => {
     const body = (await res.json()) as { count: number; runs: unknown[] };
     expect(body.count).toBe(0);
     expect(body.runs).toEqual([]);
+  });
+
+  it("returns active and archived runs enriched with ownership and protection details", async () => {
+    const project = makeWorkspace("delegate");
+    const agent = addAgent(project.backlogDir, {
+      id: "writer",
+      provider: "custom",
+      command: "echo ok",
+      allowedRepos: ["demo"],
+      allowedRisk: ["medium"],
+    });
+    const task = createTask(project.backlogDir, { title: "Implement feature", repoTargets: ["demo"] });
+    const subtask = createSubTask(project.backlogDir, {
+      workItemId: task.id,
+      title: "Edit API file",
+      repo: "demo",
+      scopes: ["src/api.ts"],
+      preferredAgents: ["writer"],
+    });
+    const claim = createClaim({
+      backlogDir: project.backlogDir,
+      repo: "demo",
+      repoPath: project.root,
+      topic: "Edit API file",
+      paths: ["src/api.ts"],
+      agentId: "writer",
+    });
+    createRun({
+      backlogDir: project.backlogDir,
+      runId: "run_active",
+      task: subtask,
+      workItem: task,
+      agent,
+      branch: "backlog/run_active",
+      worktreePath: project.root,
+      claimIds: [claim.id],
+      executionMode: "direct",
+    });
+    createRun({
+      backlogDir: project.backlogDir,
+      runId: "run_archived",
+      task: subtask,
+      workItem: task,
+      agent,
+      branch: "backlog/run_archived",
+      worktreePath: project.root,
+      claimIds: [],
+      executionMode: "isolated_worktree",
+    });
+    archiveRun(project.backlogDir, "run_archived");
+
+    const app = buildApp(project);
+    const res = await app.request("/runs?scope=all");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { active_count: number; archived_count: number; runs: Array<Record<string, unknown>> };
+    expect(body.active_count).toBe(1);
+    expect(body.archived_count).toBe(1);
+    expect(body.runs.map((run) => run.id)).toEqual(["run_active", "run_archived"]);
+    expect(body.runs[0]).toMatchObject({
+      active: true,
+      task: { id: task.id, title: "Implement feature" },
+      subtask: { id: subtask.id, title: "Edit API file", scopes: ["src/api.ts"] },
+      owner: { id: "writer", display_name: null, provider: "custom" },
+      protected_paths: ["src/api.ts"],
+      protects_repository: false,
+    });
+    expect(body.runs[0]?.claims).toEqual([
+      expect.objectContaining({ id: claim.id, paths: ["src/api.ts"], agent_id: "writer" }),
+    ]);
   });
 });
 

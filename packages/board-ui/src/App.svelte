@@ -607,13 +607,19 @@
     const known = new Set(projects.map((w) => w.id));
     const forcedProject = Boolean(launch.projectId);
     const shouldPickProject = launch.pickProject || localStorage.getItem(PROJECT_PICK_STORAGE_KEY) === "1";
-    let preferred = launch.projectId ?? (shouldPickProject ? null : (desktopBridge ? currentProjectId : localStorage.getItem(PROJECT_STORAGE_KEY)));
+    const storedProjectId = localStorage.getItem(PROJECT_STORAGE_KEY);
+    // Cmd+R in Desktop reloads only the renderer; the embedded server's
+    // default project does not change until the app restarts. Prefer the
+    // renderer's last explicit selection so refresh keeps the project the
+    // user is looking at, while ?pick_project=1 still forces the chooser
+    // on a fresh Desktop/global launch.
+    let preferred = launch.projectId ?? (shouldPickProject ? null : (storedProjectId ?? currentProjectId));
     if (preferred && !known.has(preferred)) {
       localStorage.removeItem(PROJECT_STORAGE_KEY);
       preferred = null;
     }
     if (!preferred && !shouldPickProject && !forcedProject) {
-      preferred = currentProjectId ?? localStorage.getItem(PROJECT_STORAGE_KEY) ?? projects[0]?.id ?? null;
+      preferred = storedProjectId ?? currentProjectId ?? (desktopBridge ? null : projects[0]?.id ?? null);
     }
     if (preferred) {
       selectedProjectId = preferred;

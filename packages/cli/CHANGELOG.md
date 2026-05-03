@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.28] - 2026-05-03
+
+Desktop project persistence, safer updates, and richer Runs.
+
+- **Desktop refresh now keeps the selected project** — Cmd+R prefers the renderer's last explicit project instead of snapping back to the server's startup project, while fresh Desktop/global launches still ask which project to open.
+- **Desktop updates are fully opt-in** — Backlog can check for a new version, but it no longer downloads or installs anything until the user explicitly accepts each step.
+- **Runs now exposes full execution context** — the Runs page has All/Active/Archived tabs, clickable run detail with owner, protected files, claims, task/subtask metadata, artifacts, events, and matching CLI filters for active/archived runs.
+
 ## [1.4.27] - 2026-05-03
 
 CLI update prompts and account identity cleanup.
