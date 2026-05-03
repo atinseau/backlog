@@ -9,6 +9,7 @@
     type ProposedTask,
   } from "./api.js";
   import { t } from "./i18n.svelte.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import type { AgentSummary, UserSummary } from "./types.js";
 
   interface Props {
@@ -269,7 +270,7 @@
               <optgroup label={t("create_task.assignee.group_ai")}>
                 {#each agentOptions as agent (agent.id)}
                   <option value={agent.id} disabled={agent.needs_api_key}>
-                    {agent.id}{agent.needs_api_key ? " 🔑" : ""}
+                    {formatAgentLabel(agent).withContext}{agent.needs_api_key ? " 🔑" : ""}
                   </option>
                 {/each}
               </optgroup>

@@ -26,37 +26,43 @@ export const MODEL_CATALOG: Record<string, ModelChoice[]> = {
   claude: [
     {
       value: "sonnet",
-      label: "Claude Sonnet (latest)",
+      label: "Claude Sonnet 4.7 (latest, 1M)",
       family: "sonnet",
       description: "Balanced default — good price/quality for daily coding.",
     },
     {
       value: "opus",
-      label: "Claude Opus (latest)",
+      label: "Claude Opus 4.7 (latest, 1M)",
       family: "opus",
       description: "Highest quality for hard reasoning tasks. Slower / pricier.",
     },
     {
       value: "haiku",
-      label: "Claude Haiku (latest)",
+      label: "Claude Haiku 4.5 (latest, 200k)",
       family: "haiku",
       description: "Fastest and cheapest. Good for trivial edits and reviews.",
     },
     {
+      value: "claude-sonnet-4-7",
+      label: "Claude Sonnet 4.7 (pinned, 1M)",
+      family: "sonnet",
+      description: "Pin a specific Sonnet version for reproducibility.",
+    },
+    {
       value: "claude-sonnet-4-5",
-      label: "Claude Sonnet 4.5 (pinned)",
+      label: "Claude Sonnet 4.5 (pinned, 200k)",
       family: "sonnet",
       description: "Pin a specific Sonnet version for reproducibility.",
     },
     {
       value: "claude-opus-4-7",
-      label: "Claude Opus 4.7 (pinned)",
+      label: "Claude Opus 4.7 (pinned, 1M)",
       family: "opus",
       description: "Pin a specific Opus version for reproducibility.",
     },
     {
       value: "claude-haiku-4-5",
-      label: "Claude Haiku 4.5 (pinned)",
+      label: "Claude Haiku 4.5 (pinned, 200k)",
       family: "haiku",
       description: "Pin a specific Haiku version for reproducibility.",
     },
@@ -64,7 +70,7 @@ export const MODEL_CATALOG: Record<string, ModelChoice[]> = {
   codex: [
     {
       value: "gpt-5-codex",
-      label: "GPT-5 Codex (latest)",
+      label: "GPT-5 Codex (latest, 1M)",
       family: "gpt-5-codex",
       description: "Default Codex tier. Coding-focused.",
     },

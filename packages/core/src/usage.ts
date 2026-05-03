@@ -42,17 +42,27 @@ const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   // Anthropic
   "claude-opus-4-7": { input: 15, output: 75 },
   "claude-opus-4-6": { input: 15, output: 75 },
+  "claude-sonnet-4-7": { input: 3, output: 15 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-haiku-4-5": { input: 0.25, output: 1.25 },
   // OpenAI / Codex (placeholder; replace with verified figures)
+  "gpt-5-codex": { input: 1.25, output: 10 },
   "gpt-5": { input: 1.25, output: 10 },
   "gpt-5-mini": { input: 0.15, output: 0.6 },
 };
 
+const PRICING_MODEL_ALIASES: Record<string, string> = {
+  sonnet: "claude-sonnet-4-7",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
+  "gpt-5-codex": "gpt-5-codex",
+};
+
 function pricingFor(model: string): ModelPricing | null {
   // Tolerate vendor-prefixed slugs ("anthropic/claude-…") and date suffixes.
-  const normalized = model.toLowerCase().replace(/^[^/]+\//, "").replace(/-\d{8}$/, "");
+  const raw = model.toLowerCase().replace(/^[^/]+\//, "").replace(/-\d{8}$/, "");
+  const normalized = PRICING_MODEL_ALIASES[raw] ?? raw;
   for (const [key, value] of Object.entries(PRICING_PER_MILLION)) {
     if (normalized.startsWith(key)) return value;
   }

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { fetchTaskDetail, fetchAgents, setSubTaskAssignee, type SubTaskDetail, type TaskDetail, type AgentSummary } from "./api.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import { formatDuration } from "./timer.svelte.js";
 
   interface Props {
@@ -212,13 +213,13 @@
                         <option value="">{t("task_detail.subtask.assignee_auto")}</option>
                         <optgroup label={t("task_detail.subtask.humans")}>
                           {#each agents.filter(isHumanAgent) as agent (agent.id)}
-                            <option value={agent.id}>{agent.id}</option>
+                            <option value={agent.id}>{formatAgentLabel(agent).withContext}</option>
                           {/each}
                         </optgroup>
                         <optgroup label={t("task_detail.subtask.ai_agents")}>
                           {#each agents.filter((a) => !isHumanAgent(a)) as agent (agent.id)}
                             <option value={agent.id} disabled={!agent.enabled}>
-                              {agent.id}{agent.model ? ` · ${agent.model}` : ""}{!agent.enabled ? " (off)" : ""}
+                              {formatAgentLabel(agent).withContext}{!agent.enabled ? " (off)" : ""}
                             </option>
                           {/each}
                         </optgroup>

@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.36] - 2026-05-03
+
+Agent header and usage reporting.
+
+- **The header now shows the effective agent inside the run status screen** — the top bar reads like `Claude Sonnet 4.7 (1M) > Ready` / `Running`, and automatic selection displays the actual default agent instead of a vague Auto label.
+- **Agent names are shown with model version and context window** — common selectors and run views now use labels such as `Claude Sonnet 4.7 (1M)`, including aliases like `sonnet`.
+- **Usage is now a first-class board section** — `/api/v1/usage` aggregates recorded run tokens and estimated cost, and the new Usage screen shows periods, buckets, charts by time/model, and run/model tables.
+- **The unfinished Users screen is hidden from the sidebar** until local/user collaboration is ready for the main navigation.
+
 ## [1.4.35] - 2026-05-03
 
 Safer opt-in Git hooks.

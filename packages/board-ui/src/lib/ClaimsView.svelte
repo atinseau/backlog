@@ -9,6 +9,7 @@
     fetchRuns,
     type EnrichedRun,
   } from "./api.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { ClaimRecord } from "./types.js";
@@ -107,10 +108,12 @@
   }
 
   function ownerLabel(run: EnrichedRun): string {
-    const parts = [run.owner.display_name || run.owner.id];
-    const detail = [run.owner.provider, run.owner.model, run.owner.profile].filter(Boolean).join(" · ");
-    if (detail) parts.push(`(${detail})`);
-    return parts.join(" ");
+    const label = formatAgentLabel({
+      display_name: run.owner.display_name,
+      provider: run.owner.provider,
+      model: run.owner.model ?? null,
+    }).withContext;
+    return run.owner.profile ? `${label} · ${run.owner.profile}` : label;
   }
 
   function runTitle(run: EnrichedRun): string {
@@ -172,9 +175,12 @@
 
   function claimAgentLabel(claim: ClaimRecord): string {
     if (claim.agent) {
-      return [claim.agent.provider, claim.agent.model, claim.agent.profile ? `(${claim.agent.profile})` : null]
-        .filter(Boolean)
-        .join(" · ");
+      const label = formatAgentLabel({
+        display_name: null,
+        provider: claim.agent.provider,
+        model: claim.agent.model ?? null,
+      }).withContext;
+      return claim.agent.profile ? `${label} · ${claim.agent.profile}` : label;
     }
     return claim.agent_id ?? "non attribue";
   }

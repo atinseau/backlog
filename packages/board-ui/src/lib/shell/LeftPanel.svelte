@@ -12,6 +12,7 @@
   export type SectionKey =
     | "board"
     | "activity"
+    | "usage"
     | "commits"
     | "agents"
     | "users"
@@ -44,9 +45,9 @@
   const SECTIONS: { key: SectionKey; label: () => string; icon: string }[] = [
     { key: "board", label: () => t("nav.board"), icon: "▦" },
     { key: "activity", label: () => t("nav.runs"), icon: "⏱" },
+    { key: "usage", label: () => t("nav.usage"), icon: "▥" },
     { key: "commits", label: () => t("nav.git"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
-    { key: "users", label: () => t("nav.users"), icon: "👥" },
     { key: "repos", label: () => t("nav.repos"), icon: "📦" },
     { key: "settings", label: () => t("nav.settings"), icon: "⚙" },
   ];

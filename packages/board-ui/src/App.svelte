@@ -7,7 +7,7 @@
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
   import AgentsView from "./lib/AgentsView.svelte";
-  import UsersView from "./lib/UsersView.svelte";
+  import UsageView from "./lib/UsageView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
   import ReposView from "./lib/ReposView.svelte";
@@ -199,7 +199,7 @@
     const out: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }> = [];
     for (const a of agentsList) {
       if (!isExecutableAgent(a)) continue;
-      out.push({ id: a.id, label: formatAgentLabel(a).short, kind: "agent", ready: !a.needs_api_key });
+      out.push({ id: a.id, label: formatAgentLabel(a).withContext, kind: "agent", ready: !a.needs_api_key });
     }
     for (const u of usersList) {
       if (u.status !== "active") continue;
@@ -1249,13 +1249,22 @@
     </div>
     <div class="topbar-center">
       {#if projectShellReady}
-        <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
-        <AgentPicker
-          agents={agentsList}
-          selectedId={selectedAgentId}
-          onSelect={persistSelectedAgent}
-          onManageAgents={() => applySection("agents")}
-        />
+        <div class="agent-run-screen">
+          <AgentPicker
+            agents={agentsList}
+            selectedId={selectedAgentId}
+            onSelect={persistSelectedAgent}
+            onManageAgents={() => applySection("agents")}
+            variant="inline"
+          />
+          <span class="screen-separator" aria-hidden="true">&gt;</span>
+          <RunStatusDisplay
+            board={board}
+            projectId={selectedProjectId}
+            onOpenActivity={openActivityPanel}
+            variant="inline"
+          />
+        </div>
       {/if}
     </div>
     <div class="topbar-right">
@@ -1392,6 +1401,8 @@
             onClose={() => applySection("board")}
             onChanged={() => { if (!connected) refresh(); }}
           />
+        {:else if leftSection === "usage"}
+          <UsageView embedded={true} onClose={() => applySection("board")} />
         {:else if leftSection === "commits"}
           <CommitsView
             embedded={true}
@@ -1410,11 +1421,6 @@
               void refreshAgents();
               if (!connected) refresh();
             }}
-          />
-        {:else if leftSection === "users"}
-          <UsersView
-            embedded={true}
-            onClose={() => applySection("board")}
           />
         {:else if leftSection === "integrations"}
           <IntegrationsView
@@ -1760,6 +1766,25 @@
     justify-self: center;
     gap: 8px;
     min-width: 0;
+  }
+  .agent-run-screen {
+    width: min(650px, 48vw);
+    min-width: 360px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  .screen-separator {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
   }
   .topbar-right {
     display: flex;

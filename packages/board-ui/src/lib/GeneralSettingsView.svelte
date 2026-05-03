@@ -7,6 +7,7 @@
   import LocaleToggle from "./LocaleToggle.svelte";
   import ThemeToggle from "./ThemeToggle.svelte";
   import { t } from "./i18n.svelte.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import {
     getShowReviewColumn, setShowReviewColumn,
     getNotifyOnRunComplete, setNotifyOnRunComplete,
@@ -172,7 +173,7 @@
                 <option value="">{t("settings.board.review_agent_manual")}</option>
                 {#each agentOptions as agent (agent.id)}
                   <option value={agent.id} disabled={agent.needs_api_key}>
-                    {agent.id}{agent.needs_api_key ? " 🔑" : ""}
+                    {formatAgentLabel(agent).withContext}{agent.needs_api_key ? " 🔑" : ""}
                   </option>
                 {/each}
               </select>

@@ -922,6 +922,57 @@ export async function fetchRuns(opts: { scope?: "active" | "archived" | "all" } 
   return json.runs;
 }
 
+export interface UsageTotals {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  cost_usd: number;
+  unknown_model_tokens: number;
+}
+
+export interface UsageModelSummary {
+  model: string;
+  totals: UsageTotals;
+  total_tokens: number;
+}
+
+export interface UsageTimelinePoint {
+  bucket: string;
+  totals: UsageTotals;
+  total_tokens: number;
+}
+
+export interface UsageRunSummary {
+  run_id: string;
+  totals: UsageTotals;
+  total_tokens: number;
+  models: string[];
+}
+
+export interface UsageResponse {
+  generated_at: string;
+  period: "7d" | "30d" | "90d" | "12m" | "all";
+  bucket: "day" | "week" | "month";
+  since: string | null;
+  totals: UsageTotals;
+  by_model: UsageModelSummary[];
+  timeline: UsageTimelinePoint[];
+  runs: UsageRunSummary[];
+}
+
+export async function fetchUsage(opts: {
+  period?: UsageResponse["period"];
+  bucket?: UsageResponse["bucket"];
+} = {}): Promise<UsageResponse> {
+  const response = await fetch(apiUrl("/usage", {
+    period: opts.period,
+    bucket: opts.bucket,
+  }));
+  if (!response.ok) throw new Error(`Usage fetch failed: ${response.status}`);
+  return (await response.json()) as UsageResponse;
+}
+
 export async function startRun(input: StartRunInput): Promise<StartRunResult> {
   const response = await fetch(apiUrl("/runs"), {
     method: "POST",

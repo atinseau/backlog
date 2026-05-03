@@ -326,8 +326,7 @@
                     class="agent-label"
                     title={agent.id + (agent.display_name ? ` · double-click to rename` : "")}
                     ondblclick={(e) => startRename(agent, e)}
-                  >{label.short}</strong>
-                  {#if label.contextSize}<span class="ctx-chip">{label.contextSize}</span>{/if}
+                  >{label.withContext}</strong>
                 {/if}
                 <span class="provider provider-{agent.provider}">{agent.provider}</span>
                 {#if !isExecutable(agent)}
@@ -738,15 +737,6 @@
     border-radius: 4px;
     padding: 2px 6px;
     min-width: 180px;
-  }
-  .ctx-chip {
-    font-family: ui-monospace, monospace;
-    font-size: 10px;
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    padding: 1px 5px;
-    border-radius: 3px;
-    border: 1px solid var(--border);
   }
   .provider {
     font-size: 10px;

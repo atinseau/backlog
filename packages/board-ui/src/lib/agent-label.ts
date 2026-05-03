@@ -17,8 +17,10 @@ import type { AgentSummary } from "./types.js";
 const MODEL_CONTEXT: Record<string, string> = {
   // Anthropic
   "claude-opus-4-7": "1M",
+  "claude-sonnet-4-7": "1M",
   "claude-opus-4-5": "200k",
   "claude-opus-4": "200k",
+  "claude-sonnet-4-6": "200k",
   "claude-sonnet-4-5": "200k",
   "claude-sonnet-4": "200k",
   "claude-haiku-4-5": "200k",
@@ -26,6 +28,7 @@ const MODEL_CONTEXT: Record<string, string> = {
   "claude-3-5-sonnet": "200k",
   "claude-3-5-haiku": "200k",
   // OpenAI / Codex
+  "gpt-5-codex": "1M",
   "gpt-5": "1M",
   "gpt-4.1": "1M",
   "gpt-4o": "128k",
@@ -40,6 +43,13 @@ const MODEL_CONTEXT: Record<string, string> = {
   "gemini-1.5-pro": "2M",
   // Meta / open weights
   "llama-3.3-70b": "128k",
+};
+
+const DISPLAY_MODEL_ALIASES: Record<string, string> = {
+  sonnet: "claude-sonnet-4-7",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
+  "gpt-5-codex": "gpt-5-codex",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -58,6 +68,15 @@ const PROVIDER_LABELS: Record<string, string> = {
 // re-join the version-trailing digits with a dot when it reads as a
 // decimal version (4-7 → 4.7).
 function prettyModel(model: string): string {
+  if (model.startsWith("gpt-")) {
+    const rest = model
+      .slice(4)
+      .replace(/-(\d+)-(\d+)\b/g, "-$1.$2")
+      .split("-")
+      .map((part) => part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1))
+      .join(" ");
+    return `GPT-${rest}`;
+  }
   let rest = model;
   // Strip vendor prefix if present.
   for (const prefix of ["claude-", "gpt-", "openai-", "anthropic-", "gemini-", "llama-"]) {
@@ -69,10 +88,21 @@ function prettyModel(model: string): string {
   // "4-7" / "4-5" → "4.7" / "4.5". Two-digit pattern between dashes
   // at the end of a token is treated as a version number.
   rest = rest.replace(/-(\d+)-(\d+)\b/g, "-$1.$2");
+  if (rest === "5-codex") return "GPT-5 Codex";
   return rest
     .split("-")
     .map((part) => part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function displayModelId(model: string | null): string | null {
+  if (!model) return null;
+  return DISPLAY_MODEL_ALIASES[model] ?? model;
+}
+
+function shouldPrefixProvider(provider: string, modelOnly: string): boolean {
+  if (provider === "codex" && /^GPT-/i.test(modelOnly)) return false;
+  return true;
 }
 
 export interface AgentLabel {
@@ -88,7 +118,8 @@ export interface AgentLabel {
 }
 
 export function formatAgentLabel(agent: { display_name?: string | null; provider: string; model: string | null }): AgentLabel {
-  const ctx = agent.model ? MODEL_CONTEXT[agent.model] ?? null : null;
+  const modelId = displayModelId(agent.model);
+  const ctx = modelId ? MODEL_CONTEXT[modelId] ?? null : null;
 
   // User-set rename always wins. We still expose the context chip on
   // the side so the picker can display "My favourite agent · 1M".
@@ -97,14 +128,16 @@ export function formatAgentLabel(agent: { display_name?: string | null; provider
     return {
       short: name,
       withContext: ctx ? `${name} (${ctx})` : name,
-      modelOnly: agent.model ? prettyModel(agent.model) : name,
+      modelOnly: modelId ? prettyModel(modelId) : name,
       contextSize: ctx,
     };
   }
 
   const providerLabel = PROVIDER_LABELS[agent.provider] ?? agent.provider;
-  const modelOnly = agent.model ? prettyModel(agent.model) : "";
-  const short = modelOnly ? `${providerLabel} ${modelOnly}` : providerLabel;
+  const modelOnly = modelId ? prettyModel(modelId) : "";
+  const short = modelOnly
+    ? (shouldPrefixProvider(agent.provider, modelOnly) ? `${providerLabel} ${modelOnly}` : modelOnly)
+    : providerLabel;
   const withContext = ctx ? `${short} (${ctx})` : short;
   return { short, withContext, modelOnly, contextSize: ctx };
 }

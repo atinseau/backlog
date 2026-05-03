@@ -14,9 +14,10 @@
     selectedId: string | null;
     onSelect: (id: string | null) => void;
     onManageAgents: () => void;
+    variant?: "standalone" | "inline";
   }
 
-  let { agents, selectedId, onSelect, onManageAgents }: Props = $props();
+  let { agents, selectedId, onSelect, onManageAgents, variant = "standalone" }: Props = $props();
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
@@ -37,10 +38,12 @@
     }),
   );
   const selected = $derived(executable.find((a) => a.id === selectedId) ?? null);
-  const selectedLabel = $derived(selected ? formatAgentLabel(selected) : null);
+  const defaultAgent = $derived(executable.find((a) => !a.needs_api_key) ?? executable[0] ?? null);
+  const visibleAgent = $derived(selected ?? defaultAgent);
+  const selectedLabel = $derived(visibleAgent ? formatAgentLabel(visibleAgent) : null);
   const triggerLabel = $derived(
-    selectedLabel ? selectedLabel.short
-      : t("agent_picker.auto"),
+    selectedLabel ? selectedLabel.withContext
+      : t("agent_picker.none"),
   );
 
   function toggle() { open = !open; }
@@ -76,15 +79,15 @@
 <div class="agent-picker" bind:this={containerEl}>
   <button
     class="trigger"
+    class:inline={variant === "inline"}
     type="button"
     onclick={toggle}
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={selected?.model ? `${selected.id} · ${selected.model}` : t("agent_picker.auto_hint")}
+    title={visibleAgent?.model ? `${visibleAgent.id} · ${visibleAgent.model}` : t("agent_picker.auto_hint")}
   >
     <span class="bot-icon" aria-hidden="true">🤖</span>
     <span class="name">{triggerLabel}</span>
-    {#if selectedLabel?.contextSize}<span class="ctx-chip">{selectedLabel.contextSize}</span>{/if}
     <span class="chevron" aria-hidden="true">▾</span>
   </button>
 
@@ -96,8 +99,12 @@
         onclick={() => pick(null)}
         title={t("agent_picker.auto_hint")}
       >
-        <span class="provider provider-auto">auto</span>
-        <span class="item-name">{t("agent_picker.auto")}</span>
+        <span class="item-name">
+          {t("agent_picker.auto_select")}
+          {#if defaultAgent}
+            <small>{formatAgentLabel(defaultAgent).withContext}</small>
+          {/if}
+        </span>
         {#if selectedId === null}<span class="check">✓</span>{/if}
       </button>
       <div class="separator"></div>
@@ -114,8 +121,7 @@
             title={agent.needs_api_key ? t("agent_picker.needs_api_key_hint", { key: agent.required_secret_key ?? "" }) : `${agent.id} · ${agent.model ?? agent.provider}`}
           >
             <span class="provider provider-{agent.provider}">{agent.provider}</span>
-            <span class="item-name">{label.short}</span>
-            {#if label.contextSize}<span class="ctx-chip">{label.contextSize}</span>{/if}
+            <span class="item-name">{label.withContext}</span>
             {#if agent.needs_api_key}<span class="off">🔑 key</span>{/if}
             {#if agent.id === selectedId}<span class="check">✓</span>{/if}
           </button>
@@ -153,26 +159,29 @@
   .trigger:hover {
     border-color: var(--accent);
   }
+  .trigger.inline {
+    height: 100%;
+    max-width: min(300px, 28vw);
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+  .trigger.inline:hover {
+    color: var(--accent-text);
+    border-color: transparent;
+  }
   .bot-icon { font-size: 12px; flex-shrink: 0; line-height: 1; }
   .name {
     font-weight: 500;
     min-width: 0;
-    max-width: 130px;
+    max-width: 210px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* Context window pill — shows model capacity at a glance ("1M",
-     "200k", "128k"). Only rendered when we know the value; unknown
-     models simply hide the chip rather than guessing. */
-  .ctx-chip {
-    font-family: ui-monospace, monospace;
-    font-size: 10px;
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    padding: 1px 5px;
-    border-radius: 3px;
-    border: 1px solid var(--border);
+  .trigger.inline .name {
+    font-weight: 700;
+    max-width: min(250px, 24vw);
   }
   .chevron {
     font-size: 16px;
@@ -186,7 +195,7 @@
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    min-width: 240px;
+    min-width: 320px;
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: 6px;
@@ -229,9 +238,21 @@
   .provider-claude { background: var(--danger); }
   .provider-codex { background: var(--success); }
   .provider-custom { background: #a78bfa; }
-  .provider-auto { background: var(--text-subtle); }
-
-  .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .item-name small {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 500;
+  }
   .item-model {
     font-family: ui-monospace, monospace;
     font-size: 10px;

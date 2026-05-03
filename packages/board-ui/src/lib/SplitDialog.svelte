@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import {
     applySplitProposal,
     fetchAgents,
@@ -276,7 +277,7 @@
                       <div class="plan-task-meta">
                         <span class="plan-repo">{p.task.repo}</span>
                         {#if p.agent}
-                          <span class="plan-agent">→ {p.agent.id}<span class="plan-agent-provider"> ({p.agent.provider}{p.agent.model ? ` · ${p.agent.model}` : ""})</span></span>
+                          <span class="plan-agent">→ {formatAgentLabel(p.agent).withContext}</span>
                         {:else}
                           <span class="plan-agent unknown">{t("split_dialog.no_agent")}</span>
                         {/if}
@@ -803,6 +804,5 @@
     color: var(--text-body);
     font-family: ui-monospace, monospace;
   }
-  .plan-agent-provider { color: var(--text-subtle); }
   .plan-agent.unknown { color: var(--warning); font-style: italic; }
 </style>

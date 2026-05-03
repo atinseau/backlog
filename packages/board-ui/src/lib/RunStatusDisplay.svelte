@@ -8,9 +8,10 @@
     board: BoardResponse | null;
     projectId: string | null;
     onOpenActivity?: () => void;
+    variant?: "standalone" | "inline";
   }
 
-  let { board, projectId, onOpenActivity }: Props = $props();
+  let { board, projectId, onOpenActivity, variant = "standalone" }: Props = $props();
 
   type ActivityEvent = {
     ts: string;
@@ -47,9 +48,18 @@
     return `${run.id} · ${run.agent_id} · ${mode}`;
   }
 
+  function activeRunLabel(run: RunSummary): string {
+    const labels: Record<string, string> = {
+      queued: t("run_status.queued"),
+      preparing: t("run_status.preparing"),
+      running: t("run_status.running"),
+    };
+    return labels[run.status] ?? run.status;
+  }
+
   const headline = $derived.by(() => {
     const current = active[0];
-    if (current?.active_run) return runLabel(current.active_run);
+    if (current?.active_run) return activeRunLabel(current.active_run);
     if (review.length > 0) return t("run_status.review_count", { count: review.length });
     if (blocked.length > 0) return t(blocked.length > 1 ? "run_status.blocked_count_many" : "run_status.blocked_count_one", { count: blocked.length });
     return t("run_status.ready");
@@ -60,7 +70,7 @@
     if (current?.active_run && latest?.runId === current.active_run.id) {
       return latest.message ? `${latest.type} · ${latest.message}` : latest.type;
     }
-    if (current?.active_run) return current.title;
+    if (current?.active_run) return `${current.title} · ${runLabel(current.active_run)}`;
     const failed = blocked.find((task) => task.latest_run?.result);
     if (failed?.latest_run?.result) return `${failed.latest_run.id} · ${failed.latest_run.result}`;
     if (review.length > 0) return t("run_status.review_required");
@@ -105,7 +115,12 @@
   });
 </script>
 
-<button class="run-status run-status-{tone}" onclick={() => onOpenActivity?.()} title={detail}>
+<button
+  class="run-status run-status-{tone}"
+  class:inline={variant === "inline"}
+  onclick={() => onOpenActivity?.()}
+  title={detail}
+>
   <span class="pulse" aria-hidden="true"></span>
   <span class="text">
     <span class="headline">{headline}</span>
@@ -133,6 +148,20 @@
   }
   .run-status:hover {
     border-color: var(--accent);
+  }
+  .run-status.inline {
+    width: auto;
+    min-width: 130px;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    flex: 1 1 auto;
+  }
+  .run-status.inline:hover {
+    border-color: transparent;
+    color: var(--accent-text);
   }
   .pulse {
     width: 8px;
@@ -168,6 +197,9 @@
     font-size: 12px;
     font-weight: 700;
     color: var(--text-primary);
+  }
+  .run-status.inline .headline {
+    font-size: 13px;
   }
   .detail {
     font-size: 10px;

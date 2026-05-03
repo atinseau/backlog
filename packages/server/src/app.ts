@@ -23,6 +23,7 @@ import { foldersRoutes } from "./routes/folders.js";
 import { runsRoutes } from "./routes/runs.js";
 import { projectRoutes } from "./routes/project.js";
 import { projectsRoutes } from "./routes/projects.js";
+import { usageRoutes } from "./routes/usage.js";
 import { subtasksRoutes } from "./routes/subtasks.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { usersRoutes } from "./routes/users.js";
@@ -110,6 +111,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", secretsRoutes());
   app.route("/api/v1", foldersRoutes());
   app.route("/api/v1", runsRoutes());
+  app.route("/api/v1", usageRoutes());
   app.route("/api/v1", projectRoutes());
   app.route("/api/v1", projectsRoutes(options.project));
   app.route("/api/v1", commitsRoutes());
