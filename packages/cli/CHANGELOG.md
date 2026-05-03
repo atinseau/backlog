@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.35] - 2026-05-03
+
+Safer opt-in Git hooks.
+
+- **Backlog hooks no longer block commits when Backlog is unavailable** — if GitHub Desktop or another GUI cannot find `node`/the Backlog CLI, the hook now clearly identifies itself and lets the commit proceed.
+- **The pre-commit gate only blocks real active-claim conflicts** — commits with no overlapping active Backlog run/claim pass normally, even when no local claim context exists.
+- **Hook installation is strictly explicit** — project migration/rollback no longer rewrites hooks, and the Repositories screen separates updating existing hooks from installing missing ones.
+
 ## [1.4.34] - 2026-05-03
 
 Account-scoped API keys for repo-only boards.

@@ -151,9 +151,18 @@ describe("rendered hook template — escape hatches", () => {
 
   it("prints the three escape hatches when the claim check fails", () => {
     const hook = rendered();
+    expect(hook).toContain("Backlog pre-commit hook blocked this commit.");
     expect(hook).toContain("BACKLOG_SKIP_HOOK=1 git commit");
-    expect(hook).toContain("backlog hooks pause");
+    expect(hook).toContain("backlog hooks pause --minutes 30");
     expect(hook).toContain("backlog hooks disable");
+    expect(hook).toContain("backlog hooks uninstall");
+  });
+
+  it("allows commits when the local Backlog runtime is unavailable", () => {
+    const hook = rendered();
+    expect(hook).toContain("Backlog is unavailable, so this commit is allowed.");
+    expect(hook).toContain("env: node: No such file or directory");
+    expect(hook.indexOf("Backlog is unavailable")).toBeLessThan(hook.indexOf("Backlog pre-commit hook blocked"));
   });
 });
 

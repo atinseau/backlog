@@ -321,15 +321,38 @@ export function registerClaimCommand(program: Command): void {
             console.log("Expired claim archived; no auto-claim configured. Commit allowed without claim validation.");
             return null;
           }
-          throw error;
+          const paths = options.staged ? await stagedPaths(repoRoot) : options.path ?? [];
+          if (paths.length === 0) {
+            console.log("No staged paths; claim validation skipped.");
+            return null;
+          }
+          garbageCollectExpiredClaims(project.backlogDir);
+          const repo = resolveRepo(config.repos, undefined, repoRoot);
+          const overlaps = listActiveClaims(project.backlogDir)
+            .filter((claim) => claim.repo === repo.id && !isExpired(claim))
+            .flatMap((claim) =>
+              paths
+                .filter((candidate) => pathsCoveredByScopes(claim.paths, [candidate]).length === 0)
+                .map((candidate) => `${candidate} is protected by active claim ${claim.id} (${claim.topic})`),
+            );
+          if (overlaps.length === 0) {
+            console.log("backlog: no active Backlog claim overlaps staged paths; commit allowed.");
+            return null;
+          }
+          throw new Error(
+            `Backlog active claim protects staged paths:\n${overlaps.map((line) => `  - ${line}`).join("\n")}`,
+          );
         }
-
         const stagedForAuto = options.staged ? await stagedPaths(repoRoot) : options.path ?? [];
         if (stagedForAuto.length === 0) {
-          // Nothing staged → nothing to claim. Let the commit through
+          // Nothing staged -> nothing to claim. Let the commit through
           // (empty commits / amend-only / merge commits land here).
           console.log("No staged paths; auto-claim skipped.");
           return null;
+        }
+
+        if (!opts.allowExpiredBypass && error instanceof Error && !/No local backlog context|Stale backlog context|expired/i.test(error.message)) {
+          throw error;
         }
 
         const repo = resolveRepo(config.repos, undefined, repoRoot);

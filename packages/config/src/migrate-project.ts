@@ -11,9 +11,9 @@ import {
 } from "./project-registry.js";
 import { userLevelProjectDir } from "./init-layout.js";
 
-// What we hand back to the caller. The CLI uses `reposToReinstallHooksOn`
-// to iterate and call @backlog/hooks::installPreCommitHook on each (we
-// keep the hook dependency out of @backlog/config to avoid a cycle).
+// What we hand back to the caller. Hook installation is intentionally not
+// performed during migrations: installing or rewriting a Git hook must be
+// an explicit user action.
 export interface MigrationResult {
   // Where the workspace data lived before this migration. For in_repo
   // sources this was <oldRoot>/.backlog/; for user_level it was oldRoot.
@@ -28,8 +28,8 @@ export interface MigrationResult {
   // If the old dir was archived (renamed to .migrated-YYYY-MM-DD/), this is
   // the post-rename path. undefined if --keep-old kept it in place.
   archivedAt?: string;
-  // Configured repos in the migrated workspace. The caller should reinstall
-  // the pre-commit hook in each so they point at newBacklogDir.
+  // Configured repos in the migrated workspace. Callers can surface this as
+  // context for an explicit `backlog hooks install --all --force` action.
   reposToReinstallHooksOn: RepoConfig[];
 }
 

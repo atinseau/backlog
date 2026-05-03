@@ -59,24 +59,65 @@ if [[ -f "$PAUSE_FILE" ]]; then
 fi
 
 if [[ ! -x "$BACKLOG_BIN" ]]; then
-  echo "backlog: missing local shim at $BACKLOG_BIN" >&2
-  echo "Run backlog init or backlog hooks install again." >&2
-  exit 1
+  cat >&2 <<EOF
+
+Backlog pre-commit hook: Backlog is unavailable, so this commit is allowed.
+The local Backlog shim is missing:
+  $BACKLOG_BIN
+
+Backlog did not block this commit. To remove this hook from the repository:
+  backlog hooks uninstall
+EOF
+  exit 0
 fi
 
-if ! "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged --auto; then
+HOOK_OUTPUT="$(mktemp "\${TMPDIR:-/tmp}/backlog-pre-commit.XXXXXX")"
+if "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged --auto >"$HOOK_OUTPUT" 2>&1; then
+  if [[ -s "$HOOK_OUTPUT" ]]; then
+    cat "$HOOK_OUTPUT" >&2
+  fi
+  rm -f "$HOOK_OUTPUT"
+  exit 0
+fi
+
+HOOK_STATUS=$?
+HOOK_TEXT="$(cat "$HOOK_OUTPUT" 2>/dev/null || true)"
+rm -f "$HOOK_OUTPUT"
+
+if [[ "$HOOK_STATUS" -eq 126 || "$HOOK_STATUS" -eq 127 ]] || printf '%s\n' "$HOOK_TEXT" | grep -E '(env: node: No such file or directory|node: command not found|backlog: no usable binary found|No \\.backlog project found|has no config\\.toml|ENOENT)' >/dev/null 2>&1; then
+  cat >&2 <<EOF
+
+Backlog pre-commit hook: Backlog is unavailable, so this commit is allowed.
+Backlog could not validate claims from this Git hook environment.
+
+Original Backlog error:
+$HOOK_TEXT
+
+Backlog did not block this commit. To remove this hook from the repository:
+  backlog hooks uninstall
+EOF
+  exit 0
+fi
+
+if [[ -n "$HOOK_TEXT" ]]; then
+  printf '%s\n' "$HOOK_TEXT" >&2
+fi
+
   cat >&2 <<'EOF'
 
-To proceed without a claim:
-  - Just this commit:   BACKLOG_SKIP_HOOK=1 git commit ...
-  - For 30 minutes:     backlog hooks pause
+Backlog pre-commit hook blocked this commit.
+
+One or more staged files are protected by an active Backlog run/claim.
+To bypass Backlog deliberately:
+  - Just this commit:    BACKLOG_SKIP_HOOK=1 git commit ...
+  - For 30 minutes:      backlog hooks pause --minutes 30
   - Until re-enabled:    backlog hooks disable
+  - Remove this hook:    backlog hooks uninstall
 
 Or set claims.auto_claim_on_commit = true in config.toml so the hook
 mints an ad-hoc claim from your staged paths instead of blocking.
 EOF
-  exit 1
-fi
+exit 1
 `;
 
 function readTemplate(): string {

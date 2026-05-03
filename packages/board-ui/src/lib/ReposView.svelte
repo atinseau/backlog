@@ -54,13 +54,10 @@
   const outdatedManagedHooks = $derived(hooks?.hooks.filter((status) =>
     status.exists && status.managed && status.points_to_backlog_bin && !status.up_to_date,
   ) ?? []);
-  const hookActionTargets = $derived(hooks?.hooks.filter((status) =>
-    Boolean(status.git_dir) && (
-      !status.exists ||
-      (status.managed && status.points_to_backlog_bin && !status.up_to_date)
-    ),
+  const missingHookTargets = $derived(hooks?.hooks.filter((status) =>
+    Boolean(status.git_dir) && !status.exists,
   ) ?? []);
-  const missingHookCount = $derived(hookActionTargets.filter((status) => !status.exists).length);
+  const missingHookCount = $derived(missingHookTargets.length);
 
   async function loadHooks() {
     hooksLoading = true;
@@ -85,11 +82,11 @@
     }
   }
 
-  async function updateAllHooks() {
-    if (hookActionTargets.length === 0) return;
+  async function installHookTargets(targets: HookStatus[]) {
+    if (targets.length === 0) return;
     installingHookFor = ALL_HOOKS;
     try {
-      for (const status of hookActionTargets) {
+      for (const status of targets) {
         await installRepoHook(status.repo_id);
       }
       await loadHooks();
@@ -269,8 +266,8 @@
             <span>{t("hooks.update_available", { count: outdatedManagedHooks.length })}</span>
             <button
               class="hook-update primary-action"
-              onclick={updateAllHooks}
-              disabled={installingHookFor !== null || hookActionTargets.length === 0}
+              onclick={() => installHookTargets(outdatedManagedHooks)}
+              disabled={installingHookFor !== null || outdatedManagedHooks.length === 0}
             >
               {installingHookFor === ALL_HOOKS ? "…" : t("hooks.update_all_button")}
             </button>
@@ -280,8 +277,8 @@
             <span>{t("hooks.install_missing", { count: missingHookCount })}</span>
             <button
               class="hook-update primary-action"
-              onclick={updateAllHooks}
-              disabled={installingHookFor !== null || hookActionTargets.length === 0}
+              onclick={() => installHookTargets(missingHookTargets)}
+              disabled={installingHookFor !== null || missingHookTargets.length === 0}
             >
               {installingHookFor === ALL_HOOKS ? "…" : t("hooks.install_missing_button")}
             </button>

@@ -16,8 +16,6 @@ import {
   unregisterProject,
   userLevelProjectDir,
 } from "@backlog/config";
-import { detectGitDir } from "@backlog/git";
-import { installPreCommitHook } from "@backlog/hooks";
 
 interface ProjectExportManifest {
   manifest_version: 1;
@@ -97,8 +95,8 @@ export function registerProjectCommand(program: Command): void {
 
       // The state-mutation half (copy, config, registry, archive) lives in
       // @backlog/config so it can be unit-tested without spinning up real
-      // git dirs. Hook reinstall stays here because @backlog/hooks isn't a
-      // dependency of @backlog/config.
+      // git dirs. Hooks are deliberately not reinstalled here: installing
+      // or rewriting a Git hook must always be an explicit user action.
       const result =
         targetLocation === "user_level"
           ? migrateProjectToUserLevel({
@@ -119,44 +117,14 @@ export function registerProjectCommand(program: Command): void {
 
       console.log(`Migrating ${result.entry.id} (${result.entry.name}) → ${result.newBacklogDir}`);
 
-      const backlogBin = path.join(result.newBacklogDir, "bin", "backlog");
-      const reinstallReport: { repoId: string; status: "ok" | "failed"; detail?: string }[] = [];
-      for (const repo of result.reposToReinstallHooksOn) {
-        try {
-          const gitDir = await detectGitDir(repo.path);
-          installPreCommitHook({
-            gitDir,
-            backlogBin,
-            projectRoot: result.newRoot,
-            backlogDir: result.newBacklogDir,
-            force: true, // Existing hooks point at the OLD path; always rewrite.
-          });
-          reinstallReport.push({ repoId: repo.id, status: "ok" });
-        } catch (error) {
-          reinstallReport.push({
-            repoId: repo.id,
-            status: "failed",
-            detail: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-
       console.log(`✓ Migrated to ${result.newBacklogDir}`);
       console.log(`  registry: updated`);
       if (result.reposToReinstallHooksOn.length > 0) {
-        console.log(`  hooks:`);
-        for (const r of reinstallReport) {
-          const detail = r.detail ? ` — ${r.detail}` : "";
-          console.log(`    ${r.repoId}: ${r.status}${detail}`);
-        }
+        console.log("  hooks: not installed or rewritten automatically");
+        console.log("         run `backlog hooks install --all --force` only if you want Backlog hooks here");
       }
       if (result.archivedAt) {
         console.log(`  archived old project data: ${result.archivedAt}`);
-      }
-      const failed = reinstallReport.filter((r) => r.status === "failed");
-      if (failed.length > 0) {
-        console.log("");
-        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the new project dir to retry.");
       }
     });
 
@@ -177,41 +145,12 @@ export function registerProjectCommand(program: Command): void {
       console.log(`  restored: ${result.restoredBacklogDir} (${result.entry.location})`);
       console.log(`  from:     ${result.restoredFrom}`);
 
-      const backlogBin = path.join(result.restoredBacklogDir, "bin", "backlog");
-      const reinstallReport: { repoId: string; status: "ok" | "failed"; detail?: string }[] = [];
-      for (const repo of result.reposToReinstallHooksOn) {
-        try {
-          const gitDir = await detectGitDir(repo.path);
-          installPreCommitHook({
-            gitDir,
-            backlogBin,
-            projectRoot: result.restoredRoot,
-            backlogDir: result.restoredBacklogDir,
-            force: true,
-          });
-          reinstallReport.push({ repoId: repo.id, status: "ok" });
-        } catch (error) {
-          reinstallReport.push({
-            repoId: repo.id,
-            status: "failed",
-            detail: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
       if (result.reposToReinstallHooksOn.length > 0) {
-        console.log(`  hooks:`);
-        for (const r of reinstallReport) {
-          const detail = r.detail ? ` — ${r.detail}` : "";
-          console.log(`    ${r.repoId}: ${r.status}${detail}`);
-        }
+        console.log("  hooks: not installed or rewritten automatically");
+        console.log("         run `backlog hooks install --all --force` only if you want Backlog hooks here");
       }
       if (result.rolledBackTo) {
         console.log(`  current project data archived to: ${result.rolledBackTo}`);
-      }
-      const failed = reinstallReport.filter((r) => r.status === "failed");
-      if (failed.length > 0) {
-        console.log("");
-        console.log("Some hooks could not be reinstalled. Run `backlog hooks install --all --force` from the restored project dir to retry.");
       }
     });
 

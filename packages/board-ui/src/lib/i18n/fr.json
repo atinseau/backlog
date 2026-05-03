@@ -914,7 +914,7 @@
   "settings.about.report_issue": "Signaler un bug",
   "hooks.title": "Hooks Git",
   "hooks.refresh": "Rafraîchir le statut",
-  "hooks.hint": "Backlog installe un hook pre-commit dans chaque repository pour réclamer automatiquement les paths touchés. Sans hook, les commits passent mais les claims ne sont pas créés.",
+  "hooks.hint": "Les hooks Git sont optionnels. Backlog ne les installe jamais automatiquement ; installez-les seulement si vous voulez vérifier les commits pendant les runs actifs.",
   "hooks.paused_until": "Hooks en pause jusqu'à {until}",
   "hooks.cli.install": "installer le hook dans tous les repositories",
   "hooks.cli.status": "vérifier l'état des hooks (équivalent CLI de cette page)",
