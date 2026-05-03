@@ -77,6 +77,44 @@ describe("git routes", () => {
     expect(statusAfter).not.toContain("new.ts");
   });
 
+  it("discards selected tracked and untracked changes", async () => {
+    const project = makeProject();
+    const repoRoot = await makeRepo();
+    addRepo(project.backlogDir, { id: "app", path: repoRoot, defaultBranch: "main" });
+    fs.appendFileSync(path.join(repoRoot, "README.md"), "local change\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "scratch.txt"), "scratch\n", "utf8");
+
+    const app = harness(project);
+    const discardRes = await app.request("/git/discard", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo: "app", paths: ["README.md", "scratch.txt"] }),
+    });
+    expect(discardRes.status).toBe(200);
+    expect(fs.readFileSync(path.join(repoRoot, "README.md"), "utf8")).toBe("# demo\n");
+    expect(fs.existsSync(path.join(repoRoot, "scratch.txt"))).toBe(false);
+    expect(await git(["status", "--porcelain=v1"], repoRoot)).toBe("");
+  });
+
+  it("stashes selected changes including untracked files", async () => {
+    const project = makeProject();
+    const repoRoot = await makeRepo();
+    addRepo(project.backlogDir, { id: "app", path: repoRoot, defaultBranch: "main" });
+    fs.appendFileSync(path.join(repoRoot, "README.md"), "stash me\n", "utf8");
+    fs.writeFileSync(path.join(repoRoot, "scratch.txt"), "scratch\n", "utf8");
+
+    const app = harness(project);
+    const stashRes = await app.request("/git/stash", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo: "app", paths: ["README.md", "scratch.txt"], message: "Backlog test stash" }),
+    });
+    expect(stashRes.status).toBe(200);
+    expect(await git(["status", "--porcelain=v1"], repoRoot)).toBe("");
+    const stashes = await git(["stash", "list"], repoRoot);
+    expect(stashes).toContain("Backlog test stash");
+  });
+
   it("lists files changed by a commit and returns commit file diffs", async () => {
     const project = makeProject();
     const repoRoot = await makeRepo();

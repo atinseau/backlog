@@ -152,6 +152,13 @@
     return formatDuration(Math.max(0, Math.round((end - start) / 1000)));
   }
 
+  function timeAgo(value?: string | null): string {
+    if (!value) return "—";
+    const date = Date.parse(value);
+    if (!Number.isFinite(date)) return "—";
+    return formatDuration(Math.max(0, Math.round((timer.now - date) / 1000)));
+  }
+
   function claimExpired(claim: ClaimRecord): boolean {
     const expiresMs = Date.parse(claim.expires_at);
     return Number.isFinite(expiresMs) && expiresMs < timer.now;
@@ -292,6 +299,7 @@
             <span class="row-meta small">
               <code>{run.id}</code>
               <span>{run.protects_repository ? "protege tout le repository" : `${run.protected_paths.length || run.planned_paths.length} fichier(s)`}</span>
+              {#if run.finished_at}<span>{t("claims_view.finished_ago", { time: timeAgo(run.finished_at) })}</span>{/if}
             </span>
           </button>
         {/each}
@@ -351,7 +359,13 @@
             <div><span>Execution</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
             <div><span>Duree</span><strong>{runDuration(selectedRun)}</strong></div>
             <div><span>Debut</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
-            <div><span>Fin</span><strong>{formatDate(selectedRun.finished_at)}</strong></div>
+            <div>
+              <span>Fin</span>
+              <strong>
+                {formatDate(selectedRun.finished_at)}
+                {#if selectedRun.finished_at}<small>{t("claims_view.finished_ago", { time: timeAgo(selectedRun.finished_at) })}</small>{/if}
+              </strong>
+            </div>
             <div><span>Branche</span><code>{selectedRun.branch}</code></div>
             <div><span>Worktree</span><code>{selectedRun.worktree_path}</code></div>
           </div>
@@ -738,6 +752,13 @@
     font-size: 13px;
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+  .info-grid strong small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 2px;
   }
   .block {
     border-top: 1px solid var(--border-subtle);

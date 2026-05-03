@@ -107,4 +107,22 @@ describe("board route under multi-project resolver", () => {
     expect(ids).toContain(visible.id);
     expect(ids).not.toContain(archived.id);
   });
+
+  it("orders newer tasks first when there is no manual rank", async () => {
+    const registryDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-board-mw-reg-"));
+    const project = makeProject("recent-first");
+    const older = createTask(project.backlogDir, { title: "older task" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const newer = createTask(project.backlogDir, { title: "newer task" });
+
+    const resolver = new ProjectResolver(project, { dir: registryDir });
+    const app = new Hono<AppEnv>();
+    app.use("*", resolver.middleware());
+    app.route("/", boardRoutes());
+
+    const res = await app.request("/board");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { columns: { todo: Array<{ id: string }> } };
+    expect(body.columns.todo.map((card) => card.id).slice(0, 2)).toEqual([newer.id, older.id]);
+  });
 });

@@ -5,6 +5,7 @@
     addGitWorktree,
     checkoutGitBranch,
     commitGitChanges,
+    discardGitChanges,
     fetchCommits,
     fetchGitBranchPreview,
     fetchGitBranches,
@@ -15,6 +16,7 @@
     mergeGitBranch,
     pruneGitWorktrees,
     removeGitWorktree,
+    stashGitChanges,
     syncGitRepo,
     type CommitEntry,
     type CommitLink,
@@ -51,6 +53,7 @@
   let message = $state("");
   let loading = $state(true);
   let committing = $state(false);
+  let gitActionBusy = $state<"discard" | "stash" | null>(null);
   let syncingRepo = $state<string | null>(null);
   let branchBusy = $state<string | null>(null);
   let worktreeBusy = $state<string | null>(null);
@@ -72,7 +75,8 @@
   const visibleRepos = $derived(repos.filter((repo) => repo.changes.length > 0 || repo.status.error));
   const selectedPaths = $derived([...selected]);
   const selectedRepoCount = $derived(new Set(selectedPaths.map((key) => key.split("\0")[0]).filter(Boolean)).size);
-  const canCommit = $derived(Boolean(selectedPaths.length > 0 && message.trim() && !committing));
+  const canCommit = $derived(Boolean(selectedPaths.length > 0 && message.trim() && !committing && !gitActionBusy));
+  const canChangeSelected = $derived(Boolean(selectedPaths.length > 0 && !committing && !gitActionBusy));
 
   function focusOnMount(node: HTMLElement): void {
     setTimeout(() => node.focus(), 0);
@@ -198,6 +202,11 @@
 
   function kindLabel(kind: GitChangeEntry["kind"]): string {
     return t(`git.change.${kind}`);
+  }
+
+  function changeStatusLabel(change: GitChangeEntry): string {
+    if (change.kind === "untracked") return t("git.change.added");
+    return kindLabel(change.kind);
   }
 
   function remoteFor(repoId: string): GitRemoteState | null {
@@ -327,6 +336,58 @@
     const paths = pathsForRepo(repoId);
     if (paths.length === 0) return;
     await commitGroups([{ repo: repoId, paths }]);
+  }
+
+  async function discardGroups(groups: CommitGroup[]) {
+    const count = groups.reduce((sum, group) => sum + group.paths.length, 0);
+    if (count === 0) return;
+    const ok = typeof window === "undefined" || window.confirm(t("git.discard.confirm", { count }));
+    if (!ok) return;
+    gitActionBusy = "discard";
+    error = null;
+    info = null;
+    try {
+      for (const group of groups) {
+        await discardGitChanges({ repo: group.repo, paths: group.paths });
+      }
+      info = t("git.discard.done", { count });
+      await load();
+      onCommitted?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      gitActionBusy = null;
+    }
+  }
+
+  async function stashGroups(groups: CommitGroup[]) {
+    const count = groups.reduce((sum, group) => sum + group.paths.length, 0);
+    if (count === 0) return;
+    gitActionBusy = "stash";
+    error = null;
+    info = null;
+    try {
+      const stashMessage = message.trim() || t("git.stash.default_message");
+      for (const group of groups) {
+        await stashGitChanges({ repo: group.repo, paths: group.paths, message: stashMessage });
+      }
+      info = t("git.stash.done", { count });
+      message = "";
+      await load();
+      onCommitted?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      gitActionBusy = null;
+    }
+  }
+
+  async function discardSelected() {
+    await discardGroups(selectedPathGroups());
+  }
+
+  async function stashSelected() {
+    await stashGroups(selectedPathGroups());
   }
 
   async function syncRepo(repoId: string) {
@@ -880,7 +941,7 @@
                   onkeydown={(e) => handleChangeRowKeydown(e, repo.repo, change)}
                 >
                   <span class="check-box" class:checked={isSelected} aria-hidden="true"></span>
-                  <span class="kind kind-{change.kind}">{kindLabel(change.kind)}</span>
+                  <span class="kind kind-{change.kind}" title={kindLabel(change.kind)}>{changeStatusLabel(change)}</span>
                   <span class="path">
                     {#if oldDisplayPath}
                       <span class="dir">{oldDisplayPath.dir}</span><span class="file-name old-name">{oldDisplayPath.name}</span>
@@ -903,9 +964,17 @@
           placeholder={t("git.commit.placeholder")}
           onkeydown={handleMessageKeydown}
         ></textarea>
-        <button class="primary" onclick={commitSelected} disabled={!canCommit}>
-          {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
-        </button>
+        <div class="commit-actions">
+          <button class="secondary danger" onclick={discardSelected} disabled={!canChangeSelected}>
+            {gitActionBusy === "discard" ? t("git.discard.running") : t("git.discard.button_files", { count: selectedPaths.length })}
+          </button>
+          <button class="secondary" onclick={stashSelected} disabled={!canChangeSelected}>
+            {gitActionBusy === "stash" ? t("git.stash.running") : t("git.stash.button_files", { count: selectedPaths.length })}
+          </button>
+          <button class="primary" onclick={commitSelected} disabled={!canCommit}>
+            {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
+          </button>
+        </div>
         {#if selectedRepoCount > 1}
           <p class="hint">{t("git.commit.multi_repo_hint", { count: selectedRepoCount })}</p>
         {:else}
@@ -1748,6 +1817,20 @@
     cursor: pointer;
   }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .commit-actions {
+    display: grid;
+    grid-template-columns: auto auto minmax(160px, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+  .commit-actions .primary {
+    min-width: 0;
+  }
+  @media (max-width: 760px) {
+    .commit-actions {
+      grid-template-columns: 1fr;
+    }
+  }
   .hint { margin: 0; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
   .commits {
     list-style: none;

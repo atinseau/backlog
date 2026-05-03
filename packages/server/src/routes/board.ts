@@ -61,6 +61,8 @@ interface TaskCard {
   labels: string[];
   repo_targets: string[];
   rank: number | null;
+  created_at: string;
+  updated_at: string;
   tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;
@@ -268,6 +270,8 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
       labels: parentTask.labels,
       repo_targets: parentTask.repo_targets,
       rank: parentTask.rank ?? null,
+      created_at: parentTask.created_at,
+      updated_at: parentTask.updated_at,
       tasks: taskCards,
       blocked_by_claims: blockedByClaims,
       estimated_duration_seconds: itemEstimate,
@@ -283,11 +287,13 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
 
   for (const key of COLUMN_KEYS) {
     columns[key].sort((a, b) => {
-      const priorityDiff = priorityOrder(a.priority) - priorityOrder(b.priority);
-      if (priorityDiff !== 0) return priorityDiff;
       const rankDiff = (b.rank ?? 0) - (a.rank ?? 0);
       if (rankDiff !== 0) return rankDiff;
-      return 0;
+      const createdDiff = Date.parse(b.created_at) - Date.parse(a.created_at);
+      if (createdDiff !== 0) return createdDiff;
+      const priorityDiff = priorityOrder(a.priority) - priorityOrder(b.priority);
+      if (priorityDiff !== 0) return priorityDiff;
+      return b.id.localeCompare(a.id);
     });
   }
 

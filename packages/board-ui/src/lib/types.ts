@@ -76,6 +76,8 @@ export interface TaskCard {
   labels: string[];
   repo_targets: string[];
   rank: number | null;
+  created_at: string;
+  updated_at: string;
   tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;

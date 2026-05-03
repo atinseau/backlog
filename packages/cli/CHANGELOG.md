@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.32] - 2026-05-03
+
+Git actions, board ordering, and Runs timing polish.
+
+- **Git Changes now treats untracked files as added** — the file badge shows `A` instead of Git's raw `??` marker, matching the commit flow users expect.
+- **Git Changes can discard or stash selected files** — selected changes can now be committed, stashed, or discarded from the board, with server-side handling for tracked and untracked files.
+- **The board keeps the newest tasks at the top** — newly created tasks appear first when no manual drag rank overrides the order.
+- **Runs now shows completed timing at a glance** — finished runs display a “finished ago” relative timestamp in the list and detail panel.
+
 ## [1.4.31] - 2026-05-03
 
 Desktop quit and agent selection polish.

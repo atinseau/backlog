@@ -94,6 +94,15 @@ const commitBodySchema = z.object({
   message: z.string().min(1),
 });
 
+const gitPathsBodySchema = z.object({
+  repo: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(1),
+});
+
+const stashBodySchema = gitPathsBodySchema.extend({
+  message: z.string().trim().min(1).optional(),
+});
+
 const syncBodySchema = z.object({
   repo: z.string().min(1),
 });
@@ -127,6 +136,40 @@ function safeRelativePath(requested: string): string | null {
   if (path.isAbsolute(requested)) return null;
   if (requested.split(/[\\/]/).some((segment) => segment === "..")) return null;
   return requested;
+}
+
+function safeRequestedPathspecs(requestedPaths: string[], entries: GitStatusEntry[] = []): string[] | null {
+  const values = new Set<string>();
+  for (const requested of requestedPaths) {
+    const safe = safeRelativePath(requested);
+    if (!safe) return null;
+    values.add(safe);
+  }
+  for (const entry of entries) {
+    if (!entry.old_path) continue;
+    const safe = safeRelativePath(entry.old_path);
+    if (!safe) return null;
+    values.add(safe);
+  }
+  return [...values];
+}
+
+function selectedChanges(changes: GitStatusEntry[], requestedPaths: string[]): GitStatusEntry[] | null {
+  const safeRequested = requestedPaths.map((entry) => safeRelativePath(entry));
+  if (safeRequested.some((entry) => !entry)) return null;
+  const changesByPath = new Map(changes.map((change) => [change.path, change]));
+  return [...new Set(safeRequested.filter((entry): entry is string => Boolean(entry)))]
+    .map((entry) => changesByPath.get(entry))
+    .filter((entry): entry is GitStatusEntry => Boolean(entry));
+}
+
+async function discardSelectedChanges(repoPath: string, pathspecs: string[]): Promise<void> {
+  if (pathspecs.length === 0) return;
+  await git(["reset", "HEAD", "--", ...pathspecs], repoPath);
+  for (const pathspec of pathspecs) {
+    await git(["checkout", "--", pathspec], repoPath).catch(() => undefined);
+  }
+  await git(["clean", "-fd", "--", ...pathspecs], repoPath);
 }
 
 async function resolveCommit(repoPath: string, requested: string): Promise<string> {
@@ -766,6 +809,65 @@ export function commitsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "sync_failed", detail: message, actions }, 400);
+    }
+  });
+
+  app.post("/git/discard", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = gitPathsBodySchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+
+    const config = loadConfig(project.backlogDir);
+    const repo = config.repos.find((candidate) => candidate.id === parsed.data.repo);
+    if (!repo) return c.json({ error: "unknown_repo" }, 404);
+
+    const changes = await listWorkingTreeChanges(repo.path);
+    const selected = selectedChanges(changes, parsed.data.paths);
+    if (!selected) return c.json({ error: "invalid_path" }, 400);
+    if (selected.length === 0) return c.json({ error: "nothing_to_discard" }, 400);
+    if (selected.some((entry) => entry.kind === "conflicted")) {
+      return c.json({ error: "conflicted_files", detail: "Resolve conflicts before discarding changes." }, 409);
+    }
+    const pathspecs = safeRequestedPathspecs(parsed.data.paths, selected);
+    if (!pathspecs) return c.json({ error: "invalid_path" }, 400);
+
+    try {
+      await discardSelectedChanges(repo.path, pathspecs);
+      return c.json({ ok: true, repo: repo.id, discarded: selected.length });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "discard_failed", detail: message }, 400);
+    }
+  });
+
+  app.post("/git/stash", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = stashBodySchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+
+    const config = loadConfig(project.backlogDir);
+    const repo = config.repos.find((candidate) => candidate.id === parsed.data.repo);
+    if (!repo) return c.json({ error: "unknown_repo" }, 404);
+
+    const changes = await listWorkingTreeChanges(repo.path);
+    const selected = selectedChanges(changes, parsed.data.paths);
+    if (!selected) return c.json({ error: "invalid_path" }, 400);
+    if (selected.length === 0) return c.json({ error: "nothing_to_stash" }, 400);
+    if (selected.some((entry) => entry.kind === "conflicted")) {
+      return c.json({ error: "conflicted_files", detail: "Resolve conflicts before stashing changes." }, 409);
+    }
+
+    const pathspecs = safeRequestedPathspecs(parsed.data.paths, selected);
+    if (!pathspecs) return c.json({ error: "invalid_path" }, 400);
+    const message = parsed.data.message ?? "Backlog stash";
+    try {
+      await git(["stash", "push", "-u", "-m", message, "--", ...pathspecs], repo.path);
+      return c.json({ ok: true, repo: repo.id, stashed: selected.length, message });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "stash_failed", detail }, 400);
     }
   });
 
