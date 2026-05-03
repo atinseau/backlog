@@ -1,6 +1,6 @@
 <script lang="ts">
   // General app settings — preferences that aren't tied to a specific
-  // project: appearance, identity, board layout, notifications, CLI
+  // project: appearance, board layout, notifications, CLI
   // info, onboarding reset, and About. Project-scoped settings (API
   // keys, chat history, project info) live in the left-panel
   // Paramètres section since they read/write the active project.
@@ -10,7 +10,6 @@
   import {
     getShowReviewColumn, setShowReviewColumn,
     getNotifyOnRunComplete, setNotifyOnRunComplete,
-    getDisplayName, setDisplayName, deriveInitials,
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
@@ -25,7 +24,6 @@
 
   const showReview = $derived(getShowReviewColumn());
   const notifyRuns = $derived(getNotifyOnRunComplete());
-  const displayName = $derived(getDisplayName());
 
   let health = $state<HealthResponse | null>(null);
   const desktopVersion = $derived(health?.app_version ?? health?.version ?? "—");
@@ -151,22 +149,6 @@
         <div class="row">
           <span class="setting-label">{t("settings.locale")}</span>
           <LocaleToggle />
-        </div>
-      </section>
-
-      <!-- Identité affichée -->
-      <section class="block">
-        <h3>{t("settings.identity.title")}</h3>
-        <p class="hint">{t("settings.identity.hint")}</p>
-        <div class="identity-row">
-          <input
-            type="text"
-            class="text-input"
-            placeholder={t("settings.identity.placeholder")}
-            value={displayName}
-            oninput={(e) => setDisplayName((e.currentTarget as HTMLInputElement).value)}
-          />
-          <span class="preview-pill" aria-hidden="true">{deriveInitials(displayName ? `${displayName}@local` : "")}</span>
         </div>
       </section>
 
@@ -397,21 +379,6 @@
   button.ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
   button.ghost.danger-btn { border-color: var(--danger); color: var(--danger); }
   button.ghost.danger-btn:hover { background: var(--danger-bg); }
-
-  .identity-row { display: flex; align-items: center; gap: 10px; }
-  .text-input {
-    flex: 1; padding: 6px 10px;
-    border: 1px solid var(--border-strong); border-radius: 4px;
-    background: var(--bg-input); color: var(--text-primary); font-size: 13px;
-  }
-  .text-input:focus { outline: none; border-color: var(--accent); }
-  .preview-pill {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--success-bg); color: var(--success);
-    border: 1px solid var(--success);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600; flex-shrink: 0;
-  }
 
   .info-grid {
     display: grid; grid-template-columns: 1fr 1fr;

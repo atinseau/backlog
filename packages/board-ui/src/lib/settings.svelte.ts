@@ -1,13 +1,13 @@
 // Local app preferences — frontend-only, persisted in localStorage.
 // Distinct from project settings (autonomy / claims) which live in
-// config.toml on disk and are managed by the Permissions section.
+// config.toml on disk and are managed by project/agent settings.
 // These are per-device choices about how the Backlog UI looks and
-// behaves for this user.
+// behaves.
 
 const STORAGE_PREFIX = "backlog.settings.";
 const KEY_SHOW_REVIEW = `${STORAGE_PREFIX}show_review_column`;
 const KEY_NOTIFY_ON_RUN_COMPLETE = `${STORAGE_PREFIX}notify_on_run_complete`;
-const KEY_DISPLAY_NAME = `${STORAGE_PREFIX}display_name`;
+const LEGACY_KEY_DISPLAY_NAME = `${STORAGE_PREFIX}display_name`;
 const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
 
 // Keys that get cleared by "Reset local settings". We list them here
@@ -17,7 +17,7 @@ const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
 const APP_PREFERENCE_KEYS = [
   KEY_SHOW_REVIEW,
   KEY_NOTIFY_ON_RUN_COMPLETE,
-  KEY_DISPLAY_NAME,
+  LEGACY_KEY_DISPLAY_NAME,
   KEY_ONBOARDING_DISMISSED,
   "backlog.locale",
   "backlog.theme.mode",
@@ -54,19 +54,8 @@ function writeBool(key: string, value: boolean): void {
 // "doing" column and only enable it when they have a dedicated review
 // stage. When off, review-status cards still appear, merged into the
 // doing column so no work goes invisible.
-function readString(key: string): string {
-  if (typeof localStorage === "undefined") return "";
-  return localStorage.getItem(key) ?? "";
-}
-function writeString(key: string, value: string): void {
-  if (typeof localStorage === "undefined") return;
-  if (value) localStorage.setItem(key, value);
-  else localStorage.removeItem(key);
-}
-
 let showReviewColumn = $state(readBool(KEY_SHOW_REVIEW, false));
 let notifyOnRunComplete = $state(readBool(KEY_NOTIFY_ON_RUN_COMPLETE, false));
-let displayName = $state(readString(KEY_DISPLAY_NAME));
 
 export function getShowReviewColumn(): boolean {
   return showReviewColumn;
@@ -84,21 +73,11 @@ export function setNotifyOnRunComplete(value: boolean): void {
   writeBool(KEY_NOTIFY_ON_RUN_COMPLETE, value);
 }
 
-export function getDisplayName(): string {
-  return displayName;
-}
-export function setDisplayName(value: string): void {
-  displayName = value.trim();
-  writeString(KEY_DISPLAY_NAME, displayName);
-}
-
-// Compute 1-2 letter initials for the avatar. Priority order:
-//   1. The user's explicit display name from Settings ("Jimmy Douieb" → JD)
-//   2. Camel-case / separator split on the email local-part
-//      ("jimmy.douieb@x" → JD, "jimmyDouieb@x" → JD)
-//   3. First two letters of the local-part ("jimmydouieb@x" → JI)
-export function deriveInitials(email: string | undefined): string {
-  if (displayName) {
+// Compute 1-2 letter initials for the account avatar. Prefer the
+// Cloud profile display name when it exists, then fall back to the
+// email local-part.
+export function deriveInitials(email: string | null | undefined, displayName?: string | null): string {
+  if (displayName?.trim()) {
     const parts = displayName.trim().split(/\s+/).filter(Boolean);
     if (parts.length >= 2) return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
     if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
@@ -108,7 +87,7 @@ export function deriveInitials(email: string | undefined): string {
   if (!local) return "?";
   const split = local.split(/[._\-+]+/).filter(Boolean);
   if (split.length >= 2) return (split[0]![0]! + split[1]![0]!).toUpperCase();
-  // Fall back on a camelCase split (jimmyDouieb → ["jimmy","Douieb"]).
+  // Fall back on a camelCase split for compact handles.
   const camel = local.replace(/([a-z])([A-Z])/g, "$1 $2").split(" ");
   if (camel.length >= 2) return (camel[0]![0]! + camel[1]![0]!).toUpperCase();
   return local.slice(0, 2).toUpperCase();

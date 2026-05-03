@@ -1466,6 +1466,8 @@ export async function pollJiraOauthStatus(state: string): Promise<JiraOauthStatu
 export interface CloudUser {
   id: number;
   email: string;
+  display_name?: string | null;
+  initials?: string | null;
   plan: "free" | "pro" | "enterprise";
   repos_used: number;
   repos_limit: number | null;
@@ -1487,6 +1489,7 @@ export async function fetchCloudStatus(): Promise<CloudStatus> {
 export interface CloudCredentials {
   email: string;
   password: string;
+  display_name?: string;
 }
 
 export interface CloudAuthResult {

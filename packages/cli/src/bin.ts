@@ -22,6 +22,7 @@ import { registerSubTaskCommand } from "./commands/subtask.js";
 import { registerTaskCommand } from "./commands/task.js";
 import { registerProjectCommand } from "./commands/project.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
+import { maybeNotifyCliUpdate, runCliUpdate } from "./update-check.js";
 
 declare const __BACKLOG_VERSION__: string;
 // Replaced at build time by tsup's `define` from package.json#version.
@@ -34,6 +35,15 @@ program
   .name("backlog")
   .description("Backlog — orchestrator for AI coding agents. Claims, isolated worktrees, parallel runs.")
   .version(VERSION, "-v, --version");
+
+program.hook("preAction", async (_thisCommand, actionCommand) => {
+  await maybeNotifyCliUpdate(VERSION, actionCommand.name());
+});
+
+program
+  .command("update")
+  .description("Update the globally installed Backlog CLI")
+  .action(runCliUpdate);
 
 registerInitCommand(program);
 registerDoctorCommand(program);

@@ -26,6 +26,7 @@
   let cloudStatus = $state<CloudStatus | null>(null);
   // svelte-ignore state_referenced_locally
   let mode = $state<"signin" | "signup">(initialMode);
+  let displayName = $state("");
   let email = $state("");
   let password = $state("");
   let busy = $state(false);
@@ -90,7 +91,9 @@
     error = null;
     try {
       const fn = mode === "signup" ? cloudSignup : cloudLogin;
-      const result = await fn({ email: email.trim(), password });
+      const result = mode === "signup"
+        ? await fn({ email: email.trim(), password, display_name: displayName.trim() || undefined })
+        : await fn({ email: email.trim(), password });
       if (!result.ok) {
         if (result.error === "invalid_input" && mode === "signup") {
           error = t("account.error.email_taken");
@@ -206,6 +209,12 @@
           </button>
         </div>
         <div class="divider"><span>{t("account.oauth.or")}</span></div>
+        {#if mode === "signup"}
+          <label class="field">
+            <span class="label">{t("account.display_name")}</span>
+            <input type="text" bind:value={displayName} autocomplete="name" placeholder={t("account.display_name_placeholder")} />
+          </label>
+        {/if}
         <label class="field">
           <span class="label">{t("account.email")}</span>
           <input type="email" bind:value={email} autocomplete="email" />

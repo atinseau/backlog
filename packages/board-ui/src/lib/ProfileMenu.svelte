@@ -24,6 +24,14 @@
   function toggle() {
     open = !open;
   }
+  function activateAvatar() {
+    if (cloudStatus?.signed_in) {
+      toggle();
+      return;
+    }
+    close();
+    onOpenProfile("signup");
+  }
   function close() {
     open = false;
   }
@@ -56,19 +64,29 @@
     await cloudLogout();
     onChanged();
   }
+
+  function accountLabel(): string {
+    if (!cloudStatus?.signed_in || !cloudStatus.user) return t("profile.menu.signup");
+    return cloudStatus.user.display_name || cloudStatus.user.email;
+  }
+
+  function accountInitials(): string {
+    if (!cloudStatus?.signed_in || !cloudStatus.user) return "?";
+    return cloudStatus.user.initials || deriveInitials(cloudStatus.user.email, cloudStatus.user.display_name);
+  }
 </script>
 
 <div class="profile-menu" bind:this={containerEl}>
   <button
     class="avatar"
     class:signed-in={cloudStatus?.signed_in}
-    onclick={toggle}
-    title={cloudStatus?.user?.email ?? t("topbar.profile_signed_out")}
+    onclick={activateAvatar}
+    title={accountLabel()}
     aria-label={t("topbar.profile")}
     aria-expanded={open}
   >
     {#if cloudStatus?.signed_in && cloudStatus.user}
-      <span class="initials">{deriveInitials(cloudStatus.user.email)}</span>
+      <span class="initials">{accountInitials()}</span>
     {:else}
       <!-- Outline user icon — neutral signed-out state -->
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

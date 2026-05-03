@@ -170,6 +170,7 @@ orchestrator state, project changes, and run status changes within ~200ms.
 backlog init                                          Initialize a project
 backlog doctor [--repo <id>] [--json]                 Inspect project health
 backlog status [--repo <id>]                          Project overview
+backlog update                                        Update the global CLI install
 
 backlog                                                   Alias of `backlog board`
 backlog board    [--url <url>]                        Open the kanban (smart wrapper around serve)

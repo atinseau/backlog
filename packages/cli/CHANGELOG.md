@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.27] - 2026-05-03
+
+CLI update prompts and account identity cleanup.
+
+- **The CLI now checks for newer npm releases** — interactive commands show a lightweight cached notice when a newer Backlog CLI is available, and `backlog update` runs `npm install -g backlog`.
+- **Desktop now explains that the terminal CLI is optional** — Settings and launch prompts distinguish the embedded Desktop server/API from the separate global CLI, while still offering install/update actions for terminal use.
+- **Profile identity now belongs to Backlog Cloud** — the local display-name setting is gone; signed-in users get account-derived initials, signup can collect a display name, and signed-out users see a generic account icon that opens account creation.
+
 ## [1.4.26] - 2026-05-03
 
 Desktop CLI detection and update flow.

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Project-scoped API key entry, surfaced as a dedicated dialog so we
-  // can open it from anywhere (the JD profile dropdown for quick
+  // can open it from anywhere (the profile dropdown for quick
   // access, the AgentsView "needs API key" hint, the Settings panel
   // section). Mirrors the SettingsView block but stripped of the
   // surrounding chrome.

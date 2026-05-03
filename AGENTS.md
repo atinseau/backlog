@@ -73,7 +73,7 @@ pnpm --filter @backlog/board-ui build
 
 ## CLI conventions
 
-- Top-level canonical commands: `init`, `doctor` (no `setup` prefix).
+- Top-level canonical commands: `init`, `doctor`, `update` (no `setup` prefix).
 - Grouped namespaces for the rest: `repos`, `work`, `task`, `claim`, `hooks`, `schedule`, `runs`, `agents`, `sources`, `release`, `worktree`.
 - Version flag: `-v, --version` (lowercase).
 - Default mode is fully local. Cloud sync (when available) is opt-in.
