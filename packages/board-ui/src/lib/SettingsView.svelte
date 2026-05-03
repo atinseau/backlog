@@ -1,7 +1,8 @@
 <script lang="ts">
   // Project-scoped settings — surfaces that read/write the active
-  // project's state (API keys in secrets.json, the chat history we
-  // store keyed by project id, the project's own paths). General
+  // project's state (chat history keyed by project id, project paths).
+  // API keys are shown here for convenience but are account-scoped so
+  // they work across normal projects and repo-only boards. General
   // app preferences (theme, locale, identity, notifications, CLI,
   // about, reset) live in GeneralSettingsView, opened from the
   // top-right profile dropdown.

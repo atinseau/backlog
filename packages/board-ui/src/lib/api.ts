@@ -1928,10 +1928,10 @@ export async function inspectFolder(absolutePath: string): Promise<FolderInspect
 // --- Secrets (API keys) ---
 export type SecretKey = "ANTHROPIC_API_KEY" | "OPENAI_API_KEY";
 
-export async function fetchSecretsList(): Promise<{ key: string; set: boolean }[]> {
+export async function fetchSecretsList(): Promise<{ key: string; set: boolean; scope?: "project" | "account" | null }[]> {
   const response = await fetch(apiUrl("/secrets"));
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const json = (await response.json()) as { keys: { key: string; set: boolean }[] };
+  const json = (await response.json()) as { keys: { key: string; set: boolean; scope?: "project" | "account" | null }[] };
   return json.keys;
 }
 

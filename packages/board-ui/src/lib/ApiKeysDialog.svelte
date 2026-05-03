@@ -1,13 +1,9 @@
 <script lang="ts">
-  // Project-scoped API key entry, surfaced as a dedicated dialog so we
-  // can open it from anywhere (the profile dropdown for quick
-  // access, the AgentsView "needs API key" hint, the Settings panel
-  // section). Mirrors the SettingsView block but stripped of the
-  // surrounding chrome.
-  //
-  // The keys themselves live in `<project>/secrets.json` (encrypted
-  // at rest). Setting one persists across launches and is read by the
-  // executor's buildProviderEnv at run time.
+  // Account-scoped API key entry, surfaced as a dedicated dialog so we
+  // can open it from anywhere (profile dropdown, AgentsView hints,
+  // Settings). Values live in ~/.backlog/secrets.json, encrypted at
+  // rest, so repo-only transient boards and registered projects share
+  // the same default keys. Project secrets can still override them.
   import {
     fetchSecretsList,
     setSecret as apiSetSecret,

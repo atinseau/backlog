@@ -1,14 +1,21 @@
-import { hasSecret, listSecretKeys, setSecret, deleteSecret } from "@backlog/config";
+import {
+  deleteAccountSecret,
+  deleteProjectSecret,
+  describeSecretScope,
+  hasSecret,
+  listAccountSecretKeys,
+  listSecretKeys,
+  setAccountSecret,
+} from "@backlog/config";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
-// Secrets endpoint — exposes the project's encrypted secrets store
-// (secrets.json) to the UI so the user can configure API keys without
-// touching the CLI. Only key NAMES + an "is set" flag are returned;
-// values stay server-side. Mutations require write access to the
-// project dir which is already implicit from being able to reach
-// this endpoint.
+// Secrets endpoint — exposes API-key presence to the UI without ever
+// returning values. API keys set from the UI are account-scoped
+// (~/.backlog/secrets.json), matching `backlog secrets set`, so they
+// work across normal projects and repo-only transient boards. Project
+// secrets remain supported as overrides through the lookup chain.
 
 const allowedKeys = z.enum(["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]);
 
@@ -17,9 +24,16 @@ export function secretsRoutes(): Hono<AppEnv> {
 
   app.get("/secrets", (c) => {
     const project = c.get("project");
-    const keys = listSecretKeys(project.backlogDir);
+    const keys = [...new Set([
+      ...listAccountSecretKeys(),
+      ...listSecretKeys(project.backlogDir),
+    ])].sort();
     return c.json({
-      keys: keys.map((key) => ({ key, set: true })),
+      keys: keys.map((key) => ({
+        key,
+        set: hasSecret(project.backlogDir, key),
+        scope: describeSecretScope(project.backlogDir, key),
+      })),
     });
   });
 
@@ -33,7 +47,7 @@ export function secretsRoutes(): Hono<AppEnv> {
     if (!parsed.success) {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
-    setSecret(project.backlogDir, keyParsed.data, parsed.data.value);
+    setAccountSecret(keyParsed.data, parsed.data.value);
     return c.json({ ok: true, key: keyParsed.data, set: true });
   });
 
@@ -42,7 +56,8 @@ export function secretsRoutes(): Hono<AppEnv> {
     const keyParam = c.req.param("key");
     const keyParsed = allowedKeys.safeParse(keyParam);
     if (!keyParsed.success) return c.json({ error: "unknown_key" }, 400);
-    deleteSecret(project.backlogDir, keyParsed.data);
+    deleteProjectSecret(project.backlogDir, keyParsed.data);
+    deleteAccountSecret(keyParsed.data);
     return c.json({ ok: true, key: keyParsed.data, set: false });
   });
 

@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.34] - 2026-05-03
+
+Account-scoped API keys for repo-only boards.
+
+- **API keys entered in the UI now work across projects** — the API key dialog stores Anthropic/OpenAI keys in the local account scope (`~/.backlog/secrets.json`), matching `backlog secrets set`, so repo-only transient boards can use keys already configured on the machine.
+- **The board now reports resolved API-key presence** — `/secrets` includes account defaults and project overrides, while agent readiness uses the same project → account lookup chain as the executors.
+- **Deleting an API key from the UI fully clears it locally** — the delete action removes both project overrides and the account default for that key.
+
 ## [1.4.33] - 2026-05-03
 
 Project creation and repo-only board launch polish.
