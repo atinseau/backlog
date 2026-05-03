@@ -1,6 +1,6 @@
 {
   "name": "@backlog/desktop",
-  "version": "1.4.30",
+  "version": "1.4.31",
   "private": true,
   "license": "Apache-2.0",
   "description": "Backlog desktop app (Electron) — embeds the local Hono server and kanban UI in a native window.",

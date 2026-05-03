@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.31] - 2026-05-03
+
+Desktop quit and agent selection polish.
+
+- **Cmd+Q now quits Desktop on the first press** — server cleanup runs in the background instead of cancelling the quit event, while update installs keep their dedicated quit flow.
+- **The header now exposes the selected run agent** — the top bar shows an Auto/agent dropdown, persists the choice per project, routes runs through the selected agent, and links directly to Agents management.
+
 ## [1.4.30] - 2026-05-03
 
 Desktop launch polish and French copy cleanup.

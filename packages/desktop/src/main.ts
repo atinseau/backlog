@@ -44,6 +44,7 @@ type UpdateStatus =
 
 let lastUpdateStatus: UpdateStatus | null = null;
 let manualUpdateCheckVisible = false;
+let installingUpdate = false;
 
 // Translate raw electron-updater error strings into something a normal
 // user can read. The library's defaults look like:
@@ -65,7 +66,7 @@ function humanizeUpdateError(raw: string): { message: string; detail: string } {
   // who hit the bug above was caught in exactly this window.
   if (/latest-(mac|linux|win)?\.?ya?ml/i.test(raw) && /404|not.*found|cannot find/i.test(raw)) {
     return {
-      message: "La nouvelle version est en cours de finalisation. Réessaye dans 2-3 minutes.",
+      message: "La nouvelle version est en cours de finalisation. Réessayez dans 2-3 minutes.",
       detail,
     };
   }
@@ -77,19 +78,19 @@ function humanizeUpdateError(raw: string): { message: string; detail: string } {
   }
   if (/ETIMEDOUT|ESOCKETTIMEDOUT/i.test(raw)) {
     return {
-      message: "Connexion au serveur de mises à jour trop lente. Réessaye plus tard.",
+      message: "Connexion au serveur de mises à jour trop lente. Réessayez plus tard.",
       detail,
     };
   }
   if (/rate.?limit|too many requests|HTTP 403/i.test(raw)) {
     return {
-      message: "GitHub limite temporairement les requêtes. Réessaye dans quelques minutes.",
+      message: "GitHub limite temporairement les requêtes. Réessayez dans quelques minutes.",
       detail,
     };
   }
   if (/code.?sign|signature|trust/i.test(raw)) {
     return {
-      message: "La nouvelle version est signée différemment. Télécharge-la manuellement depuis backlog.so/desktop.",
+      message: "La nouvelle version est signée différemment. Téléchargez-la manuellement depuis backlog.so/desktop.",
       detail,
     };
   }
@@ -100,7 +101,7 @@ function humanizeUpdateError(raw: string): { message: string; detail: string } {
     };
   }
   return {
-    message: "Mise à jour indisponible pour l'instant. Réessaye plus tard.",
+    message: "Mise à jour indisponible pour l'instant. Réessayez plus tard.",
     detail,
   };
 }
@@ -174,8 +175,10 @@ ipcMain.handle("backlog:update-install", async () => {
   // renderer guards the button visibility on lastUpdateStatus.kind ===
   // "downloaded".
   try {
+    installingUpdate = true;
     autoUpdater.quitAndInstall();
   } catch (err) {
+    installingUpdate = false;
     console.warn("[auto-update] quitAndInstall failed:", err instanceof Error ? err.message : err);
   }
 });
@@ -387,7 +390,8 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-let isQuitting = false;
+let quitCleanupStarted = false;
+let quitForceTimer: NodeJS.Timeout | null = null;
 const QUIT_SERVER_CLOSE_TIMEOUT_MS = 1_200;
 
 async function closeServerForQuit(handle: RunningServer): Promise<void> {
@@ -471,16 +475,33 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", (event) => {
-  if (isQuitting || !serverHandle) return;
-  event.preventDefault();
-  isQuitting = true;
+function beginQuitCleanup(): void {
+  if (quitCleanupStarted) return;
+  quitCleanupStarted = true;
   const handle = serverHandle;
   serverHandle = null;
-  closeServerForQuit(handle)
-    .finally(() => {
-          // app.quit() re-fires before-quit. The isQuitting guard above
-          // catches the second call and early-returns, so we don't loop.
-      app.quit();
-    });
+  if (!handle) return;
+
+  if (!installingUpdate) {
+    quitForceTimer = setTimeout(() => {
+      // If an open socket or platform-specific close hook keeps Electron
+      // alive, force the process down. Cmd+Q must be one gesture.
+      app.exit(0);
+    }, QUIT_SERVER_CLOSE_TIMEOUT_MS + 300);
+    quitForceTimer.unref?.();
+  }
+
+  void closeServerForQuit(handle).finally(() => {
+    if (quitForceTimer) {
+      clearTimeout(quitForceTimer);
+      quitForceTimer = null;
+    }
+  });
+}
+
+app.on("before-quit", () => {
+  // Do not prevent the quit event. Cleanup is best-effort in the
+  // background; otherwise macOS can require Cmd+Q twice while the
+  // embedded server is shutting down.
+  beginQuitCleanup();
 });

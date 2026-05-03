@@ -40,8 +40,7 @@
   const selectedLabel = $derived(selected ? formatAgentLabel(selected) : null);
   const triggerLabel = $derived(
     selectedLabel ? selectedLabel.short
-      : executable.length === 0 ? t("agent_picker.none")
-      : t("agent_picker.choose"),
+      : t("agent_picker.auto"),
   );
 
   function toggle() { open = !open; }
@@ -81,7 +80,7 @@
     onclick={toggle}
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={selected?.model ? `${selected.id} · ${selected.model}` : t("agent_picker.tooltip")}
+    title={selected?.model ? `${selected.id} · ${selected.model}` : t("agent_picker.auto_hint")}
   >
     <span class="bot-icon" aria-hidden="true">🤖</span>
     <span class="name">{triggerLabel}</span>
@@ -91,6 +90,17 @@
 
   {#if open}
     <div class="menu" role="listbox">
+      <button
+        class="item"
+        class:active={selectedId === null}
+        onclick={() => pick(null)}
+        title={t("agent_picker.auto_hint")}
+      >
+        <span class="provider provider-auto">auto</span>
+        <span class="item-name">{t("agent_picker.auto")}</span>
+        {#if selectedId === null}<span class="check">✓</span>{/if}
+      </button>
+      <div class="separator"></div>
       {#if executable.length === 0}
         <div class="empty-row">{t("agent_picker.empty")}</div>
       {:else}
@@ -137,12 +147,21 @@
     font-size: 12.5px;
     color: var(--text-primary);
     height: 32px;
+    max-width: 210px;
+    min-width: 0;
   }
   .trigger:hover {
     border-color: var(--accent);
   }
   .bot-icon { font-size: 12px; flex-shrink: 0; line-height: 1; }
-  .name { font-weight: 500; }
+  .name {
+    font-weight: 500;
+    min-width: 0;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* Context window pill — shows model capacity at a glance ("1M",
      "200k", "128k"). Only rendered when we know the value; unknown
      models simply hide the chip rather than guessing. */
@@ -210,6 +229,7 @@
   .provider-claude { background: var(--danger); }
   .provider-codex { background: var(--success); }
   .provider-custom { background: #a78bfa; }
+  .provider-auto { background: var(--text-subtle); }
 
   .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .item-model {

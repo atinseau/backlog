@@ -317,6 +317,8 @@
   "card.play_waiting_on": "Cette tâche dépend d'une autre sous-tâche pas encore finie. Ouvrez le détail de la tâche pour voir laquelle — terminez-la ou débloquez-la d'abord.",
   "card.play_dependency_failed": "Une sous-tâche dont celle-ci dépend a échoué. Ouvrez le détail, relancez la dépendance qui plante, puis revenez.",
   "agent_picker.choose": "Choisir un agent",
+  "agent_picker.auto": "Auto",
+  "agent_picker.auto_hint": "Laisser Backlog choisir le meilleur agent disponible.",
   "agent_picker.none": "Aucun agent",
   "agent_picker.empty": "Aucun agent IA configuré.",
   "agent_picker.disabled_hint": "Cet agent est désactivé. Activez-le dans Agents pour pouvoir le choisir.",

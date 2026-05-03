@@ -30,6 +30,7 @@
   import ProfileMenu from "./lib/ProfileMenu.svelte";
   import ProfileView from "./lib/ProfileView.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
+  import AgentPicker from "./lib/AgentPicker.svelte";
   import RunStatusDisplay from "./lib/RunStatusDisplay.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
@@ -80,6 +81,7 @@
   const REPO_STORAGE_KEY = "backlog.selected_repo_id";
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   const PROJECT_PICK_STORAGE_KEY = "backlog.project_picker_requested";
+  const AGENT_STORAGE_PREFIX = "backlog.selected_agent_id";
   const LAUNCH_PROJECT_PARAMS = ["project", "workspace"];
   const LAUNCH_REPO_PARAM = "repo";
   const LAUNCH_PICK_PROJECT_PARAM = "pick_project";
@@ -149,6 +151,7 @@
   let projects = $state<ProjectEntry[]>([]);
   let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
+  let selectedAgentId = $state<string | null>(null);
   let error = $state<string | null>(null);
   let loadError = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
@@ -193,8 +196,7 @@
   const assigneesForMenu = $derived.by((): Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }> => {
     const out: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }> = [];
     for (const a of agentsList) {
-      const isExec = a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
-      if (!isExec) continue;
+      if (!isExecutableAgent(a)) continue;
       out.push({ id: a.id, label: formatAgentLabel(a).short, kind: "agent", ready: !a.needs_api_key });
     }
     for (const u of usersList) {
@@ -202,6 +204,17 @@
       out.push({ id: u.id, label: u.display_name || u.email, kind: "user" });
     }
     return out;
+  });
+
+  function isExecutableAgent(a: AgentSummary): boolean {
+    return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
+  }
+
+  const selectedRunAgentId = $derived.by(() => {
+    if (!selectedAgentId) return null;
+    if (agentsList.length === 0) return selectedAgentId;
+    const agent = agentsList.find((candidate) => candidate.id === selectedAgentId);
+    return agent && isExecutableAgent(agent) ? agent.id : null;
   });
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations
@@ -423,10 +436,14 @@
     if (!selectedProjectId) {
       agentsList = [];
       usersList = [];
+      selectedAgentId = null;
       return;
     }
     try { agentsList = await fetchAgents(); }
     catch { agentsList = []; }
+    if (selectedAgentId && agentsList.length > 0 && !agentsList.some((agent) => agent.id === selectedAgentId && isExecutableAgent(agent))) {
+      persistSelectedAgent(null);
+    }
     // Users + agents share the assignee picker — keep them in sync.
     void refreshUsers();
   }
@@ -512,6 +529,23 @@
     refresh();
   }
 
+  function selectedAgentStorageKey(projectId: string): string {
+    return `${AGENT_STORAGE_PREFIX}.${projectId}`;
+  }
+
+  function readSelectedAgent(projectId: string | null): string | null {
+    if (!projectId || typeof localStorage === "undefined") return null;
+    return localStorage.getItem(selectedAgentStorageKey(projectId));
+  }
+
+  function persistSelectedAgent(id: string | null) {
+    selectedAgentId = id;
+    if (!selectedProjectId || typeof localStorage === "undefined") return;
+    const key = selectedAgentStorageKey(selectedProjectId);
+    if (id) localStorage.setItem(key, id);
+    else localStorage.removeItem(key);
+  }
+
   async function selectRepo(id: string | null) {
     error = null;
     if (!id) {
@@ -579,6 +613,7 @@
     selectedRepoId = options.repoId ?? null;
     if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
     else localStorage.removeItem(REPO_STORAGE_KEY);
+    selectedAgentId = readSelectedAgent(id);
     board = null;
     projectRepos = [];
     selectedTaskId = null;
@@ -638,9 +673,11 @@
       selectedRepoId = launch.repoId ?? localStorage.getItem(REPO_STORAGE_KEY);
       if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
       else localStorage.removeItem(REPO_STORAGE_KEY);
+      selectedAgentId = readSelectedAgent(preferred);
     } else if (shouldPickProject) {
       selectedProjectId = null;
       selectedRepoId = null;
+      selectedAgentId = null;
       setCurrentProjectId(null);
       localStorage.removeItem(PROJECT_STORAGE_KEY);
       localStorage.removeItem(REPO_STORAGE_KEY);
@@ -838,6 +875,7 @@
     openActivityPanel();
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
+      if (selectedRunAgentId) runInput.agent_id = selectedRunAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
@@ -952,6 +990,7 @@
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
     const input: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
     if (options.allowDirtyDirect) input.allow_dirty_direct = true;
+    if (selectedRunAgentId) input.agent_id = selectedRunAgentId;
     const result = await startRun(input);
     if (result.started.length > 0) {
       directDirtyPrompt = null;
@@ -1173,6 +1212,12 @@
     <div class="topbar-center">
       {#if projectShellReady}
         <RunStatusDisplay board={board} projectId={selectedProjectId} onOpenActivity={openActivityPanel} />
+        <AgentPicker
+          agents={agentsList}
+          selectedId={selectedAgentId}
+          onSelect={persistSelectedAgent}
+          onManageAgents={() => applySection("agents")}
+        />
       {/if}
     </div>
     <div class="topbar-right">
@@ -1432,6 +1477,7 @@
   <StartPromptDialog
     taskId={startPrompt.taskId}
     subTasksCreated={startPrompt.subTasksCreated}
+    agentId={selectedRunAgentId}
     onClose={() => (startPrompt = null)}
     onBlocked={(message, action, taskId) => {
       const card = findCardById(taskId);
@@ -1668,8 +1714,10 @@
   }
   .topbar-center {
     display: flex;
+    align-items: center;
     justify-content: center;
     justify-self: center;
+    gap: 8px;
     min-width: 0;
   }
   .topbar-right {
