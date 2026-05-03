@@ -36,9 +36,12 @@
     onOpenDiff?: (repo: string, file: string, sha?: string | null, base?: string | null, head?: string | null) => void;
   }
 
+  type GitTab = "changes" | "history" | "branches" | "worktrees";
+  type CommitGroup = { repo: string; paths: string[] };
+
   let { onClose, embedded = false, selectedRepoId = null, onCommitted, onOpenDiff }: Props = $props();
 
-  let activeTab = $state<"changes" | "history" | "worktrees">("changes");
+  let activeTab = $state<GitTab>("changes");
   let commits = $state<CommitEntry[]>([]);
   let repos = $state<GitRepoChanges[]>([]);
   let remotes = $state<GitRemoteState[]>([]);
@@ -65,24 +68,21 @@
   let commitFilesLoading = $state(false);
   let commitFilesError = $state<string | null>(null);
 
-  const dirtyCount = $derived(repos.reduce((sum, repo) => sum + repo.status.total, 0));
+  const dirtyCount = $derived(repos.reduce((sum, repo) => sum + repo.changes.length, 0));
   const visibleRepos = $derived(repos.filter((repo) => repo.changes.length > 0 || repo.status.error));
   const selectedPaths = $derived([...selected]);
-  const commitRepo = $derived.by(() => {
-    const repoIds = new Set(selectedPaths.map((key) => key.split("\0")[0]).filter(Boolean));
-    return repoIds.size === 1 ? [...repoIds][0] : null;
-  });
-  const canCommit = $derived(Boolean(commitRepo && selectedPaths.length > 0 && message.trim() && !committing));
+  const selectedRepoCount = $derived(new Set(selectedPaths.map((key) => key.split("\0")[0]).filter(Boolean)).size);
+  const canCommit = $derived(Boolean(selectedPaths.length > 0 && message.trim() && !committing));
 
   function focusOnMount(node: HTMLElement): void {
     setTimeout(() => node.focus(), 0);
   }
 
-  function setActiveTab(next: "changes" | "history" | "worktrees") {
+  function setActiveTab(next: GitTab) {
     activeTab = next;
   }
 
-  function handleTabKeydown(e: KeyboardEvent, next: "changes" | "history" | "worktrees") {
+  function handleTabKeydown(e: KeyboardEvent, next: GitTab) {
     if (e.key !== "Enter" && e.key !== " ") return;
     e.preventDefault();
     setActiveTab(next);
@@ -96,6 +96,21 @@
     return selectedPaths
       .filter((key) => key.startsWith(`${repoId}\0`))
       .map((key) => key.slice(repoId.length + 1));
+  }
+
+  function selectedPathGroups(): CommitGroup[] {
+    const groups = new Map<string, string[]>();
+    for (const key of selectedPaths) {
+      const separator = key.indexOf("\0");
+      if (separator === -1) continue;
+      const repo = key.slice(0, separator);
+      const path = key.slice(separator + 1);
+      if (!repo || !path) continue;
+      const paths = groups.get(repo) ?? [];
+      paths.push(path);
+      groups.set(repo, paths);
+    }
+    return [...groups.entries()].map(([repo, paths]) => ({ repo, paths }));
   }
 
   function resetSelection(nextRepos: GitRepoChanges[]) {
@@ -275,21 +290,25 @@
     return committable.length > 0 && committable.every((change) => selected.has(keyFor(repo.repo, change.path)));
   }
 
-  async function commitSelected() {
-    if (!commitRepo) {
-      error = t("git.commit.select_one_repo");
-      return;
-    }
+  async function commitGroups(groups: CommitGroup[]) {
+    const text = message.trim();
+    if (groups.length === 0 || !text) return;
     committing = true;
     error = null;
     info = null;
     try {
-      const result = await commitGitChanges({
-        repo: commitRepo,
-        paths: pathsForRepo(commitRepo),
-        message: message.trim(),
-      });
-      info = t("git.commit.done", { sha: result.short_sha });
+      const results: string[] = [];
+      for (const group of groups) {
+        const result = await commitGitChanges({
+          repo: group.repo,
+          paths: group.paths,
+          message: text,
+        });
+        results.push(result.short_sha);
+      }
+      info = results.length === 1
+        ? t("git.commit.done", { sha: results[0] })
+        : t("git.commit.done_multi", { count: results.length });
       message = "";
       await load();
       onCommitted?.();
@@ -298,6 +317,16 @@
     } finally {
       committing = false;
     }
+  }
+
+  async function commitSelected() {
+    await commitGroups(selectedPathGroups());
+  }
+
+  async function commitRepoSelection(repoId: string) {
+    const paths = pathsForRepo(repoId);
+    if (paths.length === 0) return;
+    await commitGroups([{ repo: repoId, paths }]);
   }
 
   async function syncRepo(repoId: string) {
@@ -531,6 +560,7 @@
   });
 
   $effect(() => {
+    if (activeTab !== "branches") return;
     for (const state of branches) {
       if (state.error) continue;
       const source = selectedMergeSource(state);
@@ -574,6 +604,20 @@
         </div>
         <div
           class="tab"
+          class:active={activeTab === "branches"}
+          role="tab"
+          aria-selected={activeTab === "branches"}
+          tabindex="0"
+          onfocus={() => setActiveTab("branches")}
+          onmousedown={() => setActiveTab("branches")}
+          onclick={() => setActiveTab("branches")}
+          onkeydown={(e) => handleTabKeydown(e, "branches")}
+        >
+          <span>{t("git.tab.branches")}</span>
+          {#if branches.length > 0}<span class="badge muted">{branches.length}</span>{/if}
+        </div>
+        <div
+          class="tab"
           class:active={activeTab === "worktrees"}
           role="tab"
           aria-selected={activeTab === "worktrees"}
@@ -599,7 +643,7 @@
   {#if error}<div class="error">{error}</div>{/if}
   {#if info}<div class="info">{info}</div>{/if}
 
-  {#if branches.length > 0}
+  {#if !loading && activeTab === "branches" && branches.length > 0}
     <div class="branch-bar" aria-label={t("git.branch.section")}>
       {#each branches as state (state.repo)}
         {@const remote = remoteFor(state.repo)}
@@ -775,22 +819,38 @@
     <div class="loading">…</div>
   {:else if activeTab === "changes"}
     <div class="changes-layout">
+      <div class="changes-toolbar">
+        <span>{t("git.changes.summary", { count: dirtyCount })}</span>
+        {#if selectedPaths.length > 0}
+          <span>{t("git.changes.selected", { count: selectedPaths.length, repositories: selectedRepoCount })}</span>
+        {/if}
+      </div>
       <div class="changes-list">
         {#if visibleRepos.length === 0}
           <div class="empty">{t("git.changes.empty")}</div>
         {:else}
           {#each visibleRepos as repo (repo.repo)}
             <section class="repo-block">
-              <label class="repo-row">
-                <input
-                  type="checkbox"
-                  checked={repoChecked(repo)}
-                  disabled={repo.changes.length === 0}
-                  onchange={(e) => toggleRepo(repo, e.currentTarget.checked)}
-                />
-                <span class="repo-name">{repo.repo}</span>
-                <span class="repo-count">{repo.status.total}</span>
-              </label>
+              <div class="repo-row">
+                <label class="repo-check">
+                  <input
+                    type="checkbox"
+                    checked={repoChecked(repo)}
+                    disabled={repo.changes.length === 0}
+                    onchange={(e) => toggleRepo(repo, e.currentTarget.checked)}
+                  />
+                  <span class="repo-name">{repo.repo}</span>
+                </label>
+                <span class="repo-count">{repo.changes.length}</span>
+                <button
+                  type="button"
+                  class="repo-commit"
+                  onclick={() => commitRepoSelection(repo.repo)}
+                  disabled={pathsForRepo(repo.repo).length === 0 || !message.trim() || committing}
+                >
+                  {t("git.commit.button_files", { count: pathsForRepo(repo.repo).length })}
+                </button>
+              </div>
               {#if repo.status.error}
                 <div class="repo-error">
                   {#if isMissingRepoPathError(repo.status.error)}
@@ -846,13 +906,15 @@
         <button class="primary" onclick={commitSelected} disabled={!canCommit}>
           {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
         </button>
-        {#if selectedPaths.length > 0 && !commitRepo}
-          <p class="hint">{t("git.commit.select_one_repo")}</p>
+        {#if selectedRepoCount > 1}
+          <p class="hint">{t("git.commit.multi_repo_hint", { count: selectedRepoCount })}</p>
         {:else}
           <p class="hint">{t("git.commit.enter_hint")}</p>
         {/if}
       </aside>
     </div>
+  {:else if activeTab === "branches" && branches.length === 0}
+    <div class="empty">{t("git.branch.empty")}</div>
   {:else if activeTab === "worktrees"}
     <div class="worktrees-view">
       {#if worktrees.length === 0}
@@ -960,9 +1022,9 @@
         {/each}
       {/if}
     </div>
-  {:else if commits.length === 0}
+  {:else if activeTab === "history" && commits.length === 0}
     <div class="empty">{t("commits.empty")}</div>
-  {:else}
+  {:else if activeTab === "history"}
     <ul class="commits">
       {#each commits as commit (commit.repo + ":" + commit.sha)}
         {@const isActiveCommit = selectedCommitKey === commitKey(commit)}
@@ -1152,12 +1214,13 @@
     min-height: 0;
   }
   .branch-bar {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 8px 12px;
-    border-bottom: 1px solid var(--border-default);
     background: var(--bg-muted);
   }
   .branch-card {
@@ -1374,6 +1437,18 @@
   .changes-list {
     flex: 1 1 auto;
   }
+  .changes-toolbar {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
   .worktrees-view {
     flex: 1 1 auto;
     min-height: 0;
@@ -1507,6 +1582,19 @@
     font-size: 13px;
   }
   .repo-row { background: var(--bg-muted); color: var(--text-primary); font-weight: 600; }
+  .repo-check {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .repo-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .repo-count {
     margin-left: auto;
     font-size: 11px;
@@ -1514,6 +1602,25 @@
     background: var(--bg-hover);
     border-radius: 999px;
     padding: 1px 6px;
+  }
+  .repo-commit {
+    flex: 0 0 auto;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .repo-commit:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .repo-commit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
   .repo-error {
     color: var(--warning);

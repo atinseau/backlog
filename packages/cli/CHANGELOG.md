@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.29] - 2026-05-03
+
+Git Changes cleanup.
+
+- **Git Changes now shows changed files only** — branch, merge, sync, and worktree controls no longer crowd the Changes tab, so the badge count maps directly to the visible file list.
+- **Branch management has its own tab** — checkout, branch creation, merge previews, and sync controls moved to a dedicated Branches tab.
+- **Multi-repository commits are smoother** — selected files can be committed across repositories with one message, while each repository still exposes its own commit action for smaller commits.
+
 ## [1.4.28] - 2026-05-03
 
 Desktop project persistence, safer updates, and richer Runs.
