@@ -177,6 +177,7 @@ export interface ProjectEntry {
   id: string;
   path: string;
   name: string;
+  transient?: boolean;
   /**
    * Where the project lives relative to the path:
    *   "in_repo"     → <path>/.backlog/  (single-repo project)
@@ -192,9 +193,17 @@ export interface ProjectEntry {
 }
 
 export interface CurrentProject {
+  project_id?: string;
   root: string;
   backlog_dir: string;
   resolved_from: string;
+  transient?: boolean;
+  repo_only?: {
+    root: string;
+    repo_id: string;
+    name: string;
+    default_branch: string;
+  } | null;
 }
 
 export type RepoAccessMode = "read-write" | "read-only" | "no-access";

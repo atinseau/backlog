@@ -8,6 +8,7 @@ import {
   listRegisteredProjects,
   loadConfig,
 } from "@backlog/config";
+import { detectRepoRoot } from "@backlog/git";
 
 export const DEFAULT_BOARD_URL = "http://127.0.0.1:7878";
 const HEALTH_PATH = "/api/v1/health";
@@ -78,31 +79,51 @@ function fallbackProjectRoot(): string | null {
   return registered[0]?.path ?? null;
 }
 
-function resolveLaunchContext(): {
+function repoIdFromPath(repoRoot: string): string {
+  return path.basename(repoRoot).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "repository";
+}
+
+export async function resolveLaunchContext(cwd = process.cwd()): Promise<{
   projectRoot: string | null;
   projectId: string | null;
   repoId: string | null;
+  repoOnlyRoot: string | null;
   pickProject: boolean;
-} {
-  const cwdProject = findProject();
+}> {
+  const cwdProject = findProject(cwd);
   if (cwdProject) {
     return {
       projectRoot: cwdProject.root,
       projectId: ensureProjectId(cwdProject.backlogDir),
-      repoId: repoIdForCwd(cwdProject.root, cwdProject.backlogDir),
+      repoId: repoIdForCwd(cwdProject.root, cwdProject.backlogDir, cwd),
+      repoOnlyRoot: null,
       pickProject: false,
     };
+  }
+
+  try {
+    const repoRoot = await detectRepoRoot(cwd);
+    return {
+      projectRoot: null,
+      projectId: null,
+      repoId: repoIdFromPath(repoRoot),
+      repoOnlyRoot: repoRoot,
+      pickProject: false,
+    };
+  } catch {
+    // Not in a git repository. Fall back to the registered-project picker.
   }
 
   return {
     projectRoot: fallbackProjectRoot(),
     projectId: null,
     repoId: null,
+    repoOnlyRoot: null,
     pickProject: true,
   };
 }
 
-function urlWithLaunchParams(baseUrl: string, context: ReturnType<typeof resolveLaunchContext>): string {
+function urlWithLaunchParams(baseUrl: string, context: Awaited<ReturnType<typeof resolveLaunchContext>>): string {
   const url = new URL(baseUrl);
   if (context.projectId) url.searchParams.set("project", context.projectId);
   if (context.repoId) url.searchParams.set("repo", context.repoId);
@@ -123,6 +144,30 @@ function relativeOpenUrl(url: string): string {
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
+async function serverMatchesRepoOnly(baseUrl: string, repoRoot: string): Promise<boolean> {
+  try {
+    const response = await fetch(new URL("/api/v1/projects/current", baseUrl));
+    if (!response.ok) return false;
+    const json = (await response.json()) as { repo_only?: { root?: string } | null };
+    return json.repo_only?.root === repoRoot;
+  } catch {
+    return false;
+  }
+}
+
+async function nextAvailableUrl(baseUrl: string): Promise<string> {
+  const parsed = new URL(baseUrl);
+  const startPort = Number.parseInt(parsed.port || (parsed.protocol === "https:" ? "443" : "80"), 10);
+  for (let port = startPort + 1; port < startPort + 20; port += 1) {
+    const candidate = new URL(baseUrl);
+    candidate.port = String(port);
+    if (!(await probeServer(candidate.toString(), 250))) {
+      return candidate.toString();
+    }
+  }
+  throw new Error(`No available board port found after ${baseUrl}.`);
+}
+
 function execServeAndBlock(args: string[]): void {
   // Re-invoke ourselves as `backlog serve` through the current Node
   // process. This works both for the built CLI (dist/bin.js) and for
@@ -141,20 +186,33 @@ function execServeAndBlock(args: string[]): void {
 
 export async function runBoardCommand(options: { url?: string } = {}): Promise<void> {
   const baseUrl = options.url ?? DEFAULT_BOARD_URL;
-  const context = resolveLaunchContext();
-  const openUrl = urlWithLaunchParams(baseUrl, context);
-  const reachable = await probeServer(baseUrl);
+  const context = await resolveLaunchContext();
+  let serveUrl = baseUrl;
+  let openUrl = urlWithLaunchParams(serveUrl, context);
+  const reachable = await probeServer(serveUrl);
   if (reachable) {
+    if (context.repoOnlyRoot && !(await serverMatchesRepoOnly(serveUrl, context.repoOnlyRoot))) {
+      serveUrl = await nextAvailableUrl(serveUrl);
+      openUrl = urlWithLaunchParams(serveUrl, context);
+    } else {
+      console.log(`Opening ${openUrl}…`);
+      openInBrowser(openUrl);
+      return;
+    }
+  }
+
+  if (reachable && serveUrl === baseUrl) {
     console.log(`Opening ${openUrl}…`);
     openInBrowser(openUrl);
     return;
   }
 
-  const args = serveNetworkArgs(baseUrl);
+  const args = serveNetworkArgs(serveUrl);
   if (context.projectRoot) args.push("--project", context.projectRoot);
+  if (context.repoOnlyRoot) args.push("--repo-only", context.repoOnlyRoot);
   args.push("--open-url", relativeOpenUrl(openUrl));
 
-  console.log(`No server reachable at ${baseUrl}; starting \`backlog serve\` (Ctrl+C to stop)…`);
+  console.log(`Starting \`backlog serve\` at ${serveUrl} (Ctrl+C to stop)…`);
   execServeAndBlock(args);
 }
 

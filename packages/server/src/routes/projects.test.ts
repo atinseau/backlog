@@ -63,10 +63,71 @@ describe("GET /projects/current", () => {
     const res = await app.request("/projects/current");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      project_id: serverProject.project_id,
       root,
       backlog_dir: path.join(root, ".backlog"),
       resolved_from: root,
+      transient: false,
+      repo_only: null,
     });
+  });
+
+  it("includes repo-only context for a transient repository board", async () => {
+    const dir = tmpRegistryDir();
+    const { root, serverProject } = makeProject();
+    serverProject.transient = true;
+    serverProject.repoOnly = {
+      root,
+      repo_id: "demo",
+      name: "Demo",
+      default_branch: "main",
+    };
+    const app = projectsRoutes(serverProject, { registry: { dir } });
+    const res = await app.request("/projects/current");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      project_id: serverProject.project_id,
+      transient: true,
+      repo_only: {
+        root,
+        repo_id: "demo",
+        name: "Demo",
+        default_branch: "main",
+      },
+    });
+  });
+});
+
+describe("GET /projects/git/branches", () => {
+  it("lists remote branches and default branch", async () => {
+    const dir = tmpRegistryDir();
+    const { serverProject } = makeProject();
+    const origin = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-routes-branches-origin-"));
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-routes-branches-work-"));
+    execFileSync("git", ["init", "--bare", origin]);
+    execFileSync("git", ["init"], { cwd: work });
+    execFileSync("git", ["config", "user.email", "backlog@example.test"], { cwd: work });
+    execFileSync("git", ["config", "user.name", "Backlog Test"], { cwd: work });
+    fs.writeFileSync(path.join(work, "README.md"), "hello\n", "utf8");
+    execFileSync("git", ["add", "README.md"], { cwd: work });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: work });
+    execFileSync("git", ["branch", "-M", "main"], { cwd: work });
+    execFileSync("git", ["remote", "add", "origin", origin], { cwd: work });
+    execFileSync("git", ["push", "origin", "main"], { cwd: work });
+    execFileSync("git", ["checkout", "-b", "feature/demo"], { cwd: work });
+    fs.writeFileSync(path.join(work, "feature.txt"), "feature\n", "utf8");
+    execFileSync("git", ["add", "feature.txt"], { cwd: work });
+    execFileSync("git", ["commit", "-m", "feature"], { cwd: work });
+    execFileSync("git", ["push", "origin", "feature/demo"], { cwd: work });
+    execFileSync("git", ["--git-dir", origin, "symbolic-ref", "HEAD", "refs/heads/main"]);
+
+    const app = projectsRoutes(serverProject, { registry: { dir } });
+    const res = await app.request(`/projects/git/branches?url=${encodeURIComponent(origin)}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { branches: string[]; default_branch: string | null };
+    expect(body.default_branch).toBe("main");
+    expect(body.branches).toEqual(expect.arrayContaining(["main", "feature/demo"]));
+    expect(body.branches[0]).toBe("main");
   });
 });
 

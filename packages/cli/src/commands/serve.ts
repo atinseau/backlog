@@ -10,6 +10,7 @@ interface ServeOptions {
   host: string;
   project?: string;
   workspace?: string;
+  repoOnly?: string;
   open: boolean;
   uiDist?: string;
   openUrl?: string;
@@ -61,6 +62,7 @@ export function registerServeCommand(program: Command): void {
     .option("-h, --host <host>", "Hostname or IP to bind", "127.0.0.1")
     .option("--project <path>", "Project directory containing .backlog/")
     .option("-w, --workspace <path>", "Compatibility alias for --project")
+    .option("--repo-only <path>", "Open a repository checkout without registering a Backlog project")
     .option("--no-open", "Do not open the browser automatically")
     .option("--open-url <url>", "Override the browser URL to open; relative URLs resolve against the local server")
     .option("--ui-dist <path>", "Override the UI build directory")
@@ -73,15 +75,23 @@ export function registerServeCommand(program: Command): void {
       if (options.project && options.workspace) {
         throw new Error("Use either --project or --workspace, not both.");
       }
+      if ((options.project || options.workspace) && options.repoOnly) {
+        throw new Error("Use either --project/--workspace or --repo-only, not both.");
+      }
       const startOptions: StartServerOptions = { port, host: options.host };
       if (options.project) startOptions.project = options.project;
       if (options.workspace) startOptions.workspace = options.workspace;
+      if (options.repoOnly) startOptions.repoOnly = options.repoOnly;
       const uiDist = locateUiDist(options.uiDist);
       if (uiDist) startOptions.uiDistDir = uiDist;
       const server = await startServer(startOptions);
 
       console.log(`Backlog board listening at ${server.url}`);
-      console.log(`Project: ${server.project.resolvedFrom}`);
+      if (server.project.transient && server.project.repoOnly) {
+        console.log(`Repository: ${server.project.repoOnly.root}`);
+      } else {
+        console.log(`Project: ${server.project.resolvedFrom}`);
+      }
       if (server.project.root !== server.project.resolvedFrom) {
         console.log(`Project data: ${server.project.root}`);
       }

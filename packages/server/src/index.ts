@@ -1,11 +1,13 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { buildApp, VERSION } from "./app.js";
-import { resolveProject, type ServerProject } from "./project-context.js";
+import { createRepoOnlyProject, resolveProject, type ServerProject } from "./project-context.js";
 
 export interface StartServerOptions {
   project?: string;
   /** Compatibility alias for `project`. */
   workspace?: string;
+  /** Open a repository checkout without registering a Backlog project. */
+  repoOnly?: string;
   port?: number;
   host?: string;
   uiDistDir?: string;
@@ -20,7 +22,9 @@ export interface RunningServer {
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
-  const project = resolveProject(options.project ?? options.workspace);
+  const project = options.repoOnly
+    ? await createRepoOnlyProject(options.repoOnly)
+    : resolveProject(options.project ?? options.workspace);
   const appOptions: { project: ServerProject; uiDistDir?: string } = { project };
   if (options.uiDistDir) appOptions.uiDistDir = options.uiDistDir;
   const { app, buses } = buildApp(appOptions);

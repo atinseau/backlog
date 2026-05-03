@@ -99,6 +99,22 @@ export async function initProject(input: InitProjectInput): Promise<ProjectEntry
   return json.project;
 }
 
+export interface GitRemoteBranches {
+  branches: string[];
+  default_branch: string | null;
+}
+
+export async function fetchGitRemoteBranches(url: string): Promise<GitRemoteBranches> {
+  const response = await fetch(apiUrl("/projects/git/branches", { url }));
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "message" in json
+      ? String((json as { message: string }).message)
+      : `HTTP ${response.status}`);
+  }
+  return json as GitRemoteBranches;
+}
+
 export async function unregisterProjectById(id: string): Promise<void> {
   const response = await fetch(apiUrl(`/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
   if (!response.ok) {
@@ -1877,6 +1893,32 @@ export interface FolderInspect {
   current_branch: string | null;
   branches: string[];
 }
+
+export interface FolderListEntry {
+  name: string;
+  path: string;
+  has_backlog_dir: boolean;
+  is_git_repo: boolean;
+}
+
+export interface FolderList {
+  path: string;
+  parent: string | null;
+  home: string;
+  entries: FolderListEntry[];
+}
+
+export async function listFolders(absolutePath?: string): Promise<FolderList> {
+  const response = await fetch(apiUrl("/folders/list", { path: absolutePath }));
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "error" in json
+      ? String((json as { error: string }).error)
+      : `HTTP ${response.status}`);
+  }
+  return json as FolderList;
+}
+
 export async function inspectFolder(absolutePath: string): Promise<FolderInspect> {
   const response = await fetch(apiUrl("/folders/inspect", { path: absolutePath }));
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

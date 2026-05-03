@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execaSync } from "execa";
 import type { AppEnv } from "../project-resolver.js";
@@ -19,6 +20,20 @@ interface FolderInspect {
   branches: string[];
 }
 
+interface FolderListEntry {
+  name: string;
+  path: string;
+  has_backlog_dir: boolean;
+  is_git_repo: boolean;
+}
+
+interface FolderList {
+  path: string;
+  parent: string | null;
+  home: string;
+  entries: FolderListEntry[];
+}
+
 function safeGit(cwd: string, args: string[]): string | null {
   try {
     const result = execaSync("git", args, { cwd, reject: false, timeout: 3000 });
@@ -31,6 +46,56 @@ function safeGit(cwd: string, args: string[]): string | null {
 
 export function foldersRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  app.get("/folders/list", (c) => {
+    const requested = c.req.query("path")?.trim();
+    let target = requested && path.isAbsolute(requested)
+      ? path.resolve(requested)
+      : os.homedir();
+    while (!fs.existsSync(target)) {
+      const parent = path.dirname(target);
+      if (parent === target) break;
+      target = parent;
+    }
+    if (fs.existsSync(target) && !fs.statSync(target).isDirectory()) {
+      target = path.dirname(target);
+    }
+    if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+      return c.json({ error: "directory_not_found", path: target }, 404);
+    }
+    let entries: FolderListEntry[] = [];
+    try {
+      entries = fs.readdirSync(target, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const entryPath = path.join(target, entry.name);
+          return {
+            name: entry.name,
+            path: entryPath,
+            has_backlog_dir: fs.existsSync(path.join(entryPath, ".backlog")),
+            is_git_repo: fs.existsSync(path.join(entryPath, ".git")),
+          };
+        })
+        .sort((a, b) => {
+          const aHidden = a.name.startsWith(".");
+          const bHidden = b.name.startsWith(".");
+          if (aHidden !== bHidden) return aHidden ? 1 : -1;
+          return a.name.localeCompare(b.name);
+        });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "directory_unreadable", message, path: target }, 403);
+    }
+    const parsed = path.parse(target);
+    const parent = target === parsed.root ? null : path.dirname(target);
+    const out: FolderList = {
+      path: target,
+      parent,
+      home: os.homedir(),
+      entries,
+    };
+    return c.json(out);
+  });
 
   app.get("/folders/inspect", (c) => {
     const target = c.req.query("path");

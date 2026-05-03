@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.33] - 2026-05-03
+
+Project creation and repo-only board launch polish.
+
+- **The New Project dialog is now a real setup flow** — Create, Clone Git, and Existing Project tabs share a cleaner layout with local folder browsing, path status, Git/.backlog badges, and dynamic local or remote branch selection.
+- **Clone Git detects remote branches before creating the project** — the board reads remote heads with `git ls-remote`, prefers the default branch, and falls back to manual branch entry when the remote is unavailable.
+- **`backlog` can open a repository without an existing project** — launching from a Git checkout with no `.backlog` starts a transient repo board, selects that repository automatically, and keeps the user free to create or switch to a registered project later.
+
 ## [1.4.32] - 2026-05-03
 
 Git actions, board ordering, and Runs timing polish.

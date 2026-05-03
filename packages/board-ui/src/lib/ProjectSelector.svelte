@@ -27,6 +27,7 @@
   let editEl = $state<HTMLInputElement | null>(null);
 
   const selected = $derived(projects.find((p) => p.id === selectedId) ?? null);
+  const canRenameSelected = $derived(Boolean(onRename && selected && !selected.transient));
 
   function toggle() { open = !open; }
   function close() { open = false; }
@@ -58,7 +59,7 @@
   }
 
   function startEdit() {
-    if (!onRename || !selected) return;
+    if (!canRenameSelected || !onRename || !selected) return;
     open = false;
     editing = true;
     editValue = selected.name;
@@ -104,7 +105,7 @@
       ondblclick={(e) => { e.stopPropagation(); startEdit(); }}
       aria-haspopup="listbox"
       aria-expanded={open}
-      title={onRename ? t("selector.dblclick_rename") : (selected?.path ?? "")}
+      title={canRenameSelected ? t("selector.dblclick_rename") : (selected?.path ?? "")}
     >
       <span class="name">{selected?.name ?? t("selector.no_project")}</span>
       <span class="chevron" aria-hidden="true">▾</span>

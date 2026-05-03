@@ -9,6 +9,7 @@ import {
   unregisterProject,
 } from "@backlog/config";
 import { cloneRepo, detectGitProvider, discoverRepoForProject, repoIdFromGitUrl } from "@backlog/git";
+import { execa } from "execa";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ServerProject } from "../project-context.js";
@@ -48,10 +49,63 @@ export function projectsRoutes(
   app.get("/projects/current", (c) => {
     const current = c.get("project") ?? defaultProject;
     return c.json({
+      project_id: current.project_id,
       root: current.root,
       backlog_dir: current.backlogDir,
       resolved_from: current.resolvedFrom,
+      transient: current.transient ?? false,
+      repo_only: current.repoOnly ?? null,
     });
+  });
+
+  app.get("/projects/git/branches", async (c) => {
+    const url = c.req.query("url")?.trim();
+    if (!url) {
+      return c.json({ error: "git_url_required" }, 400);
+    }
+    try {
+      const result = await execa("git", ["ls-remote", "--heads", "--symref", url], {
+        reject: false,
+        timeout: 8000,
+      });
+      if (result.exitCode !== 0) {
+        return c.json({
+          error: "git_ls_remote_failed",
+          message: result.stderr.trim() || result.stdout.trim() || "Unable to read remote branches.",
+        }, 400);
+      }
+      const branches: string[] = [];
+      let defaultBranch: string | null = null;
+      for (const rawLine of result.stdout.split("\n")) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const symref = line.match(/^ref:\s+refs\/heads\/(.+)\s+HEAD$/);
+        if (symref?.[1]) {
+          defaultBranch = symref[1];
+          continue;
+        }
+        const marker = "\trefs/heads/";
+        const idx = line.indexOf(marker);
+        if (idx >= 0) {
+          const branch = line.slice(idx + marker.length).trim();
+          if (branch && !branches.includes(branch)) branches.push(branch);
+        }
+      }
+      if (defaultBranch && !branches.includes(defaultBranch)) branches.unshift(defaultBranch);
+      const inferredDefault = defaultBranch
+        ?? (branches.includes("main") ? "main" : branches.includes("master") ? "master" : branches[0] ?? null);
+      if (inferredDefault) {
+        branches.sort((a, b) => {
+          if (a === inferredDefault) return -1;
+          if (b === inferredDefault) return 1;
+          return a.localeCompare(b);
+        });
+      }
+      return c.json({ branches, default_branch: inferredDefault });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "git_ls_remote_failed", message }, 400);
+    }
   });
 
   app.post("/projects", async (c) => {

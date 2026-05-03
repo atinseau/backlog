@@ -63,6 +63,7 @@
     updateBacklogCli,
     type CloudStatus,
     type AgentSummary,
+    type CurrentProject,
     type HealthResponse,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
@@ -149,6 +150,7 @@
   let board = $state<BoardResponse | null>(null);
   let projectRepos = $state<Repo[]>([]);
   let projects = $state<ProjectEntry[]>([]);
+  let currentProject = $state<CurrentProject | null>(null);
   let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let selectedAgentId = $state<string | null>(null);
@@ -254,6 +256,9 @@
   let cliLaunchBusy = $state(false);
   let cliLaunchError = $state<string | null>(null);
   const projectShellReady = $derived(Boolean(selectedProjectId));
+  const createProjectInitialPath = $derived(currentProject?.transient ? currentProject.repo_only?.root ?? "" : "");
+  const createProjectInitialName = $derived(currentProject?.transient ? currentProject.repo_only?.name ?? "" : "");
+  const createProjectInitialBranch = $derived(currentProject?.transient ? currentProject.repo_only?.default_branch ?? "main" : "main");
   const showLeftPanel = $derived(Boolean(projectShellReady && leftOpen));
   const showBottomPanel = $derived(Boolean(projectShellReady && bottomOpen));
   const showRightPanel = $derived(Boolean(projectShellReady && rightOpen));
@@ -508,10 +513,28 @@
 
   async function refreshProjects() {
     try {
-      projects = await fetchProjectsList();
+      projects = withTransientProject(await fetchProjectsList(), currentProject);
     } catch (err) {
       console.warn("projects fetch failed", err);
     }
+  }
+
+  function transientProjectEntry(info: CurrentProject | null): ProjectEntry | null {
+    if (!info?.transient || !info.project_id || !info.repo_only) return null;
+    return {
+      id: info.project_id,
+      path: info.repo_only.root,
+      name: info.repo_only.name,
+      location: "user_level",
+      transient: true,
+      added_at: new Date().toISOString(),
+    };
+  }
+
+  function withTransientProject(list: ProjectEntry[], info: CurrentProject | null): ProjectEntry[] {
+    const transient = transientProjectEntry(info);
+    if (!transient || list.some((project) => project.id === transient.id)) return list;
+    return [transient, ...list];
   }
 
   function scheduleRefresh() {
@@ -634,11 +657,20 @@
     await refreshProjects();
     const launch = readLaunchParams();
     let currentProjectId: string | null = null;
+    let current: CurrentProject | null = null;
     try {
-      const current = await fetchCurrentProject();
-      const match = projects.find((w) => w.path === current.root);
-      currentProjectId = match?.id ?? null;
+      const info = await fetchCurrentProject();
+      current = info;
+      currentProject = info;
+      if (info.transient && info.project_id) {
+        projects = withTransientProject(projects, info);
+        currentProjectId = info.project_id;
+      } else {
+        const match = projects.find((w) => w.path === info.root);
+        currentProjectId = match?.id ?? info.project_id ?? null;
+      }
     } catch {
+      currentProject = null;
       currentProjectId = null;
     }
 
@@ -652,7 +684,11 @@
     // renderer's last explicit selection so refresh keeps the project the
     // user is looking at, while ?pick_project=1 still forces the chooser
     // on a fresh Desktop/global launch.
-    let preferred = launch.projectId ?? (shouldPickProject ? null : (storedProjectId ?? currentProjectId));
+    const currentIsTransient = Boolean(current?.transient && currentProjectId);
+    const preferTransientLaunch = currentIsTransient
+      && Boolean(launch.repoId || !storedProjectId || !known.has(storedProjectId));
+    let preferred = launch.projectId
+      ?? (preferTransientLaunch ? currentProjectId : (shouldPickProject ? null : (storedProjectId ?? currentProjectId)));
     if (preferred && !known.has(preferred)) {
       localStorage.removeItem(PROJECT_STORAGE_KEY);
       preferred = null;
@@ -670,7 +706,9 @@
       if (entry?.path && desktopBridge) {
         void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
       }
-      selectedRepoId = launch.repoId ?? localStorage.getItem(REPO_STORAGE_KEY);
+      const selectedTransientDefault = currentIsTransient && preferred === currentProjectId;
+      selectedRepoId = launch.repoId
+        ?? (selectedTransientDefault ? current?.repo_only?.repo_id ?? null : localStorage.getItem(REPO_STORAGE_KEY));
       if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
       else localStorage.removeItem(REPO_STORAGE_KEY);
       selectedAgentId = readSelectedAgent(preferred);
@@ -1441,6 +1479,9 @@
      center column above. -->
 {#if createProjectOpen}
   <CreateProjectDialog
+    initialPath={createProjectInitialPath}
+    initialName={createProjectInitialName}
+    initialBranch={createProjectInitialBranch}
     onClose={() => (createProjectOpen = false)}
     onCreated={(project, openRepos) => {
       createProjectOpen = false;
