@@ -1,6 +1,6 @@
 import { listRepos } from "@backlog/core";
 import { isLocalShimUpToDate, pickLocalShimProjectRoot, writeLocalShim } from "@backlog/config";
-import { inspectPreCommitHook, installPreCommitHook, readPauseUntil } from "@backlog/hooks";
+import { inspectPreCommitHook, installPreCommitHook, readPauseUntil, uninstallPreCommitHook } from "@backlog/hooks";
 import { Hono } from "hono";
 import path from "node:path";
 import fs from "node:fs";
@@ -160,6 +160,46 @@ export function hooksRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "install_failed", detail: message }, 409);
+    }
+  });
+
+  app.post("/hooks/uninstall", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null) as { repo_id?: unknown } | null;
+    const repoId = typeof raw?.repo_id === "string" ? raw.repo_id : "";
+    if (!repoId) return c.json({ error: "missing_repo_id" }, 400);
+
+    const repo = listRepos(project.backlogDir).find((candidate) => candidate.id === repoId);
+    if (!repo) return c.json({ error: "unknown_repo", repo_id: repoId }, 404);
+
+    const repoPath = resolveRepoPath(project.root, repo.path);
+    const gitDir = findGitDir(repoPath);
+    if (!gitDir) return c.json({ error: "not_a_git_repo", repo_id: repoId, repo_path: repoPath }, 400);
+
+    try {
+      const removed = uninstallPreCommitHook(gitDir);
+      const shimProjectRoot = pickLocalShimProjectRoot(project.root, [repoPath]);
+      const backlogBin = path.join(project.backlogDir, "bin", "backlog");
+      const status = inspectPreCommitHook(gitDir, backlogBin, {
+        projectRoot: project.root,
+        backlogDir: project.backlogDir,
+      });
+      const shimUpToDate = isLocalShimUpToDate(project.backlogDir, shimProjectRoot);
+      return c.json({
+        repo_id: repo.id,
+        repo_path: repoPath,
+        git_dir: gitDir,
+        hook_path: status.hookPath,
+        exists: status.exists,
+        managed: status.managed,
+        points_to_backlog_bin: status.pointsToBacklogBin,
+        shim_up_to_date: shimUpToDate,
+        up_to_date: status.upToDate && shimUpToDate,
+        removed,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "uninstall_failed", detail: message }, 409);
     }
   });
 

@@ -77,11 +77,22 @@ export function parseGitStatusEntries(output: string): GitStatusEntry[] {
   const entries: GitStatusEntry[] = [];
   for (const rawLine of output.split("\n")) {
     if (!rawLine) continue;
-    const indexStatus = rawLine[0] ?? " ";
-    const workingTreeStatus = rawLine[1] ?? " ";
+    let indexStatus = rawLine[0] ?? " ";
+    let workingTreeStatus = rawLine[1] ?? " ";
+    let rawPath = rawLine.slice(3);
+    // Be forgiving with callers that already trimmed the porcelain
+    // output. In porcelain v1, unstaged-only rows start with a
+    // significant leading space, e.g. " M screens/App.ts". If that
+    // leading space is lost, the line becomes "M screens/App.ts";
+    // parsing with slice(3) would drop the first path character.
+    if (rawLine[1] === " " && rawLine[2] && rawLine[2] !== " ") {
+      indexStatus = " ";
+      workingTreeStatus = rawLine[0] ?? " ";
+      rawPath = rawLine.slice(2);
+    }
     const kind = classifyEntry(indexStatus, workingTreeStatus);
     if (!kind) continue;
-    const parsedPath = parsePath(rawLine.slice(3), kind);
+    const parsedPath = parsePath(rawPath, kind);
     entries.push({
       ...parsedPath,
       kind,

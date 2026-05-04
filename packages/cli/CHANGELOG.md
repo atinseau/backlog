@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.38] - 2026-05-04
+
+Git diff and hook management fixes.
+
+- **Git Changes no longer drops the first path character for unstaged files** — porcelain parsing now preserves Git's significant leading status space, so paths like `screens/...` stay intact and open the correct diff.
+- **The Repositories screen can uninstall Backlog hooks** — managed hooks can be removed per repository or all at once without deleting repository files or touching unmanaged hooks.
+
 ## [1.4.37] - 2026-05-04
 
 Header layout polish.

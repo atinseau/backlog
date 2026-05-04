@@ -54,4 +54,26 @@ describe("parseGitStatusPorcelain", () => {
       },
     ]);
   });
+
+  it("keeps the first path character for unstaged-only changes", () => {
+    expect(parseGitStatusEntries(" M screens/MainScreen/MainScreen.js")).toMatchObject([
+      {
+        path: "screens/MainScreen/MainScreen.js",
+        kind: "modified",
+        index_status: " ",
+        working_tree_status: "M",
+      },
+    ]);
+  });
+
+  it("is resilient if an unstaged porcelain line was already left-trimmed", () => {
+    expect(parseGitStatusEntries("M screens/MainScreen/MainScreen.js")).toMatchObject([
+      {
+        path: "screens/MainScreen/MainScreen.js",
+        kind: "modified",
+        index_status: " ",
+        working_tree_status: "M",
+      },
+    ]);
+  });
 });

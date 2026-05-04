@@ -2,7 +2,7 @@
   import { t } from "./i18n.svelte.js";
   import { repoDisplayName, repoIdentityHint } from "./repo-display.js";
   import { relocateRepoPath } from "./repo-relocate.js";
-  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, installRepoHook, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
+  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, installRepoHook, uninstallRepoHook, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repo } from "./types.js";
 
   // Bridge exposed by packages/desktop's preload.ts is typed once in
@@ -58,6 +58,9 @@
     Boolean(status.git_dir) && !status.exists,
   ) ?? []);
   const missingHookCount = $derived(missingHookTargets.length);
+  const installedManagedHooks = $derived(hooks?.hooks.filter((status) =>
+    Boolean(status.git_dir) && status.exists && status.managed,
+  ) ?? []);
 
   async function loadHooks() {
     hooksLoading = true;
@@ -88,6 +91,37 @@
     try {
       for (const status of targets) {
         await installRepoHook(status.repo_id);
+      }
+      await loadHooks();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      installingHookFor = null;
+    }
+  }
+
+  async function uninstallHook(repoId: string) {
+    const ok = typeof window === "undefined" || window.confirm(t("hooks.uninstall_confirm"));
+    if (!ok) return;
+    installingHookFor = repoId;
+    try {
+      await uninstallRepoHook(repoId);
+      await loadHooks();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      installingHookFor = null;
+    }
+  }
+
+  async function uninstallHookTargets(targets: HookStatus[]) {
+    if (targets.length === 0) return;
+    const ok = typeof window === "undefined" || window.confirm(t("hooks.uninstall_all_confirm", { count: targets.length }));
+    if (!ok) return;
+    installingHookFor = ALL_HOOKS;
+    try {
+      for (const status of targets) {
+        await uninstallRepoHook(status.repo_id);
       }
       await loadHooks();
     } catch (err) {
@@ -261,6 +295,17 @@
         {#if hooks?.project_paused_until}
           <div class="hook-pause">⏸ {t("hooks.paused_until", { until: hooks.project_paused_until })}</div>
         {/if}
+        {#if installedManagedHooks.length > 0}
+          <div class="hook-actions-row">
+            <button
+              class="hook-update danger-action"
+              onclick={() => uninstallHookTargets(installedManagedHooks)}
+              disabled={installingHookFor !== null}
+            >
+              {installingHookFor === ALL_HOOKS ? "…" : t("hooks.uninstall_all_button")}
+            </button>
+          </div>
+        {/if}
         {#if outdatedManagedHooks.length > 0}
           <div class="hook-update-warning">
             <span>{t("hooks.update_available", { count: outdatedManagedHooks.length })}</span>
@@ -323,6 +368,16 @@
                     title={t("hooks.update_button")}
                   >
                     {installingHookFor === repo.id ? "…" : t("hooks.update_button")}
+                  </button>
+                {/if}
+                {#if hookStatus?.exists && hookStatus.managed}
+                  <button
+                    class="hook-update hook-danger"
+                    onclick={() => uninstallHook(repo.id)}
+                    disabled={installingHookFor !== null}
+                    title={t("hooks.uninstall_button")}
+                  >
+                    {installingHookFor === repo.id ? "…" : t("hooks.uninstall_button")}
                   </button>
                 {/if}
               </div>
@@ -588,6 +643,11 @@
     justify-content: space-between;
     gap: 10px;
   }
+  .hook-actions-row {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: flex-end;
+  }
   .hooks-cli {
     display: flex;
     flex-direction: column;
@@ -630,9 +690,24 @@
     border-color: var(--warning);
     color: white;
   }
+  .hook-update.danger-action {
+    flex-shrink: 0;
+    color: var(--danger);
+    border-color: var(--danger);
+    background: var(--danger-bg);
+  }
+  .hook-update.hook-danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border-default));
+  }
   .hook-update:hover:not(:disabled) {
     border-color: var(--warning);
     color: var(--warning);
+  }
+  .hook-update.danger-action:hover:not(:disabled),
+  .hook-update.hook-danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
   }
   .hook-update.primary-action:hover:not(:disabled) {
     background: var(--warning);

@@ -2041,3 +2041,15 @@ export async function installRepoHook(repoId: string, opts: { force?: boolean } 
   }
   return (await response.json()) as HookStatus;
 }
+
+export async function uninstallRepoHook(repoId: string): Promise<HookStatus> {
+  const response = await fetch(apiUrl("/hooks/uninstall"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo_id: repoId }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${await response.text().catch(() => "")}`);
+  }
+  return (await response.json()) as HookStatus;
+}
