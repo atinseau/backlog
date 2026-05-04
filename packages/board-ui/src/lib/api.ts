@@ -1337,7 +1337,7 @@ export async function fetchGitCommitFiles(repo: string, sha: string): Promise<{ 
 }
 
 export async function fetchGitFileDiff(repo: string, file: string, opts: { sha?: string; base?: string; head?: string } = {}): Promise<GitFileDiff> {
-  const response = await fetch(apiUrl("/git/diff", { repo, file, ...opts }));
+  const response = await fetch(apiUrl("/git/diff", { repo, file, ...opts }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";

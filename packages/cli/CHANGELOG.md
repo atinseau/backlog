@@ -4,6 +4,12 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.39] - 2026-05-04
+
+Git diff refresh fix.
+
+- **Clicking the same changed file repeatedly now reloads the diff** — the right diff panel gets a per-click refresh key and bypasses browser cache for `/git/diff`, so it cannot keep a stale empty state after reopening the same target.
+
 ## [1.4.38] - 2026-05-04
 
 Git diff and hook management fixes.

@@ -7,7 +7,7 @@
 
   interface Props {
     projectId: string | null;
-    gitDiffTarget?: { repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null } | null;
+    gitDiffTarget?: { repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null; refreshKey?: number } | null;
     onCloseGitDiff?: () => void;
   }
 
@@ -22,6 +22,7 @@
       sha={gitDiffTarget.sha}
       base={gitDiffTarget.base}
       head={gitDiffTarget.head}
+      refreshKey={gitDiffTarget.refreshKey}
       onClose={onCloseGitDiff}
     />
   {:else}

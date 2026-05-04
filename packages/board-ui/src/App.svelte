@@ -243,7 +243,8 @@
   let leftSection = $state<SectionKey>("board");
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
-  let gitDiffTarget = $state<{ repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null } | null>(null);
+  let gitDiffTarget = $state<{ repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null; refreshKey: number } | null>(null);
+  let gitDiffRefreshKey = $state(0);
   let profileOpen = $state<"signin" | "signup" | null>(null);
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
@@ -974,7 +975,8 @@
   }
 
   function openGitDiff(repo: string, file: string, sha?: string | null, base?: string | null, head?: string | null) {
-    gitDiffTarget = { repo, file, sha, base, head };
+    gitDiffRefreshKey += 1;
+    gitDiffTarget = { repo, file, sha, base, head, refreshKey: gitDiffRefreshKey };
     rightOpen = true;
   }
 

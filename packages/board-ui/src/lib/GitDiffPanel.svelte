@@ -8,10 +8,11 @@
     sha?: string | null;
     base?: string | null;
     head?: string | null;
+    refreshKey?: number;
     onClose?: () => void;
   }
 
-  let { repo, file, sha = null, base = null, head = null, onClose }: Props = $props();
+  let { repo, file, sha = null, base = null, head = null, refreshKey = 0, onClose }: Props = $props();
 
   let diff = $state<GitFileDiff | null>(null);
   let loading = $state(true);
@@ -109,6 +110,7 @@
     sha;
     base;
     head;
+    refreshKey;
     void load();
   });
 </script>
