@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.40] - 2026-05-04
+
+Git screen usability pass.
+
+- **The Git diff panel can be resized much wider** so larger file diffs are readable without cramped wrapping.
+- **Branches and worktrees are now simple clickable lists** — each branch/worktree is one row, with checkout, merge, preview, open, and remove actions revealed only when selected.
+- **Git history now uses infinite scroll** — the UI loads commits page by page through `/commits?offset=...` instead of capping the list at the initial batch.
+
 ## [1.4.39] - 2026-05-04
 
 Git diff refresh fix.

@@ -96,6 +96,8 @@
   const SHELL_LEFT_WIDTH = "backlog.shell.left.width";
   const SHELL_RIGHT_WIDTH = "backlog.shell.right.width";
   const SHELL_BOTTOM_HEIGHT = "backlog.shell.bottom.height";
+  const RIGHT_PANEL_MIN = 260;
+  const RIGHT_PANEL_MAX = 1040;
 
   function readBool(key: string, fallback: boolean): boolean {
     if (typeof localStorage === "undefined") return fallback;
@@ -238,7 +240,7 @@
   let rightOpen = $state(false);
   let bottomOpen = $state(readBool(SHELL_BOTTOM_OPEN, false));
   let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
-  let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, 260, 600));
+  let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, RIGHT_PANEL_MIN, RIGHT_PANEL_MAX));
   let bottomHeight = $state(readNum(SHELL_BOTTOM_HEIGHT, 240, 120, 600));
   let leftSection = $state<SectionKey>("board");
   let selectedTaskId = $state<string | null>(null);
@@ -1467,7 +1469,7 @@
     </div>
 
     {#if showRightPanel}
-      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(260, Math.min(600, rightWidth - d)))} onCommit={commitRightWidth} />
+      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(RIGHT_PANEL_MIN, Math.min(RIGHT_PANEL_MAX, rightWidth - d)))} onCommit={commitRightWidth} />
       <div class="right-host">
         <RightPanel
           projectId={selectedProjectId}

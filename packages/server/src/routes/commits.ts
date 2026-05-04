@@ -403,19 +403,21 @@ export function commitsRoutes(): Hono<AppEnv> {
   app.get("/commits", async (c) => {
     const project = c.get("project");
     const limit = Math.min(200, Math.max(1, Number.parseInt(c.req.query("limit") ?? "50", 10) || 50));
+    const offset = Math.min(10000, Math.max(0, Number.parseInt(c.req.query("offset") ?? "0", 10) || 0));
     const repoFilter = c.req.query("repo") ?? null;
     const config = loadConfig(project.backlogDir);
 
     const all: CommitEntry[] = [];
+    const readLimit = offset + limit;
     for (const repo of config.repos) {
       if (!repo.enabled) continue;
       if (repoFilter && repo.id !== repoFilter) continue;
-      const commits = await readCommitsForRepo(repo.id, repo.path, limit);
+      const commits = await readCommitsForRepo(repo.id, repo.path, readLimit);
       all.push(...commits);
     }
     // Sort by date desc, taking only `limit` overall.
     all.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    return c.json({ commits: all.slice(0, limit) });
+    return c.json({ commits: all.slice(offset, offset + limit) });
   });
 
   app.get("/git/changes", async (c) => {

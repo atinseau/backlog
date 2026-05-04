@@ -1233,8 +1233,12 @@ export async function fetchTaskDetail(id: string): Promise<{ task: TaskDetail; s
   return (await response.json()) as { task: TaskDetail; subtasks: SubTaskDetail[] };
 }
 
-export async function fetchCommits(limit = 50, repo?: string | null): Promise<CommitEntry[]> {
-  const response = await fetch(apiUrl("/commits", { limit: String(limit), ...(repo ? { repo } : {}) }));
+export async function fetchCommits(limit = 50, repo?: string | null, offset = 0): Promise<CommitEntry[]> {
+  const response = await fetch(apiUrl("/commits", {
+    limit: String(limit),
+    ...(offset > 0 ? { offset: String(offset) } : {}),
+    ...(repo ? { repo } : {}),
+  }));
   if (!response.ok) throw new Error(`Commits fetch failed: ${response.status}`);
   const json = (await response.json()) as { commits: CommitEntry[] };
   return json.commits;

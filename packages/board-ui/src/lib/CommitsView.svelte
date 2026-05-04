@@ -40,6 +40,18 @@
 
   type GitTab = "changes" | "history" | "branches" | "worktrees";
   type CommitGroup = { repo: string; paths: string[] };
+  type BranchRow = {
+    key: string;
+    repo: string;
+    name: string;
+    label: string;
+    kind: "local" | "remote";
+    current: boolean;
+    upstream?: string | null;
+    remote?: string;
+  };
+
+  const HISTORY_PAGE_SIZE = 50;
 
   let { onClose, embedded = false, selectedRepoId = null, onCommitted, onOpenDiff }: Props = $props();
 
@@ -70,6 +82,10 @@
   let commitFiles = $state<GitCommitFileEntry[]>([]);
   let commitFilesLoading = $state(false);
   let commitFilesError = $state<string | null>(null);
+  let historyLoadingMore = $state(false);
+  let historyHasMore = $state(false);
+  let selectedBranchKey = $state<string | null>(null);
+  let selectedWorktreeKey = $state<string | null>(null);
 
   const dirtyCount = $derived(repos.reduce((sum, repo) => sum + repo.changes.length, 0));
   const visibleRepos = $derived(repos.filter((repo) => repo.changes.length > 0 || repo.status.error));
@@ -132,10 +148,11 @@
     try {
       const [nextRepos, nextCommits] = await Promise.all([
         fetchGitChanges(selectedRepoId),
-        fetchCommits(100, selectedRepoId),
+        fetchCommits(HISTORY_PAGE_SIZE + 1, selectedRepoId),
       ]);
       repos = nextRepos;
-      commits = nextCommits;
+      commits = nextCommits.slice(0, HISTORY_PAGE_SIZE);
+      historyHasMore = nextCommits.length > HISTORY_PAGE_SIZE;
       if (selectedCommitKey && !nextCommits.some((commit) => commitKey(commit) === selectedCommitKey)) {
         selectedCommitKey = null;
         commitFiles = [];
@@ -149,6 +166,12 @@
       remotes = nextRemotes;
       branches = nextBranches;
       worktrees = nextWorktrees;
+      if (selectedBranchKey && !nextBranches.some((state) => branchRows(state).some((row) => row.key === selectedBranchKey))) {
+        selectedBranchKey = null;
+      }
+      if (selectedWorktreeKey && !nextWorktrees.some((repo) => repo.worktrees.some((worktree) => worktreeKey(repo.repo, worktree.path) === selectedWorktreeKey))) {
+        selectedWorktreeKey = null;
+      }
       resetSelection(nextRepos);
       error = null;
     } catch (err) {
@@ -233,6 +256,70 @@
     const options = mergeOptions(state);
     const current = mergeSourceByRepo[state.repo];
     return current && options.includes(current) ? current : options[0] ?? "";
+  }
+
+  function branchRowKey(repo: string, kind: BranchRow["kind"], name: string): string {
+    return `${repo}\0${kind}\0${name}`;
+  }
+
+  function branchRows(state: GitRepoBranches): BranchRow[] {
+    const rows: BranchRow[] = [];
+    const seen = new Set<string>();
+    for (const branch of state.local) {
+      const key = branchRowKey(state.repo, "local", branch.name);
+      rows.push({
+        key,
+        repo: state.repo,
+        name: branch.name,
+        label: branch.name,
+        kind: "local",
+        current: branch.current,
+        upstream: branch.upstream,
+      });
+      seen.add(branch.name);
+    }
+    for (const branch of state.remote) {
+      if (seen.has(branch.name)) continue;
+      rows.push({
+        key: branchRowKey(state.repo, "remote", branch.name),
+        repo: state.repo,
+        name: branch.name,
+        label: branch.short_name,
+        kind: "remote",
+        current: false,
+        remote: branch.remote,
+      });
+    }
+    return rows.sort((a, b) => {
+      if (a.current !== b.current) return a.current ? -1 : 1;
+      if (a.kind !== b.kind) return a.kind === "local" ? -1 : 1;
+      return a.label.localeCompare(b.label);
+    });
+  }
+
+  function branchMeta(row: BranchRow): string {
+    const parts = [t(row.kind === "local" ? "git.branch.local" : "git.branch.remote")];
+    if (row.upstream) parts.push(row.upstream);
+    else if (row.remote) parts.push(row.remote);
+    return parts.join(" · ");
+  }
+
+  function toggleBranchRow(state: GitRepoBranches, row: BranchRow) {
+    selectedBranchKey = selectedBranchKey === row.key ? null : row.key;
+    if (selectedBranchKey === row.key && !row.current && state.current_branch) {
+      void loadMergePreview(state.repo, state.current_branch, row.name);
+    }
+  }
+
+  function handleBranchRowKeydown(e: KeyboardEvent, state: GitRepoBranches, row: BranchRow) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    toggleBranchRow(state, row);
+  }
+
+  function branchPreviewForRow(state: GitRepoBranches, row: BranchRow): GitBranchPreview | { loading: true } | { error: string } | null {
+    if (row.current || !state.current_branch) return null;
+    return mergePreviews[previewKey(state.repo, state.current_branch, row.name)] ?? null;
   }
 
   function worktreesFor(repoId: string): GitRepoWorktrees | null {
@@ -443,12 +530,14 @@
     }
   }
 
-  async function mergeBranch(repoId: string) {
+  async function mergeBranch(repoId: string, sourceOverride?: string) {
     const state = branchesFor(repoId);
     if (!state) return;
-    const source = selectedMergeSource(state);
+    const source = sourceOverride ?? selectedMergeSource(state);
     if (!source) return;
-    const preview = previewFor(state);
+    const preview = sourceOverride && state.current_branch
+      ? mergePreviews[previewKey(repoId, state.current_branch, source)] ?? null
+      : previewFor(state);
     if (!preview || "loading" in preview || "error" in preview) {
       await loadMergePreview(repoId, state.current_branch ?? "HEAD", source);
       return;
@@ -488,6 +577,21 @@
     if (worktree.branch) return worktree.branch;
     if (worktree.detached) return t("git.branch.detached");
     return t("git.worktree.no_branch");
+  }
+
+  function worktreeKey(repo: string, path: string): string {
+    return `${repo}\0${path}`;
+  }
+
+  function toggleWorktreeRow(repo: string, worktree: GitWorktreeEntry) {
+    const key = worktreeKey(repo, worktree.path);
+    selectedWorktreeKey = selectedWorktreeKey === key ? null : key;
+  }
+
+  function handleWorktreeRowKeydown(e: KeyboardEvent, repo: string, worktree: GitWorktreeEntry) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    toggleWorktreeRow(repo, worktree);
   }
 
   function openWorktree(path: string) {
@@ -615,17 +719,39 @@
     return d.toLocaleString();
   }
 
+  async function loadMoreHistory() {
+    if (historyLoadingMore || !historyHasMore) return;
+    historyLoadingMore = true;
+    try {
+      const page = await fetchCommits(HISTORY_PAGE_SIZE + 1, selectedRepoId, commits.length);
+      const next = page.slice(0, HISTORY_PAGE_SIZE);
+      const seen = new Set(commits.map(commitKey));
+      commits = [...commits, ...next.filter((commit) => !seen.has(commitKey(commit)))];
+      historyHasMore = page.length > HISTORY_PAGE_SIZE;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      historyLoadingMore = false;
+    }
+  }
+
+  function handleHistoryScroll(e: Event) {
+    const node = e.currentTarget as HTMLElement;
+    if (node.scrollTop + node.clientHeight < node.scrollHeight - 260) return;
+    void loadMoreHistory();
+  }
+
   $effect(() => {
     selectedRepoId;
     void load();
   });
 
   $effect(() => {
-    if (activeTab !== "branches") return;
+    if (activeTab !== "branches" || !selectedBranchKey) return;
     for (const state of branches) {
-      if (state.error) continue;
-      const source = selectedMergeSource(state);
-      if (source) void loadMergePreview(state.repo, state.current_branch ?? "HEAD", source);
+      if (state.error || !state.current_branch) continue;
+      const row = branchRows(state).find((candidate) => candidate.key === selectedBranchKey);
+      if (row && !row.current) void loadMergePreview(state.repo, state.current_branch, row.name);
     }
   });
 </script>
@@ -705,26 +831,44 @@
   {#if info}<div class="info">{info}</div>{/if}
 
   {#if !loading && activeTab === "branches" && branches.length > 0}
-    <div class="branch-bar" aria-label={t("git.branch.section")}>
+    <div class="branch-list-view" aria-label={t("git.branch.section")}>
       {#each branches as state (state.repo)}
         {@const remote = remoteFor(state.repo)}
-        {@const mergeSources = mergeOptions(state)}
-        <section class="branch-card">
-          <div class="branch-head">
-            <div class="branch-meta">
-              <span class="remote-repo">{state.repo}</span>
-              <span class="branch-current">{state.current_branch ?? t("git.branch.detached")}</span>
-              <span class="remote-state">{remoteText(remote)}</span>
+        <section class="git-repo-list">
+          <div class="git-repo-head">
+            <div class="git-repo-title">
+              <strong>{state.repo}</strong>
+              <span>{state.current_branch ?? t("git.branch.detached")} · {remoteText(remote)}</span>
             </div>
-            <button
-              type="button"
-              class="sync"
-              onclick={() => syncRepo(state.repo)}
-              disabled={syncingRepo !== null || branchBusy !== null || !remote?.remote_url}
-              title={remote?.remote_url ?? ""}
-            >
-              {syncingRepo === state.repo ? t("git.sync.running") : t("git.sync.button")}
-            </button>
+            <div class="git-repo-actions">
+              <label class="inline-create">
+                <input
+                  value={newBranchByRepo[state.repo] ?? ""}
+                  placeholder={t("git.branch.new_placeholder")}
+                  disabled={branchBusy !== null}
+                  oninput={(e) => setNewBranch(state.repo, e.currentTarget.value)}
+                  onkeydown={(e) => { if (e.key === "Enter") void createBranch(state.repo); }}
+                  aria-label={t("git.branch.new")}
+                />
+                <button
+                  type="button"
+                  class="secondary"
+                  onclick={() => createBranch(state.repo)}
+                  disabled={branchBusy !== null || !(newBranchByRepo[state.repo] ?? "").trim()}
+                >
+                  {t("git.branch.create")}
+                </button>
+              </label>
+              <button
+                type="button"
+                class="sync"
+                onclick={() => syncRepo(state.repo)}
+                disabled={syncingRepo !== null || branchBusy !== null || !remote?.remote_url}
+                title={remote?.remote_url ?? ""}
+              >
+                {syncingRepo === state.repo ? t("git.sync.running") : t("git.sync.button")}
+              </button>
+            </div>
           </div>
           {#if state.error}
             <div class="repo-error">
@@ -739,137 +883,120 @@
               {/if}
             </div>
           {:else}
-            <div class="branch-controls">
-              <label class="branch-field">
-                <span>{t("git.branch.checkout")}</span>
-                <select
-                  value={state.current_branch ?? ""}
-                  disabled={branchBusy !== null}
-                  onchange={(e) => checkoutBranch(state.repo, e.currentTarget.value)}
+            <div class="git-row-list">
+              {#each branchRows(state) as row (row.key)}
+                {@const isOpen = selectedBranchKey === row.key}
+                {@const preview = branchPreviewForRow(state, row)}
+                <div
+                  class="git-line branch-line"
+                  class:active={row.current}
+                  class:open={isOpen}
+                  role="button"
+                  tabindex="0"
+                  onclick={() => toggleBranchRow(state, row)}
+                  onkeydown={(e) => handleBranchRowKeydown(e, state, row)}
+                  title={row.name}
                 >
-                  {#if !state.current_branch}
-                    <option value="">{t("git.branch.detached")}</option>
-                  {/if}
-                  <optgroup label={t("git.branch.local")}>
-                    {#each state.local as branch (branch.name)}
-                      <option value={branch.name}>{branch.name}{branch.upstream ? ` · ${branch.upstream}` : ""}</option>
-                    {/each}
-                  </optgroup>
-                  {#if state.remote.length > 0}
-                    <optgroup label={t("git.branch.remote")}>
-                      {#each state.remote as branch (branch.name)}
-                        <option value={branch.name}>{branch.name}</option>
-                      {/each}
-                    </optgroup>
-                  {/if}
-                </select>
-              </label>
-              <label class="branch-field new-branch">
-                <span>{t("git.branch.new")}</span>
-                <input
-                  value={newBranchByRepo[state.repo] ?? ""}
-                  placeholder={t("git.branch.new_placeholder")}
-                  disabled={branchBusy !== null}
-                  oninput={(e) => setNewBranch(state.repo, e.currentTarget.value)}
-                  onkeydown={(e) => { if (e.key === "Enter") void createBranch(state.repo); }}
-                />
-                <button
-                  type="button"
-                  class="secondary"
-                  onclick={() => createBranch(state.repo)}
-                  disabled={branchBusy !== null || !(newBranchByRepo[state.repo] ?? "").trim()}
-                >
-                  {t("git.branch.create")}
-                </button>
-              </label>
-              <div class="merge-control">
-                <label class="branch-field">
-                  <span>{t("git.branch.merge_source")}</span>
-                  <select
-                    value={selectedMergeSource(state)}
-                    disabled={branchBusy !== null || mergeSources.length === 0}
-                    onchange={(e) => setMergeSource(state.repo, e.currentTarget.value)}
-                  >
-                    {#each mergeSources as source (source)}
-                      <option value={source}>{source}</option>
-                    {/each}
-                  </select>
-                </label>
-                <label class="branch-field strategy">
-                  <span>{t("git.branch.strategy")}</span>
-                  <select
-                    value={mergeStrategyByRepo[state.repo] ?? "auto"}
-                    disabled={branchBusy !== null || mergeSources.length === 0}
-                    onchange={(e) => setMergeStrategy(state.repo, e.currentTarget.value as "auto" | "ff_only" | "no_ff")}
-                  >
-                    <option value="auto">{t("git.branch.strategy_auto")}</option>
-                    <option value="ff_only">{t("git.branch.strategy_ff")}</option>
-                    <option value="no_ff">{t("git.branch.strategy_noff")}</option>
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  class="secondary"
-                  onclick={() => mergeBranch(state.repo)}
-                  disabled={branchBusy !== null || mergeSources.length === 0 || previewFor(state) === null || Boolean(previewFor(state) && "loading" in previewFor(state)!)}
-                >
-                  {branchBusy === state.repo ? t("git.branch.running") : t("git.branch.merge")}
-                </button>
-              </div>
-            </div>
-            {@const preview = previewFor(state)}
-            {#if preview}
-              <div class="branch-preview">
-                {#if "loading" in preview}
-                  <div class="preview-state">{t("git.branch.preview_loading")}</div>
-                {:else if "error" in preview}
-                  <div class="preview-state error-text">{preview.error}</div>
-                {:else}
-                  <div class="preview-head">
-                    <span>{t("git.branch.preview_summary", { commits: preview.commits.length, files: preview.files.length })}</span>
-                    <code>{preview.target}...{preview.source}</code>
-                  </div>
-                  {#if preview.commits.length > 0}
-                    <div class="preview-commits">
-                      {#each preview.commits.slice(0, 5) as commit (commit.sha)}
-                        <div class="preview-commit">
-                          <code>{commit.short_sha}</code>
-                          <span>{commit.subject}</span>
-                        </div>
-                      {/each}
-                      {#if preview.commits.length > 5}
-                        <div class="preview-more">{t("git.branch.preview_more_commits", { count: preview.commits.length - 5 })}</div>
-                      {/if}
-                    </div>
-                  {/if}
-                  {#if preview.files.length === 0}
-                    <div class="preview-state">{t("git.branch.preview_empty")}</div>
-                  {:else}
-                    <div class="preview-files">
-                      {#each preview.files as file (file.path)}
-                        {@const displayPath = splitPath(file.path)}
-                        {@const oldDisplayPath = file.old_path ? splitPath(file.old_path) : null}
-                        <button
-                          type="button"
-                          class="preview-file-row"
-                          onclick={() => openPreviewFileDiff(preview, file)}
-                          title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
+                  <span class="branch-marker" aria-hidden="true">{row.current ? "●" : "○"}</span>
+                  <span class="branch-name">{row.label}</span>
+                  <span class="line-meta">{branchMeta(row)}</span>
+                  {#if row.current}<span class="line-badge">{t("git.branch.current_badge")}</span>{/if}
+                  <span class="line-chevron">{isOpen ? "⌃" : "⌄"}</span>
+                </div>
+                {#if isOpen}
+                  <div class="git-line-detail">
+                    <div class="branch-detail-actions">
+                      <button
+                        type="button"
+                        class="secondary"
+                        onclick={() => checkoutBranch(state.repo, row.name)}
+                        disabled={branchBusy !== null || row.current}
+                      >
+                        {t("git.branch.checkout_action")}
+                      </button>
+                      <label class="branch-field strategy compact">
+                        <span>{t("git.branch.strategy")}</span>
+                        <select
+                          value={mergeStrategyByRepo[state.repo] ?? "auto"}
+                          disabled={branchBusy !== null || row.current || !state.current_branch}
+                          onchange={(e) => setMergeStrategy(state.repo, e.currentTarget.value as "auto" | "ff_only" | "no_ff")}
                         >
-                          <span class="kind kind-{file.kind}">{kindLabel(file.kind)}</span>
-                          <span class="path">
-                            {#if oldDisplayPath}
-                              <span class="dir">{oldDisplayPath.dir}</span><span class="file-name old-name">{oldDisplayPath.name}</span>
-                              <span class="arrow">→</span>
-                            {/if}
-                            <span class="dir">{displayPath.dir}</span><span class="file-name">{displayPath.name}</span>
-                          </span>
-                        </button>
-                      {/each}
+                          <option value="auto">{t("git.branch.strategy_auto")}</option>
+                          <option value="ff_only">{t("git.branch.strategy_ff")}</option>
+                          <option value="no_ff">{t("git.branch.strategy_noff")}</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        class="secondary"
+                        onclick={() => mergeBranch(state.repo, row.name)}
+                        disabled={branchBusy !== null || row.current || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
+                      >
+                        {branchBusy === state.repo
+                          ? t("git.branch.running")
+                          : t("git.branch.merge_into_current", { target: state.current_branch ?? "HEAD" })}
+                      </button>
                     </div>
-                  {/if}
+                    {#if row.current}
+                      <div class="preview-state">{t("git.branch.current_hint")}</div>
+                    {:else if preview}
+                      <div class="branch-preview inline">
+                        {#if "loading" in preview}
+                          <div class="preview-state">{t("git.branch.preview_loading")}</div>
+                        {:else if "error" in preview}
+                          <div class="preview-state error-text">{preview.error}</div>
+                        {:else}
+                          <div class="preview-head">
+                            <span>{t("git.branch.preview_summary", { commits: preview.commits.length, files: preview.files.length })}</span>
+                            <code>{preview.target}...{preview.source}</code>
+                          </div>
+                          {#if preview.commits.length > 0}
+                            <div class="preview-commits">
+                              {#each preview.commits.slice(0, 5) as commit (commit.sha)}
+                                <div class="preview-commit">
+                                  <code>{commit.short_sha}</code>
+                                  <span>{commit.subject}</span>
+                                </div>
+                              {/each}
+                              {#if preview.commits.length > 5}
+                                <div class="preview-more">{t("git.branch.preview_more_commits", { count: preview.commits.length - 5 })}</div>
+                              {/if}
+                            </div>
+                          {/if}
+                          {#if preview.files.length === 0}
+                            <div class="preview-state">{t("git.branch.preview_empty")}</div>
+                          {:else}
+                            <div class="preview-files">
+                              {#each preview.files as file (file.path)}
+                                {@const displayPath = splitPath(file.path)}
+                                {@const oldDisplayPath = file.old_path ? splitPath(file.old_path) : null}
+                                <button
+                                  type="button"
+                                  class="preview-file-row"
+                                  onclick={() => openPreviewFileDiff(preview, file)}
+                                  title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
+                                >
+                                  <span class="kind kind-{file.kind}">{kindLabel(file.kind)}</span>
+                                  <span class="path">
+                                    {#if oldDisplayPath}
+                                      <span class="dir">{oldDisplayPath.dir}</span><span class="file-name old-name">{oldDisplayPath.name}</span>
+                                      <span class="arrow">→</span>
+                                    {/if}
+                                    <span class="dir">{displayPath.dir}</span><span class="file-name">{displayPath.name}</span>
+                                  </span>
+                                </button>
+                              {/each}
+                            </div>
+                          {/if}
+                        {/if}
+                      </div>
+                    {:else}
+                      <div class="preview-state">{t("git.branch.preview_loading")}</div>
+                    {/if}
+                  </div>
                 {/if}
-              </div>
-            {/if}
+              {/each}
+            </div>
           {/if}
         </section>
       {/each}
@@ -991,9 +1118,9 @@
       {:else}
         {#each worktrees as repo (repo.repo)}
           {@const branchState = branchesFor(repo.repo)}
-          <section class="worktree-repo">
-            <div class="worktree-repo-head">
-              <div>
+          <section class="git-repo-list">
+            <div class="git-repo-head">
+              <div class="git-repo-title">
                 <strong>{repo.repo}</strong>
                 <span>{repo.path}</span>
               </div>
@@ -1047,20 +1174,35 @@
                   {worktreeBusy === repo.repo ? t("git.branch.running") : t("git.worktree.add")}
                 </button>
               </div>
-              <div class="worktree-list">
+              <div class="git-row-list">
                 {#each repo.worktrees as worktree (worktree.path)}
-                  <div class="worktree-row">
-                    <div class="worktree-main">
-                      <span class="branch-current">{worktreeBranchLabel(worktree)}</span>
-                      {#if worktree.main}<span class="worktree-badge">{t("git.worktree.main")}</span>{/if}
-                      {#if worktree.prunable}<span class="worktree-badge warn">{t("git.worktree.prunable")}</span>{/if}
-                      <code>{worktree.head ? worktree.head.slice(0, 7) : "-------"}</code>
-                      <button type="button" class="path-button" onclick={() => openWorktree(worktree.path)} title={worktree.path}>
-                        {worktree.path}
-                      </button>
-                      {#if worktree.prunable_reason}<span class="worktree-reason">{worktree.prunable_reason}</span>{/if}
-                    </div>
-                    <div class="worktree-actions">
+                  {@const rowKey = worktreeKey(repo.repo, worktree.path)}
+                  {@const isOpen = selectedWorktreeKey === rowKey}
+                  <div
+                    class="git-line worktree-line"
+                    class:active={worktree.main}
+                    class:open={isOpen}
+                    role="button"
+                    tabindex="0"
+                    onclick={() => toggleWorktreeRow(repo.repo, worktree)}
+                    onkeydown={(e) => handleWorktreeRowKeydown(e, repo.repo, worktree)}
+                    title={worktree.path}
+                  >
+                    <span class="branch-marker" aria-hidden="true">{worktree.main ? "●" : "○"}</span>
+                    <span class="branch-name">{worktreeBranchLabel(worktree)}</span>
+                    {#if worktree.main}<span class="line-badge">{t("git.worktree.main")}</span>{/if}
+                    {#if worktree.prunable}<span class="line-badge warn">{t("git.worktree.prunable")}</span>{/if}
+                    <code>{worktree.head ? worktree.head.slice(0, 7) : "-------"}</code>
+                    <span class="line-path">{worktree.path}</span>
+                    <span class="line-chevron">{isOpen ? "⌃" : "⌄"}</span>
+                  </div>
+                  {#if isOpen}
+                    <div class="git-line-detail">
+                      <div class="worktree-detail">
+                        <span>{worktree.path}</span>
+                        {#if worktree.prunable_reason}<small>{worktree.prunable_reason}</small>{/if}
+                      </div>
+                      <div class="worktree-actions">
                       <button type="button" class="secondary" onclick={() => openWorktree(worktree.path)}>
                         {t("git.worktree.open")}
                       </button>
@@ -1082,8 +1224,9 @@
                           {t("git.worktree.force_remove")}
                         </button>
                       {/if}
+                      </div>
                     </div>
-                  </div>
+                  {/if}
                 {/each}
               </div>
             {/if}
@@ -1094,7 +1237,7 @@
   {:else if activeTab === "history" && commits.length === 0}
     <div class="empty">{t("commits.empty")}</div>
   {:else if activeTab === "history"}
-    <ul class="commits">
+    <ul class="commits" onscroll={handleHistoryScroll}>
       {#each commits as commit (commit.repo + ":" + commit.sha)}
         {@const isActiveCommit = selectedCommitKey === commitKey(commit)}
         <li>
@@ -1162,6 +1305,15 @@
           {/if}
         </li>
       {/each}
+      <li class="history-sentinel">
+        {#if historyLoadingMore}
+          <span>{t("git.history.loading_more")}</span>
+        {:else if historyHasMore}
+          <button type="button" class="secondary" onclick={loadMoreHistory}>{t("git.history.load_more")}</button>
+        {:else}
+          <span>{t("git.history.end")}</span>
+        {/if}
+      </li>
     </ul>
   {/if}
 {/snippet}
@@ -1282,70 +1434,71 @@
     overflow-y: auto;
     min-height: 0;
   }
-  .branch-bar {
+  .branch-list-view,
+  .worktrees-view {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px;
+    gap: 10px;
     background: var(--bg-muted);
   }
-  .branch-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .git-repo-list {
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--bg-surface);
-    padding: 8px;
-    min-width: 0;
+    overflow: hidden;
   }
-  .branch-head {
+  .git-repo-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    min-width: 0;
+    gap: 12px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-muted);
   }
-  .branch-meta {
+  .git-repo-title {
+    min-width: 0;
     display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 2px;
   }
-  .remote-repo {
+  .git-repo-title strong {
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 600;
   }
-  .branch-current {
-    max-width: 260px;
-    color: var(--accent-text);
-    background: var(--accent-bg);
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .remote-state {
+  .git-repo-title span {
     color: var(--text-muted);
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .branch-controls {
-    display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(230px, 1.2fr) minmax(300px, 1.5fr);
+  .git-repo-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
     gap: 8px;
-    align-items: end;
+  }
+  .inline-create {
+    display: grid;
+    grid-template-columns: minmax(170px, 240px) auto;
+    gap: 6px;
+    align-items: center;
+  }
+  .inline-create input {
+    min-width: 0;
+    width: 100%;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    padding: 5px 7px;
+    font: inherit;
+    font-size: 12px;
   }
   .branch-field {
     min-width: 0;
@@ -1367,23 +1520,99 @@
     font: inherit;
     font-size: 12px;
   }
-  .new-branch {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "label label"
-      "input button";
-    align-items: end;
+  .branch-field.compact {
+    flex: 0 0 150px;
   }
-  .new-branch span { grid-area: label; }
-  .new-branch input { grid-area: input; }
-  .new-branch button { grid-area: button; }
-  .merge-control {
-    min-width: 0;
+  .git-row-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .git-line {
+    min-height: 36px;
     display: grid;
-    grid-template-columns: minmax(130px, 1fr) minmax(110px, 0.8fr) auto;
-    gap: 6px;
-    align-items: end;
+    grid-template-columns: 18px minmax(120px, 1fr) minmax(160px, 1.2fr) auto 18px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
+    user-select: none;
+  }
+  .worktree-line {
+    grid-template-columns: 18px minmax(120px, 0.7fr) auto auto minmax(180px, 1.3fr) 18px;
+  }
+  .git-line:hover,
+  .git-line.open {
+    background: var(--bg-hover);
+  }
+  .git-line:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .git-line.active .branch-name {
+    color: var(--accent-text);
+  }
+  .branch-marker {
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+  }
+  .git-line.active .branch-marker {
+    color: var(--accent);
+  }
+  .branch-name {
+    min-width: 0;
+    color: var(--text-primary);
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .line-meta,
+  .line-path {
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .line-badge {
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+  .line-badge.warn {
+    color: var(--warning);
+    background: var(--warning-bg);
+  }
+  .line-chevron {
+    color: var(--text-muted);
+    text-align: right;
+    font-size: 12px;
+  }
+  .git-line-detail {
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-muted);
+    padding: 10px 12px 10px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .branch-detail-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .branch-preview.inline {
+    border-top: 0;
+    padding-top: 0;
   }
   .branch-preview {
     border-top: 1px solid var(--border-subtle);
@@ -1402,7 +1631,7 @@
   }
   .preview-head code,
   .preview-commit code,
-  .worktree-row code {
+  .worktree-line code {
     font-family: ui-monospace, monospace;
     font-size: 10px;
     color: var(--text-muted);
@@ -1496,11 +1725,30 @@
   .sync:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
   .sync:disabled { opacity: 0.5; cursor: not-allowed; }
   @media (max-width: 980px) {
-    .branch-controls {
+    .git-repo-head,
+    .git-repo-actions,
+    .branch-detail-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .inline-create {
       grid-template-columns: 1fr;
     }
-    .merge-control {
-      grid-template-columns: 1fr;
+    .git-line,
+    .worktree-line {
+      grid-template-columns: 18px minmax(0, 1fr) 18px;
+      grid-auto-rows: auto;
+      padding: 8px 10px;
+    }
+    .git-line .line-meta,
+    .git-line .line-path,
+    .git-line code,
+    .git-line .line-badge {
+      grid-column: 2;
+    }
+    .line-chevron {
+      grid-column: 3;
+      grid-row: 1;
     }
   }
   .changes-list {
@@ -1518,47 +1766,6 @@
     color: var(--text-muted);
     font-size: 12px;
   }
-  .worktrees-view {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .worktree-repo {
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    background: var(--bg-surface);
-    overflow: hidden;
-  }
-  .worktree-repo-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--bg-muted);
-  }
-  .worktree-repo-head div {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .worktree-repo-head strong {
-    font-size: 12px;
-    color: var(--text-primary);
-  }
-  .worktree-repo-head span {
-    font-size: 11px;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .worktree-add {
     display: grid;
     grid-template-columns: minmax(220px, 1fr) minmax(160px, 0.7fr) auto;
@@ -1567,78 +1774,33 @@
     padding: 10px;
     border-bottom: 1px solid var(--border-subtle);
   }
-  .worktree-list {
-    display: flex;
-    flex-direction: column;
-  }
-  .worktree-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .worktree-row:last-child {
-    border-bottom: 0;
-  }
-  .worktree-main {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    flex-wrap: wrap;
-  }
   .worktree-actions {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
   }
-  .worktree-badge {
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-    color: var(--text-muted);
-    background: var(--bg-hover);
-    padding: 1px 6px;
-    font-size: 10px;
-  }
-  .worktree-badge.warn {
-    color: var(--warning);
-    background: var(--warning-bg);
-  }
-  .path-button {
+  .worktree-detail {
     min-width: 0;
-    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .worktree-detail span,
+  .worktree-detail small {
+    color: var(--text-muted);
+    font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border: 0;
-    background: transparent;
-    color: var(--text-body);
-    padding: 0;
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    text-align: left;
-  }
-  .path-button:hover {
-    color: var(--accent);
-  }
-  .worktree-reason {
-    color: var(--text-muted);
-    font-size: 11px;
   }
   @media (max-width: 980px) {
-    .worktree-add,
-    .worktree-row {
+    .worktree-add {
       grid-template-columns: 1fr;
-      flex-direction: column;
-      align-items: stretch;
     }
     .worktree-actions {
       justify-content: flex-start;
-      flex-wrap: wrap;
     }
   }
   .repo-block { border-bottom: 1px solid var(--border-subtle); }
@@ -1842,6 +2004,13 @@
     border-bottom: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
+  }
+  .history-sentinel {
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 11px;
   }
   .commit-row {
     border: 0;
