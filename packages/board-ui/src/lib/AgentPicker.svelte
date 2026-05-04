@@ -45,6 +45,12 @@
     selectedLabel ? selectedLabel.withContext
       : t("agent_picker.none"),
   );
+  const triggerDetail = $derived.by(() => {
+    if (!visibleAgent) return t("agent_picker.none");
+    if (visibleAgent.needs_api_key) return t("agent_picker.needs_api_key_short");
+    if (selectedId === null) return t("agent_picker.auto_select");
+    return t("agent_picker.selected");
+  });
 
   function toggle() { open = !open; }
   function close() { open = false; }
@@ -87,7 +93,12 @@
     title={visibleAgent?.model ? `${visibleAgent.id} · ${visibleAgent.model}` : t("agent_picker.auto_hint")}
   >
     <span class="bot-icon" aria-hidden="true">🤖</span>
-    <span class="name">{triggerLabel}</span>
+    <span class="trigger-text">
+      <span class="name">{triggerLabel}</span>
+      {#if variant === "inline"}
+        <span class="detail">{triggerDetail}</span>
+      {/if}
+    </span>
     <span class="chevron" aria-hidden="true">▾</span>
   </button>
 
@@ -161,27 +172,51 @@
   }
   .trigger.inline {
     height: 100%;
-    max-width: min(300px, 28vw);
+    width: 100%;
+    max-width: min(280px, 24vw);
     border: none;
     background: transparent;
     padding: 0;
+    justify-content: flex-end;
   }
   .trigger.inline:hover {
     color: var(--accent-text);
     border-color: transparent;
   }
   .bot-icon { font-size: 12px; flex-shrink: 0; line-height: 1; }
-  .name {
-    font-weight: 500;
+  .trigger.inline .bot-icon { display: none; }
+  .trigger-text {
     min-width: 0;
     max-width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    text-align: left;
+  }
+  .name,
+  .detail {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .name {
+    font-weight: 500;
+  }
   .trigger.inline .name {
+    font-size: 13px;
     font-weight: 700;
-    max-width: min(250px, 24vw);
+    color: var(--text-primary);
+  }
+  .detail {
+    display: none;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .trigger.inline .detail {
+    display: block;
+  }
+  .trigger.inline .trigger-text {
+    max-width: min(230px, 20vw);
   }
   .chevron {
     font-size: 16px;

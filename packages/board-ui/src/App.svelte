@@ -1250,18 +1250,17 @@
     <div class="topbar-center">
       {#if projectShellReady}
         <div class="agent-run-screen">
+          <RunStatusDisplay
+            board={board}
+            projectId={selectedProjectId}
+            onOpenActivity={openActivityPanel}
+            variant="inline"
+          />
           <AgentPicker
             agents={agentsList}
             selectedId={selectedAgentId}
             onSelect={persistSelectedAgent}
             onManageAgents={() => applySection("agents")}
-            variant="inline"
-          />
-          <span class="screen-separator" aria-hidden="true">&gt;</span>
-          <RunStatusDisplay
-            board={board}
-            projectId={selectedProjectId}
-            onOpenActivity={openActivityPanel}
             variant="inline"
           />
         </div>
@@ -1771,20 +1770,15 @@
     width: min(650px, 48vw);
     min-width: 360px;
     height: 34px;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, auto);
     align-items: center;
-    gap: 8px;
+    gap: 14px;
     padding: 4px 12px;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
     background: var(--bg-elevated);
     color: var(--text-primary);
-  }
-  .screen-separator {
-    color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 700;
-    flex-shrink: 0;
   }
   .topbar-right {
     display: flex;

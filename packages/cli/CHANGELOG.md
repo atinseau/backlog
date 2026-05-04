@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.37] - 2026-05-04
+
+Header layout polish.
+
+- **The top bar separates run status from the selected model again** — the run status sits on the left of the center screen, while the active model/agent picker sits on the right with matching two-line typography.
+- **The combined `Model > Status` label has been removed** so `Claude Sonnet 4.7 (1M) > Ready` no longer appears in the header.
+
 ## [1.4.36] - 2026-05-03
 
 Agent header and usage reporting.

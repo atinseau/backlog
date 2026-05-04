@@ -352,6 +352,8 @@
   "agent_picker.empty": "Aucun agent IA configuré.",
   "agent_picker.disabled_hint": "Cet agent est désactivé. Activez-le dans Agents pour pouvoir le choisir.",
   "agent_picker.needs_api_key_hint": "{key} non configurée. Configurez-la dans 🔑 Clés d'API pour rendre cet agent utilisable.",
+  "agent_picker.needs_api_key_short": "Clé d'API requise",
+  "agent_picker.selected": "Agent sélectionné",
   "agent_picker.tooltip": "Agent qui exécutera le prochain run",
   "agent_picker.manage": "Gérer les agents",
   "card.play_skipped_empty": "Rien n'a démarré — vérifiez les agents disponibles",

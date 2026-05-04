@@ -352,6 +352,8 @@
   "agent_picker.empty": "No AI agent configured.",
   "agent_picker.disabled_hint": "This agent is disabled. Enable it in the Agents view to be able to pick it.",
   "agent_picker.needs_api_key_hint": "{key} not set. Set it in 🔑 API keys to make this agent runnable.",
+  "agent_picker.needs_api_key_short": "API key required",
+  "agent_picker.selected": "Selected agent",
   "agent_picker.tooltip": "Agent that will run the next task",
   "agent_picker.manage": "Manage agents",
   "card.play_skipped_empty": "Nothing started — check the available agents",
