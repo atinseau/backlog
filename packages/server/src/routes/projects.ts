@@ -35,6 +35,18 @@ export interface ProjectsRoutesOptions {
   registry?: RegistryOptions;
 }
 
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function sortProjects<T extends { id: string; name?: string; path?: string }>(projects: T[]): T[] {
+  return projects.slice().sort((a, b) =>
+    compareLabel(a.name || a.id, b.name || b.id)
+    || compareLabel(a.path || "", b.path || "")
+    || compareLabel(a.id, b.id),
+  );
+}
+
 export function projectsRoutes(
   defaultProject: ServerProject,
   options: ProjectsRoutesOptions = {},
@@ -43,7 +55,7 @@ export function projectsRoutes(
   const registry = options.registry;
 
   app.get("/projects", (c) => {
-    return c.json({ projects: listRegisteredProjects(registry) });
+    return c.json({ projects: sortProjects(listRegisteredProjects(registry)) });
   });
 
   app.get("/projects/current", (c) => {

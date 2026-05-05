@@ -1,9 +1,7 @@
 <script lang="ts">
-  // Agent dropdown sitting next to the topbar Play button. The user
-  // picks ONE agent that will execute the next run — replacing the
-  // older "toggle each agent enabled" flow which made it ambiguous
-  // who would run the task. Selection persists per-project so each
-  // project remembers its preferred runner.
+  // Agent dropdown sitting next to the project name. The user picks ONE
+  // agent/model that will execute the next run; the app persists that
+  // choice per project and falls back to the last ready configured agent.
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { formatAgentLabel } from "./agent-label.js";
@@ -12,7 +10,7 @@
   interface Props {
     agents: AgentSummary[];
     selectedId: string | null;
-    onSelect: (id: string | null) => void;
+    onSelect: (id: string) => void;
     onManageAgents: () => void;
     variant?: "standalone" | "inline";
   }
@@ -37,20 +35,22 @@
       return aReady - bReady;
     }),
   );
+  function fallbackAgent(): AgentSummary | null {
+    const ready = agents.filter((agent) => isExecutable(agent) && !agent.needs_api_key);
+    if (ready.length > 0) return ready[ready.length - 1] ?? null;
+    const all = agents.filter(isExecutable);
+    return all[all.length - 1] ?? null;
+  }
+
   const selected = $derived(executable.find((a) => a.id === selectedId) ?? null);
-  const defaultAgent = $derived(executable.find((a) => !a.needs_api_key) ?? executable[0] ?? null);
+  const defaultAgent = $derived(fallbackAgent());
   const visibleAgent = $derived(selected ?? defaultAgent);
+  const effectiveSelectedId = $derived(visibleAgent?.id ?? null);
   const selectedLabel = $derived(visibleAgent ? formatAgentLabel(visibleAgent) : null);
   const triggerLabel = $derived(
     selectedLabel ? selectedLabel.withContext
       : t("agent_picker.none"),
   );
-  const triggerDetail = $derived.by(() => {
-    if (!visibleAgent) return t("agent_picker.none");
-    if (visibleAgent.needs_api_key) return t("agent_picker.needs_api_key_short");
-    if (selectedId === null) return t("agent_picker.auto_select");
-    return t("agent_picker.selected");
-  });
 
   function toggle() { open = !open; }
   function close() { open = false; }
@@ -76,7 +76,7 @@
     window.removeEventListener("keydown", handleKey);
   });
 
-  function pick(id: string | null) {
+  function pick(id: string) {
     close();
     onSelect(id);
   }
@@ -90,35 +90,17 @@
     onclick={toggle}
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={visibleAgent?.model ? `${visibleAgent.id} · ${visibleAgent.model}` : t("agent_picker.auto_hint")}
+    title={visibleAgent?.model ? `${visibleAgent.id} · ${visibleAgent.model}` : t("agent_picker.none")}
   >
     <span class="bot-icon" aria-hidden="true">🤖</span>
     <span class="trigger-text">
       <span class="name">{triggerLabel}</span>
-      {#if variant === "inline"}
-        <span class="detail">{triggerDetail}</span>
-      {/if}
     </span>
     <span class="chevron" aria-hidden="true">▾</span>
   </button>
 
   {#if open}
     <div class="menu" role="listbox">
-      <button
-        class="item"
-        class:active={selectedId === null}
-        onclick={() => pick(null)}
-        title={t("agent_picker.auto_hint")}
-      >
-        <span class="item-name">
-          {t("agent_picker.auto_select")}
-          {#if defaultAgent}
-            <small>{formatAgentLabel(defaultAgent).withContext}</small>
-          {/if}
-        </span>
-        {#if selectedId === null}<span class="check">✓</span>{/if}
-      </button>
-      <div class="separator"></div>
       {#if executable.length === 0}
         <div class="empty-row">{t("agent_picker.empty")}</div>
       {:else}
@@ -126,7 +108,7 @@
           {@const label = formatAgentLabel(agent)}
           <button
             class="item"
-            class:active={agent.id === selectedId}
+            class:active={agent.id === effectiveSelectedId}
             class:dim={agent.needs_api_key}
             onclick={() => pick(agent.id)}
             title={agent.needs_api_key ? t("agent_picker.needs_api_key_hint", { key: agent.required_secret_key ?? "" }) : `${agent.id} · ${agent.model ?? agent.provider}`}
@@ -134,7 +116,7 @@
             <span class="provider provider-{agent.provider}">{agent.provider}</span>
             <span class="item-name">{label.withContext}</span>
             {#if agent.needs_api_key}<span class="off">🔑 key</span>{/if}
-            {#if agent.id === selectedId}<span class="check">✓</span>{/if}
+            {#if agent.id === effectiveSelectedId}<span class="check">✓</span>{/if}
           </button>
         {/each}
       {/if}
@@ -171,13 +153,13 @@
     border-color: var(--accent);
   }
   .trigger.inline {
-    height: 100%;
-    width: 100%;
+    height: auto;
+    width: auto;
     max-width: min(280px, 24vw);
     border: none;
     background: transparent;
-    padding: 0;
-    justify-content: flex-end;
+    padding: 4px 8px;
+    justify-content: flex-start;
   }
   .trigger.inline:hover {
     color: var(--accent-text);
@@ -189,12 +171,10 @@
     min-width: 0;
     max-width: 210px;
     display: flex;
-    flex-direction: column;
-    gap: 1px;
+    align-items: center;
     text-align: left;
   }
-  .name,
-  .detail {
+  .name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -204,16 +184,8 @@
   }
   .trigger.inline .name {
     font-size: 13px;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-  .detail {
-    display: none;
-    font-size: 10px;
+    font-weight: 400;
     color: var(--text-muted);
-  }
-  .trigger.inline .detail {
-    display: block;
   }
   .trigger.inline .trigger-text {
     max-width: min(230px, 20vw);
@@ -282,11 +254,6 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
-  }
-  .item-name small {
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 500;
   }
   .item-model {
     font-family: ui-monospace, monospace;

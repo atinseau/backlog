@@ -9,6 +9,7 @@ import type {
   ProjectInfo,
   RunSummary,
 } from "./types.js";
+import { repositoryDisplayName } from "./repository-display.js";
 
 // Re-export so callers that already pull from this module (e.g. SplitDialog
 // importing splitTask + AgentSummary in one block) don't have to dual-import
@@ -18,6 +19,29 @@ import type {
 export type { AgentSummary, ProjectEntry, CurrentProject } from "./types.js";
 
 const BASE = "/api/v1";
+
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+export function sortProjectEntries<T extends Pick<ProjectEntry, "id" | "name" | "path">>(projects: T[]): T[] {
+  return projects.slice().sort((a, b) =>
+    compareLabel(a.name || a.id, b.name || b.id)
+    || compareLabel(a.path || "", b.path || "")
+    || compareLabel(a.id, b.id),
+  );
+}
+
+export function sortRepositories<T extends Pick<Repository, "id" | "path" | "checkout_path" | "remote_url" | "name">>(repositories: T[]): T[] {
+  return repositories.slice().sort((a, b) =>
+    compareLabel(repositoryDisplayName(a), repositoryDisplayName(b))
+    || compareLabel(a.id, b.id),
+  );
+}
+
+function sortGitRepositories<T extends { repo: string }>(repositories: T[]): T[] {
+  return repositories.slice().sort((a, b) => compareLabel(a.repo, b.repo));
+}
 
 // Active project id used by every api.ts call. App.svelte sets it on mount
 // and on user selection in the ProjectSelector.
@@ -54,7 +78,7 @@ export async function fetchProjectsList(): Promise<ProjectEntry[]> {
   const response = await fetch(apiUrl("/projects"));
   if (!response.ok) throw new Error(`Projects fetch failed: ${response.status}`);
   const json = (await response.json()) as { projects: ProjectEntry[] };
-  return json.projects;
+  return sortProjectEntries(json.projects);
 }
 
 export async function fetchCurrentProject(): Promise<CurrentProject> {
@@ -353,7 +377,7 @@ export async function fetchRepositories(): Promise<Repository[]> {
   const response = await fetch(apiUrl("/repositories"));
   if (!response.ok) throw new Error(`Repositories fetch failed: ${response.status}`);
   const json = (await response.json()) as { repositories?: Repository[]; repos?: Repository[] };
-  return json.repositories ?? json.repos ?? [];
+  return sortRepositories(json.repositories ?? json.repos ?? []);
 }
 
 export interface CreateRepositoryInput {
@@ -1298,7 +1322,7 @@ export async function fetchGitChanges(repo?: string | null): Promise<GitRepoChan
   const response = await fetch(apiUrl("/git/changes", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git changes fetch failed: ${response.status}`);
   const json = (await response.json()) as { repositories?: GitRepoChanges[]; repos?: GitRepoChanges[] };
-  return json.repositories ?? json.repos ?? [];
+  return sortGitRepositories(json.repositories ?? json.repos ?? []);
 }
 
 export async function commitGitChanges(input: { repo: string; paths: string[]; message: string }): Promise<{ sha: string; short_sha: string }> {
@@ -1442,14 +1466,14 @@ export async function fetchGitRemoteState(repo?: string | null): Promise<GitRemo
   const response = await fetch(apiUrl("/git/remote", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git remote fetch failed: ${response.status}`);
   const json = (await response.json()) as { repositories?: GitRemoteState[]; repos?: GitRemoteState[] };
-  return json.repositories ?? json.repos ?? [];
+  return sortGitRepositories(json.repositories ?? json.repos ?? []);
 }
 
 export async function fetchGitBranches(repo?: string | null): Promise<GitRepoBranches[]> {
   const response = await fetch(apiUrl("/git/branches", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git branches fetch failed: ${response.status}`);
   const json = (await response.json()) as { repositories?: GitRepoBranches[]; repos?: GitRepoBranches[] };
-  return json.repositories ?? json.repos ?? [];
+  return sortGitRepositories(json.repositories ?? json.repos ?? []);
 }
 
 export async function fetchGitBranchPreview(repo: string, source: string, target?: string | null): Promise<GitBranchPreview> {
@@ -1486,7 +1510,7 @@ export async function fetchGitWorktrees(repo?: string | null): Promise<GitRepoWo
   const response = await fetch(apiUrl("/git/worktrees", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git worktrees fetch failed: ${response.status}`);
   const json = (await response.json()) as { repositories?: GitRepoWorktrees[]; repos?: GitRepoWorktrees[] };
-  return json.repositories ?? json.repos ?? [];
+  return sortGitRepositories(json.repositories ?? json.repos ?? []);
 }
 
 export async function addGitWorktree(input: { repo: string; path: string; branch?: string }): Promise<{ worktrees: GitWorktreeEntry[] }> {
@@ -1867,7 +1891,7 @@ export async function listGithubRepositories(): Promise<GithubRepositorySummary[
       : `HTTP ${response.status}`);
   }
   const body = json as { repositories?: GithubRepositorySummary[]; repos?: GithubRepositorySummary[] };
-  return body.repositories ?? body.repos ?? [];
+  return (body.repositories ?? body.repos ?? []).slice().sort((a, b) => compareLabel(a.full_name, b.full_name));
 }
 
 export async function cloneGithubRepository(input: {

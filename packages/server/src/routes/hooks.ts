@@ -1,6 +1,6 @@
 import { listRepos } from "@backlog/core";
 import { isLocalShimUpToDate, pickLocalShimProjectRoot, writeLocalShim } from "@backlog/config";
-import { repoCheckoutPath } from "@backlog/schemas";
+import { repoCheckoutPath, type RepoConfig } from "@backlog/schemas";
 import { inspectPreCommitHook, installPreCommitHook, readPauseUntil, uninstallPreCommitHook } from "@backlog/hooks";
 import { Hono } from "hono";
 import path from "node:path";
@@ -64,12 +64,28 @@ function resolveRepoPath(projectRoot: string, repoPath: string): string {
     : path.resolve(projectRoot, repoPath);
 }
 
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function repoSortName(repo: RepoConfig): string {
+  const candidate = (repo as { name?: string }).name ?? repo.checkout_path ?? repo.path ?? repo.remote_url ?? repo.git_url ?? repo.id;
+  return path.basename(candidate.replace(/[\\/]+$/, "")) || repo.id;
+}
+
+function sortRepos(repos: RepoConfig[]): RepoConfig[] {
+  return repos.slice().sort((a, b) =>
+    compareLabel(repoSortName(a), repoSortName(b))
+    || compareLabel(a.id, b.id),
+  );
+}
+
 export function hooksRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
   app.get("/hooks/status", (c) => {
     const project = c.get("project");
-    const repos = listRepos(project.backlogDir);
+    const repos = sortRepos(listRepos(project.backlogDir));
     const backlogBin = path.join(project.backlogDir, "bin", "backlog");
     const repoPaths = repos
       .map((repo) => repoCheckoutPath(repo))

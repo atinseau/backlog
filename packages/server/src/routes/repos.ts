@@ -81,6 +81,17 @@ function repoFolderName(repoPath: string, fallback: string): string {
   return path.basename(trimmed) || fallback;
 }
 
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function sortRepoResponses<T extends Pick<RepoResponse, "id" | "name">>(repositories: T[]): T[] {
+  return repositories.slice().sort((a, b) =>
+    compareLabel(a.name || a.id, b.name || b.id)
+    || compareLabel(a.id, b.id),
+  );
+}
+
 function githubFullNameFromUrl(value: string): string | null {
   const remoteUrl = value.trim().replace(/\.git$/i, "");
   const httpsMatch = /^https?:\/\/(?:[^@/]+@)?github\.com\/([^/]+\/[^/#?]+)$/i.exec(remoteUrl);
@@ -134,7 +145,7 @@ export function reposRoutes(): Hono<AppEnv> {
 
   const listHandler = (c: Context<AppEnv>) => {
     const project = c.get("project");
-    const repositories = listRepos(project.backlogDir).map(decorateRepo);
+    const repositories = sortRepoResponses(listRepos(project.backlogDir).map(decorateRepo));
     return c.json({ repos: repositories, repositories } satisfies RepositoriesResponse);
   };
 

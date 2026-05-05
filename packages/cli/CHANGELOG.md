@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.43] - 2026-05-05
+
+Header model selection and sorting polish.
+
+- **The selected model now sits next to the project name** with normal-weight text, while Stop/Play moved to the right side of the header just before New Task.
+- **Model selection is explicit** — Backlog no longer exposes an automatic-selection row in the header picker, and each project persists a concrete selected agent/model, defaulting to the last ready configured agent when no previous choice exists.
+- **Project and repository lists are alphabetized consistently** across the board, project selector, repository selector, Git views, hooks, and GitHub integration lists.
+
 ## [1.4.42] - 2026-05-05
 
 Header model picker polish.

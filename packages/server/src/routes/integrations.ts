@@ -34,6 +34,10 @@ const JIRA_CLOUD_ID_KEY = "jira.oauth.cloud_id";
 const JIRA_SITE_URL_KEY = "jira.oauth.site_url";
 const CLOUD_JWT_KEY = "cloud.jwt";
 
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
 function cloudAuthHeaders(backlogDir: string, json = false): Record<string, string> {
   const headers: Record<string, string> = {};
   if (json) headers["content-type"] = "application/json";
@@ -379,7 +383,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
         ssh_url: repo.ssh_url,
         html_url: repo.html_url,
         pushed_at: repo.pushed_at,
-      }));
+      })).sort((a, b) => compareLabel(a.full_name, b.full_name));
       return c.json({ repos: summary, repositories: summary });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

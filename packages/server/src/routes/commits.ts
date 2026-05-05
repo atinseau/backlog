@@ -31,6 +31,22 @@ function requireCheckoutPath(repo: RepoConfig): string | null {
   return repoCheckoutPath(repo) ?? null;
 }
 
+function compareLabel(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function repoSortName(repo: RepoConfig): string {
+  const value = (repo as { name?: string }).name ?? repoCheckoutPath(repo) ?? repo.path ?? repo.remote_url ?? repo.git_url ?? repo.id;
+  const trimmed = value.replace(/[\\/]+$/, "");
+  return path.basename(trimmed) || repo.id;
+}
+
+function listableRepos(repos: RepoConfig[], repoFilter: string | null): RepoConfig[] {
+  return repos
+    .filter((repo) => repo.enabled && (!repoFilter || repo.id === repoFilter))
+    .sort((a, b) => compareLabel(repoSortName(a), repoSortName(b)) || compareLabel(a.id, b.id));
+}
+
 export interface CommitLink {
   kind: "task" | "subtask" | "claim";
   id: string;
@@ -660,9 +676,7 @@ export function commitsRoutes(): Hono<AppEnv> {
 
     const all: CommitEntry[] = [];
     const readLimit = offset + limit;
-    for (const repo of config.repos) {
-      if (!repo.enabled) continue;
-      if (repoFilter && repo.id !== repoFilter) continue;
+    for (const repo of listableRepos(config.repos, repoFilter)) {
       const repoPath = requireCheckoutPath(repo);
       const commits = repoPath
         ? await readCommitsForRepo(repo.id, repoPath, readLimit)
@@ -680,9 +694,7 @@ export function commitsRoutes(): Hono<AppEnv> {
     const config = loadConfig(project.backlogDir);
 
     const repos: GitRepoChanges[] = [];
-    for (const repo of config.repos) {
-      if (!repo.enabled) continue;
-      if (repoFilter && repo.id !== repoFilter) continue;
+    for (const repo of listableRepos(config.repos, repoFilter)) {
       const repoPath = requireCheckoutPath(repo);
       if (!repoPath) {
         repos.push({
@@ -861,9 +873,7 @@ export function commitsRoutes(): Hono<AppEnv> {
     const repoFilter = repositoryQuery(c);
     const config = loadConfig(project.backlogDir);
     const repos = [];
-    for (const repo of config.repos) {
-      if (!repo.enabled) continue;
-      if (repoFilter && repo.id !== repoFilter) continue;
+    for (const repo of listableRepos(config.repos, repoFilter)) {
       const repoPath = requireCheckoutPath(repo);
       if (!repoPath) {
         repos.push({
@@ -892,9 +902,7 @@ export function commitsRoutes(): Hono<AppEnv> {
     const repoFilter = repositoryQuery(c);
     const config = loadConfig(project.backlogDir);
     const repos: GitRepoBranches[] = [];
-    for (const repo of config.repos) {
-      if (!repo.enabled) continue;
-      if (repoFilter && repo.id !== repoFilter) continue;
+    for (const repo of listableRepos(config.repos, repoFilter)) {
       const repoPath = requireCheckoutPath(repo);
       if (!repoPath) {
         try {
@@ -968,9 +976,7 @@ export function commitsRoutes(): Hono<AppEnv> {
     const repoFilter = repositoryQuery(c);
     const config = loadConfig(project.backlogDir);
     const repos: GitRepoWorktrees[] = [];
-    for (const repo of config.repos) {
-      if (!repo.enabled) continue;
-      if (repoFilter && repo.id !== repoFilter) continue;
+    for (const repo of listableRepos(config.repos, repoFilter)) {
       const repoPath = requireCheckoutPath(repo);
       if (!repoPath) {
         repos.push({ repo: repo.id, path: "", worktrees: [], error: "remote_repository_no_local_checkout" });

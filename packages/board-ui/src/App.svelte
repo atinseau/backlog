@@ -61,6 +61,8 @@
     touchProjectById,
     unarchiveTask,
     updateBacklogCli,
+    sortProjectEntries,
+    sortRepositories,
     type CloudStatus,
     type AgentSummary,
     type CurrentProject,
@@ -214,11 +216,23 @@
     return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
   }
 
+  function fallbackAgentId(list: AgentSummary[]): string | null {
+    const ready = list.filter((agent) => isExecutableAgent(agent) && !agent.needs_api_key);
+    if (ready.length > 0) return ready[ready.length - 1]?.id ?? null;
+    const executable = list.filter(isExecutableAgent);
+    return executable[executable.length - 1]?.id ?? null;
+  }
+
+  function resolveSelectedAgentId(list: AgentSummary[], current: string | null): string | null {
+    if (current && list.some((agent) => agent.id === current && isExecutableAgent(agent))) {
+      return current;
+    }
+    return fallbackAgentId(list);
+  }
+
   const selectedRunAgentId = $derived.by(() => {
-    if (!selectedAgentId) return null;
     if (agentsList.length === 0) return selectedAgentId;
-    const agent = agentsList.find((candidate) => candidate.id === selectedAgentId);
-    return agent && isExecutableAgent(agent) ? agent.id : null;
+    return resolveSelectedAgentId(agentsList, selectedAgentId);
   });
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations
@@ -315,7 +329,7 @@
     return [...set].sort();
   });
   const repoOptions = $derived.by<Repository[]>(() => {
-    if (projectRepos.length > 0) return projectRepos;
+    if (projectRepos.length > 0) return sortRepositories(projectRepos);
     return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
   const repoGitStatuses = $derived(board?.repo_git_statuses ?? {});
@@ -449,7 +463,10 @@
     }
     try { agentsList = await fetchAgents(); }
     catch { agentsList = []; }
-    if (selectedAgentId && agentsList.length > 0 && !agentsList.some((agent) => agent.id === selectedAgentId && isExecutableAgent(agent))) {
+    if (agentsList.length > 0) {
+      const resolved = resolveSelectedAgentId(agentsList, selectedAgentId);
+      if (resolved !== selectedAgentId) persistSelectedAgent(resolved);
+    } else if (selectedAgentId) {
       persistSelectedAgent(null);
     }
     // Users + agents share the assignee picker — keep them in sync.
@@ -536,8 +553,8 @@
 
   function withTransientProject(list: ProjectEntry[], info: CurrentProject | null): ProjectEntry[] {
     const transient = transientProjectEntry(info);
-    if (!transient || list.some((project) => project.id === transient.id)) return list;
-    return [transient, ...list];
+    if (!transient || list.some((project) => project.id === transient.id)) return sortProjectEntries(list);
+    return sortProjectEntries([transient, ...list]);
   }
 
   function scheduleRefresh() {
@@ -1247,13 +1264,6 @@
         }}
       />
       {#if projectShellReady}
-        <OrchestratorControls
-          onError={(message) => (error = message)}
-          onStarted={openActivityPanel}
-          onPlay={handleTopbarPlay}
-          externalActive={hasInFlightRun}
-          onStopActiveRuns={handleStopActiveRuns}
-        />
         <AgentPicker
           agents={agentsList}
           selectedId={selectedAgentId}
@@ -1277,6 +1287,13 @@
     </div>
     <div class="topbar-right">
       {#if projectShellReady}
+        <OrchestratorControls
+          onError={(message) => (error = message)}
+          onStarted={openActivityPanel}
+          onPlay={handleTopbarPlay}
+          externalActive={hasInFlightRun}
+          onStopActiveRuns={handleStopActiveRuns}
+        />
         <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
         <PanelToggles
           leftOpen={leftOpen}
