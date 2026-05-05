@@ -27,6 +27,40 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string; re
   return { root, backlogDir: path.join(root, ".backlog"), repoId: "demo" };
 }
 
+async function createRemoteWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string; origin: string }> {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-remote-launcher-"));
+  const seed = path.join(fixtureRoot, "seed");
+  const origin = path.join(fixtureRoot, "origin.git");
+  const root = path.join(fixtureRoot, "project");
+  fs.mkdirSync(seed, { recursive: true });
+  fs.mkdirSync(root, { recursive: true });
+
+  await git(["init", "-b", "main"], seed);
+  fs.writeFileSync(path.join(seed, "README.md"), "# remote demo\n", "utf8");
+  await git(["add", "README.md"], seed);
+  await git(["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "init"], seed);
+  await git(["clone", "--bare", seed, origin], fixtureRoot);
+
+  initLayout({
+    root,
+    projectName: "remote-launcher-test",
+    mode: "control_plane",
+    repos: [
+      {
+        id: "cloud",
+        default_branch: "main",
+        enabled: true,
+        access_mode: "read-write",
+        location: "remote",
+        remote_type: "git",
+        remote_provider: "custom",
+        remote_url: origin,
+      },
+    ],
+  });
+  return { root, backlogDir: path.join(root, ".backlog"), repoId: "cloud", origin };
+}
+
 describe("run-launcher", () => {
   let root: string;
   let backlogDir: string;
@@ -160,5 +194,50 @@ describe("run-launcher", () => {
     expect(fs.readFileSync(path.join(root, "human-note.txt"), "utf8")).toBe("do not stage me\n");
     expect(fs.readFileSync(path.join(root, "direct.txt"), "utf8")).toBe("ok\n");
     expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.direct_dirty_allowed"))).toBe(true);
+  });
+
+  it("prepares an isolated execution checkout for remote-only Git repositories", async () => {
+    ({ root, backlogDir, repoId } = await createRemoteWorkspace());
+    addAgent(backlogDir, {
+      id: "writer",
+      provider: "custom",
+      command: "node -e \"require('fs').writeFileSync('remote.txt', 'ok\\\\n')\"",
+      successMode: "complete",
+      allowedRepos: [repoId],
+      allowedRisk: ["medium"],
+    });
+    const workItem = createTask(backlogDir, {
+      title: "Write remote file",
+      repoTargets: [repoId],
+      autoCommit: false,
+      pushWhenDone: false,
+      worktreeMode: "direct",
+      preferredAgents: ["writer"],
+    });
+    createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Write remote file",
+      repo: repoId,
+      risk: "medium",
+      preferredAgents: ["writer"],
+    });
+
+    const config = loadConfig(backlogDir);
+    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
+    const result = await startRunsForPlan({ backlogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
+
+    expect(result.skipped).toEqual([]);
+    expect(result.started).toHaveLength(1);
+    const started = result.started[0]!;
+    expect(started.worktreePath).toBe(path.join(backlogDir, "worktrees", repoId, started.runId));
+    expect(fs.readFileSync(path.join(started.worktreePath, "README.md"), "utf8")).toBe("# remote demo\n");
+    expect(fs.readFileSync(path.join(started.worktreePath, "remote.txt"), "utf8")).toBe("ok\n");
+
+    const run = loadRun(backlogDir, started.runId);
+    expect(run?.execution_mode).toBe("isolated_worktree");
+    expect(run?.status).toBe("succeeded");
+    expect(fs.existsSync(path.join(backlogDir, "remote-checkouts", repoId, started.runId, "repo", ".git"))).toBe(true);
+    expect(getRunEvents(backlogDir, started.runId).some((line) => line.includes("workspace.remote_checkout"))).toBe(true);
+    expect(getRunEvents(backlogDir, started.runId).some((line) => line.includes("workspace.mode_adjusted"))).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import { detectRepoRoot, repoCurrentBranch } from "@backlog/git";
 import { addRepo, cloneAndAddRepo, getRepo, listRepos, removeRepo, updateRepo } from "@backlog/core";
+import { repoCheckoutPath } from "@backlog/schemas";
 
 function slugify(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -19,6 +20,14 @@ function parseBooleanFlag(value: string): boolean {
   throw new Error(`Expected a boolean value, received: ${value}`);
 }
 
+function repositoryLocationLabel(repo: { location?: string | undefined; remote_type?: string | undefined; remote_provider?: string | undefined }): string {
+  if ((repo.location ?? "local") !== "remote") return "local";
+  const pieces = ["remote"];
+  if (repo.remote_type) pieces.push(repo.remote_type);
+  if (repo.remote_provider) pieces.push(repo.remote_provider);
+  return pieces.join("/");
+}
+
 async function resolveRepoBranch(repoPath: string, fallback: string): Promise<string> {
   try {
     const repoRoot = await detectRepoRoot(repoPath);
@@ -30,12 +39,12 @@ async function resolveRepoBranch(repoPath: string, fallback: string): Promise<st
 }
 
 export function registerRepoCommand(program: Command): void {
-  const repos = program.command("repos").description("Manage project repos");
+  const repos = program.command("repositories").description("Manage project repositories");
 
   repos
     .command("list")
-    .description("List configured repos")
-    .option("--enabled <enabled>", "Only show enabled or disabled repos")
+    .description("List configured repositories")
+    .option("--enabled <enabled>", "Only show enabled or disabled repositories")
     .option("--json", "Emit machine-readable JSON")
     .action((options: { enabled?: string; json?: boolean }) => {
       const workspace = findProject();
@@ -55,18 +64,19 @@ export function registerRepoCommand(program: Command): void {
         return;
       }
       if (repos.length === 0) {
-        console.log("No repos configured.");
+        console.log("No repositories configured.");
         return;
       }
       for (const repo of repos) {
-        console.log(`${repo.id} | enabled=${repo.enabled} | branch=${repo.default_branch} | ${repo.path}`);
+        const checkoutPath = repoCheckoutPath(repo) ?? "(no local checkout)";
+        console.log(`${repo.id} | ${repositoryLocationLabel(repo)} | enabled=${repo.enabled} | branch=${repo.default_branch} | ${checkoutPath}`);
       }
     });
 
   repos
     .command("show")
-    .description("Show one configured repo")
-    .argument("<repo-id>", "Repo id")
+    .description("Show one configured repository")
+    .argument("<repository-id>", "Repository id")
     .option("--json", "Emit machine-readable JSON")
     .action((repoId: string, options: { json?: boolean }) => {
       const workspace = findProject();
@@ -75,14 +85,20 @@ export function registerRepoCommand(program: Command): void {
       }
       const repo = getRepo(workspace.backlogDir, repoId);
       if (!repo) {
-        throw new Error(`Unknown repo: ${repoId}`);
+        throw new Error(`Unknown repository: ${repoId}`);
       }
       if (options.json) {
         console.log(JSON.stringify(repo, null, 2));
         return;
       }
-      console.log(`Repo: ${repo.id}`);
-      console.log(`Path: ${repo.path}`);
+      console.log(`Repository: ${repo.id}`);
+      console.log(`Path: ${repoCheckoutPath(repo) ?? "(no local checkout)"}`);
+      console.log(`Location: ${repo.location ?? "local"}`);
+      if ((repo.location ?? "local") === "remote") {
+        if (repo.remote_type) console.log(`Remote type: ${repo.remote_type}`);
+        if (repo.remote_provider) console.log(`Remote provider: ${repo.remote_provider}`);
+        if (repo.remote_url) console.log(`Remote URL: ${repo.remote_url}`);
+      }
       console.log(`Enabled: ${repo.enabled}`);
       console.log(`Default branch: ${repo.default_branch}`);
       if (repo.role) {
@@ -92,14 +108,14 @@ export function registerRepoCommand(program: Command): void {
 
   repos
     .command("add")
-    .description("Add one repo to the project (local path) or clone from a Git URL")
-    .option("--path <path>", "Path to a local repo (mutually exclusive with --url)")
-    .option("--url <url>", "Git URL to clone (e.g. https://github.com/user/repo.git)")
-    .option("--clone-into <path>", "Destination directory for the clone; defaults to <project-state>/repos/<id>")
-    .option("--id <id>", "Repo id; defaults to the repo directory name (or URL slug)")
+    .description("Add one repository to the project (local path) or clone from a Git URL")
+    .option("--path <path>", "Path to a local repository (mutually exclusive with --url)")
+    .option("--url <url>", "Git URL to clone (e.g. https://github.com/user/repository.git)")
+    .option("--clone-into <path>", "Destination directory for the clone; defaults to <project-state>/repositories/<id>")
+    .option("--id <id>", "Repository id; defaults to the repository directory name (or URL slug)")
     .option("--default-branch <branch>", "Default branch; defaults to the detected git branch or project default")
-    .option("--role <role>", "Optional repo role")
-    .option("--disabled", "Add the repo as disabled")
+    .option("--role <role>", "Optional repository role")
+    .option("--disabled", "Add the repository as disabled")
     .action(async (options: {
       id?: string;
       path?: string;
@@ -128,7 +144,7 @@ export function registerRepoCommand(program: Command): void {
         if (options.role) input.role = options.role;
         if (options.disabled !== undefined) input.enabled = !options.disabled;
         const repo = await cloneAndAddRepo(workspace.backlogDir, input);
-        console.log(`Cloned and added repo ${repo.id} → ${repo.path}`);
+        console.log(`Cloned and added repository ${repo.id} → ${repo.path}`);
         return;
       }
 
@@ -142,21 +158,22 @@ export function registerRepoCommand(program: Command): void {
         defaultBranch,
         ...(options.role ? { role: options.role } : {}),
         enabled: !options.disabled,
+        location: "local",
       });
-      console.log(`Added repo ${repo.id}`);
+      console.log(`Added repository ${repo.id}`);
     });
 
   repos
     .command("update")
-    .description("Update one configured repo")
-    .argument("<repo-id>", "Repo id")
-    .option("--id <id>", "Rename the repo id")
-    .option("--path <path>", "Move the repo path")
+    .description("Update one configured repository")
+    .argument("<repository-id>", "Repository id")
+    .option("--id <id>", "Rename the repository id")
+    .option("--path <path>", "Move the repository path")
     .option("--default-branch <branch>", "Override the default branch")
-    .option("--role <role>", "Set a repo role")
-    .option("--clear-role", "Remove the repo role")
-    .option("--enable", "Enable this repo")
-    .option("--disable", "Disable this repo")
+    .option("--role <role>", "Set a repository role")
+    .option("--clear-role", "Remove the repository role")
+    .option("--enable", "Enable this repository")
+    .option("--disable", "Disable this repository")
     .action((repoId: string, options: {
       id?: string;
       path?: string;
@@ -182,13 +199,13 @@ export function registerRepoCommand(program: Command): void {
         ...(options.enable ? { enabled: true } : {}),
         ...(options.disable ? { enabled: false } : {}),
       });
-      console.log(`Updated repo ${repo.id}`);
+      console.log(`Updated repository ${repo.id}`);
     });
 
   repos
     .command("remove")
-    .description("Remove one repo from the project")
-    .argument("<repo-id>", "Repo id")
+    .description("Remove one repository from the project")
+    .argument("<repository-id>", "Repository id")
     .option("--force", "Also clean linked tasks, tasks, and agent scopes")
     .action((repoId: string, options: { force?: boolean }) => {
       const workspace = findProject();
@@ -198,6 +215,6 @@ export function registerRepoCommand(program: Command): void {
       const repo = removeRepo(workspace.backlogDir, repoId, {
         ...(options.force ? { force: true } : {}),
       });
-      console.log(`Removed repo ${repo.id}`);
+      console.log(`Removed repository ${repo.id}`);
     });
 }

@@ -142,7 +142,7 @@
       titleModel = result.title_model ?? null;
       // Only kick the AI splitter when the user explicitly opts in.
       // Most tasks (one HTML file, one fix, one PR) shouldn't be split;
-      // splitting is for genuinely parallel-able multi-repo work.
+      // splitting is for genuinely parallel-able multi-repository work.
       if (autoSplit && (repoTargets.length > 0 || availableRepos.length > 0)) {
         phase = "splitting";
         const result = await suggestSplit(task.id);

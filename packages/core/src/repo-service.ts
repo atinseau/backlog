@@ -3,7 +3,15 @@ import path from "node:path";
 import { listActiveClaims } from "@backlog/claims";
 import { loadConfig, saveConfig } from "@backlog/config";
 import { cloneRepo, detectGitProvider, repoIdFromGitUrl } from "@backlog/git";
-import type { RepoAccessMode, RepoConfig, RepoProvider } from "@backlog/schemas";
+import { repoCheckoutPath } from "@backlog/schemas";
+import type {
+  RepoAccessMode,
+  RepoConfig,
+  RepoProvider,
+  RepositoryLocation,
+  RepositoryRemoteProvider,
+  RepositoryRemoteType,
+} from "@backlog/schemas";
 import { listActiveRuns } from "./run-store.js";
 import { readAgentsFile, writeAgentsFile } from "./agents.js";
 import { deriveTaskStatusFromSubTasks } from "./task-service.js";
@@ -11,23 +19,29 @@ import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } fr
 
 export interface AddRepoInput {
   id: string;
-  path: string;
+  path?: string;
   defaultBranch: string;
   role?: string;
   enabled?: boolean;
   accessMode?: RepoAccessMode;
+  location?: RepositoryLocation;
+  remoteType?: RepositoryRemoteType;
+  remoteProvider?: RepositoryRemoteProvider;
+  remoteUrl?: string;
   gitUrl?: string;
   provider?: RepoProvider;
 }
 
 export interface CloneAndAddRepoInput {
   url: string;
+  remoteUrl?: string;
   id?: string;
   destDir?: string;
   defaultBranch?: string;
   role?: string;
   enabled?: boolean;
   accessMode?: RepoAccessMode;
+  remoteProvider?: RepositoryRemoteProvider;
 }
 
 export interface UpdateRepoInput {
@@ -38,10 +52,32 @@ export interface UpdateRepoInput {
   clearRole?: boolean;
   enabled?: boolean;
   accessMode?: RepoAccessMode;
+  location?: RepositoryLocation;
+  remoteType?: RepositoryRemoteType;
+  clearRemoteType?: boolean;
+  remoteProvider?: RepositoryRemoteProvider;
+  clearRemoteProvider?: boolean;
+  remoteUrl?: string;
+  clearRemoteUrl?: boolean;
   gitUrl?: string;
   clearGitUrl?: boolean;
   provider?: RepoProvider;
   clearProvider?: boolean;
+}
+
+export interface CreateRepoCheckoutInput {
+  path?: string;
+  cloneUrl?: string;
+}
+
+function remoteProviderFromLegacy(provider: RepoProvider | undefined): RepositoryRemoteProvider | undefined {
+  if (!provider || provider === "local") return undefined;
+  return provider === "other" ? "custom" : provider;
+}
+
+function legacyProviderFromRemote(provider: RepositoryRemoteProvider | undefined): RepoProvider | undefined {
+  if (!provider) return undefined;
+  return provider === "custom" ? "other" : provider;
 }
 
 function workspaceRootFromBacklogDir(backlogDir: string): string {
@@ -54,7 +90,7 @@ function normalizeRepoPath(backlogDir: string, repoPath: string): string {
 
 function ensureRepoPathExists(repoPath: string): void {
   if (!fs.existsSync(repoPath)) {
-    throw new Error(`Configured repo path does not exist: ${repoPath}`);
+    throw new Error(`Configured repository path does not exist: ${repoPath}`);
   }
 }
 
@@ -68,25 +104,44 @@ export function getRepo(backlogDir: string, repoId: string): RepoConfig | null {
 
 export function addRepo(backlogDir: string, input: AddRepoInput): RepoConfig {
   const config = loadConfig(backlogDir);
-  const normalizedPath = normalizeRepoPath(backlogDir, input.path);
-  ensureRepoPathExists(normalizedPath);
+  const hasCheckoutInput = Boolean(input.path);
+  const normalizedPath = input.path ? normalizeRepoPath(backlogDir, input.path) : undefined;
 
   if (config.repos.some((repo) => repo.id === input.id)) {
-    throw new Error(`Repo id already exists: ${input.id}`);
+    throw new Error(`Repository id already exists: ${input.id}`);
   }
-  if (config.repos.some((repo) => repo.path === normalizedPath)) {
-    throw new Error(`Repo path already exists in this workspace: ${normalizedPath}`);
+  if (normalizedPath) {
+    ensureRepoPathExists(normalizedPath);
   }
+  if (normalizedPath && config.repos.some((repo) => repoCheckoutPath(repo) === normalizedPath)) {
+    throw new Error(`Repository path already exists in this project: ${normalizedPath}`);
+  }
+
+  const remoteUrl = input.remoteUrl ?? input.gitUrl;
+  const remoteProvider = input.remoteProvider ?? remoteProviderFromLegacy(input.provider);
+  const location: RepositoryLocation = input.location ?? (
+    remoteUrl || input.remoteType || remoteProvider ? "remote" : "local"
+  );
+  if (location === "local" && !hasCheckoutInput) {
+    throw new Error("Local repositories require a local checkout path.");
+  }
+  const remoteType = input.remoteType ?? (location === "remote" && remoteUrl ? "git" : undefined);
+  const legacyProvider = input.provider ?? legacyProviderFromRemote(remoteProvider);
+  const legacyGitUrl = input.gitUrl ?? (remoteType === "git" ? remoteUrl : undefined);
 
   const repo: RepoConfig = {
     id: input.id,
-    path: normalizedPath,
     default_branch: input.defaultBranch,
+    ...(normalizedPath ? { path: normalizedPath, checkout_path: normalizedPath } : {}),
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
     access_mode: input.accessMode ?? "read-write",
-    ...(input.gitUrl ? { git_url: input.gitUrl } : {}),
-    ...(input.provider ? { provider: input.provider } : {}),
+    location,
+    ...(remoteType ? { remote_type: remoteType } : {}),
+    ...(remoteProvider ? { remote_provider: remoteProvider } : {}),
+    ...(remoteUrl ? { remote_url: remoteUrl } : {}),
+    ...(legacyGitUrl ? { git_url: legacyGitUrl } : {}),
+    ...(legacyProvider ? { provider: legacyProvider } : {}),
   };
   config.repos.push(repo);
   saveConfig(backlogDir, config);
@@ -100,14 +155,14 @@ export async function cloneAndAddRepo(
   const config = loadConfig(backlogDir);
   const id = input.id ?? repoIdFromGitUrl(input.url);
   if (config.repos.some((repo) => repo.id === id)) {
-    throw new Error(`Repo id already exists: ${id}`);
+    throw new Error(`Repository id already exists: ${id}`);
   }
   const projectRoot = workspaceRootFromBacklogDir(backlogDir);
   const destDir = input.destDir
     ? path.resolve(projectRoot, input.destDir)
-    : path.resolve(projectRoot, "repos", id);
-  if (config.repos.some((repo) => repo.path === destDir)) {
-    throw new Error(`Repo path already exists in this workspace: ${destDir}`);
+    : path.resolve(projectRoot, "repositories", id);
+  if (config.repos.some((repo) => repoCheckoutPath(repo) === destDir)) {
+    throw new Error(`Repository path already exists in this project: ${destDir}`);
   }
 
   const cloneOptions: Parameters<typeof cloneRepo>[0] = {
@@ -117,7 +172,8 @@ export async function cloneAndAddRepo(
   if (input.defaultBranch) cloneOptions.branch = input.defaultBranch;
   await cloneRepo(cloneOptions);
 
-  const provider = detectGitProvider(input.url);
+  const storedRemoteUrl = input.remoteUrl ?? input.url;
+  const provider = detectGitProvider(storedRemoteUrl);
   return addRepo(backlogDir, {
     id,
     path: destDir,
@@ -125,7 +181,11 @@ export async function cloneAndAddRepo(
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
     ...(input.accessMode ? { accessMode: input.accessMode } : {}),
-    gitUrl: input.url,
+    location: "remote",
+    remoteType: "git",
+    remoteProvider: input.remoteProvider ?? remoteProviderFromLegacy(provider) ?? "custom",
+    remoteUrl: storedRemoteUrl,
+    gitUrl: storedRemoteUrl,
     provider,
   });
 }
@@ -134,25 +194,25 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   const config = loadConfig(backlogDir);
   const repo = config.repos.find((candidate) => candidate.id === repoId);
   if (!repo) {
-    throw new Error(`Unknown repo: ${repoId}`);
+    throw new Error(`Unknown repository: ${repoId}`);
   }
 
   const activeClaims = listActiveClaims(backlogDir).filter((claim) => claim.repo === repoId);
   const activeRuns = listActiveRuns(backlogDir).filter((run) => run.repo === repoId);
   if ((input.id !== undefined || input.path !== undefined) && (activeClaims.length > 0 || activeRuns.length > 0)) {
-    throw new Error(`Cannot change repo identity for ${repoId} while active claims or runs still reference it.`);
+    throw new Error(`Cannot change repository identity for ${repoId} while active claims or runs still reference it.`);
   }
 
   if (input.id !== undefined && input.id !== repoId && config.repos.some((candidate) => candidate.id === input.id)) {
-    throw new Error(`Repo id already exists: ${input.id}`);
+      throw new Error(`Repository id already exists: ${input.id}`);
   }
 
   let normalizedPath: string | undefined;
   if (input.path !== undefined) {
     normalizedPath = normalizeRepoPath(backlogDir, input.path);
     ensureRepoPathExists(normalizedPath);
-    if (config.repos.some((candidate) => candidate.id !== repoId && candidate.path === normalizedPath)) {
-      throw new Error(`Repo path already exists in this workspace: ${normalizedPath}`);
+    if (config.repos.some((candidate) => candidate.id !== repoId && repoCheckoutPath(candidate) === normalizedPath)) {
+      throw new Error(`Repository path already exists in this project: ${normalizedPath}`);
     }
   }
 
@@ -210,6 +270,7 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   }
   if (normalizedPath !== undefined) {
     repo.path = normalizedPath;
+    repo.checkout_path = normalizedPath;
   }
   if (input.defaultBranch !== undefined) {
     repo.default_branch = input.defaultBranch;
@@ -226,14 +287,50 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   if (input.accessMode !== undefined) {
     repo.access_mode = input.accessMode;
   }
+  if (input.location !== undefined) {
+    repo.location = input.location;
+  }
+  if (input.remoteType !== undefined) {
+    repo.remote_type = input.remoteType;
+  }
+  if (input.clearRemoteType) {
+    delete repo.remote_type;
+  }
+  if (input.remoteProvider !== undefined) {
+    repo.remote_provider = input.remoteProvider;
+    const provider = legacyProviderFromRemote(input.remoteProvider);
+    if (provider) repo.provider = provider;
+  }
+  if (input.clearRemoteProvider) {
+    delete repo.remote_provider;
+    delete repo.provider;
+  }
+  if (input.remoteUrl !== undefined) {
+    repo.remote_url = input.remoteUrl;
+    if ((input.remoteType ?? repo.remote_type) === "git") {
+      repo.git_url = input.remoteUrl;
+    }
+  }
+  if (input.clearRemoteUrl) {
+    delete repo.remote_url;
+    delete repo.git_url;
+  }
   if (input.gitUrl !== undefined) {
     repo.git_url = input.gitUrl;
+    repo.remote_url = input.gitUrl;
+    repo.remote_type = "git";
+    repo.location = "remote";
   }
   if (input.clearGitUrl) {
     delete repo.git_url;
   }
   if (input.provider !== undefined) {
     repo.provider = input.provider;
+    const remoteProvider = remoteProviderFromLegacy(input.provider);
+    if (remoteProvider) {
+      repo.remote_provider = remoteProvider;
+      repo.location = "remote";
+    }
   }
   if (input.clearProvider) {
     delete repo.provider;
@@ -243,21 +340,64 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   return repo;
 }
 
+export async function createRepoCheckout(
+  backlogDir: string,
+  repoId: string,
+  input: CreateRepoCheckoutInput = {},
+): Promise<RepoConfig> {
+  const config = loadConfig(backlogDir);
+  const repo = config.repos.find((candidate) => candidate.id === repoId);
+  if (!repo) {
+    throw new Error(`Unknown repository: ${repoId}`);
+  }
+  if ((repo.remote_type ?? (repo.remote_url ?? repo.git_url ? "git" : undefined)) !== "git") {
+    throw new Error(`Repository ${repoId} is not a Git remote.`);
+  }
+  const cloneUrl = input.cloneUrl ?? repo.remote_url ?? repo.git_url;
+  if (!cloneUrl) {
+    throw new Error(`Repository ${repoId} has no remote URL.`);
+  }
+
+  const existingCheckout = repoCheckoutPath(repo);
+  if (existingCheckout && fs.existsSync(existingCheckout)) {
+    throw new Error(`Repository ${repoId} already has a local checkout: ${existingCheckout}`);
+  }
+  const defaultDest = existingCheckout ?? path.resolve(workspaceRootFromBacklogDir(backlogDir), "repositories", repo.id);
+  const dest = input.path ? normalizeRepoPath(backlogDir, input.path) : defaultDest;
+  if (config.repos.some((candidate) => candidate.id !== repo.id && repoCheckoutPath(candidate) === dest)) {
+    throw new Error(`Repository path already exists in this project: ${dest}`);
+  }
+
+  const cloneOptions: Parameters<typeof cloneRepo>[0] = {
+    url: cloneUrl,
+    dest,
+  };
+  if (repo.default_branch) cloneOptions.branch = repo.default_branch;
+  await cloneRepo(cloneOptions);
+
+  repo.path = dest;
+  repo.checkout_path = dest;
+  repo.location = "remote";
+  repo.remote_type = "git";
+  saveConfig(backlogDir, config);
+  return repo;
+}
+
 export function removeRepo(backlogDir: string, repoId: string, options?: { force?: boolean }): RepoConfig {
   const config = loadConfig(backlogDir);
   const repoIndex = config.repos.findIndex((candidate) => candidate.id === repoId);
   if (repoIndex < 0) {
-    throw new Error(`Unknown repo: ${repoId}`);
+    throw new Error(`Unknown repository: ${repoId}`);
   }
 
   const activeClaims = listActiveClaims(backlogDir).filter((claim) => claim.repo === repoId);
   if (activeClaims.length > 0) {
-    throw new Error(`Cannot remove repo ${repoId} while ${activeClaims.length} active claim(s) still reference it.`);
+    throw new Error(`Cannot remove repository ${repoId} while ${activeClaims.length} active claim(s) still reference it.`);
   }
 
   const activeRuns = listActiveRuns(backlogDir).filter((run) => run.repo === repoId);
   if (activeRuns.length > 0) {
-    throw new Error(`Cannot remove repo ${repoId} while ${activeRuns.length} active run(s) still reference it.`);
+    throw new Error(`Cannot remove repository ${repoId} while ${activeRuns.length} active run(s) still reference it.`);
   }
 
   const tasksFile = readSubTasksFile(backlogDir);
@@ -269,7 +409,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
 
   if (!options?.force && (linkedTasks.length > 0 || linkedProjectTasks.length > 0 || linkedAgents.length > 0)) {
     throw new Error(
-      `Repo ${repoId} is still referenced by ${linkedProjectTasks.length} task(s), ${linkedTasks.length} subtask(s), and ${linkedAgents.length} agent(s). Re-run with --force.`,
+      `Repository ${repoId} is still referenced by ${linkedProjectTasks.length} task(s), ${linkedTasks.length} subtask(s), and ${linkedAgents.length} agent(s). Re-run with --force.`,
     );
   }
 
@@ -332,7 +472,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
 
   const [removed] = config.repos.splice(repoIndex, 1);
   if (!removed) {
-    throw new Error(`Unknown repo: ${repoId}`);
+    throw new Error(`Unknown repository: ${repoId}`);
   }
   saveConfig(backlogDir, config);
   return removed;

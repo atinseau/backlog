@@ -90,7 +90,11 @@ components:
       properties:
         id: { type: integer, format: int64 }
         task_id: { type: integer, format: int64 }
-        repo: { type: string, nullable: true }
+        repository: { type: string, nullable: true }
+        repo:
+          type: string
+          nullable: true
+          deprecated: true
         scope: { type: string, nullable: true }
         status: { type: string, enum: [planned, ready, in_progress, awaiting_review, done, failed, blocked] }
         assigned_agent: { type: string, nullable: true }
@@ -477,7 +481,10 @@ paths:
               required: [task_id]
               properties:
                 task_id: { type: integer }
-                repo: { type: string }
+                repository: { type: string }
+                repo:
+                  type: string
+                  deprecated: true
                 scope: { type: string }
                 status: { type: string }
                 assigned_agent: { type: string }

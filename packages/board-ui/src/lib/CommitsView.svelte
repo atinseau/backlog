@@ -1,10 +1,11 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
-  import { isMissingRepoPathError, relocateRepoPath } from "./repo-relocate.js";
+  import { isMissingRepositoryPathError, relocateRepositoryPath } from "./repository-relocate.js";
   import {
     addGitWorktree,
     checkoutGitBranch,
     commitGitChanges,
+    createGitPullRequest,
     discardGitChanges,
     fetchCommits,
     fetchGitBranchPreview,
@@ -68,6 +69,7 @@
   let gitActionBusy = $state<"discard" | "stash" | null>(null);
   let syncingRepo = $state<string | null>(null);
   let branchBusy = $state<string | null>(null);
+  let pullRequestBusy = $state<string | null>(null);
   let worktreeBusy = $state<string | null>(null);
   let newBranchByRepo = $state<Record<string, string>>({});
   let mergeSourceByRepo = $state<Record<string, string>>({});
@@ -240,6 +242,10 @@
     return branches.find((entry) => entry.repo === repoId) ?? null;
   }
 
+  function hasLocalCheckout(state: GitRepoBranches): boolean {
+    return state.has_local_checkout ?? Boolean(state.path);
+  }
+
   function branchOptions(state: GitRepoBranches): string[] {
     const names = new Set<string>();
     for (const branch of state.local) names.add(branch.name);
@@ -280,13 +286,14 @@
     }
     for (const branch of state.remote) {
       if (seen.has(branch.name)) continue;
+      const current = branch.short_name === state.current_branch || branch.name === state.current_branch;
       rows.push({
         key: branchRowKey(state.repo, "remote", branch.name),
         repo: state.repo,
         name: branch.name,
         label: branch.short_name,
         kind: "remote",
-        current: false,
+        current,
         remote: branch.remote,
       });
     }
@@ -324,6 +331,13 @@
 
   function worktreesFor(repoId: string): GitRepoWorktrees | null {
     return worktrees.find((entry) => entry.repo === repoId) ?? null;
+  }
+
+  function worktreeErrorText(value: string): string {
+    if (value === "remote_repository_no_local_checkout" || value === "repository_has_no_local_checkout") {
+      return t("git.worktree.checkout_required");
+    }
+    return value;
   }
 
   function previewKey(repo: string, target: string, source: string): string {
@@ -569,6 +583,30 @@
     }
   }
 
+  async function createPullRequestForBranch(repoId: string, source: string) {
+    const state = branchesFor(repoId);
+    if (!state) return;
+    const target = state.current_branch ?? state.default_branch;
+    if (!source || !target) return;
+    pullRequestBusy = repoId;
+    error = null;
+    info = null;
+    try {
+      const result = await createGitPullRequest({
+        repo: repoId,
+        source,
+        target,
+        title: t("git.pr.default_title", { source, target }),
+        body: t("git.pr.default_body"),
+      });
+      info = t("git.pr.created", { url: result.url });
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      pullRequestBusy = null;
+    }
+  }
+
   function openPreviewFileDiff(preview: GitBranchPreview, file: GitCommitFileEntry) {
     onOpenDiff?.(preview.repo, file.path, null, preview.base, preview.source);
   }
@@ -661,9 +699,9 @@
     error = null;
     info = null;
     try {
-      const relocated = await relocateRepoPath(repo.repo, repo.path);
+      const relocated = await relocateRepositoryPath(repo.repo, repo.path);
       if (!relocated) return;
-      info = t("repos_view.relocate_done", { repo: repo.repo });
+      info = t("repos_view.relocate_done", { repository: repo.repo });
       await load();
       onCommitted?.();
     } catch (err) {
@@ -834,6 +872,7 @@
     <div class="branch-list-view" aria-label={t("git.branch.section")}>
       {#each branches as state (state.repo)}
         {@const remote = remoteFor(state.repo)}
+        {@const localCheckout = hasLocalCheckout(state)}
         <section class="git-repo-list">
           <div class="git-repo-head">
             <div class="git-repo-title">
@@ -859,21 +898,25 @@
                   {t("git.branch.create")}
                 </button>
               </label>
-              <button
-                type="button"
-                class="sync"
-                onclick={() => syncRepo(state.repo)}
-                disabled={syncingRepo !== null || branchBusy !== null || !remote?.remote_url}
-                title={remote?.remote_url ?? ""}
-              >
-                {syncingRepo === state.repo ? t("git.sync.running") : t("git.sync.button")}
-              </button>
+              {#if localCheckout}
+                <button
+                  type="button"
+                  class="sync"
+                  onclick={() => syncRepo(state.repo)}
+                  disabled={syncingRepo !== null || branchBusy !== null || !remote?.remote_url}
+                  title={remote?.remote_url ?? ""}
+                >
+                  {syncingRepo === state.repo ? t("git.sync.running") : t("git.sync.button")}
+                </button>
+              {:else}
+                <span class="remote-note">{t("git.branch.remote_actions")}</span>
+              {/if}
             </div>
           </div>
           {#if state.error}
             <div class="repo-error">
-              {#if isMissingRepoPathError(state.error)}
-                <strong>{t("repos_view.missing_title", { repo: state.repo })}</strong>
+              {#if isMissingRepositoryPathError(state.error)}
+                <strong>{t("repos_view.missing_title", { repository: state.repo })}</strong>
                 <span>{t("repos_view.missing_body", { path: state.path })}</span>
                 <button type="button" onclick={() => handleRelocateRepo(state)}>
                   {t("repos_view.relocate")}
@@ -905,38 +948,70 @@
                 </div>
                 {#if isOpen}
                   <div class="git-line-detail">
-                    <div class="branch-detail-actions">
-                      <button
-                        type="button"
-                        class="secondary"
-                        onclick={() => checkoutBranch(state.repo, row.name)}
-                        disabled={branchBusy !== null || row.current}
-                      >
-                        {t("git.branch.checkout_action")}
-                      </button>
-                      <label class="branch-field strategy compact">
-                        <span>{t("git.branch.strategy")}</span>
-                        <select
-                          value={mergeStrategyByRepo[state.repo] ?? "auto"}
-                          disabled={branchBusy !== null || row.current || !state.current_branch}
-                          onchange={(e) => setMergeStrategy(state.repo, e.currentTarget.value as "auto" | "ff_only" | "no_ff")}
+                    {#if localCheckout}
+                      <div class="branch-detail-actions">
+                        <button
+                          type="button"
+                          class="secondary"
+                          onclick={() => checkoutBranch(state.repo, row.name)}
+                          disabled={branchBusy !== null || row.current}
                         >
-                          <option value="auto">{t("git.branch.strategy_auto")}</option>
-                          <option value="ff_only">{t("git.branch.strategy_ff")}</option>
-                          <option value="no_ff">{t("git.branch.strategy_noff")}</option>
-                        </select>
-                      </label>
-                      <button
-                        type="button"
-                        class="secondary"
-                        onclick={() => mergeBranch(state.repo, row.name)}
-                        disabled={branchBusy !== null || row.current || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
-                      >
-                        {branchBusy === state.repo
-                          ? t("git.branch.running")
-                          : t("git.branch.merge_into_current", { target: state.current_branch ?? "HEAD" })}
-                      </button>
-                    </div>
+                          {t("git.branch.checkout_action")}
+                        </button>
+                        <label class="branch-field strategy compact">
+                          <span>{t("git.branch.strategy")}</span>
+                          <select
+                            value={mergeStrategyByRepo[state.repo] ?? "auto"}
+                            disabled={branchBusy !== null || row.current || !state.current_branch}
+                            onchange={(e) => setMergeStrategy(state.repo, e.currentTarget.value as "auto" | "ff_only" | "no_ff")}
+                          >
+                            <option value="auto">{t("git.branch.strategy_auto")}</option>
+                            <option value="ff_only">{t("git.branch.strategy_ff")}</option>
+                            <option value="no_ff">{t("git.branch.strategy_noff")}</option>
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          class="secondary"
+                          onclick={() => mergeBranch(state.repo, row.name)}
+                          disabled={branchBusy !== null || row.current || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
+                        >
+                          {branchBusy === state.repo
+                            ? t("git.branch.running")
+                            : t("git.branch.merge_into_current", { target: state.current_branch ?? "HEAD" })}
+                        </button>
+                        <button
+                          type="button"
+                          class="secondary"
+                          onclick={() => createPullRequestForBranch(state.repo, row.name)}
+                          disabled={pullRequestBusy !== null || row.current || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
+                        >
+                          {pullRequestBusy === state.repo ? t("git.pr.running") : t("git.pr.create")}
+                        </button>
+                      </div>
+                    {:else if !row.current}
+                      <div class="branch-detail-actions">
+                        <button
+                          type="button"
+                          class="secondary"
+                          onclick={() => createPullRequestForBranch(state.repo, row.name)}
+                          disabled={pullRequestBusy !== null || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
+                        >
+                          {pullRequestBusy === state.repo ? t("git.pr.running") : t("git.pr.create")}
+                        </button>
+                        <button
+                          type="button"
+                          class="secondary"
+                          onclick={() => mergeBranch(state.repo, row.name)}
+                          disabled={branchBusy !== null || !state.current_branch || preview === null || Boolean(preview && "loading" in preview)}
+                        >
+                          {branchBusy === state.repo
+                            ? t("git.branch.running")
+                            : t("git.branch.merge_into_current", { target: state.current_branch ?? "HEAD" })}
+                        </button>
+                        <span class="remote-note">{t("git.branch.remote_merge_hint")}</span>
+                      </div>
+                    {/if}
                     {#if row.current}
                       <div class="preview-state">{t("git.branch.current_hint")}</div>
                     {:else if preview}
@@ -1041,8 +1116,8 @@
               </div>
               {#if repo.status.error}
                 <div class="repo-error">
-                  {#if isMissingRepoPathError(repo.status.error)}
-                    <strong>{t("repos_view.missing_title", { repo: repo.repo })}</strong>
+                  {#if isMissingRepositoryPathError(repo.status.error)}
+                    <strong>{t("repos_view.missing_title", { repository: repo.repo })}</strong>
                     <span>{t("repos_view.missing_body", { path: repo.path })}</span>
                     <button type="button" onclick={() => handleRelocateRepo(repo)}>
                       {t("repos_view.relocate")}
@@ -1118,26 +1193,29 @@
       {:else}
         {#each worktrees as repo (repo.repo)}
           {@const branchState = branchesFor(repo.repo)}
+          {@const hasCheckout = Boolean(repo.path)}
           <section class="git-repo-list">
             <div class="git-repo-head">
               <div class="git-repo-title">
                 <strong>{repo.repo}</strong>
-                <span>{repo.path}</span>
+                <span>{hasCheckout ? repo.path : t("git.worktree.no_checkout")}</span>
               </div>
-              <button type="button" class="secondary" onclick={() => pruneWorktrees(repo.repo)} disabled={worktreeBusy !== null}>
-                {t("git.worktree.prune")}
-              </button>
+              {#if hasCheckout}
+                <button type="button" class="secondary" onclick={() => pruneWorktrees(repo.repo)} disabled={worktreeBusy !== null}>
+                  {t("git.worktree.prune")}
+                </button>
+              {/if}
             </div>
             {#if repo.error}
               <div class="repo-error">
-                {#if isMissingRepoPathError(repo.error)}
-                  <strong>{t("repos_view.missing_title", { repo: repo.repo })}</strong>
+                {#if isMissingRepositoryPathError(repo.error)}
+                  <strong>{t("repos_view.missing_title", { repository: repo.repo })}</strong>
                   <span>{t("repos_view.missing_body", { path: repo.path })}</span>
                   <button type="button" onclick={() => handleRelocateRepo(repo)}>
                     {t("repos_view.relocate")}
                   </button>
                 {:else}
-                  {repo.error}
+                  {worktreeErrorText(repo.error)}
                 {/if}
               </div>
             {:else}
@@ -1482,6 +1560,13 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .remote-note {
+    max-width: 260px;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.3;
+    text-align: right;
   }
   .inline-create {
     display: grid;

@@ -505,6 +505,288 @@ export async function testGithubToken(token: string): Promise<{ login: string }>
   return { login: user.login };
 }
 
+export interface GithubBranchSummary {
+  name: string;
+  sha: string;
+}
+
+export interface GithubCommitSummary {
+  sha: string;
+  short_sha: string;
+  subject: string;
+  author: string;
+  date: string;
+}
+
+export interface GithubCommitFileSummary {
+  path: string;
+  old_path?: string;
+  kind: "added" | "modified" | "deleted" | "renamed";
+  patch?: string;
+}
+
+export interface GithubCompareSummary {
+  base_sha: string;
+  commits: GithubCommitSummary[];
+  files: GithubCommitFileSummary[];
+}
+
+export interface GithubMergeSummary {
+  sha: string;
+  short_sha: string;
+}
+
+export interface GithubPullRequestSummary {
+  number: number;
+  url: string;
+  state: string;
+  title: string;
+  head: string;
+  base: string;
+}
+
+function githubHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+async function githubJson<T>(
+  token: string,
+  path: string,
+  query: Record<string, string> = {},
+  init: RequestInit = {},
+): Promise<T> {
+  const url = new URL(`https://api.github.com${path}`);
+  for (const [key, value] of Object.entries(query)) {
+    url.searchParams.set(key, value);
+  }
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...githubHeaders(token),
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`GitHub ${path} failed: ${response.status} ${response.statusText} ${detail.slice(0, 200)}`);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+async function githubPost<T>(token: string, path: string, body: Record<string, unknown>): Promise<T> {
+  return githubJson<T>(token, path, {}, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function listGithubBranches(token: string, fullName: string): Promise<GithubBranchSummary[]> {
+  const branches: GithubBranchSummary[] = [];
+  let page = 1;
+  while (page <= 5) {
+    const batch = await githubJson<Array<{ name: string; commit: { sha: string } }>>(
+      token,
+      `/repos/${fullName}/branches`,
+      { per_page: "100", page: String(page) },
+    );
+    branches.push(...batch.map((branch) => ({ name: branch.name, sha: branch.commit.sha })));
+    if (batch.length < 100) break;
+    page += 1;
+  }
+  return branches;
+}
+
+export async function listGithubCommits(
+  token: string,
+  fullName: string,
+  options: { limit?: number; branch?: string } = {},
+): Promise<GithubCommitSummary[]> {
+  const limit = Math.min(100, Math.max(1, options.limit ?? 50));
+  const query: Record<string, string> = { per_page: String(limit) };
+  if (options.branch) query.sha = options.branch;
+  const commits = await githubJson<Array<{
+    sha: string;
+    commit: {
+      message: string;
+      author?: { name?: string | null; date?: string | null } | null;
+      committer?: { date?: string | null } | null;
+    };
+    author?: { login?: string | null } | null;
+  }>>(token, `/repos/${fullName}/commits`, query);
+  return commits.map((commit) => ({
+    sha: commit.sha,
+    short_sha: commit.sha.slice(0, 7),
+    subject: commit.commit.message.split("\n")[0] ?? "",
+    author: commit.author?.login ?? commit.commit.author?.name ?? "",
+    date: commit.commit.author?.date ?? commit.commit.committer?.date ?? "",
+  }));
+}
+
+function githubFileKind(status: string): GithubCommitFileSummary["kind"] {
+  if (status === "added") return "added";
+  if (status === "removed") return "deleted";
+  if (status === "renamed") return "renamed";
+  return "modified";
+}
+
+export async function getGithubCommitFiles(
+  token: string,
+  fullName: string,
+  sha: string,
+): Promise<GithubCommitFileSummary[]> {
+  const commit = await githubJson<{
+    files?: Array<{
+      filename: string;
+      previous_filename?: string;
+      status: string;
+      patch?: string;
+    }>;
+  }>(token, `/repos/${fullName}/commits/${sha}`);
+  return (commit.files ?? []).map((file) => {
+    const result: GithubCommitFileSummary = {
+      path: file.filename,
+      kind: githubFileKind(file.status),
+    };
+    if (file.previous_filename) result.old_path = file.previous_filename;
+    if (file.patch) result.patch = file.patch;
+    return result;
+  });
+}
+
+export async function compareGithubRefs(
+  token: string,
+  fullName: string,
+  base: string,
+  head: string,
+): Promise<GithubCompareSummary> {
+  const comparison = await githubJson<{
+    merge_base_commit?: { sha?: string };
+    commits?: Array<{
+      sha: string;
+      commit: {
+        message: string;
+        author?: { name?: string | null; date?: string | null } | null;
+        committer?: { date?: string | null } | null;
+      };
+      author?: { login?: string | null } | null;
+    }>;
+    files?: Array<{
+      filename: string;
+      previous_filename?: string;
+      status: string;
+      patch?: string;
+    }>;
+  }>(token, `/repos/${fullName}/compare/${base}...${head}`);
+  return {
+    base_sha: comparison.merge_base_commit?.sha ?? base,
+    commits: (comparison.commits ?? []).map((commit) => ({
+      sha: commit.sha,
+      short_sha: commit.sha.slice(0, 7),
+      subject: commit.commit.message.split("\n")[0] ?? "",
+      author: commit.author?.login ?? commit.commit.author?.name ?? "",
+      date: commit.commit.author?.date ?? commit.commit.committer?.date ?? "",
+    })),
+    files: (comparison.files ?? []).map((file) => {
+      const result: GithubCommitFileSummary = {
+        path: file.filename,
+        kind: githubFileKind(file.status),
+      };
+      if (file.previous_filename) result.old_path = file.previous_filename;
+      if (file.patch) result.patch = file.patch;
+      return result;
+    }),
+  };
+}
+
+export async function createGithubBranch(
+  token: string,
+  fullName: string,
+  branch: string,
+  startPoint: string,
+): Promise<GithubBranchSummary> {
+  const startRef = startPoint.replace(/^origin\//, "");
+  const source = await githubJson<{ object?: { sha?: string } }>(
+    token,
+    `/repos/${fullName}/git/ref/heads/${startRef}`,
+  );
+  const sha = source.object?.sha;
+  if (!sha) {
+    throw new Error(`GitHub source branch ${startPoint} has no commit SHA.`);
+  }
+  const created = await githubPost<{ ref?: string; object?: { sha?: string } }>(
+    token,
+    `/repos/${fullName}/git/refs`,
+    { ref: `refs/heads/${branch}`, sha },
+  );
+  return {
+    name: created.ref?.replace(/^refs\/heads\//, "") ?? branch,
+    sha: created.object?.sha ?? sha,
+  };
+}
+
+export async function mergeGithubBranch(
+  token: string,
+  fullName: string,
+  base: string,
+  head: string,
+  message?: string,
+): Promise<GithubMergeSummary> {
+  const merged = await githubPost<{ sha?: string } | undefined>(
+    token,
+    `/repos/${fullName}/merges`,
+    {
+      base: base.replace(/^origin\//, ""),
+      head: head.replace(/^origin\//, ""),
+      ...(message ? { commit_message: message } : {}),
+    },
+  );
+  const sha = merged?.sha ?? "";
+  return { sha, short_sha: sha ? sha.slice(0, 7) : "" };
+}
+
+export async function createGithubPullRequest(
+  token: string,
+  fullName: string,
+  input: {
+    head: string;
+    base: string;
+    title: string;
+    body?: string;
+  },
+): Promise<GithubPullRequestSummary> {
+  const pr = await githubPost<{
+    number: number;
+    html_url: string;
+    state: string;
+    title: string;
+    head?: { ref?: string };
+    base?: { ref?: string };
+  }>(
+    token,
+    `/repos/${fullName}/pulls`,
+    {
+      head: input.head.replace(/^origin\//, ""),
+      base: input.base.replace(/^origin\//, ""),
+      title: input.title,
+      ...(input.body ? { body: input.body } : {}),
+    },
+  );
+  return {
+    number: pr.number,
+    url: pr.html_url,
+    state: pr.state,
+    title: pr.title,
+    head: pr.head?.ref ?? input.head,
+    base: pr.base?.ref ?? input.base,
+  };
+}
+
 export interface JiraTestInput {
   baseUrl: string;
   email: string;

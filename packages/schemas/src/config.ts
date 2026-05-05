@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const repositoryLocationSchema = z.enum(["local", "remote"]);
+export const repositoryRemoteTypeSchema = z.enum(["git", "ftp", "sftp", "other"]);
+export const repositoryRemoteProviderSchema = z.enum(["github", "gitlab", "bitbucket", "custom", "other"]);
 export const repoProviderSchema = z.enum(["local", "github", "gitlab", "bitbucket", "other"]);
 
 // What an agent run is allowed to do against this repo.
@@ -15,7 +18,8 @@ export const repoAccessModeSchema = z.enum(["read-write", "read-only", "no-acces
 
 export const repoConfigSchema = z.object({
   id: z.string().min(1),
-  path: z.string().min(1),
+  path: z.string().min(1).optional(),
+  checkout_path: z.string().min(1).optional(),
   default_branch: z.string().min(1),
   role: z.string().optional(),
   enabled: z.boolean().default(true),
@@ -23,9 +27,19 @@ export const repoConfigSchema = z.object({
   // config.toml files load unchanged; treat missing as "read-write" at
   // every read site (the runtime helpers default explicitly).
   access_mode: repoAccessModeSchema.optional(),
+  location: repositoryLocationSchema.default("local"),
+  remote_type: repositoryRemoteTypeSchema.optional(),
+  remote_provider: repositoryRemoteProviderSchema.optional(),
+  remote_url: z.string().optional(),
+  // Deprecated compatibility fields. New code should use
+  // location/remote_type/remote_provider/remote_url so non-Git remote
+  // repositories can be represented cleanly.
   git_url: z.string().optional(),
   provider: repoProviderSchema.optional(),
-});
+}).refine(
+  (repo) => (repo.location ?? "local") === "remote" || Boolean(repo.checkout_path ?? repo.path),
+  { message: "Local repositories require a checkout_path or legacy path." },
+);
 
 export const aiProviderSchema = z.enum(["anthropic", "openai", "codex"]);
 
@@ -115,11 +129,28 @@ export const projectConfigSchema = z.object({
   repos: z.array(repoConfigSchema).default([]),
 });
 
-export type RepoConfig = z.infer<typeof repoConfigSchema>;
+export type RepositoryLocation = z.infer<typeof repositoryLocationSchema>;
+export type RepositoryRemoteType = z.infer<typeof repositoryRemoteTypeSchema>;
+export type RepositoryRemoteProvider = z.infer<typeof repositoryRemoteProviderSchema>;
+type ParsedRepoConfig = z.infer<typeof repoConfigSchema>;
+export type RepoConfig = Omit<ParsedRepoConfig, "location"> & {
+  location?: RepositoryLocation;
+};
 export type RepoProvider = z.infer<typeof repoProviderSchema>;
 export type RepoAccessMode = z.infer<typeof repoAccessModeSchema>;
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type ProjectLocation = z.infer<typeof projectLocationSchema>;
 export type GitMergeStrategy = z.infer<typeof gitMergeStrategySchema>;
 export type GitConfig = z.infer<typeof gitConfigSchema>;
-export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+type ParsedProjectConfig = z.infer<typeof projectConfigSchema>;
+export type ProjectConfig = Omit<ParsedProjectConfig, "repos"> & {
+  repos: RepoConfig[];
+};
+
+export function repoCheckoutPath(repo: RepoConfig): string | undefined {
+  return repo.checkout_path ?? repo.path;
+}
+
+export function repoHasLocalCheckout(repo: RepoConfig): boolean {
+  return Boolean(repoCheckoutPath(repo));
+}

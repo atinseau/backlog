@@ -5,12 +5,12 @@
   // / manage repositories without leaving the panel.
   import { onDestroy } from "svelte";
   import { t } from "./i18n.svelte.js";
-  import { repoDisplayName } from "./repo-display.js";
-  import { isMissingRepoPathError } from "./repo-relocate.js";
-  import type { GitStatusSummary, Repo } from "./types.js";
+  import { repositoryDisplayName } from "./repository-display.js";
+  import { isMissingRepositoryPathError } from "./repository-relocate.js";
+  import type { GitStatusSummary, Repository } from "./types.js";
 
   interface Props {
-    repos: Repo[];
+    repos: Repository[];
     selectedId: string | null;
     projectScoped: boolean;
     onSelect: (id: string | null) => void;
@@ -26,7 +26,7 @@
 
   const selected = $derived(repos.find((r) => r.id === selectedId) ?? null);
   const triggerLabel = $derived(
-    selected ? repoDisplayName(selected) : t("selector.all_repos", { count: repos.length }),
+    selected ? repositoryDisplayName(selected) : t("selector.all_repos", { count: repos.length }),
   );
   const aggregateStatus = $derived(aggregateGitStatus(repos, gitStatuses));
   const selectedStatus = $derived(selected ? gitStatuses[selected.id] : aggregateStatus);
@@ -46,7 +46,7 @@
     };
   }
 
-  function aggregateGitStatus(items: Repo[], statuses: Record<string, GitStatusSummary>): GitStatusSummary {
+  function aggregateGitStatus(items: Repository[], statuses: Record<string, GitStatusSummary>): GitStatusSummary {
     const total = emptyStatus();
     for (const repo of items) {
       const status = statuses[repo.id];
@@ -74,7 +74,7 @@
 
   function statusTitle(status: GitStatusSummary | undefined): string {
     if (!status) return t("git_status.unknown");
-    if (isMissingRepoPathError(status.error) || status.error === "missing_repo_path") return t("git_status.missing_repo");
+    if (isMissingRepositoryPathError(status.error) || status.error === "missing_repo_path") return t("git_status.missing_repo");
     if (status.error) return t("git_status.unavailable");
     if (status.total === 0) return t("git_status.clean");
     return [
@@ -87,7 +87,7 @@
     ].filter((part): part is string => Boolean(part)).join(", ");
   }
 
-  function repoStatusTitle(repo: Repo, status: GitStatusSummary | undefined): string {
+  function repoStatusTitle(repo: Repository, status: GitStatusSummary | undefined): string {
     if (repo.path_exists === false) return t("git_status.missing_repo");
     return statusTitle(status);
   }
@@ -173,7 +173,7 @@
             disabled={!repo.enabled}
             onclick={() => pick(repo.id)}
           >
-            <span class="item-name">{repoDisplayName(repo)}</span>
+            <span class="item-name">{repositoryDisplayName(repo)}</span>
             {#if !repo.enabled}<span class="off">disabled</span>{/if}
             {#if repo.path_exists === false || gitStatuses[repo.id]?.error}
               <span class="dirty-badge" title={repoStatusTitle(repo, gitStatuses[repo.id])} aria-label={repoStatusTitle(repo, gitStatuses[repo.id])}>

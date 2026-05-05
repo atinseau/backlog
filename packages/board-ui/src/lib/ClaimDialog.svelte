@@ -43,7 +43,7 @@
 
     const paths = parsePaths();
     if (!repo || !topic || paths.length === 0) {
-      genericError = "repo, topic and at least one path are required";
+      genericError = "repository, topic and at least one path are required";
       return;
     }
 
@@ -83,7 +83,7 @@
       <label>
         {t("claim_dialog.field.repo")}
         {#if repos.length === 0}
-          <input type="text" bind:value={repo} placeholder="repo id" required />
+          <input type="text" bind:value={repo} placeholder="repository ID" required />
         {:else}
           <select bind:value={repo} required>
             {#each repos as r (r)}

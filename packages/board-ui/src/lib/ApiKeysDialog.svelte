@@ -2,7 +2,7 @@
   // Account-scoped API key entry, surfaced as a dedicated dialog so we
   // can open it from anywhere (profile dropdown, AgentsView hints,
   // Settings). Values live in ~/.backlog/secrets.json, encrypted at
-  // rest, so repo-only transient boards and registered projects share
+  // rest, so repository-only transient boards and registered projects share
   // the same default keys. Project secrets can still override them.
   import {
     fetchSecretsList,

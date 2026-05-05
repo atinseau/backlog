@@ -82,13 +82,13 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | `PATCH` | `/subtasks/:id/estimate` | Set or clear the manual estimate |
 | `PATCH` | `/tasks/:id/progress` | Agent-reported progress 0..100 |
 
-### Projects, repos, orchestrator, permissions
+### Projects, repositories, orchestrator, permissions
 
 | Method | Path | Notes |
 |---|---|---|
 | `GET` `POST` `PATCH` `DELETE` | `/projects[/:idOrSlug]` | CRUD for projects (groups of repo ids) |
 | `POST` | `/projects/:idOrSlug/archive` | Soft-archive shortcut |
-| `GET` `POST` `PATCH` `DELETE` | `/repos[/:id]` | CRUD for tracked repos. POST accepts `{ git_url, clone_into? }` to clone first |
+| `GET` `POST` `PATCH` `DELETE` | `/repositories[/:id]` | CRUD for tracked repositories. POST accepts `{ remote_url, remote_type: "git", clone_into? }` to clone first. Legacy `{ git_url }` still works. |
 | `GET` | `/orchestrator/state` | Current loop mode + last tick + last error |
 | `POST` | `/orchestrator/start` | Body: `{ max_agents?, auto_pick_agents?, tick_interval_ms?, project_id? }` |
 | `POST` | `/orchestrator/pause` | Soft pause: stop dispatching, active runs continue |

@@ -39,7 +39,7 @@ When a run finishes, you review it, approve it, request changes, or hand
 it off — and the next eligible task can start immediately.
 
 Backlog runs end-to-end on your machine by default. Remote sources,
-remote repos, remote sandboxes, remote executors, and deploy targets are
+remote repositories, remote sandboxes, remote executors, and deploy targets are
 part of the [multi-target roadmap](docs/ROADMAP.md).
 
 ## How it works
@@ -47,30 +47,30 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 | Layer | What it does |
 |-------|--------------|
 | **Sources** | Ingest tasks from Markdown, CSV, Jira (and more — see roadmap) |
-| **Projects** | Group one or many repos under a single banner; tasks can be filtered per-project |
-| **Repos** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
+| **Projects** | Group one or many repositories under a single banner; tasks can be filtered per-project |
+| **Repositories** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
 | **Tasks** | High-level units of intent imported from sources |
-| **Subtasks** | Repo-scoped executable units split out from tasks |
+| **Subtasks** | Executable units scoped to one repository and split out from tasks |
 | **Claims** | Lock file/path scopes so concurrent runs cannot conflict |
 | **Worktrees** | Each run executes in its own isolated git worktree |
 | **Scheduler** | Picks eligible tasks, assigns agents, respects claim conflicts |
 | **Orchestrator** | Persistent ▶/⏸/⏹ loop that re-runs the scheduler on a tick and dispatches runs |
 | **Runs** | Track agent execution with summary, log, changed files, ETA, and live progress |
 | **Review** | Approve, request changes, complete, fail, or handoff each run |
-| **Agents** | Per-agent permissions, sandbox mode, risk level, repo restrictions |
+| **Agents** | Per-agent permissions, sandbox mode, risk level, repository restrictions |
 
 ## Quickstart
 
 ```bash
 npm install -g backlog
 
-# Single-repo project: drop a .backlog/ inside the repo.
-cd ~/Dev/my-repo
+# Single-repository project: drop a .backlog/ inside the repository.
+cd ~/Dev/my-repository
 backlog init --name my-project
 
-# Multi-repo project: keep project state at ~/.backlog/<slug>/ instead so it
-# isn't tied to any one repo.
-cd ~/Dev/my-multi-repo-parent
+# Multi-repository project: keep project state at ~/.backlog/<slug>/ instead so it
+# isn't tied to any one repository.
+cd ~/Dev/my-multi-repository-parent
 backlog init --user-level --name my-project
 
 backlog doctor
@@ -80,12 +80,12 @@ Create a task, split it into subtasks, and run the scheduler:
 
 ```bash
 backlog task add --title "Build the scheduler"
-backlog task split task_001 --repo backlog \
+backlog task split task_001 --repository backlog \
   --scope backlog=packages/core/src/**
-backlog task add \
+backlog subtask add \
   --task task_001 \
   --title "Implement scheduler" \
-  --repo backlog \
+  --repository backlog \
   --preferred-agent manual-default \
   --require-capability edit_code
 backlog schedule simulate
@@ -113,7 +113,7 @@ Svelte UI, same `@backlog/server`:
 #   - If a server is already running, just opens the URL.
 #   - Otherwise spawns `backlog serve` and blocks until Ctrl+C.
 #   - `backlog` with no subcommand is the same shortcut.
-#   - From inside a tracked repo, it opens that project + repo directly.
+#   - From inside a tracked repository, it opens that project + repository directly.
 backlog board
 ```
 
@@ -168,8 +168,8 @@ orchestrator state, project changes, and run status changes within ~200ms.
 
 ```
 backlog init                                          Initialize a project
-backlog doctor [--repo <id>] [--json]                 Inspect project health
-backlog status [--repo <id>]                          Project overview
+backlog doctor [--repository <id>] [--json]           Inspect project health
+backlog status [--repository <id>]                    Project overview
 backlog update                                        Update the global CLI install
 
 backlog                                                   Alias of `backlog board`
@@ -178,8 +178,9 @@ backlog serve    [--port 7878] [--host 127.0.0.1]
                  [--project <path>] [--no-open]
                  [--open-url <url>]                   Launch the kanban board
 backlog project  add|list|remove|path|migrate
-                 |migrate-rollback|export|import     Manage projects (groups of repos)
-backlog repos    list|show|add|update|remove          Manage tracked repos
+                 |migrate-rollback|export|import     Manage projects (groups of repositories)
+backlog repositories
+                 list|show|add|update|remove          Manage tracked repositories
                  [--url <git-url>] [--clone-into]     ...or clone from GitHub / GitLab / etc.
 backlog task     add|list|show|move|update|remove
                  |plan|split|import|estimate          Manage tasks
@@ -189,7 +190,7 @@ backlog subtask  add|list|show|move|update|remove
 backlog claim    start|check|finish|list|gc           Manage file-scope claims
                  [--duration <s>] [--agent <id>]
 backlog hooks    status|install|pause|resume|disable
-                 |stop|enable|uninstall [--all|--repo <id>]
+                 |stop|enable|uninstall [--all|--repository <id>]
                                                       Manage git hooks
 backlog orchestrator start|pause|stop|status|config   Persistent run dispatcher
                  [--max-agents N] [--auto] [--project <slug>]
@@ -202,7 +203,7 @@ backlog agents   list|show|enable|disable|update
 backlog sources  add|list|enable|disable|update|remove
                  |validate|sync|push|conflicts|resolve
                                                       Manage source connectors
-backlog release  snapshot [--repo <id>] [--include-disabled] [--output <path>]
+backlog release  snapshot [--repository <id>] [--include-disabled] [--output <path>]
                                                       Export a release report
 backlog worktree list|gc                              Inspect tracked worktrees
 ```
@@ -210,23 +211,23 @@ backlog worktree list|gc                              Inspect tracked worktrees
 ### Common multi-project flow
 
 ```bash
-# Start a multi-repo project, then add repos by local path or Git URL.
+# Start a multi-repository project, then add repositories by local path or Git URL.
 backlog init --name "Shipping" --user-level
-backlog repos add --path /Users/me/Dev/web                       # local
-backlog repos add --url https://github.com/me/api.git            # cloned to <project>/repos/api
+backlog repositories add --path /Users/me/Dev/web                 # local
+backlog repositories add --url https://github.com/me/api.git      # remote git, cloned to <project>/repositories/api
 
 # Create a task scoped to the project, split it, and let the orchestrator run.
 backlog task add --title "Stripe integration" --priority P1
-backlog task split task_001 --repo web --repo api
+backlog task split task_001 --repository web --repository api
 backlog orchestrator start --auto
 ```
 
 Most `list` commands support practical filters, for example:
 
 ```bash
-backlog repos list --enabled true
-backlog worktree list --repo backlog
-backlog task list --repo backlog --status blocked
+backlog repositories list --enabled true
+backlog worktree list --repository backlog
+backlog task list --repository backlog --status blocked
 backlog runs list --review --agent codex-default
 backlog sources list --enabled true
 ```
@@ -245,7 +246,7 @@ of files; only the path on disk differs.
 ```
 
 **user_level** (best for multi-repo projects so project state lives outside
-any one repo)
+any one repository)
 
 ```
 ~/.backlog/<slug>/
@@ -262,7 +263,7 @@ that come up most often.
 Either way, the layout inside the project state dir is the same:
 
 ```
-config.toml          # project + repos + autonomy_mode + claims TTL
+config.toml          # project + repositories + autonomy_mode + claims TTL
                      # (project_location = "in_repo" | "user_level")
 tasks.yaml           # tasks (incl. project_id, rank, estimate)
 subtasks.yaml        # executable units split out from tasks
@@ -275,11 +276,11 @@ bin/backlog          # local shim invoked by the pre-commit hook
 worktrees/           # tracked run worktrees
 ```
 
-You can edit YAML by hand, but `backlog repos`, `backlog project`,
+You can edit YAML by hand, but `backlog repositories`, `backlog project`,
 `backlog task`, `backlog orchestrator`, `backlog agents`,
 and `backlog sources` are designed to keep state consistent without manual
 edits. Use `backlog project migrate <id> --to user-level` (or `--to in-repo
---into <repo-id>`) to switch an existing project between layouts.
+--into <repository-id>`) to switch an existing project between layouts.
 
 ## Agents
 
@@ -330,10 +331,10 @@ changed files detected in the worktree.
 
 ## Hooks
 
-In multi-repo projects, `backlog hooks status|install|uninstall --all` lets
+In multi-repository projects, `backlog hooks status|install|uninstall --all` lets
 you audit or roll out the managed pre-commit hook across every configured
-repo in one pass. You can also target one configured repo explicitly with
-`--repo <id>`.
+repository in one pass. You can also target one configured repository explicitly with
+`--repository <id>`.
 
 `backlog hooks status` reports whether the hook and the local shim are up
 to date. If not, it prints the exact `backlog hooks install ...` command to
@@ -342,11 +343,11 @@ project until `backlog hooks resume` (alias: `enable`).
 
 ## Release snapshots
 
-`backlog release snapshot` reports dirty repos and per-repo run counts. It
+`backlog release snapshot` reports dirty repositories and per-repository run counts. It
 supports:
 
-- `--repo <id>` to focus on one repo
-- `--include-disabled` to include disabled repos in the snapshot
+- `--repository <id>` to focus on one repository
+- `--include-disabled` to include disabled repositories in the snapshot
 - `--output <path>` to write the snapshot to a file for export
 
 ## Packages in this monorepo
@@ -368,7 +369,7 @@ for development clarity and per-package licensing.
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the multi-target plan covering
-remote sources, remote repos, remote sandboxes, remote executors, and
+remote sources, remote repositories, remote sandboxes, remote executors, and
 deploy targets.
 
 ## Development
@@ -376,7 +377,7 @@ deploy targets.
 Contributor and agent docs are split by purpose:
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) for the human contribution path.
-- [AGENTS.md](AGENTS.md) for repo-specific instructions Codex and other agents
+- [AGENTS.md](AGENTS.md) for repository-specific instructions Codex and other agents
   must follow.
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for architecture, naming,
   local setup, UI conventions, Git behavior, and Cloud boundaries.

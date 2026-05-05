@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repo is a **pnpm monorepo**. Read [CONTRIBUTING.md](./CONTRIBUTING.md)
+This repository is a **pnpm monorepo**. Read [CONTRIBUTING.md](./CONTRIBUTING.md)
 and [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) before changing code.
 
 ## Where to document things
@@ -24,19 +24,23 @@ and [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) before changing code.
 - `packages/board-ui/` — Svelte board shared by CLI serve and Desktop
 - `packages/server/` — local Hono API server used by CLI serve and Desktop
 - `packages/{core,claims,connectors,config,git,hooks,schemas}/` — workspace-internal modules, bundled into the CLI tarball at publish time
-- `docs/ROADMAP.md` — multi-target roadmap (sources, repos, sandboxes, executors, deploy targets)
+- `docs/ROADMAP.md` — multi-target roadmap (sources, repositories, sandboxes, executors, deploy targets)
 - Root `README.md` is symlinked from `packages/cli/README.md` (CLI README is the canonical one for npm)
 
 ## Package boundaries
 
 - `packages/schemas/` (Zod) is the **source of truth for cross-boundary types**.
 - Internal packages use `workspace:*` deps; tsup bundles everything for the published `backlog` tarball.
-- The cloud backend (Backlog Cloud) lives in a private repo and is not part of this monorepo.
+- The cloud backend (Backlog Cloud) lives in a private repository and is not part of this monorepo.
 
 ## Naming conventions
 
-- User-facing copy says **project**, **repository/repo**, **task**, **subtask**,
+- User-facing copy says **project**, **repository/repositories**, **task**, **subtask**,
   **run**, **claim**.
+- Do not use "repo" or "repos" in new product copy or new public-facing code
+  names. Keep `repo`/`repos` only for backward-compatible API fields, CLI
+  flags, route names, storage keys, and legacy symbols until a planned
+  compatibility migration replaces them with `repository`/`repositories`.
 - Do not introduce new user-facing "workspace" copy. "Workspace" may still
   appear in legacy/internal code when the storage concept is literally
   `.backlog/`; prefer "project" for new public API and UI.
@@ -59,7 +63,7 @@ pnpm --filter @backlog/desktop build
 pnpm --filter backlog pack:check
 ```
 
-Run the local board from the repo root:
+Run the local board from the repository root:
 
 ```sh
 pnpm --filter backlog dev serve --project /Users/jimmy/Dev/backlog/backlog-cli --port 7878

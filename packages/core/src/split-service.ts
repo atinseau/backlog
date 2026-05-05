@@ -52,7 +52,7 @@ export function resolveSplitRepos(config: ProjectConfig, workItem: Task, request
   const deduped = Array.from(new Set(repoIds));
   const unknown = deduped.filter((repoId) => !config.repos.some((repo) => repo.id === repoId));
   if (unknown.length > 0) {
-    throw new Error(`Unknown repo ids for split: ${unknown.join(", ")}`);
+    throw new Error(`Unknown repository ids for split: ${unknown.join(", ")}`);
   }
   if (deduped.length === 0) {
     throw new Error("Cannot split task without a target repo. Add repo_targets or pass --repo.");

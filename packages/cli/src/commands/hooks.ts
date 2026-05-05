@@ -1,5 +1,5 @@
 import path from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import {
   findProject,
   isLocalShimUpToDate,
@@ -17,6 +17,7 @@ import {
   uninstallPreCommitHook,
   writePauseUntil,
 } from "@backlog/hooks";
+import { repoCheckoutPath } from "@backlog/schemas";
 
 interface HookTarget {
   id: string;
@@ -39,26 +40,33 @@ async function resolveHookTargets(options: {
 
   if (options.all) {
     if (options.repo || options.repoRoot) {
-      throw new Error("Use --all by itself, without --repo or --repo-root.");
+      throw new Error("Use --all by itself, without --repository or --repository-root.");
     }
     return {
       workspace,
-      targets: config.repos.map((repo) => ({ id: repo.id, root: repo.path, configured: true })),
+      targets: config.repos
+        .map((repo) => {
+          const checkoutPath = repoCheckoutPath(repo);
+          return checkoutPath ? { id: repo.id, root: checkoutPath, configured: true } : null;
+        })
+        .filter((target): target is HookTarget => Boolean(target)),
     };
   }
 
   if (options.repo && options.repoRoot) {
-    throw new Error("Use either --repo or --repo-root, not both.");
+    throw new Error("Use either --repository or --repository-root, not both.");
   }
 
   if (options.repo) {
     const repo = config.repos.find((candidate) => candidate.id === options.repo);
     if (!repo) {
-      throw new Error(`Unknown repo: ${options.repo}`);
+      throw new Error(`Unknown repository: ${options.repo}`);
     }
+    const checkoutPath = repoCheckoutPath(repo);
+    if (!checkoutPath) throw new Error(`Repository ${repo.id} has no local checkout path.`);
     return {
       workspace,
-      targets: [{ id: repo.id, root: repo.path, configured: true }],
+      targets: [{ id: repo.id, root: checkoutPath, configured: true }],
     };
   }
 
@@ -70,7 +78,7 @@ async function resolveHookTargets(options: {
 }
 
 function installCommandFor(target: HookTarget, options: { force?: boolean } = {}): string {
-  const scope = target.configured ? `--repo ${target.id}` : `--repo-root ${target.root}`;
+  const scope = target.configured ? `--repository ${target.id}` : `--repository-root ${target.root}`;
   return `backlog hooks install ${scope}${options.force ? " --force" : ""}`;
 }
 
@@ -113,9 +121,11 @@ export function registerHooksCommand(program: Command): void {
   hooks
     .command("status")
     .description("Inspect Backlog-managed pre-commit hooks")
-    .option("--repo <id>", "Target one configured repo by id")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Inspect every configured repo in this project")
+    .option("--repository <id>", "Target one configured repository by id")
+    .addOption(new Option("--repo <id>", "Target one configured repository by id").hideHelp())
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
+    .option("--all", "Inspect every configured repository in this project")
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; json?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
@@ -158,7 +168,7 @@ export function registerHooksCommand(program: Command): void {
           if (index > 0) {
             console.log("");
           }
-          console.log(`Repo: ${status.repoId}`);
+          console.log(`Repository: ${status.repoId}`);
           console.log(`Root: ${status.repoRoot}`);
         }
         console.log(`Hook: ${status.hookPath}`);
@@ -180,9 +190,11 @@ export function registerHooksCommand(program: Command): void {
   hooks
     .command("install")
     .description("Install Backlog-managed pre-commit hooks")
-    .option("--repo <id>", "Target one configured repo by id")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Install hooks in every configured repo in this project")
+    .option("--repository <id>", "Target one configured repository by id")
+    .addOption(new Option("--repo <id>", "Target one configured repository by id").hideHelp())
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
+    .option("--all", "Install hooks in every configured repository in this project")
     .option("--force", "Replace an existing non-Backlog hook")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean; force?: boolean }) => {
       const { workspace, targets } = await resolveHookTargets(options);
@@ -277,9 +289,11 @@ export function registerHooksCommand(program: Command): void {
   hooks
     .command("uninstall")
     .description("Remove Backlog-managed pre-commit hooks")
-    .option("--repo <id>", "Target one configured repo by id")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Remove hooks from every configured repo in this project")
+    .option("--repository <id>", "Target one configured repository by id")
+    .addOption(new Option("--repo <id>", "Target one configured repository by id").hideHelp())
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
+    .option("--all", "Remove hooks from every configured repository in this project")
     .action(async (options: { repo?: string; repoRoot?: string; all?: boolean }) => {
       const { targets } = await resolveHookTargets(options);
       for (const target of targets) {
@@ -292,11 +306,13 @@ export function registerHooksCommand(program: Command): void {
   hooks
     .command("dry-run")
     .description("Run `claim check` against given paths without committing — same gate the pre-commit hook applies")
-    .option("--repo <id>", "Target one configured repo by id")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
+    .option("--repository <id>", "Target one configured repository by id")
+    .addOption(new Option("--repo <id>", "Target one configured repository by id").hideHelp())
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
     .option(
       "--path <path...>",
-      "Repo-relative paths to validate. Without this flag, dry-run uses currently staged paths.",
+      "Repository-relative paths to validate. Without this flag, dry-run uses currently staged paths.",
     )
     .action(async (options: { repo?: string; repoRoot?: string; path?: string[] }) => {
       const workspace = findProject();
@@ -307,8 +323,10 @@ export function registerHooksCommand(program: Command): void {
       let repoRoot: string;
       if (options.repo) {
         const repo = config.repos.find((r) => r.id === options.repo);
-        if (!repo) throw new Error(`Unknown repo: ${options.repo}`);
-        repoRoot = repo.path;
+        if (!repo) throw new Error(`Unknown repository: ${options.repo}`);
+        const checkoutPath = repoCheckoutPath(repo);
+        if (!checkoutPath) throw new Error(`Repository ${repo.id} has no local checkout path.`);
+        repoRoot = checkoutPath;
       } else if (options.repoRoot) {
         repoRoot = options.repoRoot;
       } else {
@@ -320,7 +338,7 @@ export function registerHooksCommand(program: Command): void {
       // the hook itself would (env var, registry, etc.). Surfacing the
       // same exit code lets scripts wire it like the real hook.
       const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
-      const args = ["claim", "check", "--repo-root", repoRoot];
+      const args = ["claim", "check", "--repository-root", repoRoot];
       if (options.path && options.path.length > 0) {
         args.push("--path", ...options.path);
       } else {

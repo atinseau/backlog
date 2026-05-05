@@ -28,8 +28,8 @@ const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a back
 
 For each task you receive, propose between 2 and 6 sub-tasks. Each task must:
 - have a short imperative title (≤ 80 chars)
-- target one of the provided repos (use the exact repo id)
-- include 1 to 6 file scopes (paths or globs, repo-relative) that the task will touch
+- target one of the provided repositories (use the exact repository id)
+- include 1 to 6 file scopes (paths or globs, repository-relative) that the task will touch
 - declare a risk level: 'low' (small, isolated, reversible), 'medium' (touches public APIs or shared modules), 'high' (data migrations, security-sensitive, hard to revert)
 - list depends_on_indices: a JSON array of 0-based indices of OTHER tasks in your output that must complete first. Use [] for independent tasks.
 
@@ -238,7 +238,7 @@ export async function suggestSplit(
   options: SuggestOptions = {},
 ): Promise<SplitProposal> {
   if (repos.length === 0) {
-    throw new Error("No repos available — configure at least one repo in the project before splitting.");
+    throw new Error("No repositories available — configure at least one repository in the project before splitting.");
   }
   const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
   if (provider === "anthropic") return suggestSplitAnthropic(workItem, repos, options);

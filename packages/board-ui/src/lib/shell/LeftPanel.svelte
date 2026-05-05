@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Navigator pane — Xcode-style. Project + repo at the top, then a
+  // Navigator pane — Xcode-style. Project + repository at the top, then a
   // vertical list of sections that swap the center content (or open a
   // modal view, until those views get inlined). Profile + locale at
   // the bottom mirror Xcode's status indicators on the navigator base.
@@ -7,7 +7,7 @@
   import RepositorySelector from "../RepositorySelector.svelte";
   import ThemeToggle from "../ThemeToggle.svelte";
   import { t } from "../i18n.svelte.js";
-  import type { GitStatusSummary, Repo } from "../types.js";
+  import type { GitStatusSummary, Repository } from "../types.js";
 
   export type SectionKey =
     | "board"
@@ -21,7 +21,7 @@
     | "settings";
 
   interface Props {
-    repos: Repo[];
+    repos: Repository[];
     repoGitStatuses?: Record<string, GitStatusSummary>;
     selectedRepoId: string | null;
     onSelectRepo: (id: string | null) => void;

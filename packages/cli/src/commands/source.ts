@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject } from "@backlog/config";
 import { createConnector } from "@backlog/connectors";
 import {
@@ -59,7 +59,8 @@ export function registerSourceCommand(program: Command): void {
     .option("--jql <jql>", "JQL query for Jira")
     .option("--email-env <env>", "Env var name for Jira email", "JIRA_EMAIL")
     .option("--token-env <env>", "Env var name for Jira API token (or GitHub PAT)", "JIRA_API_TOKEN")
-    .option("--repo <owner/name>", "Repo for GitHub (e.g. octocat/hello-world)")
+    .option("--repository <owner/name>", "Repository for GitHub (e.g. octocat/hello-world)")
+    .addOption(new Option("--repo <owner/name>", "Repository for GitHub (e.g. octocat/hello-world)").hideHelp())
     .option("--labels <labels>", "Comma-separated GitHub label filter")
     .option("--state <state>", "GitHub issue state filter (open | closed | all)", "open")
     .action((kind: SourceKind, options: {
@@ -136,10 +137,10 @@ export function registerSourceCommand(program: Command): void {
           break;
         case "github":
           if (!options.repo) {
-            throw new Error("--repo <owner/name> is required for github");
+            throw new Error("--repository <owner/name> is required for github");
           }
           if (!/^[^/\s]+\/[^/\s]+$/.test(options.repo)) {
-            throw new Error(`--repo must be in <owner/name> form, got: ${options.repo}`);
+            throw new Error(`--repository must be in <owner/name> form, got: ${options.repo}`);
           }
           source = {
             id: options.id,

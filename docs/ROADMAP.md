@@ -22,7 +22,7 @@ for deploy — or any other combination.
 | Layer       | Implementation                                |
 |-------------|-----------------------------------------------|
 | Sources     | markdown, csv, jira                           |
-| Repos       | local git path                                |
+| Repositories | local git path                              |
 | Sandboxes   | local `git worktree`                          |
 | Executors   | claude code, codex, custom command            |
 | Deploy      | `git push` to whatever remote the repo has    |

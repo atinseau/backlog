@@ -10,6 +10,7 @@ import {
 import { loadConfig } from "@backlog/config";
 import { listAgents } from "@backlog/core";
 import { detectGitDir } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { Agent, ClaimRecord, RepoConfig } from "@backlog/schemas";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -39,7 +40,8 @@ function enrichClaim(claim: ClaimRecord, agentsById: Map<string, Agent>): Enrich
 }
 
 const createClaimBodySchema = z.object({
-  repo: z.string().min(1),
+  repo: z.string().min(1).optional(),
+  repository: z.string().min(1).optional(),
   repo_path: z.string().min(1).optional(),
   topic: z.string().min(1),
   paths: z.array(z.string().min(1)).min(1),
@@ -48,6 +50,9 @@ const createClaimBodySchema = z.object({
   expected_duration_seconds: z.number().int().positive().optional(),
   agent_id: z.string().min(1).optional(),
   metadata: z.record(z.string(), z.string()).optional(),
+}).transform((data) => ({ ...data, repo: data.repo ?? data.repository })).refine((data) => Boolean(data.repo), {
+  message: "repo or repository is required",
+  path: ["repository"],
 });
 
 async function resolveGitDirForRepo(backlogDir: string, repoId: string): Promise<string | null> {
@@ -58,8 +63,10 @@ async function resolveGitDirForRepo(backlogDir: string, repoId: string): Promise
     return null;
   }
   if (!repo) return null;
+  const checkoutPath = repoCheckoutPath(repo);
+  if (!checkoutPath) return null;
   try {
-    return await detectGitDir(repo.path);
+    return await detectGitDir(checkoutPath);
   } catch {
     return null;
   }
@@ -91,7 +98,7 @@ export function claimsRoutes(): Hono<AppEnv> {
     const claims = archivedOnly
       ? listArchivedClaims(project.backlogDir)
       : listActiveClaims(project.backlogDir);
-    const repo = c.req.query("repo");
+    const repo = c.req.query("repository") ?? c.req.query("repo");
     const filtered = repo ? claims.filter((claim) => claim.repo === repo) : claims;
     const agentsById = new Map(listAgents(project.backlogDir).map((agent) => [agent.id, agent]));
     return c.json({
@@ -104,10 +111,10 @@ export function claimsRoutes(): Hono<AppEnv> {
 
   app.get("/claims/check", (c) => {
     const project = c.get("project");
-    const repo = c.req.query("repo");
+    const repo = c.req.query("repository") ?? c.req.query("repo");
     const path = c.req.query("path");
     if (!repo || !path) {
-      return c.json({ error: "missing_query", required: ["repo", "path"] }, 400);
+      return c.json({ error: "missing_query", required: ["repository", "path"] }, 400);
     }
     const candidate = {
       id: "__check__",
@@ -144,11 +151,13 @@ export function claimsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     const body = parsed.data;
-    const repoPath = body.repo_path ?? body.repo;
+    const repo = body.repo;
+    if (!repo) return c.json({ error: "invalid_body", detail: "repo or repository is required" }, 400);
+    const repoPath = body.repo_path ?? repo;
 
     const candidate = {
       id: "__candidate__",
-      repo: body.repo,
+      repo,
       repo_path: repoPath,
       paths: body.paths,
       mode: body.mode ?? "exclusive",
@@ -163,7 +172,7 @@ export function claimsRoutes(): Hono<AppEnv> {
 
     const createInput: Parameters<typeof createClaim>[0] = {
       backlogDir: project.backlogDir,
-      repo: body.repo,
+      repo,
       repoPath,
       topic: body.topic,
       paths: body.paths,

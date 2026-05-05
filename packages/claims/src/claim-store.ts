@@ -212,7 +212,7 @@ export function garbageCollectExpiredClaims(backlogDir: string): ClaimGcResult {
 }
 
 export interface ContextPointerGcResult {
-  // Repos that had a .git/backlog-context.json before we ran. Useful for
+  // Repositories that had a .git/backlog-context.json before we ran. Useful for
   // "checked N repos, found M orphans" reporting.
   scanned: number;
   // Pointers that referenced a claim_id no longer in claims/active/. We

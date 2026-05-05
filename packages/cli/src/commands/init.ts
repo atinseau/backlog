@@ -9,12 +9,13 @@ import {
 } from "@backlog/config";
 import { cloneRepo, detectGitProvider, detectRepoRoot, detectGitDir, discoverRepoForProject, repoIdFromGitUrl } from "@backlog/git";
 import { installPreCommitHook } from "@backlog/hooks";
+import { repoCheckoutPath } from "@backlog/schemas";
 
 function slugifyWorkspaceName(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-// Counts immediate child directories that look like a git repo (i.e.
+// Counts immediate child directories that look like a git repository (i.e.
 // contain a .git/ directory or file). Used by `init` to detect a
 // multi-repo parent and suggest --user-level.
 function countChildGitRepos(parent: string): number {
@@ -49,10 +50,10 @@ export function registerInitCommand(program: Command): void {
     .description("Initialize a Backlog project")
     .option("--name <name>", "Project name")
     .option("--url <git-url>", "Clone a remote Git repository before initializing the project")
-    .option("--clone-into <path>", "Destination for --url; defaults to ./<repo>")
+    .option("--clone-into <path>", "Destination for --url; defaults to ./<repository>")
     .option(
       "--user-level",
-      "Place project state at ~/.backlog/<name>/ instead of <repo>/.backlog/. Required for multi-repo projects.",
+      "Place project state at ~/.backlog/<name>/ instead of <repository>/.backlog/. Required for multi-repository projects.",
     )
     .option("--in-repo", "Force in-repo placement (default; .backlog/ is created in the current repository).")
     .option("--force", "Overwrite an existing project state directory")
@@ -85,13 +86,13 @@ export function registerInitCommand(program: Command): void {
       // git-repo subdirs and the user didn't pick a layout explicitly,
       // they're almost certainly in a multi-repo project parent. The
       // in_repo default would land .backlog/ in that parent (which usually
-      // isn't itself a repo) — point them at --user-level instead.
+      // isn't itself a repository) — point them at --user-level instead.
       if (!options.userLevel && !options.inRepo) {
         const childGitRepos = options.url ? 0 : countChildGitRepos(cwd);
         if (childGitRepos >= 2) {
           console.log("");
-          console.log(`Detected ${childGitRepos} git repos as direct children of ${cwd}.`);
-          console.log("Tip: for multi-repo projects pass --user-level so project state lives at");
+          console.log(`Detected ${childGitRepos} git repositories as direct children of ${cwd}.`);
+          console.log("Tip: for multi-repository projects pass --user-level so project state lives at");
           console.log(`     ~/.backlog/<slug>/ instead of ${cwd}/.backlog/. Re-run with --in-repo to`);
           console.log("     suppress this hint and keep the in-repo layout.");
           console.log("");
@@ -116,12 +117,20 @@ export function registerInitCommand(program: Command): void {
 
       let repos = await discoverRepoForProject(sourceRoot, projectName);
       if (options.url && repos[0]) {
+        const provider = detectGitProvider(options.url);
+        const remoteProvider = provider === "github" || provider === "gitlab" || provider === "bitbucket"
+          ? provider
+          : "custom";
         repos = [
           {
             ...repos[0],
             id: repoIdFromGitUrl(options.url),
+            location: "remote",
+            remote_type: "git",
+            remote_provider: remoteProvider,
+            remote_url: options.url,
             git_url: options.url,
-            provider: detectGitProvider(options.url),
+            provider,
           },
         ];
       }
@@ -160,17 +169,17 @@ export function registerInitCommand(program: Command): void {
       console.log(`Shim:   ${result.shimPath}`);
       console.log(`Registered as ${registryEntry.id}`);
       if (repos.length > 0) {
-        console.log("Repos:");
+        console.log("Repositories:");
         for (const repo of repos) {
-          console.log(`  ${repo.id} -> ${repo.path} (${repo.default_branch})`);
+          console.log(`  ${repo.id} -> ${repoCheckoutPath(repo) ?? repo.remote_url ?? "(no local checkout)"} (${repo.default_branch})`);
         }
       } else {
-        console.log("Repos:");
+        console.log("Repositories:");
         console.log("  none detected yet");
       }
       console.log("Next:");
       console.log("  backlog doctor");
-      console.log("  backlog repos list");
+      console.log("  backlog repositories list");
       console.log("  backlog status");
     });
 }

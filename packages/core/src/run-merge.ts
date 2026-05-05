@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { getSecret } from "@backlog/config";
 import type { GitMergeStrategy, ProjectConfig, Run } from "@backlog/schemas";
 
 export interface MergeOptions {
@@ -57,6 +58,127 @@ function mergeOptionsFor(config: ProjectConfig, repoDefaultBranch: string): Merg
     strategy,
     target: config.git.merge_target ?? repoDefaultBranch,
   };
+}
+
+function githubFullNameFromUrl(value: string): string | null {
+  const trimmed = value.trim();
+  const match =
+    trimmed.match(/github\.com[:/]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[#?].*)?$/i) ??
+    trimmed.match(/^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/i);
+  if (!match?.[1] || !match[2]) return null;
+  const owner = match[1];
+  const repo = match[2].replace(/\.git$/i, "");
+  return `${owner}/${repo}`;
+}
+
+function githubPushUrl(originUrl: string, token: string | null): string | null {
+  if (!token) return null;
+  const fullName = githubFullNameFromUrl(originUrl);
+  if (!fullName) return null;
+  return `https://x-access-token:${encodeURIComponent(token)}@github.com/${fullName}.git`;
+}
+
+function sanitizeGitCredentialDetail(value: string): string {
+  return value
+    .replace(/https:\/\/x-access-token:[^@]+@github\.com/gi, "https://x-access-token:***@github.com")
+    .trim()
+    .slice(0, 400);
+}
+
+function splitGithubFullName(fullName: string): { owner: string; repo: string } | null {
+  const [owner, repo] = fullName.split("/");
+  return owner && repo ? { owner, repo } : null;
+}
+
+function githubApiHeaders(token: string): Record<string, string> {
+  return {
+    "Accept": "application/vnd.github+json",
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": "Backlog",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function pullRequestUrlFromPayload(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const htmlUrl = value.html_url;
+  return typeof htmlUrl === "string" ? htmlUrl : undefined;
+}
+
+function pullRequestNumberFromPayload(value: unknown): number | undefined {
+  if (!isRecord(value)) return undefined;
+  const number = value.number;
+  return typeof number === "number" ? number : undefined;
+}
+
+function githubApiError(value: unknown): string {
+  if (!isRecord(value)) return "unknown";
+  const message = value.message;
+  return typeof message === "string" ? message : "unknown";
+}
+
+async function createGithubPullRequest(input: {
+  originUrl: string;
+  token: string;
+  branch: string;
+  baseBranch: string;
+  title: string;
+  body: string;
+  autoMerge: boolean;
+}): Promise<{ ok: boolean; url?: string; merged?: boolean; error?: string; detail?: string }> {
+  const fullName = githubFullNameFromUrl(input.originUrl);
+  const parts = fullName ? splitGithubFullName(fullName) : null;
+  if (!fullName || !parts) {
+    return { ok: false, error: "not_github_remote" };
+  }
+
+  const headers = githubApiHeaders(input.token);
+  const create = await fetch(`https://api.github.com/repos/${fullName}/pulls`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      title: input.title,
+      head: input.branch,
+      base: input.baseBranch,
+      body: input.body,
+    }),
+  });
+  let payload = await create.json().catch(() => null) as unknown;
+
+  if (create.status === 422) {
+    const existing = await fetch(
+      `https://api.github.com/repos/${fullName}/pulls?state=open&head=${encodeURIComponent(`${parts.owner}:${input.branch}`)}`,
+      { headers },
+    );
+    const existingPayload = await existing.json().catch(() => null) as unknown;
+    if (Array.isArray(existingPayload) && existingPayload.length > 0) {
+      payload = existingPayload[0];
+    } else {
+      return { ok: false, error: "github_pr_create_failed", detail: githubApiError(payload) };
+    }
+  } else if (!create.ok) {
+    return { ok: false, error: "github_pr_create_failed", detail: githubApiError(payload) };
+  }
+
+  const url = pullRequestUrlFromPayload(payload);
+  const number = pullRequestNumberFromPayload(payload);
+  let merged = false;
+  if (input.autoMerge && number !== undefined) {
+    const merge = await fetch(`https://api.github.com/repos/${fullName}/pulls/${String(number)}/merge`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ merge_method: "squash" }),
+    });
+    merged = merge.ok;
+  }
+  const result: { ok: boolean; merged: boolean; url?: string } = { ok: true, merged };
+  if (url) result.url = url;
+  return result;
 }
 
 // Merge a run's branch into its target. Caller is responsible for
@@ -229,6 +351,7 @@ export async function commitWorktreeChanges(input: {
 export async function pushWorktreeBranch(input: {
   worktreePath: string;
   branch: string;
+  backlogDir?: string;
 }): Promise<{ ok: boolean; error?: string; detail?: string }> {
   const cwd = input.worktreePath;
   // Probe origin first. Avoids a noisy "remote not found" stderr.
@@ -236,12 +359,18 @@ export async function pushWorktreeBranch(input: {
   if (remotes.exitCode !== 0 || !remotes.stdout.split("\n").includes("origin")) {
     return { ok: false, error: "no_origin_remote" };
   }
-  const push = await safeRun(["push", "-u", "origin", input.branch], cwd);
+  const origin = await safeRun(["remote", "get-url", "origin"], cwd);
+  const originUrl = origin.exitCode === 0 ? origin.stdout.trim() : "";
+  const authenticatedUrl = input.backlogDir ? githubPushUrl(originUrl, getSecret(input.backlogDir, "github.pat")) : null;
+  const pushArgs = authenticatedUrl
+    ? ["push", authenticatedUrl, `${input.branch}:refs/heads/${input.branch}`]
+    : ["push", "-u", "origin", input.branch];
+  const push = await safeRun(pushArgs, cwd);
   if (push.exitCode !== 0) {
     return {
       ok: false,
       error: `git push failed (exit ${push.exitCode})`,
-      detail: (push.stderr || push.stdout).trim().slice(0, 400),
+      detail: sanitizeGitCredentialDetail(push.stderr || push.stdout),
     };
   }
   return { ok: true };
@@ -258,7 +387,28 @@ export async function createPullRequest(input: {
   title: string;
   body: string;
   autoMerge: boolean;
+  backlogDir?: string;
+  baseBranch?: string;
 }): Promise<{ ok: boolean; url?: string; merged?: boolean; error?: string; detail?: string }> {
+  if (input.backlogDir) {
+    const origin = await safeRun(["remote", "get-url", "origin"], input.worktreePath);
+    const token = getSecret(input.backlogDir, "github.pat");
+    if (origin.exitCode === 0 && token) {
+      const apiResult = await createGithubPullRequest({
+        originUrl: origin.stdout.trim(),
+        token,
+        branch: input.branch,
+        baseBranch: input.baseBranch ?? "main",
+        title: input.title,
+        body: input.body,
+        autoMerge: input.autoMerge,
+      });
+      if (apiResult.ok || apiResult.error !== "not_github_remote") {
+        return apiResult;
+      }
+    }
+  }
+
   const ghCheck = await execa("which", ["gh"], { reject: false });
   if (ghCheck.exitCode !== 0) {
     return { ok: false, error: "gh_not_installed" };

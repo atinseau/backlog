@@ -1,11 +1,131 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execa } from "execa";
+import { getSecret } from "@backlog/config";
 import { detectGitDir, git } from "@backlog/git";
-import type { ProjectConfig } from "@backlog/schemas";
+import { repoCheckoutPath, type ProjectConfig, type RepoConfig } from "@backlog/schemas";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 
 function worktreesRoot(backlogDir: string): string {
   return path.join(backlogDir, "worktrees");
+}
+
+function remoteExecutionRoot(backlogDir: string): string {
+  return path.join(backlogDir, "remote-checkouts");
+}
+
+export function remoteExecutionCheckoutRoot(backlogDir: string, repoId: string, runId: string): string {
+  return path.join(remoteExecutionRoot(backlogDir), repoId, runId);
+}
+
+export function remoteExecutionBasePath(backlogDir: string, repoId: string, runId: string): string {
+  return path.join(remoteExecutionCheckoutRoot(backlogDir, repoId, runId), "repo");
+}
+
+function repositoryRemoteUrl(repo: RepoConfig): string | null {
+  return repo.remote_url ?? repo.git_url ?? null;
+}
+
+export function isGitRemoteRepository(repo: RepoConfig): boolean {
+  if ((repo.location ?? "local") !== "remote") return false;
+  const remoteType = repo.remote_type ?? (repo.git_url || repo.provider ? "git" : undefined);
+  return remoteType === "git" && Boolean(repositoryRemoteUrl(repo));
+}
+
+function githubFullNameFromUrl(value: string): string | null {
+  const trimmed = value.trim();
+  const match =
+    trimmed.match(/github\.com[:/]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[#?].*)?$/i) ??
+    trimmed.match(/^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?$/i);
+  if (!match?.[1] || !match[2]) return null;
+  const owner = match[1];
+  const repo = match[2].replace(/\.git$/i, "");
+  return `${owner}/${repo}`;
+}
+
+function cloneUrlsForRemoteExecution(backlogDir: string, repo: RepoConfig): { cloneUrl: string; cleanUrl: string } {
+  const cleanUrl = repositoryRemoteUrl(repo);
+  if (!cleanUrl) {
+    throw new Error("repository_remote_url_missing");
+  }
+  const provider = repo.remote_provider ?? (repo.provider === "github" ? "github" : undefined);
+  const fullName = provider === "github" ? githubFullNameFromUrl(cleanUrl) : null;
+  const token = fullName ? getSecret(backlogDir, "github.pat") : null;
+  if (fullName && token) {
+    return {
+      cloneUrl: `https://x-access-token:${encodeURIComponent(token)}@github.com/${fullName}.git`,
+      cleanUrl: `https://github.com/${fullName}.git`,
+    };
+  }
+  return { cloneUrl: cleanUrl, cleanUrl };
+}
+
+function sanitizeCloneDetail(value: string, cloneUrl: string, cleanUrl: string): string {
+  return value
+    .replaceAll(cloneUrl, cleanUrl)
+    .replace(/x-access-token:[^@]+@github\.com/gi, "x-access-token:***@github.com")
+    .trim()
+    .slice(0, 600);
+}
+
+async function cloneForRemoteExecution(input: {
+  url: string;
+  cleanUrl: string;
+  dest: string;
+  branch?: string;
+}): Promise<void> {
+  fs.mkdirSync(path.dirname(input.dest), { recursive: true });
+  const runClone = async (branch?: string): Promise<{ exitCode: number | null; stdout: string; stderr: string }> => {
+    const result = await execa("git", cloneArgs(branch), { reject: false });
+    return { exitCode: result.exitCode ?? null, stdout: result.stdout, stderr: result.stderr };
+  };
+  const cloneArgs = (branch?: string): string[] => {
+    const args = ["clone"];
+    if (branch) args.push("--branch", branch);
+    args.push("--", input.url, input.dest);
+    return args;
+  };
+  let result = await runClone(input.branch);
+  if (result.exitCode !== 0 && input.branch && /remote branch .* not found|repository not found/i.test(result.stderr + result.stdout)) {
+    fs.rmSync(input.dest, { recursive: true, force: true });
+    result = await runClone();
+  }
+  if (result.exitCode !== 0) {
+    throw new Error(`remote_checkout_clone_failed:${sanitizeCloneDetail(result.stderr || result.stdout, input.url, input.cleanUrl)}`);
+  }
+}
+
+export async function ensureRemoteExecutionCheckout(params: {
+  backlogDir: string;
+  repo: RepoConfig;
+  runId: string;
+}): Promise<string> {
+  if (!isGitRemoteRepository(params.repo)) {
+    throw new Error("repository_is_not_git_remote");
+  }
+  const dest = remoteExecutionBasePath(params.backlogDir, params.repo.id, params.runId);
+  if (fs.existsSync(path.join(dest, ".git"))) {
+    return dest;
+  }
+  fs.rmSync(remoteExecutionCheckoutRoot(params.backlogDir, params.repo.id, params.runId), { recursive: true, force: true });
+  const { cloneUrl, cleanUrl } = cloneUrlsForRemoteExecution(params.backlogDir, params.repo);
+  await cloneForRemoteExecution({
+    url: cloneUrl,
+    cleanUrl,
+    dest,
+    branch: params.repo.default_branch,
+  });
+  if (cloneUrl !== cleanUrl) {
+    await git(["remote", "set-url", "origin", cleanUrl], dest).catch(() => undefined);
+  }
+  return dest;
+}
+
+export function cleanupRemoteExecutionCheckout(backlogDir: string, repoId: string, runId: string): boolean {
+  const root = remoteExecutionCheckoutRoot(backlogDir, repoId, runId);
+  if (!fs.existsSync(root)) return false;
+  fs.rmSync(root, { recursive: true, force: true });
+  return true;
 }
 
 export function buildRunBranchName(taskId: string, taskTitle: string, runId?: string): string {
@@ -117,7 +237,7 @@ export async function garbageCollectWorktrees(
     removed: [],
     skipped: [],
   };
-  const repoPaths = new Map(config.repos.map((repo) => [repo.id, repo.path]));
+  const repoPaths = new Map(config.repos.map((repo) => [repo.id, repoCheckoutPath(repo)]));
   const archivedRuns = listArchivedRuns(backlogDir);
   const activeRuns = listActiveRuns(backlogDir);
 
@@ -135,18 +255,31 @@ export async function garbageCollectWorktrees(
     if (run.execution_mode === "direct") {
       continue;
     }
+    const remoteRoot = remoteExecutionCheckoutRoot(backlogDir, run.repo, run.id);
+    const hadRemoteRoot = fs.existsSync(remoteRoot);
     if (!fs.existsSync(run.worktree_path)) {
+      if (hadRemoteRoot) {
+        if (!options?.dryRun) {
+          cleanupRemoteExecutionCheckout(backlogDir, run.repo, run.id);
+        }
+        result.removed.push(remoteRoot);
+      }
       continue;
     }
-    const repoPath = repoPaths.get(run.repo);
+    const remoteBase = remoteExecutionBasePath(backlogDir, run.repo, run.id);
+    const repoPath = repoPaths.get(run.repo) ?? (fs.existsSync(remoteBase) ? remoteBase : undefined);
     if (!repoPath) {
       result.skipped.push(run.worktree_path);
       continue;
     }
     if (!options?.dryRun) {
       await git(["worktree", "remove", "--force", run.worktree_path], repoPath);
+      cleanupRemoteExecutionCheckout(backlogDir, run.repo, run.id);
     }
     result.removed.push(run.worktree_path);
+    if (hadRemoteRoot) {
+      result.removed.push(remoteRoot);
+    }
   }
 
   return result;

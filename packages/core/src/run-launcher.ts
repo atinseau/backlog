@@ -1,5 +1,6 @@
 import { archiveClaim, createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir, git } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
@@ -8,7 +9,14 @@ import { runWithRetry, retryPolicyForAgent } from "./retry.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask } from "./task-service.js";
-import { buildRunBranchName, ensureWorktree, writeWorktreeContext } from "./worktrees.js";
+import {
+  buildRunBranchName,
+  cleanupRemoteExecutionCheckout,
+  ensureRemoteExecutionCheckout,
+  ensureWorktree,
+  isGitRemoteRepository,
+  writeWorktreeContext,
+} from "./worktrees.js";
 
 // How much of the failed run's events tail we feed back into the next
 // attempt's prompt. Bounded so a verbose Claude log doesn't explode
@@ -126,6 +134,11 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       skipped.push({ taskId: task.id, reasons: [`unknown_repo:${task.repo}`] });
       continue;
     }
+    const persistentCheckoutPath = repoCheckoutPath(repo);
+    if (!persistentCheckoutPath && !isGitRemoteRepository(repo)) {
+      skipped.push({ taskId: task.id, reasons: ["repository_has_no_local_checkout"] });
+      continue;
+    }
 
     const agent = await resolveAgent(backlogDir, task, decision.assignedAgentId, forcedAgentId, skipped);
     if (!agent) continue;
@@ -140,10 +153,28 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       continue;
     }
 
+    // Generate runId BEFORE the branch name so the branch can include
+    // it. Branches are now `backlog/<task>-<slug>-<runId>` which makes
+    // every run uniquely-branched even if a prior run on the same
+    // subtask failed and left its worktree+branch behind.
+    const runId = nextRunId(backlogDir);
+    let checkoutPath = persistentCheckoutPath;
+    let usingRemoteExecutionCheckout = false;
+    if (!checkoutPath) {
+      try {
+        checkoutPath = await ensureRemoteExecutionCheckout({ backlogDir, repo, runId });
+        usingRemoteExecutionCheckout = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        skipped.push({ taskId: task.id, reasons: [`remote_checkout_failed:${message.slice(0, 200)}`] });
+        continue;
+      }
+    }
+
     const claim = createClaim({
       backlogDir,
       repo: repo.id,
-      repoPath: repo.path,
+      repoPath: checkoutPath,
       topic: `run ${task.id}`,
       paths: task.scopes.length > 0 ? task.scopes : ["**"],
       mode: task.claim_mode,
@@ -151,12 +182,8 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       agentId: agent.id,
     });
 
-    // Generate runId BEFORE the branch name so the branch can include
-    // it. Branches are now `backlog/<task>-<slug>-<runId>` which makes
-    // every run uniquely-branched even if a prior run on the same
-    // subtask failed and left its worktree+branch behind.
-    const runId = nextRunId(backlogDir);
-    const executionMode = workItem.execution_defaults?.worktree_mode ?? "direct";
+    const requestedExecutionMode = workItem.execution_defaults?.worktree_mode ?? "direct";
+    const executionMode = persistentCheckoutPath ? requestedExecutionMode : "isolated_worktree";
     let branch = buildRunBranchName(task.id, task.title, runId);
     let worktreePath: string;
     let allowedDirtyDirectFiles: string[] = [];
@@ -164,14 +191,14 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       if (executionMode === "direct") {
         const directBusy = listActiveRuns(backlogDir).some(
           (run) => run.repo === repo.id && run.execution_mode === "direct" && isAgentBusyStatus(run.status),
-        ) || started.some((run) => run.worktreePath === repo.path);
+        ) || started.some((run) => run.worktreePath === checkoutPath);
         if (directBusy) {
           archiveClaim(backlogDir, claim.id);
           skipped.push({ taskId: task.id, reasons: ["direct_checkout_busy"] });
           continue;
         }
 
-        const direct = await inspectDirectCheckout(repo.path, allowDirtyDirect ? { allowDirty: true } : {});
+        const direct = await inspectDirectCheckout(checkoutPath, allowDirtyDirect ? { allowDirty: true } : {});
         if (!direct.ok) {
           archiveClaim(backlogDir, claim.id);
           skipped.push({ taskId: task.id, reasons: [direct.reason] });
@@ -179,12 +206,12 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         }
         branch = direct.branch;
         allowedDirtyDirectFiles = direct.dirtyFiles ?? [];
-        worktreePath = repo.path;
+        worktreePath = checkoutPath;
       } else {
         worktreePath = await ensureWorktree({
           backlogDir,
           repoId: repo.id,
-          repoPath: repo.path,
+          repoPath: checkoutPath,
           branch,
           runId,
         });
@@ -202,6 +229,9 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         // best-effort: if even archive fails, the user has bigger
         // problems. Don't shadow the original error.
       }
+      if (usingRemoteExecutionCheckout) {
+        cleanupRemoteExecutionCheckout(backlogDir, repo.id, runId);
+      }
       const message = worktreeError instanceof Error ? worktreeError.message : String(worktreeError);
       skipped.push({ taskId: task.id, reasons: [`worktree_failed:${message.slice(0, 200)}`] });
       continue;
@@ -217,7 +247,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       claimIds: [claim.id],
       executionMode,
     });
-    const gitDir = await detectGitDir(repo.path);
+    const gitDir = await detectGitDir(checkoutPath);
     writeContextFile(gitDir, {
       version: 1,
       claim_id: claim.id,
@@ -225,6 +255,20 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     });
     await writeWorktreeContext(worktreePath, run.id, claim.id);
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
+    if (usingRemoteExecutionCheckout) {
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "workspace.remote_checkout",
+        message: `Created temporary checkout for remote repository ${repo.id}`,
+      });
+      if (requestedExecutionMode === "direct") {
+        appendRunEvent(backlogDir, run.id, {
+          ts: new Date().toISOString(),
+          type: "workspace.mode_adjusted",
+          message: "Direct mode is unavailable without a local checkout — using an isolated execution workspace",
+        });
+      }
+    }
     try {
       const baselineCommit = await git(["rev-parse", "HEAD"], worktreePath);
       if (baselineCommit.trim()) {
@@ -238,7 +282,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       ts: new Date().toISOString(),
       type: executionMode === "direct" ? "workspace.direct" : "workspace.worktree",
       message: executionMode === "direct"
-        ? `Working directly in ${repo.path} on ${branch}`
+        ? `Working directly in ${checkoutPath} on ${branch}`
         : `Working in isolated worktree ${worktreePath}`,
     });
     if (executionMode === "direct" && allowedDirtyDirectFiles.length > 0) {

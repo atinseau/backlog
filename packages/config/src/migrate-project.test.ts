@@ -207,7 +207,7 @@ describe("migrateProjectToInRepo", () => {
         intoRepoId: "does-not-exist",
         registryOptions: { dir: registryDir },
       }),
-    ).toThrowError(/Unknown repo: does-not-exist/);
+    ).toThrowError(/Unknown repository: does-not-exist/);
   });
 
   it("refuses if the target repo already has a .backlog/ dir", () => {

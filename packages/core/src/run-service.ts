@@ -3,12 +3,14 @@ import path from "node:path";
 import { archiveClaim, listActiveClaims, removeContextFile } from "@backlog/claims";
 import { detectGitDir } from "@backlog/git";
 import { loadConfig } from "@backlog/config";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { GitMergeStrategy, ProjectConfig, Run } from "@backlog/schemas";
 import { execa } from "execa";
 import { cascadeBlockDependents, getSubTask, updateSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { addRunArtifact, appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { cleanupRunWorktree, commitWorktreeChanges, createPullRequest, mergeRunBranch, pushWorktreeBranch, sanitizeRunBranch } from "./run-merge.js";
+import { cleanupRemoteExecutionCheckout, remoteExecutionBasePath } from "./worktrees.js";
 
 function failureBlocker(runId: string, summary?: string): string {
   const clean = (summary ?? "Run failed").replace(/\s+/g, " ").trim();
@@ -86,6 +88,18 @@ function withMergeStrategy(config: ProjectConfig, override?: GitMergeStrategy): 
   };
 }
 
+function executionRepoPathForRun(backlogDir: string, repo: ProjectConfig["repos"][number], run: Run): string | undefined {
+  const checkoutPath = repoCheckoutPath(repo);
+  if (checkoutPath) return checkoutPath;
+  const remoteBase = remoteExecutionBasePath(backlogDir, run.repo, run.id);
+  return fs.existsSync(remoteBase) ? remoteBase : undefined;
+}
+
+async function remoteBranchExists(worktreePath: string, branch: string): Promise<boolean> {
+  const result = await gitRun(worktreePath, ["ls-remote", "--heads", "origin", branch]);
+  return result.exitCode === 0 && result.stdout.trim().length > 0;
+}
+
 export async function approveRun(backlogDir: string, runId: string, summary?: string, options?: ApproveRunOptions): Promise<void> {
   // Capture the run + repo before completeRun moves it to archive,
   // because merge + cleanup need the active worktree path.
@@ -98,37 +112,46 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
 
   if (run.execution_mode !== "direct" && config.git.merge_strategy !== "none") {
     if (!repo) {
-      throw new Error(`Unknown repo '${run.repo}' for run ${run.id}`);
+      throw new Error(`Unknown repository '${run.repo}' for run ${run.id}`);
     }
-    const sanitize = await sanitizeRunBranch({ worktreePath: run.worktree_path });
-    if (!sanitize.ok) {
-      throw new Error(`Run branch cleanup failed: ${sanitize.error ?? "unknown"}${sanitize.detail ? ` — ${sanitize.detail}` : ""}`);
-    }
-    if (sanitize.changed) {
-      if (sanitize.sha) addRunArtifact(backlogDir, runId, { kind: "commit", value: sanitize.sha });
+    const checkoutPath = repoCheckoutPath(repo);
+    if (!checkoutPath) {
       appendRunEvent(backlogDir, runId, {
         ts: new Date().toISOString(),
-        type: "run.sanitized",
-        message: "Removed Backlog internal artifacts before applying",
+        type: "run.merge_skipped",
+        message: `Repository '${run.repo}' has no local checkout — remote branch/PR remains available for review`,
       });
-    }
-    const mergeResult = await mergeRunBranch({
-      run,
-      repoPath: repo.path,
-      repoDefaultBranch: repo.default_branch,
-      config,
-    });
-    if (mergeResult) {
-      appendRunEvent(backlogDir, runId, {
-        ts: new Date().toISOString(),
-        type: mergeResult.ok ? "run.merged" : "run.merge_failed",
-        message: mergeResult.ok
-          ? `Merged ${mergeResult.branch} → ${mergeResult.target} (${mergeResult.strategy})`
-          : `Merge into ${mergeResult.target} failed: ${mergeResult.error ?? "unknown"}`,
+    } else {
+      const sanitize = await sanitizeRunBranch({ worktreePath: run.worktree_path });
+      if (!sanitize.ok) {
+        throw new Error(`Run branch cleanup failed: ${sanitize.error ?? "unknown"}${sanitize.detail ? ` — ${sanitize.detail}` : ""}`);
+      }
+      if (sanitize.changed) {
+        if (sanitize.sha) addRunArtifact(backlogDir, runId, { kind: "commit", value: sanitize.sha });
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: "run.sanitized",
+          message: "Removed Backlog internal artifacts before applying",
+        });
+      }
+      const mergeResult = await mergeRunBranch({
+        run,
+        repoPath: checkoutPath,
+        repoDefaultBranch: repo.default_branch,
+        config,
       });
-      if (!mergeResult.ok) {
-        const detail = mergeResult.detail ? ` — ${mergeResult.detail}` : "";
-        throw new Error(`Merge failed: ${mergeResult.error ?? "unknown"}${detail}`);
+      if (mergeResult) {
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: mergeResult.ok ? "run.merged" : "run.merge_failed",
+          message: mergeResult.ok
+            ? `Merged ${mergeResult.branch} → ${mergeResult.target} (${mergeResult.strategy})`
+            : `Merge into ${mergeResult.target} failed: ${mergeResult.error ?? "unknown"}`,
+        });
+        if (!mergeResult.ok) {
+          const detail = mergeResult.detail ? ` — ${mergeResult.detail}` : "";
+          throw new Error(`Merge failed: ${mergeResult.error ?? "unknown"}${detail}`);
+        }
       }
     }
   }
@@ -141,14 +164,25 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
   // of unapplied work.
   try {
     if (!repo) return;
+    const persistentCheckoutPath = repoCheckoutPath(repo);
+    const checkoutPath = executionRepoPathForRun(backlogDir, repo, run);
+    if (!checkoutPath) return;
 
     if (run.execution_mode !== "direct" && config.git.cleanup_worktree_on_approve) {
+      if (!persistentCheckoutPath && !(await remoteBranchExists(run.worktree_path, run.branch))) {
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: "worktree.cleanup_skipped",
+          message: `Temporary checkout kept because branch ${run.branch} is not on origin`,
+        });
+        return;
+      }
       // Only delete the branch when merge was requested. In no-merge
       // mode the branch is the user's only copy of the work.
       const cleanup = await cleanupRunWorktree({
         worktreePath: run.worktree_path,
         branch: run.branch,
-        repoPath: repo.path,
+        repoPath: checkoutPath,
         deleteBranch: config.git.merge_strategy !== "none" && config.git.delete_branch_after_merge,
       });
       appendRunEvent(backlogDir, runId, {
@@ -158,6 +192,13 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
           ? `Removed worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
           : `Failed to remove worktree: ${cleanup.error ?? "unknown"}`,
       });
+      if (cleanupRemoteExecutionCheckout(backlogDir, run.repo, run.id)) {
+        appendRunEvent(backlogDir, runId, {
+          ts: new Date().toISOString(),
+          type: "workspace.remote_checkout_removed",
+          message: `Removed temporary checkout for remote repository ${run.repo}`,
+        });
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -316,13 +357,15 @@ export async function discardRun(backlogDir: string, runId: string, summary?: st
   let discardSummary = "Discarded reviewed run changes";
   if (run.execution_mode === "direct") {
     discardSummary = await discardDirectRunChanges(run);
-  } else if (repo) {
+  } else if (repo && executionRepoPathForRun(backlogDir, repo, run)) {
+    const repoPath = executionRepoPathForRun(backlogDir, repo, run)!;
     const cleanup = await cleanupRunWorktree({
       worktreePath: run.worktree_path,
       branch: run.branch,
-      repoPath: repo.path,
+      repoPath,
       deleteBranch: true,
     });
+    cleanupRemoteExecutionCheckout(backlogDir, run.repo, run.id);
     discardSummary = cleanup.removedWorktree
       ? `Removed run worktree${cleanup.deletedBranch ? ` and branch ${run.branch}` : ""}`
       : `Discard requested, but worktree cleanup failed: ${cleanup.error ?? "unknown"}`;
@@ -402,6 +445,7 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   if (!run) return;
   const subtask = getSubTask(backlogDir, run.subtask_id);
   const parent = subtask ? getTask(backlogDir, subtask.task_id) : null;
+  const repo = loadConfig(backlogDir).repos.find((candidate) => candidate.id === run.repo);
   // Default: commit + push on. Tasks created before the schema change
   // don't have these fields; preserve "commit by default" behaviour.
   const commitWhenDone = parent?.execution_defaults?.auto_commit ?? true;
@@ -449,6 +493,7 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   const push = await pushWorktreeBranch({
     worktreePath: run.worktree_path,
     branch: run.branch,
+    backlogDir,
   });
   if (push.ok) {
     appendRunEvent(backlogDir, runId, {
@@ -500,6 +545,8 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
     title,
     body,
     autoMerge: wantsMerge,
+    backlogDir,
+    ...(repo?.default_branch ? { baseBranch: repo.default_branch } : {}),
   });
   if (pr.ok) {
     if (pr.url) {

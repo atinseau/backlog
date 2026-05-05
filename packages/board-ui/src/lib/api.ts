@@ -4,7 +4,7 @@ import type {
   ClaimRecord,
   CurrentProject,
   OrchestratorState,
-  Repo,
+  Repository,
   ProjectEntry,
   ProjectInfo,
   RunSummary,
@@ -41,7 +41,7 @@ export function apiUrl(path: string, query: Record<string, string | undefined> =
 }
 
 export async function fetchBoard(opts: { repo?: string } = {}): Promise<BoardResponse> {
-  const response = await fetch(apiUrl("/board", { repo: opts.repo }));
+  const response = await fetch(apiUrl("/board", { repository: opts.repo }));
   if (!response.ok) {
     throw new Error(`Board fetch failed: ${response.status} ${response.statusText}`);
   }
@@ -347,70 +347,97 @@ export async function setReviewConfig(input: ReviewConfig): Promise<{ review: { 
   return (await response.json()) as { review: { show_review_column: boolean; auto_reviewer_agent_id?: string } };
 }
 
-// Repos ---------------------------------------------------------------------
+// Repositories --------------------------------------------------------------
 
-export async function fetchRepos(): Promise<Repo[]> {
-  const response = await fetch(apiUrl("/repos"));
-  if (!response.ok) throw new Error(`Repos fetch failed: ${response.status}`);
-  const json = (await response.json()) as { repos: Repo[] };
-  return json.repos;
+export async function fetchRepositories(): Promise<Repository[]> {
+  const response = await fetch(apiUrl("/repositories"));
+  if (!response.ok) throw new Error(`Repositories fetch failed: ${response.status}`);
+  const json = (await response.json()) as { repositories?: Repository[]; repos?: Repository[] };
+  return json.repositories ?? json.repos ?? [];
 }
 
-export interface CreateRepoInput {
+export interface CreateRepositoryInput {
   id?: string;
   path?: string;
   default_branch?: string;
   role?: string;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepoAccessMode;
+  access_mode?: import("./types.js").RepositoryAccessMode;
+  location?: import("./types.js").RepositoryLocation;
+  remote_type?: import("./types.js").RepositoryRemoteType;
+  remote_provider?: import("./types.js").RepositoryRemoteProvider;
+  remote_url?: string;
   git_url?: string;
+  provider?: import("./types.js").RepositoryProvider;
   clone_into?: string;
+  checkout?: boolean;
 }
 
-export async function createRepo(input: CreateRepoInput): Promise<{ repo: Repo; cloned: boolean }> {
-  const response = await fetch(apiUrl("/repos"), {
+export async function createRepository(input: CreateRepositoryInput): Promise<{ repo: Repository; cloned: boolean }> {
+  const response = await fetch(apiUrl("/repositories"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Create repo failed (${response.status}): ${detail}`);
+    throw new Error(`Create repository failed (${response.status}): ${detail}`);
   }
-  return (await response.json()) as { repo: Repo; cloned: boolean };
+  const json = (await response.json()) as { repository?: Repository; repo?: Repository; cloned: boolean };
+  return { repo: json.repository ?? json.repo!, cloned: json.cloned };
 }
 
-export interface UpdateRepoInput {
+export async function checkoutRepository(id: string, input: { path?: string; use_ssh?: boolean } = {}): Promise<{ repo: Repository; cloned: boolean }> {
+  const response = await fetch(apiUrl(`/repositories/${encodeURIComponent(id)}/checkout`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Create checkout failed (${response.status}): ${detail}`);
+  }
+  const json = (await response.json()) as { repository?: Repository; repo?: Repository; cloned: boolean };
+  return { repo: json.repository ?? json.repo!, cloned: json.cloned };
+}
+
+export interface UpdateRepositoryInput {
   id?: string;
   path?: string;
   default_branch?: string;
   role?: string | null;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepoAccessMode;
+  access_mode?: import("./types.js").RepositoryAccessMode;
+  location?: import("./types.js").RepositoryLocation;
+  remote_type?: import("./types.js").RepositoryRemoteType | null;
+  remote_provider?: import("./types.js").RepositoryRemoteProvider | null;
+  remote_url?: string | null;
+  git_url?: string | null;
+  provider?: import("./types.js").RepositoryProvider | null;
 }
 
-export async function updateRepo(id: string, input: UpdateRepoInput): Promise<Repo> {
-  const response = await fetch(apiUrl(`/repos/${encodeURIComponent(id)}`), {
+export async function updateRepository(id: string, input: UpdateRepositoryInput): Promise<Repository> {
+  const response = await fetch(apiUrl(`/repositories/${encodeURIComponent(id)}`), {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Update repo failed (${response.status}): ${detail}`);
+    throw new Error(`Update repository failed (${response.status}): ${detail}`);
   }
-  const json = (await response.json()) as { repo: Repo };
-  return json.repo;
+  const json = (await response.json()) as { repository?: Repository; repo?: Repository };
+  return json.repository ?? json.repo!;
 }
 
-export async function deleteRepo(id: string, options: { force?: boolean } = {}): Promise<void> {
+export async function deleteRepository(id: string, options: { force?: boolean } = {}): Promise<void> {
   const response = await fetch(
-    apiUrl(`/repos/${encodeURIComponent(id)}`, options.force ? { force: "1" } : {}),
+    apiUrl(`/repositories/${encodeURIComponent(id)}`, options.force ? { force: "1" } : {}),
     { method: "DELETE" },
   );
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`Delete repo failed (${response.status}): ${detail}`);
+    throw new Error(`Delete repository failed (${response.status}): ${detail}`);
   }
 }
 
@@ -1135,7 +1162,7 @@ export async function splitTask(id: string, input: SplitInput): Promise<SplitRes
 export async function fetchAllClaims(opts: { repo?: string; archived?: boolean } = {}): Promise<ClaimRecord[]> {
   const response = await fetch(
     apiUrl("/claims", {
-      repo: opts.repo,
+      repository: opts.repo,
       archived: opts.archived ? "1" : undefined,
     }),
   );
@@ -1237,7 +1264,7 @@ export async function fetchCommits(limit = 50, repo?: string | null, offset = 0)
   const response = await fetch(apiUrl("/commits", {
     limit: String(limit),
     ...(offset > 0 ? { offset: String(offset) } : {}),
-    ...(repo ? { repo } : {}),
+    ...(repo ? { repository: repo } : {}),
   }));
   if (!response.ok) throw new Error(`Commits fetch failed: ${response.status}`);
   const json = (await response.json()) as { commits: CommitEntry[] };
@@ -1268,10 +1295,10 @@ export interface GitCommitFileEntry {
 }
 
 export async function fetchGitChanges(repo?: string | null): Promise<GitRepoChanges[]> {
-  const response = await fetch(apiUrl("/git/changes", repo ? { repo } : {}));
+  const response = await fetch(apiUrl("/git/changes", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git changes fetch failed: ${response.status}`);
-  const json = (await response.json()) as { repos: GitRepoChanges[] };
-  return json.repos;
+  const json = (await response.json()) as { repositories?: GitRepoChanges[]; repos?: GitRepoChanges[] };
+  return json.repositories ?? json.repos ?? [];
 }
 
 export async function commitGitChanges(input: { repo: string; paths: string[]; message: string }): Promise<{ sha: string; short_sha: string }> {
@@ -1331,7 +1358,7 @@ export interface GitFileDiff {
 }
 
 export async function fetchGitCommitFiles(repo: string, sha: string): Promise<{ repo: string; sha: string; files: GitCommitFileEntry[] }> {
-  const response = await fetch(apiUrl("/git/commit-files", { repo, sha }));
+  const response = await fetch(apiUrl("/git/commit-files", { repository: repo, sha }));
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
@@ -1341,7 +1368,7 @@ export async function fetchGitCommitFiles(repo: string, sha: string): Promise<{ 
 }
 
 export async function fetchGitFileDiff(repo: string, file: string, opts: { sha?: string; base?: string; head?: string } = {}): Promise<GitFileDiff> {
-  const response = await fetch(apiUrl("/git/diff", { repo, file, ...opts }), { cache: "no-store" });
+  const response = await fetch(apiUrl("/git/diff", { repository: repo, file, ...opts }), { cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
@@ -1376,6 +1403,7 @@ export interface GitRemoteBranchEntry {
 export interface GitRepoBranches {
   repo: string;
   path: string;
+  has_local_checkout?: boolean;
   default_branch: string;
   current_branch: string | null;
   local: GitBranchEntry[];
@@ -1411,21 +1439,21 @@ export interface GitRepoWorktrees {
 }
 
 export async function fetchGitRemoteState(repo?: string | null): Promise<GitRemoteState[]> {
-  const response = await fetch(apiUrl("/git/remote", repo ? { repo } : {}));
+  const response = await fetch(apiUrl("/git/remote", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git remote fetch failed: ${response.status}`);
-  const json = (await response.json()) as { repos: GitRemoteState[] };
-  return json.repos;
+  const json = (await response.json()) as { repositories?: GitRemoteState[]; repos?: GitRemoteState[] };
+  return json.repositories ?? json.repos ?? [];
 }
 
 export async function fetchGitBranches(repo?: string | null): Promise<GitRepoBranches[]> {
-  const response = await fetch(apiUrl("/git/branches", repo ? { repo } : {}));
+  const response = await fetch(apiUrl("/git/branches", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git branches fetch failed: ${response.status}`);
-  const json = (await response.json()) as { repos: GitRepoBranches[] };
-  return json.repos;
+  const json = (await response.json()) as { repositories?: GitRepoBranches[]; repos?: GitRepoBranches[] };
+  return json.repositories ?? json.repos ?? [];
 }
 
 export async function fetchGitBranchPreview(repo: string, source: string, target?: string | null): Promise<GitBranchPreview> {
-  const response = await fetch(apiUrl("/git/branch-preview", { repo, source, ...(target ? { target } : {}) }));
+  const response = await fetch(apiUrl("/git/branch-preview", { repository: repo, source, ...(target ? { target } : {}) }));
   const json = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
@@ -1455,10 +1483,10 @@ export async function checkoutGitBranch(input: {
 }
 
 export async function fetchGitWorktrees(repo?: string | null): Promise<GitRepoWorktrees[]> {
-  const response = await fetch(apiUrl("/git/worktrees", repo ? { repo } : {}));
+  const response = await fetch(apiUrl("/git/worktrees", repo ? { repository: repo } : {}));
   if (!response.ok) throw new Error(`Git worktrees fetch failed: ${response.status}`);
-  const json = (await response.json()) as { repos: GitRepoWorktrees[] };
-  return json.repos;
+  const json = (await response.json()) as { repositories?: GitRepoWorktrees[]; repos?: GitRepoWorktrees[] };
+  return json.repositories ?? json.repos ?? [];
 }
 
 export async function addGitWorktree(input: { repo: string; path: string; branch?: string }): Promise<{ worktrees: GitWorktreeEntry[] }> {
@@ -1523,6 +1551,36 @@ export async function mergeGitBranch(input: {
     throw new Error(detail ? `${error}: ${detail}` : error);
   }
   return json as { sha: string; short_sha: string; state: GitRepoBranches };
+}
+
+export interface GitPullRequest {
+  number: number;
+  url: string;
+  state: string;
+  title: string;
+  head: string;
+  base: string;
+}
+
+export async function createGitPullRequest(input: {
+  repo: string;
+  source: string;
+  target?: string;
+  title?: string;
+  body?: string;
+}): Promise<{ pull_request: GitPullRequest; url: string }> {
+  const response = await fetch(apiUrl("/git/pull-request"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { pull_request: GitPullRequest; url: string };
 }
 
 export async function syncGitRepo(repo: string): Promise<{ actions: string[]; state: GitRemoteState }> {
@@ -1789,7 +1847,7 @@ export async function clearGithubPat(): Promise<void> {
   await fetch(apiUrl("/integrations/github/pat"), { method: "DELETE" });
 }
 
-export interface GithubRepoSummary {
+export interface GithubRepositorySummary {
   full_name: string;
   description: string | null;
   private: boolean;
@@ -1800,23 +1858,25 @@ export interface GithubRepoSummary {
   pushed_at: string;
 }
 
-export async function listGithubRepos(): Promise<GithubRepoSummary[]> {
-  const response = await fetch(apiUrl("/integrations/github/repos"));
+export async function listGithubRepositories(): Promise<GithubRepositorySummary[]> {
+  const response = await fetch(apiUrl("/integrations/github/repositories"));
   const json = await response.json();
   if (!response.ok) {
     throw new Error(typeof json === "object" && json && "detail" in json
       ? (json as { detail: string }).detail
       : `HTTP ${response.status}`);
   }
-  return (json as { repos: GithubRepoSummary[] }).repos;
+  const body = json as { repositories?: GithubRepositorySummary[]; repos?: GithubRepositorySummary[] };
+  return body.repositories ?? body.repos ?? [];
 }
 
-export async function cloneGithubRepo(input: {
+export async function cloneGithubRepository(input: {
   full_name: string;
   default_branch?: string;
   id?: string;
   use_ssh?: boolean;
-}): Promise<{ repo: Repo; cloned: boolean }> {
+  checkout?: boolean;
+}): Promise<{ repo: Repository; cloned: boolean }> {
   const response = await fetch(apiUrl("/integrations/github/clone"), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1828,7 +1888,7 @@ export async function cloneGithubRepo(input: {
       ? (json as { detail: string }).detail
       : `HTTP ${response.status}`);
   }
-  return json as { repo: Repo; cloned: boolean };
+  return json as { repo: Repository; cloned: boolean };
 }
 
 export async function addGithubSource(input: {
@@ -1938,7 +1998,7 @@ export async function syncSource(id: string): Promise<SyncResult> {
   return json as SyncResult;
 }
 
-// --- Folder inspector (used by the create-project / add-repo flows) ---
+// --- Folder inspector (used by the create-project / add-repository flows) ---
 export interface FolderInspect {
   exists: boolean;
   is_directory: boolean;

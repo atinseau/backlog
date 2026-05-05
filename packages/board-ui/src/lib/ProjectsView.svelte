@@ -162,7 +162,7 @@
                       {#if isCurrent}<span class="badge">{t("manage_projects.current")}</span>{/if}
                     </button>
                   {/if}
-                  <span class="loc-pill">{project.location === "user_level" ? "user-level" : "in-repo"}</span>
+                  <span class="loc-pill">{project.location === "user_level" ? "user-level" : "in-repository"}</span>
                 </div>
                 <button class="path-link" onclick={() => openInFinder(project.path)} title={t("repos_view.open_folder")}>
                   📂 <span class="path-text">{project.path}</span>

@@ -25,7 +25,7 @@ pnpm test
 pnpm typecheck
 ```
 
-## Repo layout
+## Repository layout
 
 ```
 backlog/

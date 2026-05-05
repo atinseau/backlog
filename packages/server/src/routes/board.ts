@@ -12,6 +12,7 @@ import {
   listTasks,
 } from "@backlog/core";
 import { emptyGitWorkingTreeStatus, getWorkingTreeStatus, type GitWorkingTreeStatus } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type {
   ClaimRecord,
   Run,
@@ -137,8 +138,12 @@ async function buildRepoGitStatuses(project: ServerProject): Promise<Record<stri
   const repos = listRepos(project.backlogDir);
   const entries = await Promise.all(
     repos.map(async (repo) => {
+      const checkoutPath = repoCheckoutPath(repo);
+      if (!checkoutPath) {
+        return [repo.id, { ...emptyGitWorkingTreeStatus(), clean: true, error: "remote_repository_no_local_checkout" }] as const;
+      }
       try {
-        return [repo.id, await getWorkingTreeStatus(repo.path)] as const;
+        return [repo.id, await getWorkingTreeStatus(checkoutPath)] as const;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return [repo.id, { ...emptyGitWorkingTreeStatus(), clean: false, error: message }] as const;
@@ -326,7 +331,7 @@ export function boardRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
   app.get("/board", async (c) => {
     const project = c.get("project");
-    const repo = c.req.query("repo") ?? undefined;
+    const repo = c.req.query("repository") ?? c.req.query("repo") ?? undefined;
     return c.json(await buildBoard(project, { repo }));
   });
   return app;

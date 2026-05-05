@@ -110,7 +110,10 @@ export interface BoardResponse {
   total_remaining_seconds: number;
 }
 
-export type RepoProvider = "local" | "github" | "gitlab" | "bitbucket" | "other";
+export type RepositoryLocation = "local" | "remote";
+export type RepositoryRemoteType = "git" | "ftp" | "sftp" | "other";
+export type RepositoryRemoteProvider = "github" | "gitlab" | "bitbucket" | "custom" | "other";
+export type RepositoryProvider = "local" | "github" | "gitlab" | "bitbucket" | "other";
 
 export type AutonomyMode = "observe" | "assist" | "delegate" | "autopilot";
 
@@ -206,22 +209,29 @@ export interface CurrentProject {
   } | null;
 }
 
-export type RepoAccessMode = "read-write" | "read-only" | "no-access";
+export type RepositoryAccessMode = "read-write" | "read-only" | "no-access";
 
-export interface Repo {
+export interface Repository {
   id: string;
   name?: string;
-  path: string;
+  path?: string;
+  checkout_path?: string;
   path_exists?: boolean;
+  has_local_checkout?: boolean;
   default_branch: string;
   role?: string;
   enabled: boolean;
   // Defaults to "read-write" server-side. Existing config.toml files
   // load with this default applied, so the field is always set on the
   // wire — but we mark it optional so older clients don't choke.
-  access_mode?: RepoAccessMode;
+  access_mode?: RepositoryAccessMode;
+  location?: RepositoryLocation;
+  remote_type?: RepositoryRemoteType;
+  remote_provider?: RepositoryRemoteProvider;
+  remote_url?: string;
+  // Deprecated compatibility fields.
   git_url?: string;
-  provider?: RepoProvider;
+  provider?: RepositoryProvider;
 }
 
 export interface OrchestratorState {

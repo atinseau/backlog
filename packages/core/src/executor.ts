@@ -22,7 +22,7 @@ export interface ExecuteAgentRunParams {
   attemptNumber?: number;
 }
 
-// Repo-level access policy (config.repos[].access_mode) takes
+// Repository-level access policy (config.repos[].access_mode) takes
 // precedence over the agent's own sandbox_mode setting. Read-only and
 // no-access repos coerce / refuse the run regardless of what the
 // agent thinks it's allowed to do — the policy lives with the
@@ -31,7 +31,7 @@ function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunPa
   const repo = getRepo(params.backlogDir, params.task.repo);
   const accessMode = repo?.access_mode ?? "read-write";
   if (accessMode === "no-access") {
-    throw new Error(`Repo ${params.task.repo} is set to no-access; runs are not allowed.`);
+    throw new Error(`Repository ${params.task.repo} is set to no-access; runs are not allowed.`);
   }
   if (accessMode === "read-only") {
     // Replace the sandbox_mode with read-only on a shallow copy of the

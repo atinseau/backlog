@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject, listRegisteredProjects, loadConfig } from "@backlog/config";
 import { buildExecutionPlan, buildProjectStatus } from "@backlog/core";
 import { listSubTasks } from "@backlog/core";
@@ -138,7 +138,8 @@ export function registerStatusCommand(program: Command): void {
   program
     .command("status")
     .description("Show a compact Backlog project summary")
-    .option("--repo <id>", "Focus status on one configured repo")
+    .option("--repository <id>", "Focus status on one configured repository")
+    .addOption(new Option("--repo <id>", "Focus status on one configured repository").hideHelp())
     .option("--all", "Aggregate across every registered project (cross-project view)")
     .option("--json", "Emit machine-readable JSON")
     .option(
@@ -153,7 +154,7 @@ export function registerStatusCommand(program: Command): void {
       }
       if (options.all) {
         if (options.repo) {
-          throw new Error("--all and --repo are mutually exclusive (different scopes).");
+          throw new Error("--all and --repository are mutually exclusive (different scopes).");
         }
         runAllStatus(options);
         return;
@@ -170,7 +171,7 @@ function runLocalStatus(options: { repo?: string; json?: boolean }): void {
 
   const config = loadConfig(workspace.backlogDir);
   if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
-    throw new Error(`Unknown repo: ${options.repo}`);
+    throw new Error(`Unknown repository: ${options.repo}`);
   }
   const status = buildProjectStatus(workspace.root, workspace.backlogDir, config, {
     ...(options.repo ? { repoId: options.repo } : {}),
@@ -194,15 +195,15 @@ function runLocalStatus(options: { repo?: string; json?: boolean }): void {
 
   console.log(`Project: ${status.projectName}`);
   if (status.selectedRepoId) {
-    console.log(`Repo focus: ${status.selectedRepoId}`);
+    console.log(`Repository focus: ${status.selectedRepoId}`);
   }
-  console.log(`Repos: ${status.enabledRepoCount} enabled / ${status.repoCount} configured`);
+  console.log(`Repositories: ${status.enabledRepoCount} enabled / ${status.repoCount} configured`);
   console.log(`Active claims: ${status.activeClaims}`);
   console.log(`Active runs: ${status.activeRuns}`);
   console.log(`Tasks: ${status.taskCount}`);
   console.log(`Pending sync conflicts: ${status.pendingSyncConflicts}`);
   if (status.repoSummaries.length > 0 && (status.repoCount > 1 || status.selectedRepoId)) {
-    console.log("Repo detail:");
+    console.log("Repository detail:");
     for (const repo of status.repoSummaries) {
       console.log(`- ${repo.id}: enabled=${repo.enabled} tasks=${repo.taskCount} subtasks=${repo.subtaskCount} active_runs=${repo.activeRuns} active_claims=${repo.activeClaims}`);
     }

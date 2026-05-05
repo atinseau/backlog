@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject } from "@backlog/config";
 import {
   archiveSubTask,
@@ -34,14 +34,15 @@ function parseBooleanFlag(value: string): boolean {
 }
 
 export function registerSubTaskCommand(program: Command): void {
-  const task = program.command("subtask").description("Manage executable subtasks (per-repo execution units)");
+  const task = program.command("subtask").description("Manage executable subtasks (per-repository execution units)");
 
   task
     .command("add")
     .description("Create a subtask for a task")
     .requiredOption("--task <id>", "Parent task id")
     .requiredOption("--title <title>", "Subtask title")
-    .requiredOption("--repo <repo>", "Target repo id")
+    .option("--repository <repository>", "Target repository id (required)")
+    .addOption(new Option("--repo <repo>", "Target repository id").hideHelp())
     .option("--scope <scope...>", "Subtask scopes")
     .option("--depends-on <subtask...>", "Subtask dependencies")
     .option("--blocker <reason...>", "Initial blockers")
@@ -52,7 +53,8 @@ export function registerSubTaskCommand(program: Command): void {
     .action((options: {
       task: string;
       title: string;
-      repo: string;
+      repo?: string;
+      repository?: string;
       scope?: string[];
       dependsOn?: string[];
       blocker?: string[];
@@ -65,10 +67,14 @@ export function registerSubTaskCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
+      const repository = options.repo ?? options.repository;
+      if (!repository) {
+        throw new Error("Missing required option: --repository <repository>");
+      }
       const created = createSubTask(workspace.backlogDir, {
         workItemId: options.task,
         title: options.title,
-        repo: options.repo,
+        repo: repository,
         ...(options.scope ? { scopes: options.scope } : {}),
         ...(options.dependsOn ? { dependsOn: options.dependsOn } : {}),
         ...(options.blocker ? { blockers: options.blocker } : {}),
@@ -85,7 +91,8 @@ export function registerSubTaskCommand(program: Command): void {
     .description("Update task metadata without editing YAML by hand")
     .argument("<subtask-id>", "Subtask id")
     .option("--title <title>", "Subtask title")
-    .option("--repo <repo>", "Target repo id")
+    .option("--repository <repository>", "Target repository id")
+    .addOption(new Option("--repo <repo>", "Target repository id").hideHelp())
     .option("--scope <scope>", "Replace task scopes", collectValues, [])
     .option("--depends-on <task>", "Replace task dependencies", collectValues, [])
     .option("--blocker <reason>", "Replace task blockers", collectValues, [])
@@ -141,7 +148,8 @@ export function registerSubTaskCommand(program: Command): void {
   task
     .command("list")
     .description("List subtasks")
-    .option("--repo <repo>", "Only show subtasks for one repo")
+    .option("--repository <repository>", "Only show subtasks for one repository")
+    .addOption(new Option("--repo <repo>", "Only show subtasks for one repository").hideHelp())
     .option("--status <status>", "Only show subtasks in one status")
     .option("--task <id>", "Only show subtasks for one parent task")
     .option("--json", "Emit machine-readable JSON")
@@ -234,7 +242,7 @@ export function registerSubTaskCommand(program: Command): void {
       }
       console.log(`Subtask: ${task.id}`);
       console.log(`Title: ${task.title}`);
-      console.log(`Repo: ${task.repo}`);
+      console.log(`Repository: ${task.repo}`);
       console.log(`Status: ${task.status}`);
       console.log(`Task: ${task.task_id}`);
       if (task.scopes.length > 0) {

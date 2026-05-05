@@ -1,9 +1,9 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
-  import { repoDisplayName, repoIdentityHint } from "./repo-display.js";
-  import { relocateRepoPath } from "./repo-relocate.js";
-  import { createRepo, deleteRepo, fetchHooksStatus, fetchRepos, installRepoHook, uninstallRepoHook, updateRepo, type HooksOverview, type HookStatus } from "./api.js";
-  import type { Repo } from "./types.js";
+  import { repositoryDisplayName, repositoryIdentityHint } from "./repository-display.js";
+  import { relocateRepositoryPath } from "./repository-relocate.js";
+  import { checkoutRepository, createRepository, deleteRepository, fetchHooksStatus, fetchRepositories, installRepoHook, uninstallRepoHook, updateRepository, type HooksOverview, type HookStatus } from "./api.js";
+  import type { Repository } from "./types.js";
 
   // Bridge exposed by packages/desktop's preload.ts is typed once in
   // ./desktop-bridge.d.ts (svelte-check rejects per-component ambient
@@ -30,12 +30,13 @@
 
   let { onClose, onChanged, embedded = false, initialShowCreate = false }: Props = $props();
 
-  let repos = $state<Repo[]>([]);
+  let repos = $state<Repository[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
   let hooks = $state<HooksOverview | null>(null);
   let hooksLoading = $state(false);
   let installingHookFor = $state<string | null>(null);
+  let checkingOutFor = $state<string | null>(null);
   const ALL_HOOKS = "__all__";
 
   function hookStatusOf(repoId: string): HookStatus | undefined {
@@ -138,11 +139,12 @@
   let newPath = $state("");
   let newGitUrl = $state("");
   let newCloneInto = $state("");
+  let cloneCheckout = $state(true);
   let newBranch = $state("main");
   let newRole = $state("");
   // Default to read-write because that's what most users want when
   // adding a repository they own. Switch to read-only for vendored
-  // dependencies / context-only repos that the agent should be able
+  // dependencies / context-only repositories that the agent should be able
   // to inspect but not edit.
   let newAccessMode = $state<"read-write" | "read-only" | "no-access">("read-write");
   let creating = $state(false);
@@ -150,7 +152,7 @@
   async function load() {
     loading = true;
     try {
-      repos = await fetchRepos();
+      repos = await fetchRepositories();
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -168,7 +170,7 @@
     }
     creating = true;
     try {
-      const input: Parameters<typeof createRepo>[0] = {};
+      const input: Parameters<typeof createRepository>[0] = {};
       if (newId.trim()) input.id = newId.trim();
       if (newRole.trim()) input.role = newRole.trim();
       if (newBranch.trim()) input.default_branch = newBranch.trim();
@@ -176,19 +178,29 @@
 
       if (createMode === "clone") {
         if (!newGitUrl.trim()) throw new Error("URL Git requise");
-        input.git_url = newGitUrl.trim();
-        if (newCloneInto.trim()) input.clone_into = newCloneInto.trim();
+        const gitUrl = newGitUrl.trim();
+        const remoteProvider = detectRemoteProvider(gitUrl);
+        input.location = "remote";
+        input.remote_type = "git";
+        input.remote_provider = remoteProvider;
+        input.remote_url = gitUrl;
+        input.git_url = gitUrl;
+        input.provider = remoteProvider === "custom" ? "other" : remoteProvider;
+        input.checkout = cloneCheckout;
+        if (cloneCheckout && newCloneInto.trim()) input.clone_into = newCloneInto.trim();
       } else {
         if (!newPath.trim()) throw new Error("Chemin local requis");
         if (!newBranch.trim()) throw new Error("Branche par défaut requise");
+        input.location = "local";
         input.path = newPath.trim();
       }
 
-      await createRepo(input);
+      await createRepository(input);
       newId = "";
       newPath = "";
       newGitUrl = "";
       newCloneInto = "";
+      cloneCheckout = true;
       newBranch = "main";
       newRole = "";
       newAccessMode = "read-write";
@@ -202,9 +214,9 @@
     }
   }
 
-  async function handleToggleEnabled(repo: Repo) {
+  async function handleToggleEnabled(repo: Repository) {
     try {
-      await updateRepo(repo.id, { enabled: !repo.enabled });
+      await updateRepository(repo.id, { enabled: !repo.enabled });
       await load();
       onChanged?.();
     } catch (err) {
@@ -212,10 +224,10 @@
     }
   }
 
-  async function handleAccessModeChange(repo: Repo, mode: "read-write" | "read-only" | "no-access") {
+  async function handleAccessModeChange(repo: Repository, mode: "read-write" | "read-only" | "no-access") {
     if (mode === (repo.access_mode ?? "read-write")) return;
     try {
-      await updateRepo(repo.id, { access_mode: mode });
+      await updateRepository(repo.id, { access_mode: mode });
       await load();
       onChanged?.();
     } catch (err) {
@@ -223,11 +235,11 @@
     }
   }
 
-  async function handleRemove(repo: Repo) {
-    const confirmed = confirm(t("repos_view.button.remove_confirm", { repo: repo.id }));
+  async function handleRemove(repo: Repository) {
+    const confirmed = confirm(t("repos_view.button.remove_confirm", { repository: repo.id }));
     if (!confirmed) return;
     try {
-      await deleteRepo(repo.id);
+      await deleteRepository(repo.id);
       await load();
       onChanged?.();
     } catch (err) {
@@ -235,11 +247,11 @@
     }
   }
 
-  async function handleRename(repo: Repo) {
-    const next = prompt(`Renommer l'identifiant interne du repo ${repo.id} →`, repo.id);
+  async function handleRename(repo: Repository) {
+    const next = prompt(`Renommer l'identifiant interne du repository ${repo.id} →`, repo.id);
     if (!next || next === repo.id) return;
     try {
-      await updateRepo(repo.id, { id: next });
+      await updateRepository(repo.id, { id: next });
       await load();
       onChanged?.();
     } catch (err) {
@@ -247,9 +259,11 @@
     }
   }
 
-  async function handleRelocate(repo: Repo) {
+  async function handleRelocate(repo: Repository) {
+    const checkoutPath = repositoryCheckoutPath(repo);
+    if (!checkoutPath) return;
     try {
-      const relocated = await relocateRepoPath(repo.id, repo.path);
+      const relocated = await relocateRepositoryPath(repo.id, checkoutPath);
       if (!relocated) return;
       await load();
       onChanged?.();
@@ -258,11 +272,57 @@
     }
   }
 
-  function providerLabel(provider: Repo["provider"]): string {
+  async function handleCreateCheckout(repo: Repository) {
+    checkingOutFor = repo.id;
+    try {
+      await checkoutRepository(repo.id);
+      await load();
+      onChanged?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      checkingOutFor = null;
+    }
+  }
+
+  function detectRemoteProvider(url: string): NonNullable<Repository["remote_provider"]> {
+    if (/(^|@|\/)github\.com[:/]/.test(url)) return "github";
+    if (/(^|@|\/)gitlab\.com[:/]/.test(url)) return "gitlab";
+    if (/(^|@|\/)bitbucket\.org[:/]/.test(url)) return "bitbucket";
+    return "custom";
+  }
+
+  function repositoryRemoteProvider(repo: Repository): Repository["remote_provider"] {
+    if (repo.remote_provider) return repo.remote_provider;
+    if (!repo.provider || repo.provider === "local") return undefined;
+    return repo.provider === "other" ? "custom" : repo.provider;
+  }
+
+  function repositoryRemoteUrl(repo: Repository): string | undefined {
+    return repo.remote_url ?? repo.git_url;
+  }
+
+  function repositoryCheckoutPath(repo: Repository): string | undefined {
+    return repo.checkout_path ?? repo.path;
+  }
+
+  function remoteTypeLabel(type: Repository["remote_type"]): string {
+    if (type === "git") return "Git";
+    if (type === "ftp") return "FTP";
+    if (type === "sftp") return "SFTP";
+    if (type === "other") return "Remote";
+    return "Remote";
+  }
+
+  function canCreateCheckout(repo: Repository): boolean {
+    return !repositoryCheckoutPath(repo) && (repo.remote_type ?? (repositoryRemoteUrl(repo) ? "git" : undefined)) === "git" && Boolean(repositoryRemoteUrl(repo));
+  }
+
+  function providerLabel(provider: Repository["remote_provider"] | Repository["provider"]): string {
     if (provider === "github") return "GitHub";
     if (provider === "gitlab") return "GitLab";
     if (provider === "bitbucket") return "Bitbucket";
-    if (provider === "other") return "Git";
+    if (provider === "custom" || provider === "other") return "Custom";
     return "Local";
   }
 
@@ -342,15 +402,22 @@
           {@const hookStatus = hookStatusOf(repo.id)}
           {@const hookLabel = hookStatusLabel(hookStatus)}
           {@const accessMode = repo.access_mode ?? "read-write"}
-          {@const displayName = repoDisplayName(repo)}
-          {@const identityHint = repoIdentityHint(repo)}
+          {@const displayName = repositoryDisplayName(repo)}
+          {@const identityHint = repositoryIdentityHint(repo)}
+          {@const remoteProvider = repositoryRemoteProvider(repo)}
+          {@const remoteUrl = repositoryRemoteUrl(repo)}
+          {@const checkoutPath = repositoryCheckoutPath(repo)}
           <li class:disabled={!repo.enabled}>
             <div class="info">
               <div class="title-row">
                 <strong>{displayName}</strong>
                 {#if identityHint}<span class="repo-id" title="ID interne">id: {identityHint}</span>{/if}
-                {#if repo.provider && repo.provider !== "local"}
-                  <span class="provider-badge provider-{repo.provider}">{providerLabel(repo.provider)}</span>
+                {#if (repo.location ?? "local") === "remote"}
+                  <span class="provider-badge provider-{remoteProvider ?? 'custom'}">
+                    {remoteTypeLabel(repo.remote_type)}{#if remoteProvider} · {providerLabel(remoteProvider)}{/if}
+                  </span>
+                {:else}
+                  <span class="provider-badge provider-local">Local</span>
                 {/if}
                 {#if repo.role}<span class="role">{repo.role}</span>{/if}
                 <span class="access-pill access-{accessMode}" title={t(`repos_view.access_hint_${accessMode.replace("-", "_")}`)}>
@@ -381,26 +448,30 @@
                   </button>
                 {/if}
               </div>
-              {#if repo.path_exists === false}
+              {#if checkoutPath && repo.path_exists === false}
                 <div class="missing-repo">
                   <div>
-                    <strong>{t("repos_view.missing_title", { repo: displayName })}</strong>
-                    <span>{t("repos_view.missing_body", { path: repo.path })}</span>
+                    <strong>{t("repos_view.missing_title", { repository: displayName })}</strong>
+                    <span>{t("repos_view.missing_body", { path: checkoutPath })}</span>
                   </div>
                   <button type="button" onclick={() => handleRelocate(repo)}>{t("repos_view.relocate")}</button>
                 </div>
               {/if}
-              <button
-                class="path-link"
-                onclick={(e) => { e.stopPropagation(); openInFinder(repo.path); }}
-                title={isElectron ? t("repos_view.open_folder") : t("repos_view.copy_path")}
-              >
-                <span class="path-icon">📂</span>
-                <span class="path-text">{repo.path}</span>
-              </button>
+              {#if checkoutPath}
+                <button
+                  class="path-link"
+                  onclick={(e) => { e.stopPropagation(); openInFinder(checkoutPath); }}
+                  title={isElectron ? t("repos_view.open_folder") : t("repos_view.copy_path")}
+                >
+                  <span class="path-icon">📂</span>
+                  <span class="path-text">{checkoutPath}</span>
+                </button>
+              {:else}
+                <span class="git-url">Aucun checkout local</span>
+              {/if}
               <span class="branch">branche par défaut : {repo.default_branch}</span>
-              {#if repo.git_url}
-                <span class="git-url">{repo.git_url}</span>
+              {#if remoteUrl}
+                <span class="git-url">{remoteUrl}</span>
               {/if}
             </div>
             <div class="actions">
@@ -413,6 +484,11 @@
                 <option value="read-only">{t("repos_view.access_read_only")}</option>
                 <option value="no-access">{t("repos_view.access_no_access")}</option>
               </select>
+              {#if canCreateCheckout(repo)}
+                <button onclick={() => handleCreateCheckout(repo)} disabled={checkingOutFor !== null}>
+                  {checkingOutFor === repo.id ? t("repos_view.checkout.creating") : t("repos_view.checkout.create")}
+                </button>
+              {/if}
               <button onclick={() => handleRename(repo)} title={t("repos_view.rename_id")}>✎</button>
               <button onclick={() => handleRelocate(repo)}>
                 {t("repos_view.relocate")}
@@ -475,17 +551,21 @@
               URL Git
               <input
                 bind:value={newGitUrl}
-                placeholder="https://github.com/user/repo.git"
+                placeholder="https://github.com/user/repository.git"
                 required
               />
             </label>
             <div class="row">
-              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="repo" pattern="[a-zA-Z0-9_-]*" /></label>
+              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="repository" pattern="[a-zA-Z0-9_-]*" /></label>
               <label>Branche<input bind:value={newBranch} placeholder="main" /></label>
             </div>
+            <label class="check-row">
+              <input type="checkbox" bind:checked={cloneCheckout} />
+              <span>Créer un checkout local maintenant</span>
+            </label>
             <label class="full">
-              Cloner dans <span class="hint">(défaut : project/repos/&lt;id&gt;)</span>
-              <input bind:value={newCloneInto} placeholder="repos/frontend" />
+              Cloner dans <span class="hint">(défaut : project/repositories/&lt;id&gt;)</span>
+              <input bind:value={newCloneInto} placeholder="repositories/frontend" disabled={!cloneCheckout} />
             </label>
           {:else}
             <div class="row">
@@ -815,9 +895,14 @@
   }
   .provider-gitlab,
   .provider-bitbucket,
+  .provider-custom,
   .provider-other {
     background: var(--accent-bg);
     color: var(--accent-text);
+  }
+  .provider-local {
+    background: var(--bg-soft);
+    color: var(--text-muted);
   }
   .off {
     font-size: 11px;
@@ -1031,6 +1116,15 @@
     color: var(--text-secondary);
   }
   .create label.full { grid-column: 1 / -1; }
+  .create label.check-row {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .create label.check-row input {
+    width: auto;
+  }
   .create input {
     padding: 6px 8px;
     border: 1px solid var(--border-strong);

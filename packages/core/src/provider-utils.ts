@@ -108,7 +108,7 @@ export function buildProviderPrompt(
     `Task title: ${workItem.title}`,
     `Subtask: ${task.id}`,
     `Subtask title: ${task.title}`,
-    `Repo: ${task.repo}`,
+    `Repository: ${task.repo}`,
     `Risk: ${task.risk}`,
     "",
     "Allowed scopes:",

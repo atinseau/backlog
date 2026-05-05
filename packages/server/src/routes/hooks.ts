@@ -1,5 +1,6 @@
 import { listRepos } from "@backlog/core";
 import { isLocalShimUpToDate, pickLocalShimProjectRoot, writeLocalShim } from "@backlog/config";
+import { repoCheckoutPath } from "@backlog/schemas";
 import { inspectPreCommitHook, installPreCommitHook, readPauseUntil, uninstallPreCommitHook } from "@backlog/hooks";
 import { Hono } from "hono";
 import path from "node:path";
@@ -70,13 +71,31 @@ export function hooksRoutes(): Hono<AppEnv> {
     const project = c.get("project");
     const repos = listRepos(project.backlogDir);
     const backlogBin = path.join(project.backlogDir, "bin", "backlog");
-    const repoPaths = repos.map((repo) => resolveRepoPath(project.root, repo.path));
+    const repoPaths = repos
+      .map((repo) => repoCheckoutPath(repo))
+      .filter((repoPath): repoPath is string => Boolean(repoPath))
+      .map((repoPath) => resolveRepoPath(project.root, repoPath));
     const shimProjectRoot = pickLocalShimProjectRoot(project.root, repoPaths);
     const shimUpToDate = isLocalShimUpToDate(project.backlogDir, shimProjectRoot);
 
     const out: HookStatus[] = [];
     for (const repo of repos) {
-      const repoPath = resolveRepoPath(project.root, repo.path);
+      const checkoutPath = repoCheckoutPath(repo);
+      if (!checkoutPath) {
+        out.push({
+          repo_id: repo.id,
+          repo_path: "",
+          git_dir: "",
+          hook_path: "",
+          exists: false,
+          managed: false,
+          points_to_backlog_bin: false,
+          shim_up_to_date: shimUpToDate,
+          up_to_date: false,
+        });
+        continue;
+      }
+      const repoPath = resolveRepoPath(project.root, checkoutPath);
       const gitDir = findGitDir(repoPath);
       if (!gitDir) {
         out.push({
@@ -126,8 +145,10 @@ export function hooksRoutes(): Hono<AppEnv> {
 
     const repo = listRepos(project.backlogDir).find((candidate) => candidate.id === repoId);
     if (!repo) return c.json({ error: "unknown_repo", repo_id: repoId }, 404);
+    const checkoutPath = repoCheckoutPath(repo);
+    if (!checkoutPath) return c.json({ error: "repository_has_no_local_checkout", repo_id: repoId }, 400);
 
-    const repoPath = resolveRepoPath(project.root, repo.path);
+    const repoPath = resolveRepoPath(project.root, checkoutPath);
     const gitDir = findGitDir(repoPath);
     if (!gitDir) return c.json({ error: "not_a_git_repo", repo_id: repoId, repo_path: repoPath }, 400);
 
@@ -171,8 +192,10 @@ export function hooksRoutes(): Hono<AppEnv> {
 
     const repo = listRepos(project.backlogDir).find((candidate) => candidate.id === repoId);
     if (!repo) return c.json({ error: "unknown_repo", repo_id: repoId }, 404);
+    const checkoutPath = repoCheckoutPath(repo);
+    if (!checkoutPath) return c.json({ error: "repository_has_no_local_checkout", repo_id: repoId }, 400);
 
-    const repoPath = resolveRepoPath(project.root, repo.path);
+    const repoPath = resolveRepoPath(project.root, checkoutPath);
     const gitDir = findGitDir(repoPath);
     if (!gitDir) return c.json({ error: "not_a_git_repo", repo_id: repoId, repo_path: repoPath }, 400);
 

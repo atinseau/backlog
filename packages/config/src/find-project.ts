@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { repoCheckoutPath } from "@backlog/schemas";
 import { getRegistryPath, listRegisteredProjects, type RegistryOptions } from "./project-registry.js";
 import { loadConfig } from "./load-config.js";
 
@@ -153,7 +154,10 @@ function loadUserLevelIndex(registryOptions?: RegistryOptions): RegistryCacheEnt
     }
     workspaces.push({
       workspaceDir,
-      repoPaths: config.repos.map((repo) => path.resolve(repo.path)),
+      repoPaths: config.repos
+        .map((repo) => repoCheckoutPath(repo))
+        .filter((repoPath): repoPath is string => Boolean(repoPath))
+        .map((repoPath) => path.resolve(repoPath)),
     });
   }
 

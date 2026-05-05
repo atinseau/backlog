@@ -9,6 +9,7 @@ import {
   loadConfig,
 } from "@backlog/config";
 import { detectRepoRoot } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 
 export const DEFAULT_BOARD_URL = "http://127.0.0.1:7878";
 const HEALTH_PATH = "/api/v1/health";
@@ -58,7 +59,11 @@ function repoIdForCwd(projectRoot: string, backlogDir: string, cwd = process.cwd
   const config = loadConfig(backlogDir);
   const current = path.resolve(cwd);
   const matches = config.repos
-    .map((repo) => ({ id: repo.id, root: resolveRepoPath(projectRoot, repo.path) }))
+    .map((repo) => {
+      const checkoutPath = repoCheckoutPath(repo);
+      return checkoutPath ? { id: repo.id, root: resolveRepoPath(projectRoot, checkoutPath) } : null;
+    })
+    .filter((repo): repo is { id: string; root: string } => Boolean(repo))
     .filter((repo) => current === repo.root || current.startsWith(repo.root + path.sep))
     .sort((a, b) => b.root.length - a.root.length);
   return matches[0]?.id ?? null;
@@ -209,7 +214,7 @@ export async function runBoardCommand(options: { url?: string } = {}): Promise<v
 
   const args = serveNetworkArgs(serveUrl);
   if (context.projectRoot) args.push("--project", context.projectRoot);
-  if (context.repoOnlyRoot) args.push("--repo-only", context.repoOnlyRoot);
+  if (context.repoOnlyRoot) args.push("--repository-only", context.repoOnlyRoot);
   args.push("--open-url", relativeOpenUrl(openUrl));
 
   console.log(`Starting \`backlog serve\` at ${serveUrl} (Ctrl+C to stop)…`);

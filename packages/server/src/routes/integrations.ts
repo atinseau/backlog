@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { deleteSecret, getSecret, setSecret } from "@backlog/config";
 import {
+  addRepo,
   addSource,
   cloneAndAddRepo,
   createTask,
@@ -16,8 +17,10 @@ import {
   type GithubRepoSummary,
 } from "@backlog/connectors";
 import { git } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { SourceConfig, Task } from "@backlog/schemas";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
@@ -114,6 +117,7 @@ const githubCloneSchema = z.object({
   default_branch: z.string().min(1).optional(),
   id: z.string().min(1).optional(),
   use_ssh: z.boolean().optional(),
+  checkout: z.boolean().optional(),
 });
 
 const jiraTestSchema = z.object({
@@ -147,6 +151,10 @@ function jiraEmailKey(sourceId: string): string {
 
 function tokenIsObvious(token: string): string {
   return token.length > 8 ? `${token.slice(0, 4)}…${token.slice(-4)}` : "***";
+}
+
+function githubRepositoryId(fullName: string): string {
+  return fullName.split("/").pop()?.replace(/\.git$/i, "") || fullName.replace(/[^a-z0-9_-]+/gi, "-");
 }
 
 async function importPulledTasks(
@@ -354,7 +362,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
     );
   });
 
-  app.get("/integrations/github/repos", async (c) => {
+  const listGithubRepositoriesHandler = async (c: Context<AppEnv>) => {
     const project = c.get("project");
     const token = getSecret(project.backlogDir, GITHUB_TOKEN_KEY);
     if (!token) {
@@ -372,12 +380,15 @@ export function integrationsRoutes(): Hono<AppEnv> {
         html_url: repo.html_url,
         pushed_at: repo.pushed_at,
       }));
-      return c.json({ repos: summary });
+      return c.json({ repos: summary, repositories: summary });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "github_list_failed", detail: message }, 502);
     }
-  });
+  };
+
+  app.get("/integrations/github/repos", listGithubRepositoriesHandler);
+  app.get("/integrations/github/repositories", listGithubRepositoriesHandler);
 
   app.post("/integrations/github/clone", async (c) => {
     const project = c.get("project");
@@ -403,10 +414,14 @@ export function integrationsRoutes(): Hono<AppEnv> {
     const cloudJwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (cloudJwt) {
       try {
-        const reg = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repos`, {
+        const reg = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repositories`, {
           method: "POST",
           headers: cloudAuthHeaders(project.backlogDir, true),
           body: JSON.stringify({
+            location: "remote",
+            remote_type: "git",
+            remote_provider: "github",
+            remote_url: cleanUrl,
             provider: "github",
             external_ref: fullName,
             display_name: fullName,
@@ -432,14 +447,33 @@ export function integrationsRoutes(): Hono<AppEnv> {
     }
 
     try {
-      const cloneInput: Parameters<typeof cloneAndAddRepo>[1] = { url: cloneUrl };
+      if (parsed.data.checkout === false) {
+        const repo = addRepo(project.backlogDir, {
+          id: parsed.data.id ?? githubRepositoryId(fullName),
+          defaultBranch: parsed.data.default_branch ?? "main",
+          location: "remote",
+          remoteType: "git",
+          remoteProvider: "github",
+          remoteUrl: cleanUrl,
+          gitUrl: cleanUrl,
+          provider: "github",
+        });
+        return c.json({ repo, repository: repo, cloned: false }, 201);
+      }
+
+      const cloneInput: Parameters<typeof cloneAndAddRepo>[1] = {
+        url: cloneUrl,
+        remoteUrl: cleanUrl,
+        remoteProvider: "github",
+      };
       if (parsed.data.id) cloneInput.id = parsed.data.id;
       if (parsed.data.default_branch) cloneInput.defaultBranch = parsed.data.default_branch;
       const repo = await cloneAndAddRepo(project.backlogDir, cloneInput);
       // Strip the embedded token from the remote so it doesn't get persisted on disk.
       if (!parsed.data.use_ssh) {
         try {
-          await git(["remote", "set-url", "origin", cleanUrl], repo.path);
+          const checkoutPath = repoCheckoutPath(repo);
+          if (checkoutPath) await git(["remote", "set-url", "origin", cleanUrl], checkoutPath);
         } catch {
           // best-effort
         }
@@ -1021,7 +1055,7 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   // Register a connected resource so the cloud can enforce quotas.
-  app.post("/cloud/repos", async (c) => {
+  const registerCloudRepositoryHandler = async (c: Context<AppEnv>) => {
     const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) {
@@ -1030,7 +1064,11 @@ export function integrationsRoutes(): Hono<AppEnv> {
     const raw = await c.req.json().catch(() => null);
     const parsed = z
       .object({
-        provider: z.enum(["github", "jira"]),
+        location: z.enum(["local", "remote"]).optional(),
+        remote_type: z.enum(["git", "ftp", "sftp", "other"]).optional(),
+        remote_provider: z.enum(["github", "gitlab", "bitbucket", "custom", "other", "jira"]).optional(),
+        remote_url: z.string().min(1).optional(),
+        provider: z.enum(["github", "jira"]).optional(),
         external_ref: z.string().min(1),
         display_name: z.string().optional(),
       })
@@ -1039,10 +1077,16 @@ export function integrationsRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body" }, 400);
     }
     try {
-      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repos`, {
+      const response = await fetch(`${BACKLOG_CLOUD_URL}/api/v1/cloud/repositories`, {
         method: "POST",
         headers: cloudAuthHeaders(project.backlogDir, true),
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({
+          ...parsed.data,
+          location: parsed.data.location ?? "remote",
+          remote_provider: parsed.data.remote_provider ?? parsed.data.provider,
+          remote_type: parsed.data.remote_type ?? (parsed.data.provider === "github" ? "git" : "other"),
+          provider: parsed.data.provider ?? parsed.data.remote_provider,
+        }),
       });
       const json = await response.json();
       return c.json(json, response.status as 200 | 201 | 400 | 401 | 402);
@@ -1050,7 +1094,10 @@ export function integrationsRoutes(): Hono<AppEnv> {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "cloud_unreachable", detail: message }, 502);
     }
-  });
+  };
+
+  app.post("/cloud/repos", registerCloudRepositoryHandler);
+  app.post("/cloud/repositories", registerCloudRepositoryHandler);
 
   return app;
 }

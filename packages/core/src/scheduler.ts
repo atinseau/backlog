@@ -1,8 +1,10 @@
 import { listActiveClaims, scopesOverlap } from "@backlog/claims";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { SubTask, Task, ProjectConfig } from "@backlog/schemas";
 import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
 import { listSubTasks, listTasks } from "./state-files.js";
+import { isGitRemoteRepository } from "./worktrees.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
@@ -225,9 +227,14 @@ export function buildExecutionPlan(
       if (repo.access_mode === "no-access") {
         reasons.push("repo_no_access");
       }
-      const claimOverlap = overlapWithClaim(task, repo.path, claims);
-      if (claimOverlap) {
-        reasons.push(`scope_conflict_with:${claimOverlap.id}`);
+      const checkoutPath = repoCheckoutPath(repo);
+      if (!checkoutPath && !isGitRemoteRepository(repo)) {
+        reasons.push("repository_has_no_local_checkout");
+      } else if (checkoutPath) {
+        const claimOverlap = overlapWithClaim(task, checkoutPath, claims);
+        if (claimOverlap) {
+          reasons.push(`scope_conflict_with:${claimOverlap.id}`);
+        }
       }
     }
 

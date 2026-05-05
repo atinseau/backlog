@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import { buildReleaseSnapshot } from "@backlog/core";
 
@@ -11,7 +11,7 @@ function renderText(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>):
 
 function renderMarkdown(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot>>): string {
   const lines = [
-    "| Repo | Enabled | Branch | Head | Tag | Dirty | Active runs | Archived runs |",
+    "| Repository | Enabled | Branch | Head | Tag | Dirty | Active runs | Archived runs |",
     "| --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
   for (const repo of snapshot) {
@@ -21,14 +21,15 @@ function renderMarkdown(snapshot: Awaited<ReturnType<typeof buildReleaseSnapshot
 }
 
 export function registerReleaseCommand(program: Command): void {
-  const release = program.command("release").description("Inspect repo versions in the project");
+  const release = program.command("release").description("Inspect repository versions in the project");
 
   release
     .command("snapshot")
-    .description("Capture a version snapshot for configured repos")
-    .option("--repo <id>", "Only snapshot one configured repo")
-    .option("--include-disabled", "Include disabled repos in the snapshot")
-    .option("--dirty-only", "Only show repos with uncommitted changes")
+    .description("Capture a version snapshot for configured repositories")
+    .option("--repository <id>", "Only snapshot one configured repository")
+    .addOption(new Option("--repo <id>", "Only snapshot one configured repository").hideHelp())
+    .option("--include-disabled", "Include disabled repositories in the snapshot")
+    .option("--dirty-only", "Only show repositories with uncommitted changes")
     .option("--output <path>", "Write the rendered snapshot to a file")
     .option("--markdown", "Render a Markdown table")
     .option("--json", "Emit machine-readable JSON")
@@ -49,7 +50,7 @@ export function registerReleaseCommand(program: Command): void {
       }
       const config = loadConfig(workspace.backlogDir);
       if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
-        throw new Error(`Unknown repo: ${options.repo}`);
+        throw new Error(`Unknown repository: ${options.repo}`);
       }
       const snapshot = (await buildReleaseSnapshot(workspace.backlogDir, config, {
         ...(options.repo ? { repoId: options.repo } : {}),
@@ -68,7 +69,7 @@ export function registerReleaseCommand(program: Command): void {
         return;
       }
       if (snapshot.length === 0) {
-        const targetText = options.repo ? `repo ${options.repo}` : options.includeDisabled ? "configured repos" : "enabled repos";
+        const targetText = options.repo ? `repository ${options.repo}` : options.includeDisabled ? "configured repositories" : "enabled repositories";
         console.log(options.dirtyOnly ? `No dirty ${targetText} configured.` : `No ${targetText} configured.`);
         return;
       }

@@ -529,6 +529,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         task_id: number;
+                        repository?: string;
+                        /** @deprecated */
                         repo?: string;
                         scope?: string;
                         status?: string;
@@ -1165,6 +1167,8 @@ export interface components {
             id: number;
             /** Format: int64 */
             task_id: number;
+            repository?: string | null;
+            /** @deprecated */
             repo?: string | null;
             scope?: string | null;
             /** @enum {string} */

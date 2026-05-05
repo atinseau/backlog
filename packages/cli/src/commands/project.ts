@@ -85,7 +85,7 @@ export function registerProjectCommand(program: Command): void {
     .argument("<id-or-name-or-path>", "Project to migrate")
     .requiredOption("--to <location>", "Target location: 'user-level' or 'in-repo'")
     .option("--name <name>", "Rename the project during migration (also affects the user-level dir name)")
-    .option("--into <repo-id>", "When migrating to in_repo, the repo whose root will host .backlog/")
+    .option("--into <repository-id>", "When migrating to in_repo, the repository whose root will host .backlog/")
     .option("--keep-old", "Don't rename the old project data dir to .migrated-…/")
     .action(async (idOrPathOrName: string, options: { to: string; name?: string; into?: string; keepOld?: boolean }) => {
       const targetLocation = options.to.replace(/-/g, "_");
@@ -106,7 +106,7 @@ export function registerProjectCommand(program: Command): void {
             })
           : ((): ReturnType<typeof migrateProjectToInRepo> => {
               if (!options.into) {
-                throw new Error("Migrating to in_repo requires --into <repo-id> (the repo that will host .backlog/).");
+                throw new Error("Migrating to in_repo requires --into <repository-id> (the repository that will host .backlog/).");
               }
               return migrateProjectToInRepo({
                 identifier: idOrPathOrName,

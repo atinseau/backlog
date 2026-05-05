@@ -42,9 +42,9 @@ package that owns the behavior.
 User-facing vocabulary:
 
 - **Project**: the user's Backlog project, whether in-repo or user-level.
-- **Repository/repo**: a Git checkout tracked by a project.
+- **Repository**: a Git checkout tracked by a project.
 - **Task**: high-level intent.
-- **Subtask**: executable repo-scoped unit.
+- **Subtask**: executable unit scoped to one repository.
 - **Run**: one agent execution.
 - **Claim**: path/file ownership lock.
 - **Agent**: executable provider or manual assignee.
@@ -55,12 +55,16 @@ Avoid in new UI/docs/API:
 - **Workspace** unless referring to the internal storage layout or old migration
   compatibility.
 - Legacy task terminology. Use task/subtask.
+- Abbreviated repository labels in product copy or new public-facing code names. Existing
+  `repo`/`repos` API fields, CLI flags, routes, storage keys, and legacy symbols
+  are compatibility names and should be migrated deliberately rather than
+  renamed opportunistically.
 - A standalone permission-management screen. Agent restrictions live with
   Agents.
 
 ## Local Development
 
-From repo root:
+From repository root:
 
 ```sh
 pnpm install

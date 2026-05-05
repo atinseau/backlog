@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { ProjectMigrationRecord, ProjectRegistryEntry, RepoConfig } from "@backlog/schemas";
 import { loadConfig } from "./load-config.js";
 import { saveConfig } from "./save-config.js";
@@ -49,7 +50,7 @@ export interface MigrateToUserLevelOptions {
 
 export interface MigrateToInRepoOptions {
   identifier: string;
-  // Repo id to host the embedded .backlog/. Must already be configured in
+  // Repository id to host the embedded .backlog/. Must already be configured in
   // the source workspace.
   intoRepoId: string;
   keepOld?: boolean;
@@ -193,10 +194,14 @@ export function migrateProjectToInRepo(options: MigrateToInRepoOptions): Migrati
   const targetRepo = sourceConfig.repos.find((r) => r.id === options.intoRepoId);
   if (!targetRepo) {
     throw new Error(
-      `Unknown repo: ${options.intoRepoId}. Configured repos: ${sourceConfig.repos.map((r) => r.id).join(", ") || "(none)"}`,
+      `Unknown repository: ${options.intoRepoId}. Configured repositories: ${sourceConfig.repos.map((r) => r.id).join(", ") || "(none)"}`,
     );
   }
-  const newRoot = path.resolve(targetRepo.path);
+  const targetCheckoutPath = repoCheckoutPath(targetRepo);
+  if (!targetCheckoutPath) {
+    throw new Error(`Repository ${options.intoRepoId} has no local checkout path.`);
+  }
+  const newRoot = path.resolve(targetCheckoutPath);
   const newBacklogDir = path.join(newRoot, ".backlog");
   if (fs.existsSync(newBacklogDir)) {
     throw new Error(`${newBacklogDir} already exists. Remove it before migrating.`);

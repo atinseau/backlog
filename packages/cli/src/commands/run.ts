@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject } from "@backlog/config";
 import {
   aggregateUsage,
@@ -55,7 +55,8 @@ export function registerRunCommand(program: Command): void {
     .option("--status <status>", "Only show runs in one status")
     .option("--active", "Only show active runs")
     .option("--archived", "Only show archived runs")
-    .option("--repo <repo>", "Only show runs for one repo")
+    .option("--repository <repository>", "Only show runs for one repository")
+    .addOption(new Option("--repo <repo>", "Only show runs for one repository").hideHelp())
     .option("--subtask <id>", "Only show runs for one subtask")
     .option("--task <id>", "Only show runs for one parent task")
     .option("--agent <id>", "Only show runs for one agent")
@@ -147,7 +148,7 @@ export function registerRunCommand(program: Command): void {
       }
       console.log(`Run: ${run.id}`);
       console.log(`Task: ${run.subtask_id}`);
-      console.log(`Repo: ${run.repo}`);
+      console.log(`Repository: ${run.repo}`);
       console.log(`Agent: ${run.agent_id}`);
       console.log(`Status: ${run.status}`);
       console.log(`Branch: ${run.branch}`);
@@ -307,7 +308,8 @@ export function registerRunCommand(program: Command): void {
   runs
     .command("estimate")
     .description("Predict the USD cost of a future run by taking the median of past runs that match")
-    .option("--repo <id>", "Filter the history to a single repo")
+    .option("--repository <id>", "Filter the history to a single repository")
+    .addOption(new Option("--repo <id>", "Filter the history to a single repository").hideHelp())
     .option("--agent <id>", "Filter the history to a single agent")
     .option("--since <iso>", "Only consider runs whose usage events are at or after this timestamp")
     .option("--json", "Emit machine-readable JSON")

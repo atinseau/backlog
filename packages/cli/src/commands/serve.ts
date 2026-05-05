@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { startServer, type StartServerOptions } from "@backlog/server";
 
 interface ServeOptions {
@@ -62,7 +62,8 @@ export function registerServeCommand(program: Command): void {
     .option("-h, --host <host>", "Hostname or IP to bind", "127.0.0.1")
     .option("--project <path>", "Project directory containing .backlog/")
     .option("-w, --workspace <path>", "Compatibility alias for --project")
-    .option("--repo-only <path>", "Open a repository checkout without registering a Backlog project")
+    .option("--repository-only <path>", "Open a repository checkout without registering a Backlog project")
+    .addOption(new Option("--repo-only <path>", "Open a repository checkout without registering a Backlog project").hideHelp())
     .option("--no-open", "Do not open the browser automatically")
     .option("--open-url <url>", "Override the browser URL to open; relative URLs resolve against the local server")
     .option("--ui-dist <path>", "Override the UI build directory")
@@ -76,7 +77,7 @@ export function registerServeCommand(program: Command): void {
         throw new Error("Use either --project or --workspace, not both.");
       }
       if ((options.project || options.workspace) && options.repoOnly) {
-        throw new Error("Use either --project/--workspace or --repo-only, not both.");
+        throw new Error("Use either --project/--workspace or --repository-only, not both.");
       }
       const startOptions: StartServerOptions = { port, host: options.host };
       if (options.project) startOptions.project = options.project;

@@ -18,7 +18,7 @@
   // Pull a file path out of the activity event message when one is
   // present. Tool summaries follow the shape "Read foo/bar.rb" /
   // "Edit app/views/x.erb" / "Write config/locales/es.yml" — match the
-  // first whitespace-separated token that looks like a repo-relative
+  // first whitespace-separated token that looks like a repository-relative
   // file path. Returns null when nothing usable is found, in which
   // case the line stays plain text.
   function extractFile(message: string | undefined): string | null {

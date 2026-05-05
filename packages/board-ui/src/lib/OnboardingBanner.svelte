@@ -1,10 +1,10 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
-  import type { BoardResponse, ProjectEntry, Repo } from "./types.js";
+  import type { BoardResponse, ProjectEntry, Repository } from "./types.js";
 
   interface Props {
     projects: ProjectEntry[];
-    projectRepos: Repo[];
+    projectRepos: Repository[];
     board: BoardResponse | null;
     dismissed: boolean;
     onCreateProject: () => void;

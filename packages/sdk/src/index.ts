@@ -190,6 +190,8 @@ export class BacklogClient {
     projectId: number,
     input: {
       task_id: number;
+      repository?: string;
+      /** @deprecated Use repository. */
       repo?: string;
       scope?: string;
       status?: string;
@@ -214,6 +216,8 @@ export class BacklogClient {
     projectId: number,
     input: {
       task_id: number;
+      repository?: string;
+      /** @deprecated Use repository. */
       repo?: string;
       scope?: string;
       status?: string;

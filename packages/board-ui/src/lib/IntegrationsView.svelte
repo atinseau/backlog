@@ -5,7 +5,7 @@
     addGithubSource,
     clearGithubPat,
     clearJiraOauthClient,
-    cloneGithubRepo,
+    cloneGithubRepository,
     cloudBillingCheckout,
     cloudBillingPortal,
     cloudLogin,
@@ -18,7 +18,7 @@
     fetchGithubOauthConfig,
     fetchGithubStatus,
     fetchJiraOauthConfig,
-    listGithubRepos,
+    listGithubRepositories,
     listSources,
     pollGithubDeviceFlow,
     pollJiraOauthStatus,
@@ -32,7 +32,7 @@
     type CloudStatus,
     type GithubDeviceStart,
     type GithubOauthConfig,
-    type GithubRepoSummary,
+    type GithubRepositorySummary,
     type GithubStatus,
     type JiraOauthConfig,
     type SourceSummary,
@@ -188,10 +188,10 @@
   let ghToken = $state("");
   let ghConnecting = $state(false);
   let ghError = $state<string | null>(null);
-  let ghRepos = $state<GithubRepoSummary[]>([]);
+  let ghRepositories = $state<GithubRepositorySummary[]>([]);
   let ghLoading = $state(false);
   let ghFilter = $state("");
-  let ghCloning = $state<string | null>(null);
+  let ghBusy = $state<{ repository: string; action: "remote" | "clone" | "source" } | null>(null);
   let ghMessage = $state<string | null>(null);
   let ghShowTokenForm = $state(false);
 
@@ -237,10 +237,10 @@
   let syncingId = $state<string | null>(null);
   let syncMessage = $state<string | null>(null);
 
-  const filteredRepos = $derived(
+  const filteredRepositories = $derived(
     ghFilter
-      ? ghRepos.filter((r) => r.full_name.toLowerCase().includes(ghFilter.toLowerCase()))
-      : ghRepos,
+      ? ghRepositories.filter((r) => r.full_name.toLowerCase().includes(ghFilter.toLowerCase()))
+      : ghRepositories,
   );
 
   async function loadGhStatus() {
@@ -441,14 +441,14 @@
   async function disconnectGh() {
     await clearGithubPat();
     ghStatus = { connected: false, token_hint: null };
-    ghRepos = [];
+    ghRepositories = [];
   }
 
-  async function refreshRepos() {
+  async function refreshRepositories() {
     ghLoading = true;
     ghError = null;
     try {
-      ghRepos = await listGithubRepos();
+      ghRepositories = await listGithubRepositories();
     } catch (err) {
       ghError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -456,22 +456,36 @@
     }
   }
 
-  async function cloneRepo(repo: GithubRepoSummary) {
-    ghCloning = repo.full_name;
+  async function cloneRepository(repo: GithubRepositorySummary) {
+    ghBusy = { repository: repo.full_name, action: "clone" };
     ghError = null;
     try {
-      await cloneGithubRepo({ full_name: repo.full_name, default_branch: repo.default_branch });
-      ghMessage = t("integrations.github.cloned_success", { repo: repo.full_name });
+      await cloneGithubRepository({ full_name: repo.full_name, default_branch: repo.default_branch });
+      ghMessage = t("integrations.github.cloned_success", { repository: repo.full_name });
       onChanged?.();
     } catch (err) {
       ghError = err instanceof Error ? err.message : String(err);
     } finally {
-      ghCloning = null;
+      ghBusy = null;
     }
   }
 
-  async function trackRepoIssues(repo: GithubRepoSummary) {
-    ghCloning = repo.full_name;
+  async function addRemoteRepository(repo: GithubRepositorySummary) {
+    ghBusy = { repository: repo.full_name, action: "remote" };
+    ghError = null;
+    try {
+      await cloneGithubRepository({ full_name: repo.full_name, default_branch: repo.default_branch, checkout: false });
+      ghMessage = t("integrations.github.remote_success", { repository: repo.full_name });
+      onChanged?.();
+    } catch (err) {
+      ghError = err instanceof Error ? err.message : String(err);
+    } finally {
+      ghBusy = null;
+    }
+  }
+
+  async function trackRepositoryIssues(repo: GithubRepositorySummary) {
+    ghBusy = { repository: repo.full_name, action: "source" };
     ghError = null;
     try {
       await addGithubSource({ id: `gh-${repo.full_name.replace("/", "-")}`, repo: repo.full_name });
@@ -481,7 +495,7 @@
     } catch (err) {
       ghError = err instanceof Error ? err.message : String(err);
     } finally {
-      ghCloning = null;
+      ghBusy = null;
     }
   }
 
@@ -830,22 +844,22 @@
           {#if ghStatus?.connected}
             <hr />
             <div class="row">
-              <button onclick={refreshRepos} disabled={ghLoading}>
+              <button onclick={refreshRepositories} disabled={ghLoading}>
                 {ghLoading ? t("integrations.github.button.listing") : t("integrations.github.button.list_repos")}
               </button>
-              {#if ghRepos.length > 0}
+              {#if ghRepositories.length > 0}
                 <input
                   class="filter"
                   type="search"
                   bind:value={ghFilter}
                   placeholder={t("integrations.github.search_placeholder")}
                 />
-                <span class="muted">{t("integrations.github.repos_count", { count: filteredRepos.length })}</span>
+                <span class="muted">{t("integrations.github.repos_count", { count: filteredRepositories.length })}</span>
               {/if}
             </div>
-            {#if ghRepos.length > 0}
+            {#if ghRepositories.length > 0}
               <ul class="repos">
-                {#each filteredRepos as repo (repo.full_name)}
+                {#each filteredRepositories as repo (repo.full_name)}
                   <li>
                     <div class="repo-line">
                       <a href={repo.html_url} target="_blank" rel="noopener noreferrer" class="repo-name">
@@ -858,10 +872,13 @@
                     </div>
                     {#if repo.description}<div class="desc">{repo.description}</div>{/if}
                     <div class="actions">
-                      <button onclick={() => cloneRepo(repo)} disabled={ghCloning === repo.full_name}>
-                        {ghCloning === repo.full_name ? t("integrations.github.button.cloning") : t("integrations.github.button.clone")}
+                      <button class="ghost" onclick={() => addRemoteRepository(repo)} disabled={ghBusy?.repository === repo.full_name}>
+                        {ghBusy?.repository === repo.full_name && ghBusy.action === "remote" ? t("integrations.github.button.registering") : t("integrations.github.button.add_remote")}
                       </button>
-                      <button class="ghost" onclick={() => trackRepoIssues(repo)} disabled={ghCloning === repo.full_name}>
+                      <button onclick={() => cloneRepository(repo)} disabled={ghBusy?.repository === repo.full_name}>
+                        {ghBusy?.repository === repo.full_name && ghBusy.action === "clone" ? t("integrations.github.button.cloning") : t("integrations.github.button.clone")}
+                      </button>
+                      <button class="ghost" onclick={() => trackRepositoryIssues(repo)} disabled={ghBusy?.repository === repo.full_name}>
                         {t("integrations.github.button.add_source")}
                       </button>
                     </div>

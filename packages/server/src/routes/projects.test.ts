@@ -183,12 +183,27 @@ describe("POST /projects/init with git_url", () => {
     });
 
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { project: { path: string; name: string }; repos: Array<{ git_url?: string; path: string; provider?: string }> };
+    const body = (await res.json()) as {
+      project: { path: string; name: string };
+      repos: Array<{
+        location?: string;
+        remote_type?: string;
+        remote_provider?: string;
+        remote_url?: string;
+        git_url?: string;
+        path: string;
+        provider?: string;
+      }>;
+    };
     expect(body.project.path).toBe(clonePath);
     expect(body.project.name).toBe("Remote Demo");
     expect(fs.existsSync(path.join(clonePath, ".git"))).toBe(true);
     expect(fs.existsSync(path.join(clonePath, ".backlog", "config.toml"))).toBe(true);
     expect(body.repos[0]).toMatchObject({
+      location: "remote",
+      remote_type: "git",
+      remote_provider: "custom",
+      remote_url: origin,
       git_url: origin,
       path: fs.realpathSync(clonePath),
       provider: "other",

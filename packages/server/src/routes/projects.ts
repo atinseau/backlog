@@ -146,12 +146,20 @@ export function projectsRoutes(
       // a repo so the user lands on a usable project.
       let repos = await discoverRepoForProject(parsed.data.path, parsed.data.name);
       if (parsed.data.git_url && repos[0]) {
+        const provider = detectGitProvider(parsed.data.git_url);
+        const remoteProvider = provider === "github" || provider === "gitlab" || provider === "bitbucket"
+          ? provider
+          : "custom";
         repos = [
           {
             ...repos[0],
             id: repoIdFromGitUrl(parsed.data.git_url),
+            location: "remote",
+            remote_type: "git",
+            remote_provider: remoteProvider,
+            remote_url: parsed.data.git_url,
             git_url: parsed.data.git_url,
-            provider: detectGitProvider(parsed.data.git_url),
+            provider,
           },
         ];
       }

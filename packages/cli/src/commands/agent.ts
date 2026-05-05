@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject } from "@backlog/config";
 import { getAgent, healthForAgents, listAgents, setAgentEnabled, updateAgent, validateAgents } from "@backlog/core";
 
@@ -68,7 +68,7 @@ export function registerAgentCommand(program: Command): void {
       console.log(`Provider: ${agent.provider}`);
       console.log(`Enabled: ${agent.enabled}`);
       console.log(`Max concurrent runs: ${agent.max_concurrent_runs}`);
-      console.log(`Allowed repos: ${agent.allowed_repos.length > 0 ? agent.allowed_repos.join(", ") : "all"}`);
+      console.log(`Allowed repositories: ${agent.allowed_repos.length > 0 ? agent.allowed_repos.join(", ") : "all"}`);
       console.log(`Allowed risk: ${agent.allowed_risk.join(", ")}`);
       console.log(`Capabilities: ${agent.capabilities.join(", ")}`);
       if (agent.command) {
@@ -117,7 +117,8 @@ export function registerAgentCommand(program: Command): void {
     .option("--success-mode <mode>", "review or complete")
     .option("--clear-success-mode", "Remove the success mode override")
     .option("--max-concurrent-runs <count>", "Concurrency limit")
-    .option("--allow-repo <repo>", "Replace allowed repos", collectValues, [])
+    .option("--allow-repository <repository>", "Replace allowed repositories", collectValues, [])
+    .addOption(new Option("--allow-repo <repo>", "Replace allowed repositories").argParser(collectValues).default([]).hideHelp())
     .option("--allow-risk <risk>", "Replace allowed risk levels", collectValues, [])
     .option("--capability <capability>", "Replace capabilities", collectValues, [])
     .option("--env <key=value>", "Replace environment entries", collectValues, [])

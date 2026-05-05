@@ -31,7 +31,7 @@ describe("discoverRepoForProject", () => {
 
   it("returns an empty array outside a git repository", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-no-repo-"));
-    const repos = await discoverRepoForProject(root, "No Repo");
+    const repos = await discoverRepoForProject(root, "No Repository");
     expect(repos).toEqual([]);
   });
 });

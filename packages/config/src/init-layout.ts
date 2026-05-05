@@ -78,6 +78,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "claims/",
       "runs/",
       "worktrees/",
+      "remote-checkouts/",
       "orchestrator.json",
       "durations-cache.json",
       "cache/",

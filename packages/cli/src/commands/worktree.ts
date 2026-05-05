@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import { garbageCollectWorktrees, listKnownWorktrees } from "@backlog/core";
 
@@ -8,7 +8,8 @@ export function registerWorktreeCommand(program: Command): void {
   worktree
     .command("list")
     .description("List worktrees known through run records")
-    .option("--repo <repo>", "Only show worktrees for one repo")
+    .option("--repository <repository>", "Only show worktrees for one repository")
+    .addOption(new Option("--repo <repo>", "Only show worktrees for one repository").hideHelp())
     .option("--status <status>", "Only show worktrees for one run status")
     .option("--missing", "Only show worktrees whose path no longer exists")
     .option("--json", "Emit machine-readable JSON")

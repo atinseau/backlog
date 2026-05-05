@@ -1,3 +1,4 @@
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { ProjectConfig } from "@backlog/schemas";
 import { repoCurrentBranch, repoCurrentTag, repoHeadSha, repoIsDirty } from "@backlog/git";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
@@ -38,16 +39,18 @@ export async function buildReleaseSnapshot(
   });
 
   for (const repo of repos) {
+    const checkoutPath = repoCheckoutPath(repo);
+    if (!checkoutPath) continue;
     const repoActiveRuns = activeRuns.filter((run) => run.repo === repo.id);
     const repoArchivedRuns = archivedRuns.filter((run) => run.repo === repo.id);
     snapshots.push({
       repo: repo.id,
-      path: repo.path,
+      path: checkoutPath,
       enabled: repo.enabled,
-      branch: await repoCurrentBranch(repo.path),
-      head: await repoHeadSha(repo.path),
-      tag: await repoCurrentTag(repo.path),
-      dirty: await repoIsDirty(repo.path),
+      branch: await repoCurrentBranch(checkoutPath),
+      head: await repoHeadSha(checkoutPath),
+      tag: await repoCurrentTag(checkoutPath),
+      dirty: await repoIsDirty(checkoutPath),
       activeRuns: repoActiveRuns.length,
       archivedRuns: repoArchivedRuns.length,
     });

@@ -1,15 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject, loadConfig } from "@backlog/config";
 import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@backlog/git";
 import { inspectPreCommitHook } from "@backlog/hooks";
+import { repoCheckoutPath } from "@backlog/schemas";
 
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
     .description("Validate Backlog project health")
-    .option("--repo <id>", "Only inspect one configured repo")
+    .option("--repository <id>", "Only inspect one configured repository")
+    .addOption(new Option("--repo <id>", "Only inspect one configured repository").hideHelp())
     .option("--json", "Emit machine-readable JSON")
     .action(async (options: { repo?: string; json?: boolean }) => {
       const workspace = findProject();
@@ -35,7 +37,7 @@ export function registerDoctorCommand(program: Command): void {
 
       const config = loadConfig(workspace.backlogDir);
       if (options.repo && !config.repos.some((repo) => repo.id === options.repo)) {
-        throw new Error(`Unknown repo: ${options.repo}`);
+        throw new Error(`Unknown repository: ${options.repo}`);
       }
       const warnings: string[] = [];
       const backlogBin = path.join(workspace.backlogDir, "bin", "backlog");
@@ -55,27 +57,39 @@ export function registerDoctorCommand(program: Command): void {
         };
       }> = [];
       for (const repo of config.repos.filter((candidate) => !options.repo || candidate.id === options.repo)) {
-        const exists = fs.existsSync(repo.path);
+        const checkoutPath = repoCheckoutPath(repo);
+        if (!checkoutPath) {
+          repos.push({
+            id: repo.id,
+            path: "",
+            enabled: repo.enabled,
+            defaultBranch: repo.default_branch,
+            exists: false,
+          });
+          warnings.push(`repository_has_no_local_checkout:${repo.id}`);
+          continue;
+        }
+        const exists = fs.existsSync(checkoutPath);
         if (!exists) {
-          throw new Error(`Configured repo path does not exist: ${repo.path}`);
+          throw new Error(`Configured repository path does not exist: ${checkoutPath}`);
         }
         let branch: string | undefined;
         try {
-          branch = await repoCurrentBranch(repo.path);
+          branch = await repoCurrentBranch(checkoutPath);
         } catch {
           branch = undefined;
           warnings.push(`cannot_read_branch:${repo.id}`);
         }
         let dirty: boolean | undefined;
         try {
-          dirty = await repoIsDirty(repo.path);
+          dirty = await repoIsDirty(checkoutPath);
         } catch {
           dirty = undefined;
           warnings.push(`cannot_read_dirty_state:${repo.id}`);
         }
         let hook: { exists: boolean; managed: boolean; pointsToBacklogBin: boolean } | undefined;
         try {
-          const gitDir = await detectGitDir(repo.path);
+          const gitDir = await detectGitDir(checkoutPath);
           const hookStatus = inspectPreCommitHook(gitDir, backlogBin);
           hook = {
             exists: hookStatus.exists,
@@ -94,7 +108,7 @@ export function registerDoctorCommand(program: Command): void {
         }
         repos.push({
           id: repo.id,
-          path: repo.path,
+          path: checkoutPath,
           enabled: repo.enabled,
           defaultBranch: repo.default_branch,
           exists,
@@ -125,7 +139,7 @@ export function registerDoctorCommand(program: Command): void {
       console.log("Backlog doctor");
       console.log(`- project: ${config.project_name}`);
       console.log(`- mode: ${config.project_mode}`);
-      console.log(`- repos: ${config.repos.length}`);
+      console.log(`- repositories: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.backlogDir, "bin", "backlog")}`);
       for (const repo of repos) {
         const hookText = repo.hook
@@ -136,7 +150,7 @@ export function registerDoctorCommand(program: Command): void {
         const dirtyText = repo.dirty !== undefined ? ` dirty=${repo.dirty}` : "";
         const enabledText = ` enabled=${repo.enabled}`;
         const mismatchText = repo.branchMatchesDefault === false ? " branch_mismatch=true" : "";
-        console.log(`- repo ${repo.id}: ${repo.path}${enabledText}${branchText}${defaultText}${dirtyText}${mismatchText}${hookText}`);
+        console.log(`- repository ${repo.id}: ${repo.path}${enabledText}${branchText}${defaultText}${dirtyText}${mismatchText}${hookText}`);
       }
       if (warnings.length > 0) {
         console.log(`- warnings: ${warnings.join(", ")}`);

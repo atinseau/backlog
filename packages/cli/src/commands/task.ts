@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { findProject } from "@backlog/config";
 import {
   archiveTask,
@@ -29,7 +29,7 @@ function parseScopeAssignments(assignments: string[] | undefined): Record<string
   for (const assignment of assignments ?? []) {
     const separator = assignment.indexOf("=");
     if (separator <= 0 || separator === assignment.length - 1) {
-      throw new Error(`Invalid scope mapping: ${assignment}. Expected repo=glob.`);
+      throw new Error(`Invalid scope mapping: ${assignment}. Expected repository=glob.`);
     }
     const repo = assignment.slice(0, separator);
     const scope = assignment.slice(separator + 1);
@@ -47,7 +47,8 @@ export function registerTaskCommand(program: Command): void {
     .requiredOption("--title <title>", "Task title")
     .option("--description <description>", "Optional description")
     .option("--priority <priority>", "Priority (P0-P3)", "P2")
-    .option("--repo <repo...>", "Target repo ids")
+    .option("--repository <repository...>", "Target repository ids")
+    .addOption(new Option("--repo <repo...>", "Target repository ids").hideHelp())
     .option("--label <label...>", "Labels")
     .option("--acceptance <criterion...>", "Acceptance criteria")
     .action((options: {
@@ -81,7 +82,8 @@ export function registerTaskCommand(program: Command): void {
     .option("--description <description>", "Task description")
     .option("--clear-description", "Remove the current description")
     .option("--priority <priority>", "Priority (P0-P3)")
-    .option("--repo <repo>", "Replace target repos", collectValues, [])
+    .option("--repository <repository>", "Replace target repositories", collectValues, [])
+    .addOption(new Option("--repo <repo>", "Replace target repositories").argParser(collectValues).default([]).hideHelp())
     .option("--label <label>", "Replace labels", collectValues, [])
     .option("--acceptance <criterion>", "Replace acceptance criteria", collectValues, [])
     .option("--dependency <task-id>", "Replace task dependencies", collectValues, [])
@@ -129,7 +131,8 @@ export function registerTaskCommand(program: Command): void {
     .description("List known tasks (archived tasks hidden by default — pass --archived or --all to include)")
     .option("--status <status>", "Only show tasks in one status")
     .option("--priority <priority>", "Only show tasks at one priority")
-    .option("--repo <repo>", "Only show tasks targeting one repo")
+    .option("--repository <repository>", "Only show tasks targeting one repository")
+    .addOption(new Option("--repo <repo>", "Only show tasks targeting one repository").hideHelp())
     .option("--label <label>", "Only show tasks carrying one label")
     .option("--archived", "Only show archived tasks")
     .option("--all", "Show every task including archived")
@@ -202,7 +205,7 @@ export function registerTaskCommand(program: Command): void {
         console.log(`Description: ${item.description}`);
       }
       if (item.repo_targets.length > 0) {
-        console.log(`Repos: ${item.repo_targets.join(", ")}`);
+        console.log(`Repositories: ${item.repo_targets.join(", ")}`);
       }
     });
 
@@ -299,10 +302,11 @@ export function registerTaskCommand(program: Command): void {
 
   task
     .command("split")
-    .description("Split one task into executable repo-scoped subtasks")
+    .description("Split one task into executable repository-scoped subtasks")
     .argument("<task-id>", "Task id")
-    .option("--repo <repo>", "Override one target repo", collectValues, [])
-    .option("--scope <repo=glob>", "Map a scope to one target repo", collectValues, [])
+    .option("--repository <repository>", "Override one target repository", collectValues, [])
+    .addOption(new Option("--repo <repo>", "Override one target repository").argParser(collectValues).default([]).hideHelp())
+    .option("--scope <repository=glob>", "Map a scope to one target repository", collectValues, [])
     .option("--mode <mode>", "parallel or serial", "parallel")
     .option("--risk <risk>", "Risk level for created tasks")
     .option("--force", "Append subtasks even if the task already has subtasks")

@@ -29,6 +29,26 @@ declare const __BACKLOG_VERSION__: string;
 // Falls back to "0.0.0-dev" when running via tsx/dev mode.
 const VERSION = typeof __BACKLOG_VERSION__ !== "undefined" ? __BACKLOG_VERSION__ : "0.0.0-dev";
 
+function normalizeCompatibilityArgv(argv: string[]): string[] {
+  const normalized = [...argv];
+  if (normalized[2] === "repository" || normalized[2] === "repos") {
+    normalized[2] = "repositories";
+  }
+  for (let index = 2; index < normalized.length; index += 1) {
+    const arg = normalized[index];
+    if (!arg) continue;
+    if (arg === "--repository") normalized[index] = "--repo";
+    else if (arg.startsWith("--repository=")) normalized[index] = `--repo=${arg.slice("--repository=".length)}`;
+    else if (arg === "--repository-root") normalized[index] = "--repo-root";
+    else if (arg.startsWith("--repository-root=")) normalized[index] = `--repo-root=${arg.slice("--repository-root=".length)}`;
+    else if (arg === "--repository-only") normalized[index] = "--repo-only";
+    else if (arg.startsWith("--repository-only=")) normalized[index] = `--repo-only=${arg.slice("--repository-only=".length)}`;
+    else if (arg === "--allow-repository") normalized[index] = "--allow-repo";
+    else if (arg.startsWith("--allow-repository=")) normalized[index] = `--allow-repo=${arg.slice("--allow-repository=".length)}`;
+  }
+  return normalized;
+}
+
 const program = new Command();
 
 program
@@ -72,7 +92,7 @@ program.action(async () => {
   await runBoardCommand();
 });
 
-program.parseAsync(process.argv).catch((error: unknown) => {
+program.parseAsync(normalizeCompatibilityArgv(process.argv)).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(message);
   process.exit(1);

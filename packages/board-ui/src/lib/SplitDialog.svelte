@@ -147,7 +147,7 @@
     event.preventDefault();
     error = null;
     if (selectedRepos.length === 0) {
-      error = "Select at least one repo";
+      error = "Select at least one repository";
       return;
     }
     submitting = true;
@@ -305,7 +305,7 @@
                   <option value="medium">medium</option>
                   <option value="high">high</option>
                 </select>
-                <select bind:value={aiTasks[index].repo} aria-label="repo">
+                <select bind:value={aiTasks[index].repo} aria-label="repository">
                   {#each availableRepos as repo (repo)}
                     <option value={repo}>{repo}</option>
                   {/each}
@@ -351,7 +351,7 @@
         <fieldset>
           <legend>Repositories</legend>
           {#if availableRepos.length === 0}
-            <p class="hint">No repositories detected on the board. Add repo_targets to this task or to the project config.</p>
+            <p class="hint">No repositories detected on the board. Add repository targets to this task or to the project config.</p>
           {:else}
             <ul class="repos">
               {#each availableRepos as repo (repo)}

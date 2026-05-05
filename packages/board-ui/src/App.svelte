@@ -10,7 +10,7 @@
   import UsageView from "./lib/UsageView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
   import OrchestratorControls from "./lib/OrchestratorControls.svelte";
-  import ReposView from "./lib/ReposView.svelte";
+  import RepositoriesView from "./lib/RepositoriesView.svelte";
   import SettingsView from "./lib/SettingsView.svelte";
   import ProjectsView from "./lib/ProjectsView.svelte";
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
@@ -35,12 +35,12 @@
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
   import { t } from "./lib/i18n.svelte.js";
-  import { isMissingRepoPathError, relocateRepoPath } from "./lib/repo-relocate.js";
+  import { isMissingRepositoryPathError, relocateRepositoryPath } from "./lib/repository-relocate.js";
   import {
     fetchBoard,
     fetchCloudStatus,
     fetchCurrentProject,
-    fetchRepos,
+    fetchRepositories,
     fetchAgents,
     fetchHealth,
     fetchProjectsList,
@@ -74,7 +74,7 @@
     COLUMN_ORDER,
     type BoardResponse,
     type ColumnKey,
-    type Repo,
+    type Repository,
     type TaskCard,
     type ProjectEntry,
   } from "./lib/types.js";
@@ -150,7 +150,7 @@
 
   // ---- board / data state ----
   let board = $state<BoardResponse | null>(null);
-  let projectRepos = $state<Repo[]>([]);
+  let projectRepos = $state<Repository[]>([]);
   let projects = $state<ProjectEntry[]>([]);
   let currentProject = $state<CurrentProject | null>(null);
   let selectedProjectId = $state<string | null>(null);
@@ -222,7 +222,7 @@
   });
   // ---- modal / dialog state ----
   // Section views (Activity / Commits / Agents / Integrations
-  // / Repos) used to be modals; they're now rendered inline in the center
+  // / Repositories) used to be modals; they're now rendered inline in the center
   // when their section is active. The remaining modal state below is for
   // genuinely-modal flows (create / split / start prompt / project create).
   let createProjectOpen = $state(false);
@@ -251,7 +251,7 @@
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
   let apiKeysOpen = $state(false);
-  // When navigating to the Repos section via the "+ New repository"
+  // When navigating to the Repositories section via the "+ New repository"
   // dropdown action, jump straight into the create form. Reset to
   // false on any other path to the section.
   let reposShowCreate = $state(false);
@@ -301,8 +301,8 @@
   }
 
 
-  // Repos visible in the kanban — the "fallback" set when the project
-  // has no configured repos yet (we surface whatever the cards reference).
+  // Repositories visible in the kanban — the "fallback" set when the
+  // project has no configured repositories yet.
   const boardRepoIds = $derived.by(() => {
     if (!board) return [] as string[];
     const set = new Set<string>();
@@ -314,7 +314,7 @@
     }
     return [...set].sort();
   });
-  const repoOptions = $derived.by<Repo[]>(() => {
+  const repoOptions = $derived.by<Repository[]>(() => {
     if (projectRepos.length > 0) return projectRepos;
     return boardRepoIds.map((id) => ({ id, path: id, default_branch: "main", enabled: true }));
   });
@@ -508,9 +508,9 @@
       return;
     }
     try {
-      projectRepos = await fetchRepos();
+      projectRepos = await fetchRepositories();
     } catch (err) {
-      console.warn("repo fetch failed", err);
+      console.warn("repository fetch failed", err);
     }
   }
 
@@ -580,9 +580,14 @@
     }
     const repo = repoOptions.find((candidate) => candidate.id === id);
     const status = repoGitStatuses[id];
-    if (repo && (repo.path_exists === false || isMissingRepoPathError(status?.error))) {
+    if (repo && (repo.path_exists === false || isMissingRepositoryPathError(status?.error))) {
+      const checkoutPath = repo.checkout_path ?? repo.path;
+      if (!checkoutPath) {
+        persistRepo(id);
+        return;
+      }
       try {
-        const relocated = await relocateRepoPath(repo.id, repo.path);
+        const relocated = await relocateRepositoryPath(repo.id, checkoutPath);
         if (!relocated) return;
         await refreshRepos();
       } catch (err) {
@@ -1438,7 +1443,7 @@
             onOpenProfile={() => (profileOpen = "signin")}
           />
         {:else if leftSection === "repos"}
-          <ReposView
+          <RepositoriesView
             embedded={true}
             initialShowCreate={reposShowCreate}
             onClose={() => { reposShowCreate = false; applySection("board"); }}
@@ -1484,7 +1489,7 @@
 
 <!-- Genuinely-modal flows (creation forms, prompts) — not driven by the
      left-panel section navigation. Section views (Activity / Commits /
-     Agents / Integrations / Repos) render inline in the
+     Agents / Integrations / Repositories) render inline in the
      center column above. -->
 {#if createProjectOpen}
   <CreateProjectDialog

@@ -85,6 +85,43 @@ describe("repo-service", () => {
     expect(readAgentsFile(backlogDir).agents[0]?.allowed_repos).toEqual(["docs-site"]);
   });
 
+  it("stores remote repository metadata without overloading the provider field", () => {
+    const remoteUrl = "https://github.com/acme/docs.git";
+    const added = addRepo(backlogDir, {
+      id: "docs-remote",
+      path: "./docs",
+      defaultBranch: "main",
+      location: "remote",
+      remoteType: "git",
+      remoteProvider: "github",
+      remoteUrl,
+    });
+
+    expect(added.location).toBe("remote");
+    expect(added.remote_type).toBe("git");
+    expect(added.remote_provider).toBe("github");
+    expect(added.remote_url).toBe(remoteUrl);
+    expect(added.git_url).toBe(remoteUrl);
+    expect(added.provider).toBe("github");
+  });
+
+  it("allows remote repositories before a local checkout exists", () => {
+    const remoteUrl = "https://github.com/acme/cloud-only.git";
+    const added = addRepo(backlogDir, {
+      id: "cloud-only",
+      defaultBranch: "main",
+      location: "remote",
+      remoteType: "git",
+      remoteProvider: "github",
+      remoteUrl,
+    });
+
+    expect(added.location).toBe("remote");
+    expect(added.path).toBeUndefined();
+    expect(added.checkout_path).toBeUndefined();
+    expect(added.remote_url).toBe(remoteUrl);
+  });
+
   it("refuses removal while the repo is still referenced unless forced", () => {
     addRepo(backlogDir, {
       id: "docs",

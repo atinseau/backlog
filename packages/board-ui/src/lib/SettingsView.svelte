@@ -2,7 +2,7 @@
   // Project-scoped settings — surfaces that read/write the active
   // project's state (chat history keyed by project id, project paths).
   // API keys are shown here for convenience but are account-scoped so
-  // they work across normal projects and repo-only boards. General
+  // they work across normal projects and repository-only boards. General
   // app preferences (theme, locale, identity, notifications, CLI,
   // about, reset) live in GeneralSettingsView, opened from the
   // top-right profile dropdown.
@@ -118,7 +118,7 @@
           {#if currentProjectEntry}
             <div><span class="info-label">{t("settings.project.name")}</span><strong>{currentProjectEntry.name}</strong></div>
             <div><span class="info-label">{t("settings.project.location")}</span>
-              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "in-repo"}</span>
+              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "in-repository"}</span>
             </div>
           {/if}
           <div class="full">

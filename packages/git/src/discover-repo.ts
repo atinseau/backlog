@@ -26,6 +26,7 @@ export async function discoverRepoForProject(root: string, projectName: string):
         path: repoRoot,
         default_branch: defaultBranch,
         enabled: true,
+        location: "local",
       },
     ];
   } catch {

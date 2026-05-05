@@ -1,5 +1,5 @@
 import path from "node:path";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import {
   archiveClaim,
   createClaim,
@@ -16,6 +16,7 @@ import {
 } from "@backlog/claims";
 import { findProject, loadConfig } from "@backlog/config";
 import { detectGitDir, detectRepoRoot, git, stagedPaths } from "@backlog/git";
+import { repoCheckoutPath } from "@backlog/schemas";
 import type { ClaimRecord, RepoConfig } from "@backlog/schemas";
 import { detectClaimSourceMetadata } from "./claim-source.js";
 
@@ -28,7 +29,7 @@ async function deriveAutoClaimTopic(repoRoot: string): Promise<string> {
   try {
     branch = await git(["symbolic-ref", "--short", "HEAD"], repoRoot);
   } catch {
-    /* detached HEAD or fresh repo */
+    /* detached HEAD or fresh repository */
   }
   return branch ? `auto: ${branch}` : "auto: wip";
 }
@@ -63,13 +64,13 @@ function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?
   if (explicitRepo) {
     const matched = configRepos.find((repo) => repo.id === explicitRepo);
     if (!matched) {
-      throw new Error(`Unknown repo id: ${explicitRepo}`);
+      throw new Error(`Unknown repository id: ${explicitRepo}`);
     }
     return matched;
   }
 
   if (repoRoot) {
-    const matched = configRepos.find((repo) => repo.path === repoRoot);
+    const matched = configRepos.find((repo) => repoCheckoutPath(repo) === repoRoot);
     if (matched) {
       return matched;
     }
@@ -79,7 +80,7 @@ function resolveRepo(configRepos: RepoConfig[], explicitRepo?: string, repoRoot?
     return configRepos[0]!;
   }
 
-  throw new Error("Unable to determine repo. Pass --repo explicitly.");
+  throw new Error("Unable to determine repository. Pass --repository explicitly.");
 }
 
 function parseMetadataKv(entries: string[]): Record<string, string> {
@@ -147,11 +148,13 @@ export function registerClaimCommand(program: Command): void {
 
   claim
     .command("start")
-    .description("Start a new claim for the current repo")
+    .description("Start a new claim for the current repository")
     .requiredOption("--topic <topic>", "Short claim topic")
-    .requiredOption("--path <path...>", "Claimed repo-relative paths or globs")
-    .option("--repo <repo>", "Configured repo id")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
+    .requiredOption("--path <path...>", "Claimed repository-relative paths or globs")
+    .option("--repository <repository>", "Configured repository id")
+    .addOption(new Option("--repo <repo>", "Configured repository id").hideHelp())
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
     .option("--mode <mode>", "Claim mode (exclusive or shared)", "exclusive")
     .option("--ttl-minutes <minutes>", "Claim TTL in minutes", "30")
     .option("--duration <seconds>", "Expected work duration in seconds (powers retry-after hints)")
@@ -183,10 +186,12 @@ export function registerClaimCommand(program: Command): void {
       const config = loadConfig(workspace.backlogDir);
       const repoRoot = options.repoRoot ?? await detectRepoRoot();
       const repo = resolveRepo(config.repos, options.repo, repoRoot);
+      const checkoutPath = repoCheckoutPath(repo);
+      if (!checkoutPath) throw new Error(`Repository ${repo.id} has no local checkout path.`);
       const createInput: Parameters<typeof createClaim>[0] = {
         backlogDir: workspace.backlogDir,
         repo: repo.id,
-        repoPath: repo.path,
+        repoPath: checkoutPath,
         topic: options.topic,
         paths: options.path,
         mode: options.mode,
@@ -226,7 +231,7 @@ export function registerClaimCommand(program: Command): void {
       });
 
       console.log(`Started claim ${claimRecord.id}`);
-      console.log(`Repo:   ${claimRecord.repo}`);
+      console.log(`Repository:   ${claimRecord.repo}`);
       console.log(`Scope:  ${claimRecord.paths.join(", ")}`);
       console.log(`Until:  ${claimRecord.expires_at}`);
     });
@@ -248,7 +253,7 @@ export function registerClaimCommand(program: Command): void {
       const config = loadConfig(workspace.backlogDir);
       const pointerResult = gcOrphanContextPointers({
         backlogDir: workspace.backlogDir,
-        repoRoots: config.repos.map((repo) => repo.path),
+        repoRoots: config.repos.map((repo) => repoCheckoutPath(repo)).filter((repoPath): repoPath is string => Boolean(repoPath)),
       });
 
       if (options.json) {
@@ -292,12 +297,13 @@ export function registerClaimCommand(program: Command): void {
   claim
     .command("check")
     .description("Validate staged or explicit paths against the current claim")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--staged", "Check staged files in the repo")
-    .option("--path <path...>", "Explicit repo-relative paths to validate")
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
+    .option("--staged", "Check staged files in the repository")
+    .option("--path <path...>", "Explicit repository-relative paths to validate")
     .option(
       "--auto",
-      "If no claim is active for this repo, create one ad-hoc covering the staged paths (topic = branch name) before checking. Honours [claims].auto_claim_on_commit.",
+      "If no claim is active for this repository, create one ad-hoc covering the staged paths (topic = branch name) before checking. Honours [claims].auto_claim_on_commit.",
     )
     .action(async (options: { repoRoot?: string; staged?: boolean; path?: string[]; auto?: boolean }) => {
       const workspace = findProject();
@@ -310,7 +316,7 @@ export function registerClaimCommand(program: Command): void {
       const gitDir = await detectGitDir(repoRoot);
 
       async function autoClaimOrThrow(error: unknown, opts: { allowExpiredBypass?: boolean } = {}): Promise<ClaimRecord | null> {
-        // No claim yet for this repo. If --auto was passed AND the project has
+        // No claim yet for this repository. If --auto was passed AND the project has
         // auto_claim_on_commit enabled, mint one from the staged paths so the
         // commit goes through. Expired context is special: it is old local
         // state, so it should never block a commit by itself.
@@ -356,13 +362,18 @@ export function registerClaimCommand(program: Command): void {
         }
 
         const repo = resolveRepo(config.repos, undefined, repoRoot);
+        const checkoutPath = repoCheckoutPath(repo);
+        if (!checkoutPath) {
+          console.error(`backlog: repository ${repo.id} has no local checkout path; commit allowed without auto-claim.`);
+          process.exit(0);
+        }
         const topic = await deriveAutoClaimTopic(repoRoot);
         const scopes = compactScopes(stagedForAuto);
         const sourceMetadata = { ...detectClaimSourceMetadata(), auto: "1" };
         const created = createClaim({
           backlogDir: project.backlogDir,
           repo: repo.id,
-          repoPath: repo.path,
+          repoPath: checkoutPath,
           topic,
           paths: scopes,
           mode: "exclusive",
@@ -426,9 +437,10 @@ export function registerClaimCommand(program: Command): void {
 
   claim
     .command("finish")
-    .description("Finish and archive the current repo-local claim (or all claims with --all)")
-    .option("--repo-root <path>", "Target repo root. Defaults to current git repo")
-    .option("--all", "Finish every active claim and clear every .git/backlog-context.json across configured repos")
+    .description("Finish and archive the current repository-local claim (or all claims with --all)")
+    .option("--repository-root <path>", "Target repository root. Defaults to current git repository")
+    .addOption(new Option("--repo-root <path>", "Target repository root. Defaults to current git repository").hideHelp())
+    .option("--all", "Finish every active claim and clear every .git/backlog-context.json across configured repositories")
     .option("--quiet", "Stay silent when there's nothing to finish (don't error)")
     .action(async (options: { repoRoot?: string; all?: boolean; quiet?: boolean }) => {
       const workspace = findProject();
@@ -438,7 +450,7 @@ export function registerClaimCommand(program: Command): void {
 
       if (options.all) {
         if (options.repoRoot) {
-          throw new Error("--all and --repo-root are mutually exclusive.");
+          throw new Error("--all and --repository-root are mutually exclusive.");
         }
         const config = loadConfig(workspace.backlogDir);
         const finished: string[] = [];
@@ -455,9 +467,11 @@ export function registerClaimCommand(program: Command): void {
         // Clear every .git/backlog-context.json — they reference claims
         // that are now archived, or were already orphans.
         for (const repo of config.repos) {
+          const checkoutPath = repoCheckoutPath(repo);
+          if (!checkoutPath) continue;
           let gitDir;
           try {
-            gitDir = await detectGitDir(repo.path);
+            gitDir = await detectGitDir(checkoutPath);
           } catch {
             continue;
           }

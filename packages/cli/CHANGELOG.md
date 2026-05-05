@@ -4,6 +4,16 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.41] - 2026-05-05
+
+Remote repository and project model release.
+
+- **Backlog now treats workspaces as projects in the product surface** and keeps repository terminology explicit instead of using legacy "repo" or "work item" labels.
+- **GitHub and other Git remotes can be registered without a permanent local checkout** — remote repositories track location/type/provider metadata and expose branches, commits, diffs, comparisons, merges, and pull request actions where supported.
+- **Runs can execute against remote-only Git repositories** — Backlog creates an isolated temporary checkout under `.backlog/remote-checkouts/`, prepares the normal execution worktree, pushes run branches with GitHub token auth when available, and can open GitHub pull requests without requiring the `gh` CLI.
+- **The Git screen now behaves more like a desktop Git client** with Changes, History, Branches, and Worktrees flows, commit/stash/discard actions, cleaner diffs, branch previews before merge, and infinite history loading.
+- **CLI/Desktop project startup, hooks, updates, and repository settings were tightened** so `backlog` opens the current folder naturally, hooks are opt-in and manageable per repository, missing checkouts can be relocated, and Desktop/CLI version/update state is clearer.
+
 ## [1.4.40] - 2026-05-04
 
 Git screen usability pass.
@@ -401,11 +411,11 @@ The natural follow-up to 1.2.0. Brings the open-core boundary, the Desktop previ
 
 ### Kanban board (`backlog serve`)
 
-- **`backlog serve`** — local Hono server + Svelte 5 kanban board on `127.0.0.1:7878`, single binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every state mutation. Project dropdown, Projects, Repos, agent restrictions, splitter, `+ Ticket` and `+ Claim` modals.
+- **`backlog serve`** — local Hono server + Svelte 5 kanban board on `127.0.0.1:7878`, single binary. Cards drag between À faire / En cours / In Review / Done; live updates via SSE on every state mutation. Project dropdown, Projects, Repositories, agent restrictions, splitter, `+ Ticket` and `+ Claim` modals.
 - **Persistent orchestrator** — start/pause/stop a background loop that re-builds the execution plan and dispatches runs every `tick_interval_ms` (default 5s). Pause is soft (active runs keep going), stop drains. Hydrates only when `last_tick_at < 60s` to avoid surprise auto-launches. CLI: `backlog orchestrator start|pause|stop|status|config`. UI: ▶ ⏸ ⏹ trio in the topbar.
 - **Live time estimates and progress** — every task gets `estimated_duration_seconds` (manual override or median of archived runs filtered by repo+lane, fallback 30 min) plus a derived `progress_percent`. Task progress is duration-weighted. The `/board` payload exposes `progress_percent`, `eta`, `elapsed_seconds`, `total_estimated_seconds`, `total_remaining_seconds`. UI shows a 4 px progress bar per task, ETA badge ticking every second, plus a global ETA pill.
 - **Drag-to-reorder inside columns** — rewrites sparse task ranking metadata. Cross-column drag still triggers status change.
-- **Repo management UI + API** — `/api/v1/repos` (GET/POST/PATCH/DELETE) wraps `@backlog/core`'s repo-service. List, add, rename, enable/disable, force-delete repos from the kanban.
+- **Repository management UI + API** — `/api/v1/repos` (GET/POST/PATCH/DELETE) wraps `@backlog/core`'s repository service. List, add, rename, enable/disable, force-delete repositories from the kanban.
 - **GitHub / GitLab / Bitbucket / arbitrary Git URL clone** — repos can be added by URL. `RepoConfig` gains `git_url` and `provider`. `cloneAndAddRepo()` clones into `<workspace>/repos/<id>` by default. CLI: `backlog repos add --url ...`.
 - **Agent restrictions screen** — toggle workspace autonomy mode (observe / assist / delegate / autopilot), edit per-claim TTL and `enforce_on_commit`, configure each agent (enable, sandbox mode, success mode, concurrence, allowed risks, allowed repos).
 - **Mechanical splitter + AI splitter** — ✂ button on tasks without subtasks. AI tab calls Claude (`claude-opus-4-7` by default, overridable via `BACKLOG_AI_MODEL`) with adaptive thinking and JSON-schema constrained output. Requires `ANTHROPIC_API_KEY`; degrades gracefully without.
