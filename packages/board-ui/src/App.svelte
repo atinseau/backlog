@@ -1254,6 +1254,13 @@
           externalActive={hasInFlightRun}
           onStopActiveRuns={handleStopActiveRuns}
         />
+        <AgentPicker
+          agents={agentsList}
+          selectedId={selectedAgentId}
+          onSelect={persistSelectedAgent}
+          onManageAgents={() => applySection("agents")}
+          variant="inline"
+        />
       {/if}
     </div>
     <div class="topbar-center">
@@ -1263,13 +1270,6 @@
             board={board}
             projectId={selectedProjectId}
             onOpenActivity={openActivityPanel}
-            variant="inline"
-          />
-          <AgentPicker
-            agents={agentsList}
-            selectedId={selectedAgentId}
-            onSelect={persistSelectedAgent}
-            onManageAgents={() => applySection("agents")}
             variant="inline"
           />
         </div>
@@ -1776,13 +1776,12 @@
     min-width: 0;
   }
   .agent-run-screen {
-    width: min(650px, 48vw);
+    width: min(460px, 36vw);
     min-width: 360px;
     height: 34px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(160px, auto);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
-    gap: 14px;
     padding: 4px 12px;
     border: 1px solid var(--border-strong);
     border-radius: 6px;

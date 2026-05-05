@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.42] - 2026-05-05
+
+Header model picker polish.
+
+- **The selected model/agent now lives next to Stop/Play again** while the central header screen stays focused on run status only.
+- **New projects seed Claude Sonnet, Claude Opus, Claude Haiku, and GPT-5 Codex agents** so the model picker exposes practical defaults from the start.
+- **Older projects with the original Sonnet/Codex seed set are gently upgraded** with Opus and Haiku defaults the next time Agents loads, without recreating defaults once the agent list has been customized.
+
 ## [1.4.41] - 2026-05-05
 
 Remote repository and project model release.

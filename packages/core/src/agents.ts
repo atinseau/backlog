@@ -40,6 +40,48 @@ export function listAgents(backlogDir: string): Agent[] {
   return readAgentsFile(backlogDir).agents;
 }
 
+function defaultClaudeVariant(id: string, model: string, allowedRisk: Array<"low" | "medium" | "high">): Agent {
+  return {
+    id,
+    provider: "claude",
+    model,
+    success_mode: "complete",
+    enabled: true,
+    max_concurrent_runs: 1,
+    allowed_repos: [],
+    allowed_risk: allowedRisk,
+    capabilities: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"],
+    sandbox_mode: "workspace-write",
+    environment: {},
+    retry_policy: { mode: "none", max_attempts: 2, reuse_worktree: true },
+  };
+}
+
+// Backfill the Haiku/Opus defaults for projects created before the
+// model picker exposed Claude variants as first-class choices. This
+// intentionally only touches the exact old seed set (`claude-code` +
+// `codex`) so deleting a default agent remains respected afterwards.
+export function ensureDefaultModelAgents(backlogDir: string): AgentsFile {
+  const file = readAgentsFile(backlogDir);
+  const ids = new Set(file.agents.map((agent) => agent.id));
+  const oldDefaultOnly =
+    file.agents.length === 2 &&
+    ids.has("claude-code") &&
+    ids.has("codex");
+  if (!oldDefaultOnly) return file;
+
+  const codexIndex = file.agents.findIndex((agent) => agent.id === "codex");
+  const insertAt = codexIndex >= 0 ? codexIndex : file.agents.length;
+  file.agents.splice(
+    insertAt,
+    0,
+    defaultClaudeVariant("claude-opus", "opus", ["low", "medium", "high"]),
+    defaultClaudeVariant("claude-haiku", "haiku", ["low", "medium"]),
+  );
+  writeAgentsFile(backlogDir, file);
+  return file;
+}
+
 export function getAgent(backlogDir: string, id: string): Agent | null {
   return listAgents(backlogDir).find((candidate) => candidate.id === id) ?? null;
 }

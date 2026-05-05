@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
+import { ensureDefaultModelAgents, getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
 import { createSubTask } from "./subtask-service.js";
 import { createTask } from "./task-service.js";
 
@@ -75,6 +75,45 @@ describe("agents", () => {
     expect(getAgent(backlogDir, "codex")?.enabled).toBe(true);
     setAgentEnabled(backlogDir, "codex", false);
     expect(getAgent(backlogDir, "codex")?.enabled).toBe(false);
+  });
+
+  it("backfills default model variants for projects with the old seed set", () => {
+    fs.writeFileSync(
+      path.join(backlogDir, "agents.yaml"),
+      [
+        "version: 1",
+        "agents:",
+        "  - id: claude-code",
+        "    provider: claude",
+        "    model: sonnet",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "  - id: codex",
+        "    provider: codex",
+        "    model: gpt-5-codex",
+        "    enabled: false",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const upgraded = ensureDefaultModelAgents(backlogDir);
+    expect(upgraded.agents.map((agent) => agent.id)).toEqual([
+      "claude-code",
+      "claude-opus",
+      "claude-haiku",
+      "codex",
+    ]);
+    expect(ensureDefaultModelAgents(backlogDir).agents).toHaveLength(4);
   });
 
   it("keeps validation working after an agent update", () => {

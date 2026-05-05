@@ -1,4 +1,4 @@
-import { addAgent, deleteAgent, listActiveRuns, listAgents, updateAgent } from "@backlog/core";
+import { addAgent, deleteAgent, ensureDefaultModelAgents, listActiveRuns, updateAgent } from "@backlog/core";
 import { hasSecret } from "@backlog/config";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -54,7 +54,7 @@ export function agentsRoutes(): Hono<AppEnv> {
 
   app.get("/agents", (c) => {
     const project = c.get("project");
-    const agents = listAgents(project.backlogDir);
+    const agents = ensureDefaultModelAgents(project.backlogDir).agents;
     const runs = listActiveRuns(project.backlogDir);
     const summary = agents.map((agent) => {
       const activeRuns = runs.filter((run) => run.agent_id === agent.id);
