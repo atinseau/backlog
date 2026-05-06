@@ -42,7 +42,7 @@ export const subTaskSchema = z.object({
     done_when: [],
   }),
   planner: z.object({
-    origin: z.enum(["manual", "split", "imported"]).default("manual"),
+    origin: z.enum(["manual", "split", "imported", "implicit"]).default("manual"),
     locked: z.boolean().default(false),
     last_planned_at: z.string().optional(),
   }).default({

@@ -456,7 +456,7 @@
   "start_prompt.body.with_subtasks_many": "{taskId} has {count} sub-tasks ready to execute.",
   "start_prompt.body.no_subtasks": "{taskId} will be executed by the agent.",
   "start_prompt.help.ready": "The orchestrator will launch the runnable sub-tasks on their agents.",
-  "start_prompt.help.empty": "The agent will generate a covering sub-task from the description and execute it directly.",
+  "start_prompt.help.empty": "The agent will run the task directly from its description.",
   "start_prompt.button.later": "Later",
   "start_prompt.button.start": "Start ▶",
   "start_prompt.button.starting": "Starting…",

@@ -66,6 +66,7 @@ export interface SubTaskCard {
   progress_source: "agent" | "elapsed" | "status";
   eta: string | null;
   latest_run: RunSummary | null;
+  implicit: boolean;
 }
 
 export interface TaskCard {

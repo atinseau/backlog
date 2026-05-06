@@ -1337,6 +1337,11 @@ export interface SubTaskDetail {
     required_capabilities: string[];
     manual_approval_required: boolean;
   };
+  planner?: {
+    origin?: "manual" | "split" | "imported" | "implicit";
+    locked?: boolean;
+    last_planned_at?: string;
+  };
 }
 
 export async function fetchTaskDetail(id: string): Promise<{ task: TaskDetail; subtasks: SubTaskDetail[] }> {

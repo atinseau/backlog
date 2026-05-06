@@ -456,7 +456,7 @@
   "start_prompt.body.with_subtasks_many": "{taskId} a {count} sous-tâches prêtes à exécuter.",
   "start_prompt.body.no_subtasks": "{taskId} sera exécutée par l'agent.",
   "start_prompt.help.ready": "L'orchestrateur va lancer les sous-tâches assignables sur leurs agents.",
-  "start_prompt.help.empty": "L'agent va générer une sous-tâche couvrant la description et l'exécuter directement.",
+  "start_prompt.help.empty": "L'agent exécutera directement la tâche à partir de sa description.",
   "start_prompt.button.later": "Plus tard",
   "start_prompt.button.start": "Démarrer ▶",
   "start_prompt.button.starting": "Démarrage…",

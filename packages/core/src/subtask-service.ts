@@ -18,7 +18,7 @@ export interface CreateSubTaskInput {
   priorityScore?: number;
   claimMode?: "exclusive" | "shared";
   completionCriteria?: string[];
-  plannerOrigin?: "manual" | "split" | "imported";
+  plannerOrigin?: "manual" | "split" | "imported" | "implicit";
   lane?: string;
   preferredAgents?: string[];
   requiredCapabilities?: string[];

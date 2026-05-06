@@ -33,7 +33,7 @@
         fetchAgents().catch(() => [] as AgentSummary[]),
       ]);
       task = detail.task;
-      subtasks = detail.subtasks;
+      subtasks = detail.subtasks.filter((sub) => sub.planner?.origin !== "implicit");
       agents = agentList;
       error = null;
     } catch (err) {

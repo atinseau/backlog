@@ -23,18 +23,18 @@
   }
 
   // Critical: this used to call startOrchestrator() alone, which kicks
-  // the daemon but only picks up subtasks that are already READY. A
-  // freshly-created task with zero subtasks (the typical case for a
-  // simple "create test.html with hello world" prompt) has nothing in
-  // the queue — so the daemon spun for a moment and idled, leaving
-  // the user confused: "the task says created but nothing happened,
-  // and Activity is empty".
+  // the daemon but only picks up executable units that are already
+  // READY. A freshly-created task with no split plan (the typical
+  // case for a simple "create test.html with hello world" prompt) has
+  // nothing in the queue — so the daemon spun for a moment and idled,
+  // leaving the user confused: "the task says created but nothing
+  // happened, and Activity is empty".
   //
   // Fix: call startRun({ task_id }) which goes through /runs. That
-  // endpoint's auto-shim creates a covering subtask on the fly when
-  // the task has none, so the run actually fires. Then we kick the
-  // orchestrator too, so any *other* queued subtasks (from a prior
-  // split) catch up in the same click.
+  // endpoint's auto-shim creates an implicit execution unit on the
+  // fly when the task has none, so the run actually fires. Then we
+  // kick the orchestrator too, so any *other* queued split work catches
+  // up in the same click.
   async function startNow() {
     if (busy) return;
     busy = true;

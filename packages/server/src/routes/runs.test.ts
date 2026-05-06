@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, loadConfig, saveConfig } from "@backlog/config";
 import { createClaim } from "@backlog/claims";
-import { addAgent, archiveRun, createRun, createSubTask, createTask } from "@backlog/core";
+import { addAgent, archiveRun, createRun, createSubTask, createTask, listSubTasks } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
@@ -219,7 +219,7 @@ describe("POST /runs", () => {
     ]);
   });
 
-  it("auto-creates a covering subtask and executes task_id runs in direct mode", async () => {
+  it("auto-creates an implicit execution unit and executes task_id runs in direct mode", async () => {
     const project = await makeGitWorkspace("assist");
     addAgent(project.backlogDir, {
       id: "writer",
@@ -256,6 +256,9 @@ describe("POST /runs", () => {
     ]);
     expect(fs.readFileSync(path.join(project.root, "task-direct.txt"), "utf8")).toBe("ok\n");
     expect(fs.existsSync(path.join(project.backlogDir, "worktrees", "demo"))).toBe(false);
+    const executionUnits = listSubTasks(project.backlogDir).filter((unit) => unit.task_id === task.id);
+    expect(executionUnits).toHaveLength(1);
+    expect(executionUnits[0]?.planner.origin).toBe("implicit");
   });
 
   it("passes explicit dirty direct checkout approval to the launcher", async () => {

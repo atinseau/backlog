@@ -180,10 +180,10 @@ export function runsRoutes(): Hono<AppEnv> {
       }
 
       // Auto-shim: if the user clicked Play on a task that has no
-      // sub-tasks yet, create one covering the whole work and run it.
-      // The "split first" workflow stays available via the ✂ button
-      // for genuinely multi-step work; for "create one file" tasks
-      // the auto-shim keeps the Play button honest.
+      // execution unit yet, create an implicit one covering the whole
+      // work and run it. It is deliberately marked `implicit` so the
+      // UI can keep simple "create one file" tasks looking like direct
+      // task runs instead of exposing an unnecessary sub-task.
       const preflightSkipped: Array<{ taskId: string; reasons: string[] }> = [];
       if (body.task_id && !body.subtask_id) {
         const existing = listSubTasks(project.backlogDir).filter(
@@ -205,7 +205,7 @@ export function runsRoutes(): Hono<AppEnv> {
                 title: task.title,
                 repo: repoId,
                 risk: task.planning?.risk ?? "medium",
-                plannerOrigin: "manual",
+                plannerOrigin: "implicit",
                 manualApprovalRequired: task.execution_defaults?.manual_approval_required ?? false,
               };
               // Inherit the task's preferred assignee. Empty list =

@@ -52,6 +52,7 @@ interface SubTaskCard {
   progress_percent: number;
   progress_source: "agent" | "elapsed" | "status";
   eta: string | null;
+  implicit: boolean;
 }
 
 interface TaskCard {
@@ -244,6 +245,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
         progress_percent: progress.percent,
         progress_source: progress.source,
         eta: etaIso(activeRun, estimate.seconds),
+        implicit: task.planner.origin === "implicit",
       };
     });
 

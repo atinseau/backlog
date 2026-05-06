@@ -42,6 +42,7 @@
   // Used on the <article> to colour-code the left border by priority.
   const cardPriorityClass = $derived(`prio-${card.priority.toLowerCase()}`);
   const blockedCount = $derived(card.blocked_by_claims.length);
+  const visibleTasks = $derived(card.tasks.filter((t) => !t.implicit));
   const activeRunCount = $derived(card.tasks.filter((t) => t.active_run !== null).length);
   const runningCount = $derived(card.tasks.filter((t) => {
     const status = t.active_run?.status;
@@ -368,9 +369,9 @@
     {/each}
   </div>
 
-  {#if card.tasks.length > 0}
+  {#if visibleTasks.length > 0}
     <ul class="tasks">
-      {#each card.tasks as task (task.id)}
+      {#each visibleTasks as task (task.id)}
         <li class:running={task.active_run !== null} class:claimed={task.active_claim !== null}>
           <div class="task-line">
             <span class="task-title">{task.title}</span>

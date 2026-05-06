@@ -96,6 +96,7 @@ export function buildProviderPrompt(
   options?: { executionMode?: Run["execution_mode"] },
 ): string {
   const direct = options?.executionMode === "direct";
+  const implicitTaskRun = task.planner.origin === "implicit";
   const lines = [
     direct
       ? "You are executing one Backlog coding task directly in the user's main checkout."
@@ -106,8 +107,8 @@ export function buildProviderPrompt(
     "",
     `Task: ${workItem.id}`,
     `Task title: ${workItem.title}`,
-    `Subtask: ${task.id}`,
-    `Subtask title: ${task.title}`,
+    ...(workItem.description ? [`Task description: ${workItem.description}`] : []),
+    ...(implicitTaskRun ? [] : [`Subtask: ${task.id}`, `Subtask title: ${task.title}`]),
     `Repository: ${task.repo}`,
     `Risk: ${task.risk}`,
     "",
@@ -127,9 +128,6 @@ export function buildProviderPrompt(
     "- end with a concise summary of what changed and any follow-up risk",
   ];
 
-  if (workItem.description) {
-    lines.splice(5, 0, `Task description: ${workItem.description}`);
-  }
   if (workItem.acceptance_criteria.length > 0) {
     lines.push("", "Task acceptance criteria:", ...workItem.acceptance_criteria.map((item) => `- ${item}`));
   }

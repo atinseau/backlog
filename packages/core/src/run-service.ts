@@ -590,8 +590,10 @@ function buildCommitMessage(
   const trailers: string[] = [
     `Backlog-Run: ${run.id}`,
     `Backlog-Task: ${run.task_id}`,
-    `Backlog-Subtask: ${run.subtask_id}`,
   ];
+  if (subtask?.planner.origin !== "implicit") {
+    trailers.push(`Backlog-Subtask: ${run.subtask_id}`);
+  }
   return `${subject}\n\n${trailers.join("\n")}\n`;
 }
 
