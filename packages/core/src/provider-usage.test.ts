@@ -42,9 +42,9 @@ describe("parseClaudeJsonStdout", () => {
 
   it("uses the model from the JSON when present, fallback otherwise", () => {
     const stdoutWithModel = JSON.stringify({
-      usage: { input_tokens: 1, output_tokens: 1, model: "claude-opus-4-7" },
+      usage: { input_tokens: 1, output_tokens: 1, model: "claude-opus-4-1" },
     });
-    expect(parseClaudeJsonStdout(stdoutWithModel, "fallback").usage?.model).toBe("claude-opus-4-7");
+    expect(parseClaudeJsonStdout(stdoutWithModel, "fallback").usage?.model).toBe("claude-opus-4-1");
 
     const stdoutNoModel = JSON.stringify({ usage: { input_tokens: 1, output_tokens: 1 } });
     expect(parseClaudeJsonStdout(stdoutNoModel, "fallback").usage?.model).toBe("fallback");

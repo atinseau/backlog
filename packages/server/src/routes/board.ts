@@ -103,6 +103,22 @@ function findActiveRun(runs: Run[], subtaskId: string): Run | null {
   return runs.find((run) => runSubTaskId(run) === subtaskId) ?? null;
 }
 
+function directTargetStatus(parentTask: Task, latestRun: Run, activeRun: Run | null): SubTask["status"] {
+  if (activeRun && (activeRun.status === "queued" || activeRun.status === "preparing" || activeRun.status === "running")) {
+    return "running";
+  }
+  if (latestRun.status === "awaiting_review" || parentTask.status === "review" || parentTask.status === "test") {
+    return "review";
+  }
+  if (latestRun.status === "succeeded" || parentTask.status === "done" || parentTask.status === "released") {
+    return "completed";
+  }
+  if (latestRun.status === "failed" || latestRun.status === "blocked" || parentTask.status === "blocked") {
+    return "blocked";
+  }
+  return "queued";
+}
+
 function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null {
   if (!run) return null;
   return {
@@ -261,8 +277,11 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
     if (itemTasks.length === 0) {
       const directRun = activeRunsByTask.get(parentTask.id) ?? latestRunsByTask.get(parentTask.id) ?? null;
       if (directRun) {
-        const target = taskExecutionTarget(parentTask, directRun.repo);
         const activeRun = activeRunsByTask.get(parentTask.id) ?? null;
+        const target = {
+          ...taskExecutionTarget(parentTask, directRun.repo),
+          status: directTargetStatus(parentTask, directRun, activeRun),
+        };
         const claimIds = activeRun?.claim_ids ?? [];
         const activeClaim = findActiveClaimForTask(claims, target, claimIds);
         const estimateSeconds = parentTask.estimated_duration_seconds ?? 900;

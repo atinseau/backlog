@@ -197,7 +197,7 @@
   "agents_view.field_risk": "Allowed risk:",
   "agents_view.field_repos": "Allowed workspaces:",
   "agents_view.field_capabilities": "Capabilities:",
-  "agents_view.model_placeholder": "e.g. claude-opus-4-7",
+  "agents_view.model_placeholder": "e.g. claude-opus-4-1",
   "agents_view.profile_placeholder": "e.g. Default (claude)",
   "agents_view.default": "(default)",
   "agents_view.repos_all": "all (empty = no filter)",

@@ -43,7 +43,7 @@ describe("GET /usage", () => {
     seedRun(project.backlogDir, "RUN-usage");
     recordUsage(project.backlogDir, "RUN-usage", {
       provider: "anthropic",
-      model: "claude-sonnet-4-7",
+      model: "claude-sonnet-4-5",
       input_tokens: 1000,
       output_tokens: 500,
       ts: "2026-05-01T12:00:00.000Z",
@@ -61,7 +61,7 @@ describe("GET /usage", () => {
     expect(body.totals.input_tokens).toBe(1000);
     expect(body.totals.output_tokens).toBe(500);
     expect(body.by_model).toEqual([
-      expect.objectContaining({ model: "claude-sonnet-4-7", total_tokens: 1500 }),
+      expect.objectContaining({ model: "claude-sonnet-4-5", total_tokens: 1500 }),
     ]);
     expect(body.timeline).toEqual([
       expect.objectContaining({ bucket: "2026-05-01", total_tokens: 1500 }),

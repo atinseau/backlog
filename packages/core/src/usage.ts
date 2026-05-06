@@ -40,11 +40,12 @@ interface ModelPricing {
 
 const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   // Anthropic
-  "claude-opus-4-7": { input: 15, output: 75 },
-  "claude-opus-4-6": { input: 15, output: 75 },
-  "claude-sonnet-4-7": { input: 3, output: 15 },
+  "claude-opus-4-1": { input: 15, output: 75 },
+  "claude-opus-4-5": { input: 15, output: 75 },
+  "claude-opus-4": { input: 15, output: 75 },
   "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
+  "claude-sonnet-4": { input: 3, output: 15 },
   "claude-haiku-4-5": { input: 0.25, output: 1.25 },
   // OpenAI / Codex (placeholder; replace with verified figures)
   "gpt-5-codex": { input: 1.25, output: 10 },
@@ -53,8 +54,8 @@ const PRICING_PER_MILLION: Record<string, ModelPricing> = {
 };
 
 const PRICING_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-7",
-  opus: "claude-opus-4-7",
+  sonnet: "claude-sonnet-4-5",
+  opus: "claude-opus-4-1",
   haiku: "claude-haiku-4-5",
   "gpt-5-codex": "gpt-5-codex",
 };

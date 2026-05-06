@@ -56,6 +56,7 @@
   // level (Column.svelte), and we surface the state visually with a
   // not-allowed cursor + faded outline.
   const locked = $derived(activeRunCount > 0);
+  const terminal = $derived(card.status === "done" || card.status === "released");
   // Subtasks that the scheduler could pick up if asked to start now.
   // "queued" and "planned" both mean "ready, just hasn't been launched
   // yet"; "waiting" still has unmet deps so we don't count it.
@@ -69,6 +70,8 @@
   // there's nothing else to gate on.
   const canPlay = $derived(
     Boolean(onPlay) &&
+      !locked &&
+      !terminal &&
       blockedCount === 0 &&
       (startableCount > 0 ||
         (card.tasks.length === 0 && (card.status === "ready" || card.status === "backlog"))),
@@ -255,6 +258,42 @@
     return null;
   }
 
+  function dynamicTaskProgress(task: TaskCard["tasks"][number], now: number): number {
+    if (task.status === "completed") return 100;
+    if (task.status === "review" || task.active_run?.status === "awaiting_review") {
+      return Math.max(task.progress_percent, 90);
+    }
+    const runStatus = task.active_run?.status;
+    if (
+      (runStatus === "preparing" || runStatus === "running") &&
+      task.active_run?.started_at &&
+      task.estimated_duration_seconds > 0
+    ) {
+      const started = Date.parse(task.active_run.started_at);
+      if (Number.isFinite(started)) {
+        const elapsed = Math.max(0, Math.round((now - started) / 1000));
+        const elapsedPercent = Math.min(95, Math.round((elapsed / task.estimated_duration_seconds) * 100));
+        return Math.max(task.progress_percent, elapsedPercent);
+      }
+    }
+    return task.progress_percent;
+  }
+
+  function rollupProgress(tasks: TaskCard["tasks"], fallback: number, now: number): number {
+    if (tasks.length === 0) return fallback;
+    const total = tasks.reduce((sum, task) => sum + Math.max(0, task.estimated_duration_seconds), 0);
+    if (total <= 0) {
+      return Math.round(tasks.reduce((sum, task) => sum + dynamicTaskProgress(task, now), 0) / tasks.length);
+    }
+    const weighted = tasks.reduce(
+      (sum, task) => sum + dynamicTaskProgress(task, now) * Math.max(0, task.estimated_duration_seconds),
+      0,
+    ) / total;
+    return Math.min(100, Math.max(0, Math.round(weighted)));
+  }
+
+  const displayProgressPercent = $derived(rollupProgress(card.tasks, card.progress_percent, timer.now));
+
   // Build menu items lazily on each open so the disabled state, the
   // archived/unarchived label, and the priority sub-items reflect the
   // current card snapshot.
@@ -430,10 +469,10 @@
   {#if card.tasks.length > 0}
     <div class="card-footer">
       <div class="card-progress" aria-label={t("card.progress_aria")}>
-        <div class="card-progress-fill" style:width="{card.progress_percent}%"></div>
+        <div class="card-progress-fill" style:width="{displayProgressPercent}%"></div>
       </div>
       <div class="card-stats">
-        <span>{card.progress_percent}%</span>
+        <span>{displayProgressPercent}%</span>
         <span class="dot">·</span>
         <span>{reviewCount > 0 ? t("card.awaiting_apply") : t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
         {#if runningCount > 0}<span class="dot">·</span><span class="badge running">▶ {runningCount}</span>{/if}

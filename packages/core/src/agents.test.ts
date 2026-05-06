@@ -39,7 +39,7 @@ describe("agents", () => {
 
   it("updates mutable agent fields", () => {
     const updated = updateAgent(backlogDir, "codex", {
-      model: "gpt-5.4-mini",
+      model: "gpt-5-mini",
       profile: "default",
       command: "/tmp/fake-codex",
       sandboxMode: "danger-full-access",
@@ -55,7 +55,7 @@ describe("agents", () => {
     });
 
     expect(updated.enabled).toBe(true);
-    expect(updated.model).toBe("gpt-5.4-mini");
+    expect(updated.model).toBe("gpt-5-mini");
     expect(updated.profile).toBe("default");
     expect(updated.command).toBe("/tmp/fake-codex");
     expect(updated.sandbox_mode).toBe("danger-full-access");

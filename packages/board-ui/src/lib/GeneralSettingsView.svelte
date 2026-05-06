@@ -54,22 +54,10 @@
         (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
       );
       const board = (project as unknown as { board?: { show_backlog_column?: boolean } } | null)?.board;
-      if (board?.show_backlog_column) {
-        setShowBacklogColumn(board.show_backlog_column);
-      } else if (getShowBacklogColumn()) {
-        await setBoardConfig({ show_backlog_column: true });
-      } else if (board?.show_backlog_column !== undefined) {
-        setShowBacklogColumn(false);
-      }
+      setShowBacklogColumn(Boolean(board?.show_backlog_column));
 
       const review = (project as unknown as { review?: { show_review_column?: boolean; auto_reviewer_agent_id?: string } } | null)?.review;
-      if (review?.show_review_column) {
-        setShowReviewColumn(review.show_review_column);
-      } else if (getShowReviewColumn()) {
-        await setReviewConfig({ show_review_column: true });
-      } else if (review?.show_review_column !== undefined) {
-        setShowReviewColumn(false);
-      }
+      setShowReviewColumn(Boolean(review?.show_review_column));
       reviewerAgentId = review?.auto_reviewer_agent_id ?? "";
     } catch {
       /* best-effort */

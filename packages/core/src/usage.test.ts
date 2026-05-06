@@ -109,13 +109,13 @@ describe("recordUsage / aggregateUsage", () => {
     fs.appendFileSync(eventsPath, "{ this isn't json\n", "utf8");
     recordUsage(backlogDir, "RUN-X", {
       provider: "anthropic",
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-1",
       input_tokens: 10,
       output_tokens: 5,
     });
 
     const totals = aggregateUsage(backlogDir).totals;
-    // Opus 4.7 = $15/MM input, $75/MM output → 10×15/MM + 5×75/MM
+    // Opus 4.1 = $15/MM input, $75/MM output → 10×15/MM + 5×75/MM
     expect(totals.cost_usd).toBeCloseTo((10 * 15 + 5 * 75) / 1_000_000, 8);
   });
 });
@@ -249,7 +249,7 @@ describe("estimateRunCost", () => {
       seedRun(backlogDir, `B-${i}`, { id: `B-${i}`, repo: "beta", agent_id: "x" });
       recordUsage(backlogDir, `B-${i}`, {
         provider: "anthropic",
-        model: "claude-opus-4-7",
+        model: "claude-opus-4-1",
         input_tokens: 1_000_000,
         output_tokens: 1_000_000,
       });

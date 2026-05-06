@@ -7,6 +7,7 @@
     type ProposedTask,
   } from "./api.js";
   import { t } from "./i18n.svelte.js";
+  import { getShowReviewColumn } from "./settings.svelte.js";
 
   interface Props {
     availableRepos: string[];
@@ -36,6 +37,7 @@
   let titleModel = $state<string | null>(null);
   let repoTargets = $state<string[]>([]);
   let error = $state<string | null>(null);
+  const showReview = $derived(getShowReviewColumn());
 
   // Execution defaults the user picks at task creation time. Inherited
   // by the sub-task auto-shim and (eventually) by AI-split sub-tasks.
@@ -53,6 +55,10 @@
   // multi-agent parallelism / longer runs where they want their main
   // branch protected.
   let worktreeMode = $state<"isolated_worktree" | "direct">("direct");
+
+  $effect(() => {
+    if (!showReview) manualApproval = false;
+  });
 
   $effect(() => {
     if (worktreeMode === "direct") {
@@ -103,7 +109,7 @@
         status: "ready",
       };
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
-      input.manual_approval_required = manualApproval;
+      input.manual_approval_required = showReview ? manualApproval : false;
       input.auto_commit = worktreeMode === "isolated_worktree" ? true : commitWhenDone;
       input.push_when_done = worktreeMode === "direct" ? commitWhenDone && pushWhenDone : pushWhenDone;
       input.create_pr = worktreeMode === "isolated_worktree" ? createPr : false;
@@ -300,13 +306,15 @@
             </label>
           {/if}
 
-          <label class="toggle">
-            <input type="checkbox" bind:checked={manualApproval} />
-            <span>
-              <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
-              <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
-            </span>
-          </label>
+          {#if showReview}
+            <label class="toggle">
+              <input type="checkbox" bind:checked={manualApproval} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
+                <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
+              </span>
+            </label>
+          {/if}
         </fieldset>
 
         <fieldset class="execution">

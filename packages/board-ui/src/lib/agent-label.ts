@@ -2,7 +2,7 @@
 // Agents view. When the user has set a custom display_name (via
 // double-click rename or the CLI), use it as-is. Otherwise compute a
 // title-cased name from `provider + model` so the default reads as
-// "Claude Opus 4.7" rather than "claude-default".
+// "Claude Sonnet" rather than "claude-default".
 //
 // Also exposes formatAgentDetail() which adds context size +
 // provider tag for places that have room (the picker dropdown row,
@@ -10,26 +10,23 @@
 
 import type { AgentSummary } from "./types.js";
 
-// Context window per known model id. Source: vendor docs as of 2026.
-// Falls back to undefined if we don't know — the caller hides the
-// chip rather than guessing wrong. Extend this map as new models
-// ship.
+// Context window per exact, documented model id. Family aliases like
+// `sonnet`, `opus`, and `haiku` deliberately do not map to a version
+// or a context size: the provider CLI resolves those aliases, so the UI
+// must not invent a version number.
 const MODEL_CONTEXT: Record<string, string> = {
   // Anthropic
-  "claude-opus-4-7": "1M",
-  "claude-sonnet-4-7": "1M",
+  "claude-opus-4-1": "200k",
   "claude-opus-4-5": "200k",
   "claude-opus-4": "200k",
-  "claude-sonnet-4-6": "200k",
   "claude-sonnet-4-5": "200k",
   "claude-sonnet-4": "200k",
   "claude-haiku-4-5": "200k",
   "claude-haiku-4": "200k",
   "claude-3-5-sonnet": "200k",
   "claude-3-5-haiku": "200k",
-  // OpenAI / Codex
-  "gpt-5-codex": "1M",
-  "gpt-5": "1M",
+  // OpenAI
+  "gpt-5": "400k",
   "gpt-4.1": "1M",
   "gpt-4o": "128k",
   "gpt-4o-mini": "128k",
@@ -45,13 +42,6 @@ const MODEL_CONTEXT: Record<string, string> = {
   "llama-3.3-70b": "128k",
 };
 
-const DISPLAY_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-7",
-  opus: "claude-opus-4-7",
-  haiku: "claude-haiku-4-5",
-  "gpt-5-codex": "gpt-5-codex",
-};
-
 const PROVIDER_LABELS: Record<string, string> = {
   claude: "Claude",
   anthropic: "Claude",
@@ -63,11 +53,19 @@ const PROVIDER_LABELS: Record<string, string> = {
   gemini: "Gemini",
 };
 
-// Convert "claude-opus-4-7" to "Opus 4.7" — strip the provider
+const FAMILY_ALIAS_LABELS: Record<string, string> = {
+  sonnet: "Sonnet",
+  opus: "Opus",
+  haiku: "Haiku",
+};
+
+// Convert "claude-opus-4-1" to "Opus 4.1" — strip the provider
 // prefix, replace dashes with spaces, capitalize each word, and
 // re-join the version-trailing digits with a dot when it reads as a
-// decimal version (4-7 → 4.7).
+// decimal version (4-5 → 4.5).
 function prettyModel(model: string): string {
+  const alias = FAMILY_ALIAS_LABELS[model];
+  if (alias) return alias;
   if (model.startsWith("gpt-")) {
     const rest = model
       .slice(4)
@@ -85,7 +83,7 @@ function prettyModel(model: string): string {
       break;
     }
   }
-  // "4-7" / "4-5" → "4.7" / "4.5". Two-digit pattern between dashes
+  // "4-5" / "4-1" → "4.5" / "4.1". Two-digit pattern between dashes
   // at the end of a token is treated as a version number.
   rest = rest.replace(/-(\d+)-(\d+)\b/g, "-$1.$2");
   if (rest === "5-codex") return "GPT-5 Codex";
@@ -97,7 +95,7 @@ function prettyModel(model: string): string {
 
 function displayModelId(model: string | null): string | null {
   if (!model) return null;
-  return DISPLAY_MODEL_ALIASES[model] ?? model;
+  return model.trim() || null;
 }
 
 function shouldPrefixProvider(provider: string, modelOnly: string): boolean {
@@ -106,12 +104,12 @@ function shouldPrefixProvider(provider: string, modelOnly: string): boolean {
 }
 
 export interface AgentLabel {
-  // Short label, one line — for triggers / chips. e.g. "Claude Opus 4.7"
+  // Short label, one line — for triggers / chips. e.g. "Claude Opus 4.1"
   short: string;
-  // Same plus the context window when known. e.g. "Claude Opus 4.7 (1M)"
+  // Same plus the context window when known. e.g. "Claude Opus 4.1 (200k)"
   withContext: string;
   // Just the model fragment when the caller already prints the
-  // provider separately. e.g. "Opus 4.7"
+  // provider separately. e.g. "Opus 4.1"
   modelOnly: string;
   // Context size string, or null if unknown for this model.
   contextSize: string | null;
@@ -122,7 +120,7 @@ export function formatAgentLabel(agent: { display_name?: string | null; provider
   const ctx = modelId ? MODEL_CONTEXT[modelId] ?? null : null;
 
   // User-set rename always wins. We still expose the context chip on
-  // the side so the picker can display "My favourite agent · 1M".
+  // the side so the picker can display "Review agent · 200k".
   if (agent.display_name && agent.display_name.trim().length > 0) {
     const name = agent.display_name.trim();
     return {

@@ -16,7 +16,7 @@ import { repositoryDisplayName } from "./repository-display.js";
 // from ./types.js. ProjectEntry / CurrentProject are heavily used by the
 // project-switcher views; SettingsView and ProjectsView import them from
 // here, hence the re-export.
-export type { AgentSummary, ProjectEntry, CurrentProject } from "./types.js";
+export type { AgentSummary, ProjectEntry, CurrentProject, ProjectInfo } from "./types.js";
 
 const BASE = "/api/v1";
 

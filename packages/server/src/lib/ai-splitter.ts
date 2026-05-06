@@ -408,7 +408,7 @@ async function suggestSplitAnthropic(
     );
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-opus-4-7";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-5";
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -455,7 +455,7 @@ async function suggestSplitOpenAi(
       "OPENAI_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
     );
   }
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5-codex" : "gpt-5.4");
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5-codex" : "gpt-5.2");
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {

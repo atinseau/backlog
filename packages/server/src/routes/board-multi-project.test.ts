@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, registerProject } from "@backlog/config";
-import { addRepo, archiveTask, createTask } from "@backlog/core";
+import { addRepo, archiveTask, completeRun, createRun, createTask, taskExecutionTarget } from "@backlog/core";
+import type { Agent } from "@backlog/schemas";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
@@ -124,5 +125,51 @@ describe("board route under multi-project resolver", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { columns: { todo: Array<{ id: string }> } };
     expect(body.columns.todo.map((card) => card.id).slice(0, 2)).toEqual([newer.id, older.id]);
+  });
+
+  it("renders completed direct task runs at 100 percent", async () => {
+    const registryDir = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-board-mw-reg-"));
+    const project = makeProject("direct-done-progress");
+    const workItem = createTask(project.backlogDir, { title: "direct task", repoTargets: ["app"] });
+    const agent: Agent = {
+      id: "agent",
+      provider: "custom",
+      command: "true",
+      enabled: true,
+      max_concurrent_runs: 1,
+      allowed_repos: [],
+      allowed_risk: ["low", "medium", "high"],
+      capabilities: ["edit_code"],
+      environment: {},
+      retry_policy: { mode: "none", max_attempts: 1, reuse_worktree: true },
+    };
+    createRun({
+      backlogDir: project.backlogDir,
+      runId: "RUN-direct",
+      task: taskExecutionTarget(workItem, "app"),
+      workItem,
+      agent,
+      branch: "main",
+      worktreePath: project.root,
+      claimIds: [],
+      executionMode: "direct",
+    });
+    await completeRun(project.backlogDir, "RUN-direct", "done");
+
+    const resolver = new ProjectResolver(project, { dir: registryDir });
+    const app = new Hono<AppEnv>();
+    app.use("*", resolver.middleware());
+    app.route("/", boardRoutes());
+
+    const res = await app.request("/board");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      columns: { done: Array<{ id: string; progress_percent: number; tasks: Array<{ status: string; progress_percent: number }> }> };
+    };
+    expect(body.columns.done[0]).toMatchObject({
+      id: workItem.id,
+      progress_percent: 100,
+      tasks: [expect.objectContaining({ status: "completed", progress_percent: 100 })],
+    });
   });
 });

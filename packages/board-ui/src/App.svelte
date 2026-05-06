@@ -21,7 +21,7 @@
   import Toasts from "./lib/Toasts.svelte";
   import UpdateBanner from "./lib/UpdateBanner.svelte";
   import CardMenu from "./lib/CardMenu.svelte";
-  import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn } from "./lib/settings.svelte.js";
+  import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn, setShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import DirectDirtyDialog from "./lib/DirectDirtyDialog.svelte";
@@ -60,7 +60,6 @@
     renameProjectById,
     reorderTask,
     setCurrentProjectId,
-    setReviewConfig,
     startRun,
     touchProjectById,
     unarchiveTask,
@@ -71,6 +70,7 @@
     type AgentSummary,
     type CurrentProject,
     type HealthResponse,
+    type ProjectInfo,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
   import { explainStartRunResult, type StartRunAction } from "./lib/run-start-errors.js";
@@ -482,10 +482,10 @@
     void refreshUsers();
   }
 
-  // Preflight: is there at least one AI agent ready to run? The old
-  // "enabled" toggle is gone — readiness now means "executable provider
-  // and the API key is set". The banner directs the user to the API
-  // keys dialog when nothing's ready, which is the most common cause.
+  // Preflight: keep Play disabled until there is something actionable.
+  // We intentionally do not render a checklist on the board; the UI
+  // should only interrupt the user when a clicked action needs a clear
+  // fix (API key, agent config, workspace, etc.).
   const hasReadyAIAgent = $derived(
     agentsList.some(
       (a) =>
@@ -493,12 +493,9 @@
         !a.needs_api_key,
     ),
   );
-  type PreflightAction = "project" | "workspace" | "task" | "agent";
   type PreflightItem = {
-    id: PreflightAction;
     label: string;
     ok: boolean;
-    actionLabel: string;
   };
   const todoCount = $derived(board?.columns.todo?.length ?? 0);
   const hasRunnableWorkspace = $derived(
@@ -510,28 +507,20 @@
   );
   const preflightItems = $derived.by<PreflightItem[]>(() => [
     {
-      id: "project",
       label: t("preflight.project"),
       ok: Boolean(selectedProjectId),
-      actionLabel: t("preflight.action.project"),
     },
     {
-      id: "workspace",
       label: t("preflight.workspace"),
       ok: Boolean(selectedProjectId && hasRunnableWorkspace),
-      actionLabel: t("preflight.action.workspace"),
     },
     {
-      id: "task",
       label: t("preflight.task"),
       ok: Boolean(selectedProjectId && todoCount > 0),
-      actionLabel: t("preflight.action.task"),
     },
     {
-      id: "agent",
       label: t("preflight.agent"),
       ok: Boolean(selectedProjectId && hasReadyAIAgent),
-      actionLabel: t("preflight.action.agent"),
     },
   ]);
   const blockingPreflightItems = $derived(preflightItems.filter((item) => !item.ok));
@@ -615,6 +604,11 @@
     const transient = transientProjectEntry(info);
     if (!transient || list.some((project) => project.id === transient.id)) return sortProjectEntries(list);
     return sortProjectEntries([transient, ...list]);
+  }
+
+  function applyProjectBoardSettings(project: ProjectInfo): void {
+    setShowBacklogColumn(Boolean(project.board?.show_backlog_column));
+    setShowReviewColumn(Boolean(project.review?.show_review_column));
   }
 
   function scheduleRefresh() {
@@ -733,14 +727,8 @@
     refreshRepos();
     refreshAgents();
     void fetchProject()
-      .then((project) => {
-        const show = Boolean(project.board?.show_backlog_column);
-        setShowBacklogColumn(show);
-      })
+      .then(applyProjectBoardSettings)
       .catch(() => undefined);
-    if (selectedProjectId && getShowReviewColumn()) {
-      void setReviewConfig({ show_review_column: true }).catch(() => undefined);
-    }
     connectSse();
   }
 
@@ -818,14 +806,8 @@
     refreshAgents();
     if (selectedProjectId) {
       void fetchProject()
-        .then((project) => {
-          const show = Boolean(project.board?.show_backlog_column);
-          setShowBacklogColumn(show);
-        })
+        .then(applyProjectBoardSettings)
         .catch(() => undefined);
-    }
-    if (selectedProjectId && getShowReviewColumn()) {
-      void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
     connectSse();
     void loadCloudStatus();
@@ -1125,30 +1107,6 @@
     if (action === "agents") applySection("agents");
     if (action === "repositories") applySection("repos");
     if (action === "git") applySection("commits");
-  }
-
-  function handlePreflightAction(action: PreflightAction) {
-    if (action === "project") {
-      if (projects.length === 0) createProjectOpen = true;
-      else manageProjectsOpen = true;
-      return;
-    }
-    if (action === "workspace") {
-      reposShowCreate = true;
-      applySection("repos");
-      return;
-    }
-    if (action === "task") {
-      createTaskOpen = true;
-      return;
-    }
-    if (action === "agent") {
-      if (agentsList.length > 0 && !hasReadyAIAgent) {
-        apiKeysOpen = true;
-      } else {
-        applySection("agents");
-      }
-    }
   }
 
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
@@ -1490,26 +1448,6 @@
             }}
           />
         {:else if leftSection === "board"}
-          {#if blockingPreflightItems.length > 0}
-            <div class="preflight-banner" role="status">
-              <span class="preflight-icon" aria-hidden="true">▶</span>
-              <div class="preflight-text">
-                <strong>{t("preflight.title")}</strong>
-                <span>{t("preflight.body")}</span>
-                <ul class="preflight-list" aria-label={t("preflight.title")}>
-                  {#each preflightItems as item (item.id)}
-                    <li class:ok={item.ok}>
-                      <span aria-hidden="true">{item.ok ? "✓" : "•"}</span>
-                      <span>{item.label}</span>
-                      {#if !item.ok}
-                        <button type="button" onclick={() => handlePreflightAction(item.id)}>{item.actionLabel}</button>
-                      {/if}
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            </div>
-          {/if}
           <main class="board" style:--columns-count={visibleColumns.length}>
             {#each visibleColumns as key (key)}
               <Column
@@ -2152,69 +2090,5 @@
     align-items: stretch;
     overflow: hidden;
   }
-
-  .preflight-banner {
-    margin: 12px 16px 0;
-    padding: 12px 14px;
-    border: 1px solid var(--border-strong);
-    background: var(--bg-surface);
-    border-radius: 6px;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .preflight-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent);
-    color: var(--accent-on);
-    font-size: 12px;
-    flex-shrink: 0;
-  }
-  .preflight-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .preflight-text strong {
-    color: var(--text-primary);
-    font-size: 13px;
-  }
-  .preflight-text span {
-    font-size: 12px;
-    color: var(--text-body);
-    line-height: 1.4;
-  }
-  .preflight-list {
-    margin: 8px 0 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 6px;
-    list-style: none;
-  }
-  .preflight-list li {
-    min-height: 28px;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-secondary);
-    font-size: 12px;
-  }
-  .preflight-list li.ok {
-    color: var(--success);
-  }
-  .preflight-list button {
-    background: var(--accent-bg);
-    color: var(--accent-text);
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-  }
-  .preflight-list button:hover { background: var(--accent); color: var(--accent-on); }
 
 </style>

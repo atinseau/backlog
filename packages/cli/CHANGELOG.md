@@ -4,6 +4,16 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.49] - 2026-05-06
+
+Model labels, review policy, and board progress fixes.
+
+- **Model labels no longer invent vendor versions or context windows** — Claude family aliases now display as Claude Sonnet / Opus / Haiku, exact pinned ids display only what is actually configured, and internal defaults no longer use fake `4.7` ids.
+- **Card Play buttons disappear once a task is running or done**, preventing accidental double starts and keeping completed cards quiet.
+- **Direct task progress now reaches 100% on completion** and running cards keep advancing locally between board refreshes.
+- **Review only happens when the project Review column is enabled**; task creation hides manual approval otherwise, and project review settings are loaded from disk instead of being resurrected from local browser state.
+- **The board no longer shows the Play prerequisites checklist**; Backlog keeps Play disabled until ready and only surfaces clear action messages when a launch actually needs attention.
+
 ## [1.4.48] - 2026-05-06
 
 Workspace startup and Play readiness polish.

@@ -1,10 +1,10 @@
 // Curated model catalog for the Agents view dropdown.
 //
 // Each entry is a { value, label, family, description } tuple. The
-// `value` is what we send to the agent CLI as `--model <value>` — both
-// Claude Code and Codex accept either family aliases (sonnet, opus,
-// haiku, gpt-5-codex) or fully-qualified version strings
-// (claude-sonnet-4-5, gpt-5-codex-2025-08).
+// `value` is what we send to the agent CLI as `--model <value>`.
+// Claude Code accepts family aliases (sonnet, opus, haiku) and exact
+// model ids. Alias rows intentionally do not display invented version
+// numbers or context windows; the upstream CLI resolves them.
 //
 // The "latest" entries use the family alias by itself; the upstream CLI
 // resolves it to the most recent supported version automatically. This
@@ -26,43 +26,43 @@ export const MODEL_CATALOG: Record<string, ModelChoice[]> = {
   claude: [
     {
       value: "sonnet",
-      label: "Claude Sonnet 4.7 (latest, 1M)",
+      label: "Claude Sonnet",
       family: "sonnet",
-      description: "Balanced default — good price/quality for daily coding.",
+      description: "Balanced Claude Code family alias for daily coding.",
     },
     {
       value: "opus",
-      label: "Claude Opus 4.7 (latest, 1M)",
+      label: "Claude Opus",
       family: "opus",
-      description: "Highest quality for hard reasoning tasks. Slower / pricier.",
+      description: "Claude Code family alias for harder reasoning tasks.",
     },
     {
       value: "haiku",
-      label: "Claude Haiku 4.5 (latest, 200k)",
+      label: "Claude Haiku",
       family: "haiku",
-      description: "Fastest and cheapest. Good for trivial edits and reviews.",
-    },
-    {
-      value: "claude-sonnet-4-7",
-      label: "Claude Sonnet 4.7 (pinned, 1M)",
-      family: "sonnet",
-      description: "Pin a specific Sonnet version for reproducibility.",
+      description: "Claude Code family alias for fast, smaller edits and reviews.",
     },
     {
       value: "claude-sonnet-4-5",
-      label: "Claude Sonnet 4.5 (pinned, 200k)",
+      label: "Claude Sonnet 4.5",
       family: "sonnet",
       description: "Pin a specific Sonnet version for reproducibility.",
     },
     {
-      value: "claude-opus-4-7",
-      label: "Claude Opus 4.7 (pinned, 1M)",
+      value: "claude-sonnet-4",
+      label: "Claude Sonnet 4",
+      family: "sonnet",
+      description: "Pin a specific Sonnet version for reproducibility.",
+    },
+    {
+      value: "claude-opus-4-1",
+      label: "Claude Opus 4.1",
       family: "opus",
       description: "Pin a specific Opus version for reproducibility.",
     },
     {
       value: "claude-haiku-4-5",
-      label: "Claude Haiku 4.5 (pinned, 200k)",
+      label: "Claude Haiku 4.5",
       family: "haiku",
       description: "Pin a specific Haiku version for reproducibility.",
     },
@@ -70,13 +70,13 @@ export const MODEL_CATALOG: Record<string, ModelChoice[]> = {
   codex: [
     {
       value: "gpt-5-codex",
-      label: "GPT-5 Codex (latest, 1M)",
+      label: "GPT-5 Codex",
       family: "gpt-5-codex",
       description: "Default Codex tier. Coding-focused.",
     },
     {
       value: "gpt-5",
-      label: "GPT-5 (latest)",
+      label: "GPT-5",
       family: "gpt-5",
       description: "General-purpose GPT-5. Less coding-specialised than Codex.",
     },
