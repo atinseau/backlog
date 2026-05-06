@@ -13,7 +13,6 @@
     | "board"
     | "backlog"
     | "activity"
-    | "usage"
     | "commits"
     | "agents"
     | "users"
@@ -51,7 +50,6 @@
     { key: "board", label: () => t("nav.board"), icon: "▦" },
     { key: "backlog", label: () => t("nav.backlog"), icon: "☰" },
     { key: "activity", label: () => t("nav.runs"), icon: "⏱" },
-    { key: "usage", label: () => t("nav.usage"), icon: "▥" },
     { key: "commits", label: () => t("nav.git"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
     { key: "instructions", label: () => t("nav.instructions"), icon: "▤" },

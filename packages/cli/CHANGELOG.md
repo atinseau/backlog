@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.46] - 2026-05-06
+
+Profile, usage, and model picker fixes.
+
+- **Runs no longer stay stuck on loading** when one of the activity data sources is slow or unavailable; available run and protection data still renders with a clear partial error.
+- **Usage now lives in the profile menu** instead of the main sidebar, and Cloud identity is refreshed as the app starts so the profile state appears without needing to open the menu first.
+- **The header model picker stays inside the Desktop window** by clamping the dropdown position to the viewport on open, scroll, and resize.
+
 ## [1.4.45] - 2026-05-06
 
 Backlog, instructions, and hooks navigation.

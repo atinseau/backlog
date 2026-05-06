@@ -266,6 +266,7 @@
   let gitDiffTarget = $state<{ repo: string; file: string; sha?: string | null; base?: string | null; head?: string | null; refreshKey: number } | null>(null);
   let gitDiffRefreshKey = $state(0);
   let profileOpen = $state<"signin" | "signup" | null>(null);
+  let usageOpen = $state(false);
   let manageProjectsOpen = $state(false);
   let generalSettingsOpen = $state(false);
   let apiKeysOpen = $state(false);
@@ -776,7 +777,7 @@
       void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
     connectSse();
-    if (selectedProjectId) loadCloudStatus();
+    void loadCloudStatus();
   }
 
   async function handleMove(taskId: string, toStatus: string, _toColumn: ColumnKey) {
@@ -1212,6 +1213,7 @@
 
   onMount(() => {
     writeBool(SHELL_RIGHT_OPEN, false);
+    void loadCloudStatus();
     bootstrap();
     void checkCliOnLaunch();
     gitStatusPoll = setInterval(() => {
@@ -1332,6 +1334,7 @@
         onOpenSettings={() => (generalSettingsOpen = true)}
         onOpenIntegrations={() => applySection("integrations")}
         onOpenApiKeys={() => (apiKeysOpen = true)}
+        onOpenUsage={() => (usageOpen = true)}
         onChanged={loadCloudStatus}
       />
     </div>
@@ -1458,8 +1461,6 @@
             onClose={() => applySection("board")}
             onChanged={() => { if (!connected) refresh(); }}
           />
-        {:else if leftSection === "usage"}
-          <UsageView embedded={true} onClose={() => applySection("board")} />
         {:else if leftSection === "commits"}
           <CommitsView
             embedded={true}
@@ -1701,6 +1702,10 @@
     onClose={() => { profileOpen = null; loadCloudStatus(); }}
     onChanged={loadCloudStatus}
   />
+{/if}
+
+{#if usageOpen}
+  <UsageView onClose={() => (usageOpen = false)} />
 {/if}
 
 {#if manageProjectsOpen}

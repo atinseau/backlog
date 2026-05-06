@@ -13,10 +13,19 @@
     onOpenSettings: () => void;
     onOpenIntegrations: () => void;
     onOpenApiKeys: () => void;
+    onOpenUsage: () => void;
     onChanged: () => void;
   }
 
-  let { cloudStatus, onOpenProfile, onOpenSettings, onOpenIntegrations, onOpenApiKeys, onChanged }: Props = $props();
+  let {
+    cloudStatus,
+    onOpenProfile,
+    onOpenSettings,
+    onOpenIntegrations,
+    onOpenApiKeys,
+    onOpenUsage,
+    onChanged,
+  }: Props = $props();
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
@@ -114,6 +123,9 @@
         <button class="item" role="menuitem" onclick={() => { close(); onOpenApiKeys(); }}>
           🔑 {t("profile.api_keys")}
         </button>
+        <button class="item" role="menuitem" onclick={() => { close(); onOpenUsage(); }}>
+          ▥ {t("nav.usage")}
+        </button>
         <button class="item" role="menuitem" onclick={() => { close(); onOpenIntegrations(); }}>
           🔌 {t("nav.integrations")}
         </button>
@@ -136,6 +148,9 @@
           {t("profile.menu.signup")}
         </button>
         <div class="separator"></div>
+        <button class="item" role="menuitem" onclick={() => { close(); onOpenUsage(); }}>
+          ▥ {t("nav.usage")}
+        </button>
         <button class="item" role="menuitem" onclick={() => { close(); onOpenIntegrations(); }}>
           🔌 {t("nav.integrations")}
         </button>

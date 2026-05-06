@@ -2,7 +2,7 @@
   // Agent dropdown sitting next to the project name. The user picks ONE
   // agent/model that will execute the next run; the app persists that
   // choice per project and falls back to the last ready configured agent.
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { formatAgentLabel } from "./agent-label.js";
   import type { AgentSummary } from "./types.js";
@@ -19,6 +19,8 @@
 
   let open = $state(false);
   let containerEl = $state<HTMLDivElement | null>(null);
+  let menuEl = $state<HTMLDivElement | null>(null);
+  let menuStyle = $state("");
 
   // Only AI providers can actually run a task. Manual is a marker for
   // human assignees and shouldn't show up in this picker.
@@ -52,7 +54,39 @@
       : t("agent_picker.none"),
   );
 
-  function toggle() { open = !open; }
+  const MENU_GUTTER = 12;
+
+  async function updateMenuPosition() {
+    if (!open || !containerEl) return;
+    await tick();
+    const triggerRect = containerEl.getBoundingClientRect();
+    const menuRect = menuEl?.getBoundingClientRect();
+    const menuWidth = menuRect?.width ?? Math.min(420, window.innerWidth - MENU_GUTTER * 2);
+    const preferredLeft = variant === "inline" ? triggerRect.left : triggerRect.right - menuWidth;
+    const left = Math.max(
+      MENU_GUTTER,
+      Math.min(preferredLeft, window.innerWidth - menuWidth - MENU_GUTTER),
+    );
+    const top = Math.min(triggerRect.bottom + 6, window.innerHeight - MENU_GUTTER);
+    const maxWidth = Math.max(240, window.innerWidth - MENU_GUTTER * 2);
+    const maxHeight = Math.max(180, window.innerHeight - top - MENU_GUTTER);
+    menuStyle = [
+      `left: ${Math.round(left)}px`,
+      `top: ${Math.round(top)}px`,
+      `max-width: ${Math.round(maxWidth)}px`,
+      `max-height: ${Math.round(maxHeight)}px`,
+    ].join("; ");
+  }
+
+  function requestMenuPosition() {
+    void updateMenuPosition();
+  }
+
+  function toggle() {
+    open = !open;
+    if (!open) return;
+    requestMenuPosition();
+  }
   function close() { open = false; }
 
   function handleDocumentClick(e: MouseEvent) {
@@ -66,14 +100,21 @@
     if (open) {
       window.addEventListener("click", handleDocumentClick);
       window.addEventListener("keydown", handleKey);
+      window.addEventListener("resize", requestMenuPosition);
+      window.addEventListener("scroll", requestMenuPosition, true);
+      requestMenuPosition();
     } else {
       window.removeEventListener("click", handleDocumentClick);
       window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("resize", requestMenuPosition);
+      window.removeEventListener("scroll", requestMenuPosition, true);
     }
   });
   onDestroy(() => {
     window.removeEventListener("click", handleDocumentClick);
     window.removeEventListener("keydown", handleKey);
+    window.removeEventListener("resize", requestMenuPosition);
+    window.removeEventListener("scroll", requestMenuPosition, true);
   });
 
   function pick(id: string) {
@@ -100,7 +141,7 @@
   </button>
 
   {#if open}
-    <div class="menu" role="listbox">
+    <div class="menu" role="listbox" bind:this={menuEl} style={menuStyle}>
       {#if executable.length === 0}
         <div class="empty-row">{t("agent_picker.empty")}</div>
       {:else}
@@ -199,19 +240,19 @@
   }
 
   .menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 320px;
+    position: fixed;
+    width: min(420px, calc(100vw - 24px));
+    min-width: min(320px, calc(100vw - 24px));
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: 6px;
     box-shadow: var(--shadow-modal);
     padding: 4px;
-    z-index: 60;
+    z-index: 90;
     display: flex;
     flex-direction: column;
     gap: 1px;
+    overflow: auto;
   }
   .item {
     display: flex;

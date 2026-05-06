@@ -82,24 +82,47 @@
     return claimsFor(next).some((claim) => claim.id === current.id && !linkedClaimIds.has(claim.id));
   }
 
+  function withTimeout<T>(promise: Promise<T>, label: string, ms = 12_000): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const timeout = new Promise<T>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} : délai dépassé`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    });
+  }
+
+  function errorMessage(prefix: string, result: PromiseRejectedResult): string {
+    const reason = result.reason;
+    return `${prefix}: ${reason instanceof Error ? reason.message : String(reason)}`;
+  }
+
   async function load() {
     loading = true;
-    try {
-      const [nextRuns, active, archived] = await Promise.all([
-        fetchRuns({ scope: "all" }),
-        fetchAllClaims({}),
-        fetchAllClaims({ archived: true }),
-      ]);
-      runs = nextRuns;
-      activeClaims = active;
-      archivedClaims = archived;
-      if (!selection || !selectionVisible(tab, selection)) selection = firstSelection(tab, nextRuns);
-      error = null;
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      loading = false;
+    const [runsResult, activeResult, archivedResult] = await Promise.allSettled([
+      withTimeout(fetchRuns({ scope: "all" }), "Runs"),
+      withTimeout(fetchAllClaims({}), "Protections actives"),
+      withTimeout(fetchAllClaims({ archived: true }), "Protections archivées"),
+    ]);
+    const errors: string[] = [];
+    if (runsResult.status === "fulfilled") {
+      runs = runsResult.value;
+    } else {
+      errors.push(errorMessage("Runs", runsResult));
     }
+    if (activeResult.status === "fulfilled") {
+      activeClaims = activeResult.value;
+    } else {
+      errors.push(errorMessage("Protections actives", activeResult));
+    }
+    if (archivedResult.status === "fulfilled") {
+      archivedClaims = archivedResult.value;
+    } else {
+      errors.push(errorMessage("Protections archivées", archivedResult));
+    }
+    if (!selection || !selectionVisible(tab, selection)) selection = firstSelection(tab, runs);
+    error = errors.length > 0 ? errors.join("\n") : null;
+    loading = false;
   }
 
   function switchTab(next: Tab) {
