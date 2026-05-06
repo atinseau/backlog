@@ -1370,6 +1370,36 @@ export async function stashGitChanges(input: { repo: string; paths: string[]; me
   return json as { stashed: number; message: string };
 }
 
+export async function ignoreGitChanges(input: { repo: string; paths: string[] }): Promise<{ ignored: number; patterns_added: number; gitignore_path: string }> {
+  const response = await fetch(apiUrl("/git/ignore"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { ignored: number; patterns_added: number; gitignore_path: string };
+}
+
+export async function ensureGitIgnore(repo: string): Promise<{ path: string }> {
+  const response = await fetch(apiUrl("/git/gitignore"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { path: string };
+}
+
 export interface GitFileDiff {
   repo: string;
   file: string;

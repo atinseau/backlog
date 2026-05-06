@@ -3,7 +3,7 @@
   // path, lets the user reveal it in Finder, switch to it, or remove
   // the registry entry. Add-existing / create flows are reachable from
   // here too via the existing CreateProjectDialog.
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { t } from "./i18n.svelte.js";
   import {
     fetchProjectsList,
@@ -33,6 +33,7 @@
   // the rename flow has to live inside the modal itself.
   let editingId = $state<string | null>(null);
   let editValue = $state("");
+  let contextMenu = $state<{ x: number; y: number; items: Array<{ label: string; action: () => void; disabled?: boolean }> } | null>(null);
 
   function focusOnMount(node: HTMLElement): void {
     queueMicrotask(() => node.focus());
@@ -103,12 +104,47 @@
     }
   }
 
-  function openInFinder(path: string) {
-    if (typeof window !== "undefined" && (window as unknown as { backlog?: { openPath(p: string): Promise<unknown> } }).backlog) {
-      (window as unknown as { backlog: { openPath(p: string): Promise<unknown> } }).backlog.openPath(path).catch(() => undefined);
+  function openPath(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.openPath) {
+      window.backlog.openPath(path).catch(() => undefined);
     } else {
       navigator.clipboard?.writeText(path).catch(() => undefined);
     }
+  }
+
+  function revealPath(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.showInFolder) {
+      window.backlog.showInFolder(path).catch(() => undefined);
+    } else {
+      openPath(path);
+    }
+  }
+
+  function openEditor(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.openEditor) {
+      window.backlog.openEditor(path).catch(() => openPath(path));
+    } else {
+      openPath(path);
+    }
+  }
+
+  function showContextMenu(event: MouseEvent, project: ProjectEntry) {
+    event.preventDefault();
+    event.stopPropagation();
+    const width = 220;
+    const height = 74;
+    contextMenu = {
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8)),
+      items: [
+        { label: t("context.open_editor"), action: () => openEditor(project.path) },
+        { label: t("context.reveal_finder"), action: () => revealPath(project.path) },
+      ],
+    };
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
   }
 
   function pickAndClose(id: string) {
@@ -116,7 +152,13 @@
     onClose();
   }
 
-  onMount(() => { void load(); });
+  onMount(() => {
+    void load();
+    window.addEventListener("click", closeContextMenu);
+  });
+  onDestroy(() => {
+    window.removeEventListener("click", closeContextMenu);
+  });
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
@@ -139,7 +181,7 @@
         <ul class="projects">
           {#each projects as project (project.id)}
             {@const isCurrent = current?.root === project.path}
-            <li class:current={isCurrent}>
+            <li class:current={isCurrent} oncontextmenu={(e) => showContextMenu(e, project)}>
               <div class="info">
                 <div class="row1">
                   {#if editingId === project.id}
@@ -164,7 +206,7 @@
                   {/if}
                   <span class="loc-pill">{project.location === "user_level" ? "user-level" : "in-repository"}</span>
                 </div>
-                <button class="path-link" onclick={() => openInFinder(project.path)} title={t("repos_view.open_folder")}>
+                <button class="path-link" onclick={() => revealPath(project.path)} title={t("repos_view.open_folder")}>
                   📂 <span class="path-text">{project.path}</span>
                 </button>
               </div>
@@ -200,6 +242,23 @@
   </div>
 </div>
 
+{#if contextMenu}
+  <div
+    class="context-menu"
+    style:left={`${contextMenu.x}px`}
+    style:top={`${contextMenu.y}px`}
+    role="menu"
+    tabindex="-1"
+    oncontextmenu={(e) => e.preventDefault()}
+  >
+    {#each contextMenu.items as item}
+      <button type="button" role="menuitem" disabled={item.disabled} onclick={() => { closeContextMenu(); item.action(); }}>
+        {item.label}
+      </button>
+    {/each}
+  </div>
+{/if}
+
 <style>
   .backdrop {
     position: fixed; inset: 0;
@@ -230,6 +289,34 @@
   .error {
     background: var(--danger-bg); color: var(--danger);
     padding: 8px 20px; font-size: 12px;
+  }
+  .context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 210px;
+    padding: 4px;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-modal);
+    display: flex;
+    flex-direction: column;
+  }
+  .context-menu button {
+    width: 100%;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .context-menu button:hover:not(:disabled),
+  .context-menu button:focus-visible {
+    background: var(--bg-hover);
   }
   .content {
     flex: 1; overflow-y: auto;

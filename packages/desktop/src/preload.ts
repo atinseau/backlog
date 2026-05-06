@@ -25,6 +25,12 @@ contextBridge.exposeInMainWorld("backlog", {
   showInFolder(targetPath: string): Promise<void> {
     return ipcRenderer.invoke("backlog:show-in-folder", targetPath);
   },
+  // Open a file/folder in the user's editor if Backlog can find one
+  // (BACKLOG_EDITOR/VISUAL, then common GUI editors), otherwise fall
+  // back to the OS default app.
+  openEditor(targetPath: string): Promise<string> {
+    return ipcRenderer.invoke("backlog:open-editor", targetPath);
+  },
   // Open an external URL in the OS default browser. Used by the OAuth
   // sign-in flows so the user lands in their real browser (with their
   // session cookies) instead of a sandboxed Electron window.

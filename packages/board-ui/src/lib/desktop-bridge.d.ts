@@ -15,6 +15,8 @@ interface BacklogBridge {
   openPath: (path: string) => Promise<string>;
   /** Show a path in the OS file manager (Finder / Explorer / Files), highlighted. */
   showInFolder: (path: string) => Promise<void>;
+  /** Open a path in the configured/default editor when possible. */
+  openEditor?: (path: string) => Promise<string>;
   /** Open an external URL in the user's default browser. */
   openExternal: (url: string) => Promise<void>;
   /** Open a native folder picker; returns the selected path or null on cancel. */

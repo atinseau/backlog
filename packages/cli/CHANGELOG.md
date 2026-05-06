@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.44] - 2026-05-06
+
+Git diff and file action polish.
+
+- **Git Changes now decodes Git-quoted paths** so files inside folders with spaces, such as `Twoody Watch App/Localizable.xcstrings`, open the correct diff instead of showing an empty panel.
+- **The Git screen refreshes visible state when the Desktop window regains focus** so external commits, file edits, branch changes, and ignored files are reflected without a manual reload.
+- **Changed files can be ignored directly from Backlog** — selected files can be added to `.gitignore`, `.gitignore` can be created/opened, and context menus can reveal files, repositories, projects, and worktrees in Finder or open them in the configured editor.
+
 ## [1.4.43] - 2026-05-05
 
 Header model selection and sorting polish.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy, onMount } from "svelte";
   import { t } from "./i18n.svelte.js";
   import { isMissingRepositoryPathError, relocateRepositoryPath } from "./repository-relocate.js";
   import {
@@ -7,6 +8,7 @@
     commitGitChanges,
     createGitPullRequest,
     discardGitChanges,
+    ensureGitIgnore,
     fetchCommits,
     fetchGitBranchPreview,
     fetchGitBranches,
@@ -14,6 +16,7 @@
     fetchGitCommitFiles,
     fetchGitRemoteState,
     fetchGitWorktrees,
+    ignoreGitChanges,
     mergeGitBranch,
     pruneGitWorktrees,
     removeGitWorktree,
@@ -41,6 +44,7 @@
 
   type GitTab = "changes" | "history" | "branches" | "worktrees";
   type CommitGroup = { repo: string; paths: string[] };
+  type ContextMenuItem = { label: string; action: () => void; disabled?: boolean; danger?: boolean };
   type BranchRow = {
     key: string;
     repo: string;
@@ -66,7 +70,7 @@
   let message = $state("");
   let loading = $state(true);
   let committing = $state(false);
-  let gitActionBusy = $state<"discard" | "stash" | null>(null);
+  let gitActionBusy = $state<"discard" | "stash" | "ignore" | null>(null);
   let syncingRepo = $state<string | null>(null);
   let branchBusy = $state<string | null>(null);
   let pullRequestBusy = $state<string | null>(null);
@@ -88,6 +92,8 @@
   let historyHasMore = $state(false);
   let selectedBranchKey = $state<string | null>(null);
   let selectedWorktreeKey = $state<string | null>(null);
+  let contextMenu = $state<{ x: number; y: number; items: ContextMenuItem[] } | null>(null);
+  let focusRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   const dirtyCount = $derived(repos.reduce((sum, repo) => sum + repo.changes.length, 0));
   const visibleRepos = $derived(repos.filter((repo) => repo.changes.length > 0 || repo.status.error));
@@ -145,7 +151,17 @@
     selected = next;
   }
 
-  async function load() {
+  function preserveSelection(nextRepos: GitRepoChanges[]) {
+    const valid = new Set<string>();
+    for (const repo of nextRepos) {
+      for (const change of repo.changes) {
+        if (change.kind !== "conflicted") valid.add(keyFor(repo.repo, change.path));
+      }
+    }
+    selected = new Set([...selected].filter((key) => valid.has(key)));
+  }
+
+  async function load(options: { preserveSelection?: boolean } = {}) {
     loading = true;
     try {
       const [nextRepos, nextCommits] = await Promise.all([
@@ -174,7 +190,8 @@
       if (selectedWorktreeKey && !nextWorktrees.some((repo) => repo.worktrees.some((worktree) => worktreeKey(repo.repo, worktree.path) === selectedWorktreeKey))) {
         selectedWorktreeKey = null;
       }
-      resetSelection(nextRepos);
+      if (options.preserveSelection) preserveSelection(nextRepos);
+      else resetSelection(nextRepos);
       error = null;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -213,6 +230,81 @@
     const idx = normalized.lastIndexOf("/");
     if (idx === -1) return { dir: "", name: normalized };
     return { dir: normalized.slice(0, idx + 1), name: normalized.slice(idx + 1) };
+  }
+
+  function repoRoot(repoId: string): string | null {
+    return repos.find((repo) => repo.repo === repoId)?.path
+      ?? branches.find((repo) => repo.repo === repoId)?.path
+      ?? worktrees.find((repo) => repo.repo === repoId)?.path
+      ?? null;
+  }
+
+  function absoluteFilePath(repoId: string, filePath: string): string | null {
+    const root = repoRoot(repoId);
+    if (!root) return null;
+    return `${root.replace(/[\\/]+$/, "")}/${filePath.replace(/^[\\/]+/, "")}`;
+  }
+
+  function openPath(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.openPath) {
+      void window.backlog.openPath(path).catch(() => undefined);
+    } else {
+      void navigator.clipboard?.writeText(path).catch(() => undefined);
+      info = t("git.path_copied");
+    }
+  }
+
+  function openEditor(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.openEditor) {
+      void window.backlog.openEditor(path).catch(() => openPath(path));
+    } else {
+      openPath(path);
+    }
+  }
+
+  function revealPath(path: string) {
+    if (typeof window !== "undefined" && window.backlog?.showInFolder) {
+      void window.backlog.showInFolder(path).catch(() => undefined);
+    } else {
+      openPath(path);
+    }
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
+
+  function showContextMenu(event: MouseEvent, items: ContextMenuItem[]) {
+    event.preventDefault();
+    event.stopPropagation();
+    const width = 230;
+    const height = Math.max(44, items.length * 32 + 8);
+    const maxX = typeof window === "undefined" ? event.clientX : window.innerWidth - width - 8;
+    const maxY = typeof window === "undefined" ? event.clientY : window.innerHeight - height - 8;
+    contextMenu = {
+      x: Math.max(8, Math.min(event.clientX, maxX)),
+      y: Math.max(8, Math.min(event.clientY, maxY)),
+      items,
+    };
+  }
+
+  function showRepositoryContextMenu(event: MouseEvent, repoId: string) {
+    const root = repoRoot(repoId);
+    showContextMenu(event, [
+      { label: t("context.open_editor"), action: () => root && openEditor(root), disabled: !root },
+      { label: t("context.reveal_finder"), action: () => root && revealPath(root), disabled: !root },
+      { label: t("git.gitignore.edit"), action: () => { void editGitIgnore(repoId); }, disabled: !root },
+    ]);
+  }
+
+  function showFileContextMenu(event: MouseEvent, repoId: string, filePath: string) {
+    const absolutePath = absoluteFilePath(repoId, filePath);
+    showContextMenu(event, [
+      { label: t("context.open_editor"), action: () => absolutePath && openEditor(absolutePath), disabled: !absolutePath },
+      { label: t("context.reveal_finder"), action: () => absolutePath && revealPath(absolutePath), disabled: !absolutePath },
+      { label: t("git.ignore.context_file"), action: () => { void ignoreGroups([{ repo: repoId, paths: [filePath] }]); }, disabled: !absolutePath },
+      { label: t("git.gitignore.edit"), action: () => { void editGitIgnore(repoId); }, disabled: !absolutePath },
+    ]);
   }
 
   function toggleRepo(repo: GitRepoChanges, checked: boolean) {
@@ -483,12 +575,49 @@
     }
   }
 
+  async function ignoreGroups(groups: CommitGroup[]) {
+    const count = groups.reduce((sum, group) => sum + group.paths.length, 0);
+    if (count === 0) return;
+    gitActionBusy = "ignore";
+    error = null;
+    info = null;
+    try {
+      let patternsAdded = 0;
+      for (const group of groups) {
+        const result = await ignoreGitChanges({ repo: group.repo, paths: group.paths });
+        patternsAdded += result.patterns_added;
+      }
+      info = t("git.ignore.done", { count, patterns: patternsAdded });
+      await load();
+      onCommitted?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      gitActionBusy = null;
+    }
+  }
+
   async function discardSelected() {
     await discardGroups(selectedPathGroups());
   }
 
   async function stashSelected() {
     await stashGroups(selectedPathGroups());
+  }
+
+  async function ignoreSelected() {
+    await ignoreGroups(selectedPathGroups());
+  }
+
+  async function editGitIgnore(repoId: string) {
+    error = null;
+    info = null;
+    try {
+      const result = await ensureGitIgnore(repoId);
+      openPath(result.path);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
   }
 
   async function syncRepo(repoId: string) {
@@ -792,6 +921,42 @@
       if (row && !row.current) void loadMergePreview(state.repo, state.current_branch, row.name);
     }
   });
+
+  function refreshVisibleGit() {
+    if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
+    focusRefreshTimer = setTimeout(() => {
+      focusRefreshTimer = null;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      void load({ preserveSelection: true });
+    }, 100);
+  }
+
+  function handleWindowFocus() {
+    refreshVisibleGit();
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") refreshVisibleGit();
+  }
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") closeContextMenu();
+  }
+
+  onMount(() => {
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("click", closeContextMenu);
+    window.addEventListener("keydown", handleGlobalKeydown);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  });
+
+  onDestroy(() => {
+    if (focusRefreshTimer) clearTimeout(focusRefreshTimer);
+    window.removeEventListener("focus", handleWindowFocus);
+    window.removeEventListener("click", closeContextMenu);
+    window.removeEventListener("keydown", handleGlobalKeydown);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  });
 </script>
 
 {#snippet body()}
@@ -858,7 +1023,7 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="refresh" onclick={load} title="↻">↻</button>
+      <button class="refresh" onclick={() => load()} title="↻">↻</button>
       {#if !embedded}
         <button class="close" onclick={onClose}>✕</button>
       {/if}
@@ -874,7 +1039,7 @@
         {@const remote = remoteFor(state.repo)}
         {@const localCheckout = hasLocalCheckout(state)}
         <section class="git-repo-list">
-          <div class="git-repo-head">
+          <div class="git-repo-head" role="group" oncontextmenu={(e) => showRepositoryContextMenu(e, state.repo)}>
             <div class="git-repo-title">
               <strong>{state.repo}</strong>
               <span>{state.current_branch ?? t("git.branch.detached")} · {remoteText(remote)}</span>
@@ -1049,6 +1214,7 @@
                                   type="button"
                                   class="preview-file-row"
                                   onclick={() => openPreviewFileDiff(preview, file)}
+                                  oncontextmenu={(e) => showFileContextMenu(e, preview.repo, file.path)}
                                   title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
                                 >
                                   <span class="kind kind-{file.kind}">{kindLabel(file.kind)}</span>
@@ -1094,7 +1260,7 @@
         {:else}
           {#each visibleRepos as repo (repo.repo)}
             <section class="repo-block">
-              <div class="repo-row">
+              <div class="repo-row" role="group" oncontextmenu={(e) => showRepositoryContextMenu(e, repo.repo)}>
                 <label class="repo-check">
                   <input
                     type="checkbox"
@@ -1140,6 +1306,7 @@
                   tabindex={change.kind === "conflicted" ? -1 : 0}
                   title={change.old_path ? `${change.old_path} → ${change.path}` : change.path}
                   onclick={() => toggleChangeRow(repo.repo, change)}
+                  oncontextmenu={(e) => showFileContextMenu(e, repo.repo, change.path)}
                   onkeydown={(e) => handleChangeRowKeydown(e, repo.repo, change)}
                 >
                   <span class="check-box" class:checked={isSelected} aria-hidden="true"></span>
@@ -1173,6 +1340,9 @@
           <button class="secondary" onclick={stashSelected} disabled={!canChangeSelected}>
             {gitActionBusy === "stash" ? t("git.stash.running") : t("git.stash.button_files", { count: selectedPaths.length })}
           </button>
+          <button class="secondary" onclick={ignoreSelected} disabled={!canChangeSelected}>
+            {gitActionBusy === "ignore" ? t("git.ignore.running") : t("git.ignore.button_files", { count: selectedPaths.length })}
+          </button>
           <button class="primary" onclick={commitSelected} disabled={!canCommit}>
             {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
           </button>
@@ -1195,7 +1365,7 @@
           {@const branchState = branchesFor(repo.repo)}
           {@const hasCheckout = Boolean(repo.path)}
           <section class="git-repo-list">
-            <div class="git-repo-head">
+            <div class="git-repo-head" role="group" oncontextmenu={(e) => showRepositoryContextMenu(e, repo.repo)}>
               <div class="git-repo-title">
                 <strong>{repo.repo}</strong>
                 <span>{hasCheckout ? repo.path : t("git.worktree.no_checkout")}</span>
@@ -1263,6 +1433,10 @@
                     role="button"
                     tabindex="0"
                     onclick={() => toggleWorktreeRow(repo.repo, worktree)}
+                    oncontextmenu={(e) => showContextMenu(e, [
+                      { label: t("context.open_editor"), action: () => openEditor(worktree.path) },
+                      { label: t("context.reveal_finder"), action: () => revealPath(worktree.path) },
+                    ])}
                     onkeydown={(e) => handleWorktreeRowKeydown(e, repo.repo, worktree)}
                     title={worktree.path}
                   >
@@ -1366,6 +1540,7 @@
                     onfocus={() => openCommitFileDiff(commit, file)}
                     onmousedown={() => openCommitFileDiff(commit, file)}
                     onclick={() => openCommitFileDiff(commit, file)}
+                    oncontextmenu={(e) => showFileContextMenu(e, commit.repo, file.path)}
                     title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
                   >
                     <span class="kind kind-{file.kind}">{kindLabel(file.kind)}</span>
@@ -1395,6 +1570,29 @@
     </ul>
   {/if}
 {/snippet}
+
+{#if contextMenu}
+  <div
+    class="context-menu"
+    style:left={`${contextMenu.x}px`}
+    style:top={`${contextMenu.y}px`}
+    role="menu"
+    tabindex="-1"
+    oncontextmenu={(e) => e.preventDefault()}
+  >
+    {#each contextMenu.items as item}
+      <button
+        type="button"
+        role="menuitem"
+        class:danger={item.danger}
+        disabled={item.disabled}
+        onclick={() => { closeContextMenu(); item.action(); }}
+      >
+        {item.label}
+      </button>
+    {/each}
+  </div>
+{/if}
 
 {#if embedded}
   <div class="embedded">{@render body()}</div>
@@ -1496,6 +1694,41 @@
   .error, .info { padding: 8px 18px; font-size: 12px; }
   .error { background: var(--warning-bg); color: var(--warning); }
   .info { background: var(--success-bg); color: var(--success); }
+  .context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 210px;
+    padding: 4px;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-modal);
+    display: flex;
+    flex-direction: column;
+  }
+  .context-menu button {
+    width: 100%;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .context-menu button:hover:not(:disabled),
+  .context-menu button:focus-visible {
+    background: var(--bg-hover);
+  }
+  .context-menu button:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+  .context-menu button.danger {
+    color: var(--danger);
+  }
   .loading, .empty {
     padding: 32px 20px;
     text-align: center;

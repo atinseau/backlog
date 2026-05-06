@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, ipcMain, shell, dialog } from "electron";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { startServer, type RunningServer } from "@backlog/server";
 import pkg from "electron-updater";
@@ -19,6 +20,36 @@ ipcMain.handle("backlog:open-path", async (_event, targetPath: unknown) => {
 ipcMain.handle("backlog:show-in-folder", async (_event, targetPath: unknown) => {
   if (typeof targetPath !== "string" || !targetPath) return;
   shell.showItemInFolder(targetPath);
+});
+function splitCommand(command: string): string[] {
+  return command.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((part) => part.replace(/^"|"$/g, "")) ?? [];
+}
+function launchEditor(command: string, targetPath: string): Promise<string> {
+  const [bin, ...args] = splitCommand(command);
+  if (!bin) return Promise.resolve("invalid_command");
+  return new Promise((resolve) => {
+    const child = spawn(bin, [...args, targetPath], { detached: true, stdio: "ignore" });
+    child.once("error", (error) => resolve(error.message));
+    child.once("spawn", () => {
+      child.unref();
+      resolve("");
+    });
+  });
+}
+ipcMain.handle("backlog:open-editor", async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== "string" || !targetPath) return "invalid_path";
+  const commands = [
+    process.env.BACKLOG_EDITOR,
+    process.env.VISUAL,
+    "code -r",
+    "cursor -r",
+    "zed",
+  ].filter((command): command is string => Boolean(command?.trim()));
+  for (const command of commands) {
+    const result = await launchEditor(command, targetPath);
+    if (!result) return "";
+  }
+  return shell.openPath(targetPath);
 });
 ipcMain.handle("backlog:open-external", async (_event, url: unknown) => {
   if (typeof url !== "string" || !url) return;

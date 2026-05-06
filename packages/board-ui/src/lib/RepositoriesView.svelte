@@ -2,7 +2,7 @@
   import { t } from "./i18n.svelte.js";
   import { repositoryDisplayName, repositoryIdentityHint } from "./repository-display.js";
   import { relocateRepositoryPath } from "./repository-relocate.js";
-  import { checkoutRepository, createRepository, deleteRepository, fetchHooksStatus, fetchRepositories, installRepoHook, uninstallRepoHook, updateRepository, type HooksOverview, type HookStatus } from "./api.js";
+  import { checkoutRepository, createRepository, deleteRepository, ensureGitIgnore, fetchHooksStatus, fetchRepositories, installRepoHook, uninstallRepoHook, updateRepository, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repository } from "./types.js";
 
   // Bridge exposed by packages/desktop's preload.ts is typed once in
@@ -11,13 +11,29 @@
   // and `backlog serve` in a normal browser, hence the runtime guard.
   const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
 
-  function openInFinder(repoPath: string) {
+  function openPath(repoPath: string) {
     if (isElectron) {
       window.backlog!.openPath(repoPath).catch(() => undefined);
     } else {
       // Browser-only fallback — copy the path so the user can paste it
       // into Finder / Explorer themselves.
       navigator.clipboard?.writeText(repoPath).catch(() => undefined);
+    }
+  }
+
+  function revealPath(repoPath: string) {
+    if (isElectron && window.backlog?.showInFolder) {
+      window.backlog.showInFolder(repoPath).catch(() => undefined);
+    } else {
+      openPath(repoPath);
+    }
+  }
+
+  function openEditor(repoPath: string) {
+    if (isElectron && window.backlog?.openEditor) {
+      window.backlog.openEditor(repoPath).catch(() => openPath(repoPath));
+    } else {
+      openPath(repoPath);
     }
   }
 
@@ -37,6 +53,7 @@
   let hooksLoading = $state(false);
   let installingHookFor = $state<string | null>(null);
   let checkingOutFor = $state<string | null>(null);
+  let contextMenu = $state<{ x: number; y: number; items: Array<{ label: string; action: () => void; disabled?: boolean }> } | null>(null);
   const ALL_HOOKS = "__all__";
 
   function hookStatusOf(repoId: string): HookStatus | undefined {
@@ -306,6 +323,37 @@
     return repo.checkout_path ?? repo.path;
   }
 
+  async function editGitIgnore(repo: Repository) {
+    error = null;
+    try {
+      const result = await ensureGitIgnore(repo.id);
+      openPath(result.path);
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
+  }
+
+  function showRepositoryContextMenu(event: MouseEvent, repo: Repository) {
+    event.preventDefault();
+    event.stopPropagation();
+    const checkoutPath = repositoryCheckoutPath(repo);
+    const width = 230;
+    const height = 104;
+    contextMenu = {
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8)),
+      items: [
+        { label: t("context.open_editor"), action: () => checkoutPath && openEditor(checkoutPath), disabled: !checkoutPath },
+        { label: t("context.reveal_finder"), action: () => checkoutPath && revealPath(checkoutPath), disabled: !checkoutPath },
+        { label: t("git.gitignore.edit"), action: () => { void editGitIgnore(repo); }, disabled: !checkoutPath },
+      ],
+    };
+  }
+
   function remoteTypeLabel(type: Repository["remote_type"]): string {
     if (type === "git") return "Git";
     if (type === "ftp") return "FTP";
@@ -328,6 +376,8 @@
 
   load();
 </script>
+
+<svelte:window onclick={closeContextMenu} />
 
 {#snippet body()}
     <header>
@@ -407,7 +457,7 @@
           {@const remoteProvider = repositoryRemoteProvider(repo)}
           {@const remoteUrl = repositoryRemoteUrl(repo)}
           {@const checkoutPath = repositoryCheckoutPath(repo)}
-          <li class:disabled={!repo.enabled}>
+          <li class:disabled={!repo.enabled} oncontextmenu={(e) => showRepositoryContextMenu(e, repo)}>
             <div class="info">
               <div class="title-row">
                 <strong>{displayName}</strong>
@@ -460,7 +510,7 @@
               {#if checkoutPath}
                 <button
                   class="path-link"
-                  onclick={(e) => { e.stopPropagation(); openInFinder(checkoutPath); }}
+                  onclick={(e) => { e.stopPropagation(); revealPath(checkoutPath); }}
                   title={isElectron ? t("repos_view.open_folder") : t("repos_view.copy_path")}
                 >
                   <span class="path-icon">📂</span>
@@ -615,6 +665,23 @@
     {/if}
 {/snippet}
 
+{#if contextMenu}
+  <div
+    class="context-menu"
+    style:left={`${contextMenu.x}px`}
+    style:top={`${contextMenu.y}px`}
+    role="menu"
+    tabindex="-1"
+    oncontextmenu={(e) => e.preventDefault()}
+  >
+    {#each contextMenu.items as item}
+      <button type="button" role="menuitem" disabled={item.disabled} onclick={() => { closeContextMenu(); item.action(); }}>
+        {item.label}
+      </button>
+    {/each}
+  </div>
+{/if}
+
 {#if embedded}
   <div class="embedded">{@render body()}</div>
 {:else}
@@ -666,6 +733,41 @@
   h2 { margin: 0; font-size: 16px; }
   .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
   .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
+  .context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 210px;
+    padding: 4px;
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-modal);
+    display: flex;
+    flex-direction: column;
+  }
+  .context-menu button {
+    width: 100%;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-weight: 400 !important;
+  }
+  .context-menu button:hover:not(:disabled),
+  .context-menu button:focus-visible {
+    background: var(--bg-hover);
+  }
+  .context-menu button:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
   .loading {
     padding: 32px;
     text-align: center;

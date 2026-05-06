@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { getSecret, loadConfig } from "@backlog/config";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@backlog/connectors";
 import {
   git,
+  decodeGitQuotedPath,
   listWorkingTreeChanges,
   summarizeGitStatusEntries,
   type GitStatusEntry,
@@ -177,6 +179,10 @@ const removeWorktreeBodySchema = z.object({
   force: z.boolean().optional(),
 });
 
+const gitIgnoreBodySchema = z.object({
+  repo: z.string().min(1),
+});
+
 const GITHUB_TOKEN_KEY = "github.pat";
 
 function githubFullNameFromRepository(repo: RepoConfig): string | null {
@@ -201,9 +207,11 @@ function githubRefForApi(ref: string): string {
 }
 
 function safeRelativePath(requested: string): string | null {
-  if (path.isAbsolute(requested)) return null;
-  if (requested.split(/[\\/]/).some((segment) => segment === "..")) return null;
-  return requested;
+  const decoded = decodeGitQuotedPath(requested);
+  if (!decoded || decoded.includes("\0") || decoded.includes("\n") || decoded.includes("\r")) return null;
+  if (path.isAbsolute(decoded)) return null;
+  if (decoded.split(/[\\/]/).some((segment) => segment === "..")) return null;
+  return decoded;
 }
 
 function safeRequestedPathspecs(requestedPaths: string[], entries: GitStatusEntry[] = []): string[] | null {
@@ -238,6 +246,32 @@ async function discardSelectedChanges(repoPath: string, pathspecs: string[]): Pr
     await git(["checkout", "--", pathspec], repoPath).catch(() => undefined);
   }
   await git(["clean", "-fd", "--", ...pathspecs], repoPath);
+}
+
+function gitIgnorePatternForPath(rel: string): string {
+  const normalized = rel.replace(/\\/g, "/").replace(/[?*[\]]/g, "\\$&");
+  return `/${normalized}`;
+}
+
+async function ensureGitIgnoreFile(repoPath: string): Promise<string> {
+  const filePath = path.join(repoPath, ".gitignore");
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.access(filePath).catch(() => fs.writeFile(filePath, "", "utf8"));
+  return filePath;
+}
+
+async function appendGitIgnorePatterns(repoPath: string, relPaths: string[]): Promise<{ path: string; patterns: string[] }> {
+  const filePath = await ensureGitIgnoreFile(repoPath);
+  const content = await fs.readFile(filePath, "utf8").catch(() => "");
+  const existing = new Set(content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+  const patterns = [...new Set(relPaths.map(gitIgnorePatternForPath))].filter((pattern) => !existing.has(pattern));
+  if (patterns.length > 0) {
+    let next = content;
+    if (next.length > 0 && !next.endsWith("\n")) next += "\n";
+    next += `${patterns.join("\n")}\n`;
+    await fs.writeFile(filePath, next, "utf8");
+  }
+  return { path: filePath, patterns };
 }
 
 async function resolveCommit(repoPath: string, requested: string): Promise<string> {
@@ -590,12 +624,13 @@ async function readCommitFiles(repoPath: string, sha: string): Promise<CommitFil
     const [status = "", first = "", second = ""] = line.split("\t");
     if (!status || !first) continue;
     if (status.startsWith("R")) {
-      if (second) files.push({ kind: "renamed", old_path: first, path: second });
+      if (second) files.push({ kind: "renamed", old_path: decodeGitQuotedPath(first), path: decodeGitQuotedPath(second) });
       continue;
     }
-    if (status.startsWith("A")) files.push({ kind: "added", path: first });
-    else if (status.startsWith("D")) files.push({ kind: "deleted", path: first });
-    else files.push({ kind: "modified", path: first });
+    const decoded = decodeGitQuotedPath(first);
+    if (status.startsWith("A")) files.push({ kind: "added", path: decoded });
+    else if (status.startsWith("D")) files.push({ kind: "deleted", path: decoded });
+    else files.push({ kind: "modified", path: decoded });
   }
   return files;
 }
@@ -607,12 +642,13 @@ function parseNameStatus(raw: string): CommitFileEntry[] {
     const [status = "", first = "", second = ""] = line.split("\t");
     if (!status || !first) continue;
     if (status.startsWith("R")) {
-      if (second) files.push({ kind: "renamed", old_path: first, path: second });
+      if (second) files.push({ kind: "renamed", old_path: decodeGitQuotedPath(first), path: decodeGitQuotedPath(second) });
       continue;
     }
-    if (status.startsWith("A")) files.push({ kind: "added", path: first });
-    else if (status.startsWith("D")) files.push({ kind: "deleted", path: first });
-    else files.push({ kind: "modified", path: first });
+    const decoded = decodeGitQuotedPath(first);
+    if (status.startsWith("A")) files.push({ kind: "added", path: decoded });
+    else if (status.startsWith("D")) files.push({ kind: "deleted", path: decoded });
+    else files.push({ kind: "modified", path: decoded });
   }
   return files;
 }
@@ -1227,6 +1263,58 @@ export function commitsRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "sync_failed", detail: message, actions }, 400);
+    }
+  });
+
+  app.post("/git/gitignore", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = gitIgnoreBodySchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+
+    const config = loadConfig(project.backlogDir);
+    const repo = config.repos.find((candidate) => candidate.id === parsed.data.repo);
+    if (!repo) return c.json({ error: "unknown_repo" }, 404);
+    const repoPath = requireCheckoutPath(repo);
+    if (!repoPath) return c.json({ error: "repository_has_no_local_checkout" }, 400);
+
+    try {
+      const filePath = await ensureGitIgnoreFile(repoPath);
+      return c.json({ ok: true, repo: repo.id, path: filePath });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "gitignore_failed", detail: message }, 400);
+    }
+  });
+
+  app.post("/git/ignore", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = gitPathsBodySchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+
+    const config = loadConfig(project.backlogDir);
+    const repo = config.repos.find((candidate) => candidate.id === parsed.data.repo);
+    if (!repo) return c.json({ error: "unknown_repo" }, 404);
+    const repoPath = requireCheckoutPath(repo);
+    if (!repoPath) return c.json({ error: "repository_has_no_local_checkout" }, 400);
+
+    const relPaths = parsed.data.paths.map((entry) => safeRelativePath(entry));
+    if (relPaths.some((entry) => !entry)) return c.json({ error: "invalid_path" }, 400);
+
+    try {
+      const uniquePaths = [...new Set(relPaths.filter((entry): entry is string => Boolean(entry)))];
+      const result = await appendGitIgnorePatterns(repoPath, uniquePaths);
+      return c.json({
+        ok: true,
+        repo: repo.id,
+        ignored: uniquePaths.length,
+        patterns_added: result.patterns.length,
+        gitignore_path: result.path,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "ignore_failed", detail: message }, 400);
     }
   });
 

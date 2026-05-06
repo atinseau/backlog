@@ -55,6 +55,40 @@ describe("parseGitStatusPorcelain", () => {
     ]);
   });
 
+  it("decodes git-quoted paths with spaces", () => {
+    expect(parseGitStatusEntries(' M "Twoody Watch App/Localizable.xcstrings"')).toMatchObject([
+      {
+        path: "Twoody Watch App/Localizable.xcstrings",
+        kind: "modified",
+        index_status: " ",
+        working_tree_status: "M",
+      },
+    ]);
+  });
+
+  it("decodes git-quoted rename paths", () => {
+    expect(parseGitStatusEntries('R  "Old Folder/name.txt" -> "New Folder/name.txt"')).toEqual([
+      {
+        path: "New Folder/name.txt",
+        old_path: "Old Folder/name.txt",
+        kind: "renamed",
+        index_status: "R",
+        working_tree_status: " ",
+        staged: true,
+        unstaged: false,
+      },
+    ]);
+  });
+
+  it("keeps rename arrows inside quoted file names", () => {
+    expect(parseGitStatusEntries('R  "Old -> Name.txt" -> "New -> Name.txt"')).toMatchObject([
+      {
+        path: "New -> Name.txt",
+        old_path: "Old -> Name.txt",
+      },
+    ]);
+  });
+
   it("keeps the first path character for unstaged-only changes", () => {
     expect(parseGitStatusEntries(" M screens/MainScreen/MainScreen.js")).toMatchObject([
       {

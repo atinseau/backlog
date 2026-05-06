@@ -81,6 +81,61 @@ describe("git routes", () => {
     expect(statusAfter).not.toContain("new.ts");
   });
 
+  it("decodes git-quoted paths before showing changes and reading diffs", async () => {
+    const project = makeProject();
+    const repoRoot = await makeRepo();
+    addRepo(project.backlogDir, { id: "app", path: repoRoot, defaultBranch: "main" });
+    const rel = "Twoody Watch App/Localizable.xcstrings";
+    fs.mkdirSync(path.dirname(path.join(repoRoot, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, rel), "{\"sourceLanguage\":\"en\"}\n", "utf8");
+    await git(["add", rel], repoRoot);
+    await git(["commit", "-m", "add localized strings"], repoRoot);
+    fs.writeFileSync(path.join(repoRoot, rel), "{\"sourceLanguage\":\"fr\"}\n", "utf8");
+
+    const app = harness(project);
+    const changesRes = await app.request("/git/changes?repo=app");
+    expect(changesRes.status).toBe(200);
+    const changesBody = (await changesRes.json()) as { repos: Array<{ changes: Array<{ path: string }> }> };
+    expect(changesBody.repos[0]?.changes[0]?.path).toBe(rel);
+
+    const diffRes = await app.request(`/git/diff?repo=app&file=${encodeURIComponent(`"${rel}"`)}`);
+    expect(diffRes.status).toBe(200);
+    const diffBody = (await diffRes.json()) as { diff: string; file: string };
+    expect(diffBody.file).toBe(rel);
+    expect(diffBody.diff).toContain("-{\"sourceLanguage\":\"en\"}");
+    expect(diffBody.diff).toContain("+{\"sourceLanguage\":\"fr\"}");
+  });
+
+  it("adds selected paths to .gitignore", async () => {
+    const project = makeProject();
+    const repoRoot = await makeRepo();
+    addRepo(project.backlogDir, { id: "app", path: repoRoot, defaultBranch: "main" });
+    fs.mkdirSync(path.join(repoRoot, "app", "services"), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, "app", "services", ".DS_Store"), "ignored\n", "utf8");
+
+    const app = harness(project);
+    const ignoreRes = await app.request("/git/ignore", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo: "app", paths: ["app/services/.DS_Store"] }),
+    });
+    expect(ignoreRes.status).toBe(200);
+    const ignoreBody = (await ignoreRes.json()) as { ignored: number; patterns_added: number; gitignore_path: string };
+    expect(ignoreBody).toMatchObject({ ignored: 1, patterns_added: 1 });
+    expect(fs.readFileSync(ignoreBody.gitignore_path, "utf8")).toContain("/app/services/.DS_Store");
+    const status = await git(["status", "--porcelain=v1"], repoRoot);
+    expect(status).not.toContain(".DS_Store");
+
+    const gitignoreRes = await app.request("/git/gitignore", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo: "app" }),
+    });
+    expect(gitignoreRes.status).toBe(200);
+    const gitignoreBody = (await gitignoreRes.json()) as { path: string };
+    expect(gitignoreBody.path).toBe(path.join(repoRoot, ".gitignore"));
+  });
+
   it("discards selected tracked and untracked changes", async () => {
     const project = makeProject();
     const repoRoot = await makeRepo();

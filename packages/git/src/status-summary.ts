@@ -65,12 +65,102 @@ function classifyEntry(indexStatus: string, workingTreeStatus: string): GitChang
   return null;
 }
 
+export function decodeGitQuotedPath(rawPath: string): string {
+  if (rawPath.length < 2 || rawPath[0] !== "\"" || rawPath[rawPath.length - 1] !== "\"") {
+    return rawPath;
+  }
+  let out = "";
+  let bytes: number[] = [];
+  const flushBytes = () => {
+    if (bytes.length === 0) return;
+    out += new TextDecoder().decode(new Uint8Array(bytes));
+    bytes = [];
+  };
+
+  for (let i = 1; i < rawPath.length - 1; i += 1) {
+    const ch = rawPath[i] ?? "";
+    if (ch !== "\\") {
+      flushBytes();
+      out += ch;
+      continue;
+    }
+
+    const next = rawPath[i + 1] ?? "";
+    if (!next) {
+      flushBytes();
+      out += "\\";
+      continue;
+    }
+    if (/[0-7]/.test(next)) {
+      let octal = next;
+      let consumed = 1;
+      while (consumed < 3 && /[0-7]/.test(rawPath[i + 1 + consumed] ?? "")) {
+        octal += rawPath[i + 1 + consumed];
+        consumed += 1;
+      }
+      bytes.push(Number.parseInt(octal, 8));
+      i += consumed;
+      continue;
+    }
+
+    flushBytes();
+    i += 1;
+    switch (next) {
+      case "a": out += "\u0007"; break;
+      case "b": out += "\b"; break;
+      case "f": out += "\f"; break;
+      case "n": out += "\n"; break;
+      case "r": out += "\r"; break;
+      case "t": out += "\t"; break;
+      case "v": out += "\v"; break;
+      case "\\":
+      case "\"":
+        out += next;
+        break;
+      default:
+        out += next;
+        break;
+    }
+  }
+  flushBytes();
+  return out;
+}
+
+function splitGitRenamePath(rawPath: string): [string, string] | null {
+  let quoted = false;
+  let escaped = false;
+  for (let i = 0; i <= rawPath.length - 4; i += 1) {
+    const ch = rawPath[i] ?? "";
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quoted && ch === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (ch === "\"") {
+      quoted = !quoted;
+      continue;
+    }
+    if (!quoted && rawPath.slice(i, i + 4) === " -> ") {
+      return [rawPath.slice(0, i), rawPath.slice(i + 4)];
+    }
+  }
+  return null;
+}
+
 function parsePath(rawPath: string, kind: GitChangeKind | null): { path: string; old_path?: string } {
   if (kind === "renamed") {
-    const [oldPath, newPath] = rawPath.split(" -> ");
-    if (oldPath && newPath) return { path: newPath, old_path: oldPath };
+    const renamed = splitGitRenamePath(rawPath);
+    if (renamed) {
+      const [oldPath, newPath] = renamed;
+      if (oldPath && newPath) {
+        return { path: decodeGitQuotedPath(newPath), old_path: decodeGitQuotedPath(oldPath) };
+      }
+    }
   }
-  return { path: rawPath };
+  return { path: decodeGitQuotedPath(rawPath) };
 }
 
 export function parseGitStatusEntries(output: string): GitStatusEntry[] {
@@ -122,11 +212,11 @@ export function parseGitStatusPorcelain(output: string): GitWorkingTreeStatus {
 }
 
 export async function getWorkingTreeStatus(repoRoot: string): Promise<GitWorkingTreeStatus> {
-  const output = await git(["status", "--porcelain=v1"], repoRoot);
+  const output = await git(["-c", "core.quotePath=false", "status", "--porcelain=v1"], repoRoot);
   return parseGitStatusPorcelain(output);
 }
 
 export async function listWorkingTreeChanges(repoRoot: string): Promise<GitStatusEntry[]> {
-  const output = await git(["status", "--porcelain=v1"], repoRoot);
+  const output = await git(["-c", "core.quotePath=false", "status", "--porcelain=v1"], repoRoot);
   return parseGitStatusEntries(output);
 }
