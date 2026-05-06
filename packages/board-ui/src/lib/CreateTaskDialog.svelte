@@ -2,23 +2,20 @@
   import {
     applySplitProposal,
     createTask,
-    fetchAgents,
-    fetchUsers,
     suggestSplit,
     type CreatedTask,
     type ProposedTask,
   } from "./api.js";
   import { t } from "./i18n.svelte.js";
-  import { formatAgentLabel } from "./agent-label.js";
-  import type { AgentSummary, UserSummary } from "./types.js";
 
   interface Props {
     availableRepos: string[];
+    agentId?: string | null;
     onClose: () => void;
     onCreated?: (result: { taskId: string; subTasksCreated: number }) => void;
   }
 
-  let { availableRepos, onClose, onCreated }: Props = $props();
+  let { availableRepos, agentId = null, onClose, onCreated }: Props = $props();
 
   function focusOnMount(node: HTMLElement): void {
     queueMicrotask(() => node.focus());
@@ -82,26 +79,6 @@
   let maxSplitTasks = $state(6);
   let maxSubagents = $state(3);
 
-  // Assignee for the (future) sub-task. Empty = "auto" (let the
-  // orchestrator rank). Otherwise either an AI agent id or a human
-  // user id (we treat them homogeneously — preferred_agents on the
-  // sub-task accepts either).
-  let assigneeId = $state<string>("");
-  let agentOptions = $state<AgentSummary[]>([]);
-  let userOptions = $state<UserSummary[]>([]);
-
-  // Load assignee candidates lazily on mount. Failures are silent —
-  // the dropdown just falls back to "Auto" only.
-  async function loadAssignees() {
-    const [agents, users] = await Promise.all([
-      fetchAgents().catch(() => []),
-      fetchUsers().catch(() => []),
-    ]);
-    agentOptions = agents.filter((a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom");
-    userOptions = users.filter((u) => u.status === "active");
-  }
-  loadAssignees();
-
   let createdTask = $state<CreatedTask | null>(null);
   let proposalTasks = $state<ProposedTask[]>([]);
   let proposalRationale = $state("");
@@ -132,10 +109,10 @@
       input.create_pr = worktreeMode === "isolated_worktree" ? createPr : false;
       input.merge_pr = worktreeMode === "isolated_worktree" ? mergePr : false;
       input.worktree_mode = worktreeMode;
-      // Empty assignee = "auto" (orchestrator picks). Anything else
-      // (agent id or user id) goes into preferred_agents and is
-      // inherited by the auto-shim sub-task or by split sub-tasks.
-      if (assigneeId) input.preferred_agents = [assigneeId];
+      // New tasks inherit the concrete model/agent selected in the
+      // header. The creation form should not ask again for the model;
+      // the header is the single source of truth for the next run.
+      if (agentId) input.preferred_agents = [agentId];
       const result = await createTask(input);
       const task = result.task;
       createdTask = task;
@@ -262,30 +239,6 @@
             {/each}
           </div>
         {/if}
-
-        <label>
-          {t("create_task.field.assignee")}
-          <select bind:value={assigneeId}>
-            <option value="">{t("create_task.assignee.auto")}</option>
-            {#if agentOptions.length > 0}
-              <optgroup label={t("create_task.assignee.group_ai")}>
-                {#each agentOptions as agent (agent.id)}
-                  <option value={agent.id} disabled={agent.needs_api_key}>
-                    {formatAgentLabel(agent).withContext}{agent.needs_api_key ? " 🔑" : ""}
-                  </option>
-                {/each}
-              </optgroup>
-            {/if}
-            {#if userOptions.length > 0}
-              <optgroup label={t("create_task.assignee.group_human")}>
-                {#each userOptions as user (user.id)}
-                  <option value={user.id}>{user.display_name} · {user.email}</option>
-                {/each}
-              </optgroup>
-            {/if}
-          </select>
-          <span class="field-hint">{t("create_task.assignee.hint")}</span>
-        </label>
 
         <fieldset class="execution">
           <legend>{t("create_task.execution.title")}</legend>

@@ -257,6 +257,15 @@ async function gitRun(cwd: string, args: string[]): Promise<{ exitCode: number |
   return { exitCode: result.exitCode ?? null, stdout: result.stdout, stderr: result.stderr };
 }
 
+async function hasGitMetadata(cwd: string): Promise<boolean> {
+  try {
+    await detectGitDir(cwd);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function patchArtifactPath(run: Run): string | null {
   const artifact = [...run.artifacts].reverse().find((item) => item.kind === "patch");
   if (!artifact) return null;
@@ -488,6 +497,15 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
       message: run.execution_mode === "direct"
         ? "Commit disabled — changes were left in the main checkout"
         : "Commit disabled — changes were left in the execution workspace",
+    });
+    return;
+  }
+
+  if (!(await hasGitMetadata(run.worktree_path))) {
+    appendRunEvent(backlogDir, runId, {
+      ts: new Date().toISOString(),
+      type: "run.commit_skipped",
+      message: "Folder is not a Git repository — changes were left in place without commit or push.",
     });
     return;
   }

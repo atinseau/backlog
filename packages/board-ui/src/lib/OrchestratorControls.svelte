@@ -23,13 +23,23 @@
     // Treats us as "running" for the Stop/Play visual so the user
     // can interrupt mid-flight.
     externalActive?: boolean;
+    canPlay?: boolean;
+    playBlockedTitle?: string;
     // Called when the user clicks Stop while a run is in flight but
     // the global orchestrator isn't running. Lets the parent cancel
     // those individual runs (or no-op).
     onStopActiveRuns?: () => Promise<void> | void;
   }
 
-  let { onError, onStarted, onPlay, externalActive = false, onStopActiveRuns }: Props = $props();
+  let {
+    onError,
+    onStarted,
+    onPlay,
+    externalActive = false,
+    canPlay = true,
+    playBlockedTitle = "",
+    onStopActiveRuns,
+  }: Props = $props();
 
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
@@ -113,6 +123,8 @@
   const playTitle = $derived(
     isRunning
       ? t("orchestrator.play.running")
+      : !canPlay
+        ? playBlockedTitle || t("orchestrator.play.nothing")
       : nothingToRun
         ? blockedByAgent
           ? t("orchestrator.play.no_agent")
@@ -144,7 +156,7 @@
     class="ctrl play"
     class:running={isRunning}
     onclick={handleStart}
-    disabled={busy || isRunning}
+    disabled={busy || isRunning || !canPlay}
     title={playTitle}
     aria-label="Play"
   >
@@ -187,11 +199,17 @@
      The "nothing to run" condition no longer disables it visually; if
      the user clicks with nothing queued, the orchestrator just no-ops. */
   .ctrl.play {
-    color: var(--text-primary);
+    color: var(--accent-on);
+    background: var(--accent);
   }
   .ctrl.play:disabled {
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 0.45;
+    background: transparent;
+    color: var(--text-subtle);
+  }
+  .ctrl.play:hover:not(:disabled) {
+    background: var(--accent-hover);
   }
   .ctrl.play.running {
     color: var(--success);

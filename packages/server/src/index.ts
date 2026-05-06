@@ -6,7 +6,7 @@ export interface StartServerOptions {
   project?: string;
   /** Compatibility alias for `project`. */
   workspace?: string;
-  /** Open a repository checkout without registering a Backlog project. */
+  /** Open a workspace folder without registering a Backlog project. */
   repoOnly?: string;
   port?: number;
   host?: string;

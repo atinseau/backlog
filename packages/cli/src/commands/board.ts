@@ -4,8 +4,6 @@ import { Command } from "commander";
 import {
   ensureProjectId,
   findProject,
-  getBacklogUserDir,
-  listRegisteredProjects,
   loadConfig,
 } from "@backlog/config";
 import { detectRepoRoot } from "@backlog/git";
@@ -69,23 +67,8 @@ function repoIdForCwd(projectRoot: string, backlogDir: string, cwd = process.cwd
   return matches[0]?.id ?? null;
 }
 
-function fallbackProjectRoot(): string | null {
-  const defaultBacklogProject = path.join(getBacklogUserDir(), "backlog");
-  try {
-    const fallback = findProject(defaultBacklogProject, { honorEnv: false, skipRegistry: true });
-    if (fallback) return fallback.root;
-  } catch {
-    // fall through to registry
-  }
-
-  const registered = listRegisteredProjects()
-    .filter((project) => findProject(project.path, { honorEnv: false, skipRegistry: true }) !== null)
-    .sort((a, b) => Date.parse(b.last_opened_at ?? b.added_at) - Date.parse(a.last_opened_at ?? a.added_at));
-  return registered[0]?.path ?? null;
-}
-
 function repoIdFromPath(repoRoot: string): string {
-  return path.basename(repoRoot).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "repository";
+  return path.basename(repoRoot).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace";
 }
 
 export async function resolveLaunchContext(cwd = process.cwd()): Promise<{
@@ -116,15 +99,18 @@ export async function resolveLaunchContext(cwd = process.cwd()): Promise<{
       pickProject: false,
     };
   } catch {
-    // Not in a git repository. Fall back to the registered-project picker.
+    // Not in a Git repository. Still open the current folder as a
+    // transient working folder: Backlog can run agents against normal
+    // folders too, and the user can promote it to a real project from
+    // the board if they want persistence.
   }
 
   return {
-    projectRoot: fallbackProjectRoot(),
+    projectRoot: null,
     projectId: null,
-    repoId: null,
-    repoOnlyRoot: null,
-    pickProject: true,
+    repoId: repoIdFromPath(cwd),
+    repoOnlyRoot: path.resolve(cwd),
+    pickProject: false,
   };
 }
 

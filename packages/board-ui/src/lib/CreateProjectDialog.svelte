@@ -224,7 +224,7 @@
             default_branch: defaultBranch.trim() || undefined,
           })
         : await registerProjectByPath(path.trim());
-      onCreated(project, mode !== "existing");
+      onCreated(project, false);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -408,6 +408,7 @@
   :global(.create-project-modal) {
     width: min(920px, calc(100vw - 48px));
     max-width: 920px;
+    max-height: min(760px, calc(100vh - 48px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -436,6 +437,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-height: 0;
   }
   .tabs {
     display: grid;
@@ -624,6 +626,14 @@
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+    position: sticky;
+    bottom: -20px;
+    z-index: 2;
+    margin: 0 -24px -20px;
+    padding: 12px 24px 14px;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.08);
   }
   footer .primary {
     background: var(--accent);

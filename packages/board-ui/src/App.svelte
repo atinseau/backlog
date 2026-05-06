@@ -493,6 +493,50 @@
         !a.needs_api_key,
     ),
   );
+  type PreflightAction = "project" | "workspace" | "task" | "agent";
+  type PreflightItem = {
+    id: PreflightAction;
+    label: string;
+    ok: boolean;
+    actionLabel: string;
+  };
+  const todoCount = $derived(board?.columns.todo?.length ?? 0);
+  const hasRunnableWorkspace = $derived(
+    repoOptions.some((repo) =>
+      repo.enabled !== false &&
+      repo.access_mode !== "no-access" &&
+      (Boolean(repo.checkout_path ?? repo.path) || Boolean(repo.remote_url)),
+    ),
+  );
+  const preflightItems = $derived.by<PreflightItem[]>(() => [
+    {
+      id: "project",
+      label: t("preflight.project"),
+      ok: Boolean(selectedProjectId),
+      actionLabel: t("preflight.action.project"),
+    },
+    {
+      id: "workspace",
+      label: t("preflight.workspace"),
+      ok: Boolean(selectedProjectId && hasRunnableWorkspace),
+      actionLabel: t("preflight.action.workspace"),
+    },
+    {
+      id: "task",
+      label: t("preflight.task"),
+      ok: Boolean(selectedProjectId && todoCount > 0),
+      actionLabel: t("preflight.action.task"),
+    },
+    {
+      id: "agent",
+      label: t("preflight.agent"),
+      ok: Boolean(selectedProjectId && hasReadyAIAgent),
+      actionLabel: t("preflight.action.agent"),
+    },
+  ]);
+  const blockingPreflightItems = $derived(preflightItems.filter((item) => !item.ok));
+  const playReady = $derived(Boolean(selectedProjectId && board && blockingPreflightItems.length === 0));
+  const playBlockedTitle = $derived(blockingPreflightItems[0]?.label ?? t("orchestrator.play.nothing"));
 
   // True whenever any sub-task on the board has an active run in a
   // status that's actually doing work (running / queued / preparing).
@@ -534,7 +578,14 @@
       return;
     }
     try {
-      projectRepos = await fetchRepositories();
+      const nextRepos = await fetchRepositories();
+      projectRepos = nextRepos;
+      if (!selectedRepoId && nextRepos.length === 1) {
+        const only = nextRepos[0]!;
+        selectedRepoId = only.id;
+        localStorage.setItem(REPO_STORAGE_KEY, only.id);
+        void refresh();
+      }
     } catch (err) {
       console.warn("repository fetch failed", err);
     }
@@ -1073,6 +1124,31 @@
     if (action === "api_keys") apiKeysOpen = true;
     if (action === "agents") applySection("agents");
     if (action === "repositories") applySection("repos");
+    if (action === "git") applySection("commits");
+  }
+
+  function handlePreflightAction(action: PreflightAction) {
+    if (action === "project") {
+      if (projects.length === 0) createProjectOpen = true;
+      else manageProjectsOpen = true;
+      return;
+    }
+    if (action === "workspace") {
+      reposShowCreate = true;
+      applySection("repos");
+      return;
+    }
+    if (action === "task") {
+      createTaskOpen = true;
+      return;
+    }
+    if (action === "agent") {
+      if (agentsList.length > 0 && !hasReadyAIAgent) {
+        apiKeysOpen = true;
+      } else {
+        applySection("agents");
+      }
+    }
   }
 
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
@@ -1161,6 +1237,7 @@
       focusRefreshTimer = null;
       void refreshProjects();
       void refreshRepos();
+      void refreshAgents();
       void refresh();
       if (selectedProjectId) void loadCloudStatus();
       // Re-establish SSE if the connection died while backgrounded.
@@ -1317,6 +1394,8 @@
           onStarted={openActivityPanel}
           onPlay={handleTopbarPlay}
           externalActive={hasInFlightRun}
+          canPlay={playReady}
+          playBlockedTitle={playBlockedTitle}
           onStopActiveRuns={handleStopActiveRuns}
         />
         <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
@@ -1411,16 +1490,24 @@
             }}
           />
         {:else if leftSection === "board"}
-          {#if agentsList.length > 0 && !hasReadyAIAgent}
-            <div class="preflight-banner" role="alert">
-              <span class="preflight-icon" aria-hidden="true">🔑</span>
+          {#if blockingPreflightItems.length > 0}
+            <div class="preflight-banner" role="status">
+              <span class="preflight-icon" aria-hidden="true">▶</span>
               <div class="preflight-text">
-                <strong>{t("preflight.no_api_key.title")}</strong>
-                <span>{t("preflight.no_api_key.body")}</span>
+                <strong>{t("preflight.title")}</strong>
+                <span>{t("preflight.body")}</span>
+                <ul class="preflight-list" aria-label={t("preflight.title")}>
+                  {#each preflightItems as item (item.id)}
+                    <li class:ok={item.ok}>
+                      <span aria-hidden="true">{item.ok ? "✓" : "•"}</span>
+                      <span>{item.label}</span>
+                      {#if !item.ok}
+                        <button type="button" onclick={() => handlePreflightAction(item.id)}>{item.actionLabel}</button>
+                      {/if}
+                    </li>
+                  {/each}
+                </ul>
               </div>
-              <button class="preflight-cta" onclick={() => (apiKeysOpen = true)}>
-                {t("preflight.no_api_key.cta")}
-              </button>
             </div>
           {/if}
           <main class="board" style:--columns-count={visibleColumns.length}>
@@ -1575,6 +1662,7 @@
 {#if createTaskOpen}
   <CreateTaskDialog
     availableRepos={repos}
+    agentId={selectedRunAgentId}
     onClose={() => (createTaskOpen = false)}
     onCreated={(result) => {
       // Auto-close the create dialog the moment the task lands. The
@@ -2067,22 +2155,29 @@
 
   .preflight-banner {
     margin: 12px 16px 0;
-    padding: 10px 14px;
-    border: 1px solid var(--warning);
-    background: var(--warning-bg);
+    padding: 12px 14px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
     border-radius: 6px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
   }
   .preflight-icon {
-    font-size: 18px;
-    color: var(--warning);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: var(--accent-on);
+    font-size: 12px;
     flex-shrink: 0;
   }
   .preflight-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .preflight-text strong {
-    color: var(--warning);
+    color: var(--text-primary);
     font-size: 13px;
   }
   .preflight-text span {
@@ -2090,17 +2185,36 @@
     color: var(--text-body);
     line-height: 1.4;
   }
-  .preflight-cta {
-    background: var(--warning);
-    color: var(--text-inverse);
-    border: 1px solid var(--warning);
-    border-radius: 4px;
-    padding: 5px 12px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    flex-shrink: 0;
+  .preflight-list {
+    margin: 8px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 6px;
+    list-style: none;
   }
-  .preflight-cta:hover { opacity: 0.9; }
+  .preflight-list li {
+    min-height: 28px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .preflight-list li.ok {
+    color: var(--success);
+  }
+  .preflight-list button {
+    background: var(--accent-bg);
+    color: var(--accent-text);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .preflight-list button:hover { background: var(--accent); color: var(--accent-on); }
 
 </style>

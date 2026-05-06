@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.48] - 2026-05-06
+
+Workspace startup and Play readiness polish.
+
+- **Launching `backlog` from any folder now opens that folder as the working workspace**, even when it is not a Git repository. Non-Git folders can run agents directly; Backlog leaves files in place and skips commit/push automatically.
+- **Project creation now registers the chosen folder as a workspace and returns to the board**, with a sticky modal footer so the Create button stays reachable.
+- **The header Play button now reflects launch readiness** with a visible checklist for project, workspace, task, and configured agent, refreshed when the window opens or becomes active.
+- **Tasks created from the board inherit the model selected in the header** instead of asking for a model/agent again inside the creation form.
+
 ## [1.4.47] - 2026-05-06
 
 Direct task runs without synthetic subtasks.

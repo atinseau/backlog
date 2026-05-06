@@ -147,7 +147,7 @@
     event.preventDefault();
     error = null;
     if (selectedRepos.length === 0) {
-      error = "Select at least one repository";
+      error = "Select at least one workspace";
       return;
     }
     submitting = true;
@@ -305,7 +305,7 @@
                   <option value="medium">medium</option>
                   <option value="high">high</option>
                 </select>
-                <select bind:value={aiTasks[index].repo} aria-label="repository">
+                <select bind:value={aiTasks[index].repo} aria-label="workspace">
                   {#each availableRepos as repo (repo)}
                     <option value={repo}>{repo}</option>
                   {/each}
@@ -349,9 +349,9 @@
     {#if view === "manual"}
       <form onsubmit={handleManualSubmit}>
         <fieldset>
-          <legend>Repositories</legend>
+          <legend>Workspaces</legend>
           {#if availableRepos.length === 0}
-            <p class="hint">No repositories detected on the board. Add repository targets to this task or to the project config.</p>
+            <p class="hint">No workspaces detected on the board. Add workspace targets to this task or to the project config.</p>
           {:else}
             <ul class="repos">
               {#each availableRepos as repo (repo)}

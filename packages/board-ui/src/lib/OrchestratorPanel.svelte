@@ -233,7 +233,7 @@
                   {#if d.predicted_cost_usd != null}
                     <span
                       class="cost"
-                      title={`Median cost across ${d.predicted_cost_sample_size ?? "?"} past runs (same repository + agent)`}
+                      title={`Median cost across ${d.predicted_cost_sample_size ?? "?"} past runs (same workspace + agent)`}
                     >≈ ${d.predicted_cost_usd.toFixed(2)}</span>
                   {/if}
                   {#if d.action === "run"}

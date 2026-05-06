@@ -153,9 +153,10 @@ export function projectsRoutes(
         });
       }
 
-      // Mirror the CLI's `backlog init` behaviour: if the chosen folder
-      // (or any direct child) is a git repository, auto-register it as
-      // a repo so the user lands on a usable project.
+      // Mirror the CLI's `backlog init` behaviour: auto-register the
+      // chosen folder as the default working target. If it is a Git
+      // repository we capture branch metadata; if it is a plain folder,
+      // it is still immediately usable for direct agent runs.
       let repos = await discoverRepoForProject(parsed.data.path, parsed.data.name);
       if (parsed.data.git_url && repos[0]) {
         const provider = detectGitProvider(parsed.data.git_url);

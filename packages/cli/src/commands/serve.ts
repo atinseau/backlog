@@ -62,8 +62,8 @@ export function registerServeCommand(program: Command): void {
     .option("-h, --host <host>", "Hostname or IP to bind", "127.0.0.1")
     .option("--project <path>", "Project directory containing .backlog/")
     .option("-w, --workspace <path>", "Compatibility alias for --project")
-    .option("--repository-only <path>", "Open a repository checkout without registering a Backlog project")
-    .addOption(new Option("--repo-only <path>", "Open a repository checkout without registering a Backlog project").hideHelp())
+    .option("--repository-only <path>", "Open a workspace folder without registering a Backlog project")
+    .addOption(new Option("--repo-only <path>", "Open a workspace folder without registering a Backlog project").hideHelp())
     .option("--no-open", "Do not open the browser automatically")
     .option("--open-url <url>", "Override the browser URL to open; relative URLs resolve against the local server")
     .option("--ui-dist <path>", "Override the UI build directory")
@@ -89,7 +89,7 @@ export function registerServeCommand(program: Command): void {
 
       console.log(`Backlog board listening at ${server.url}`);
       if (server.project.transient && server.project.repoOnly) {
-        console.log(`Repository: ${server.project.repoOnly.root}`);
+        console.log(`Workspace: ${server.project.repoOnly.root}`);
       } else {
         console.log(`Project: ${server.project.resolvedFrom}`);
       }

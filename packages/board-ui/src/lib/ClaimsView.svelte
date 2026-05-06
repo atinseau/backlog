@@ -264,7 +264,7 @@
   {#if paths.length > 0}
     <ul class="paths">
       {#each paths as file (file)}
-        <li>{file === "." || file === "/" || file === "*" || file === "**" ? "Tout le repository" : file}</li>
+        <li>{file === "." || file === "/" || file === "*" || file === "**" ? "Tout le workspace" : file}</li>
       {/each}
     </ul>
   {:else}
@@ -327,7 +327,7 @@
             </span>
             <span class="row-meta small">
               <code>{run.id}</code>
-              <span>{run.protects_repository ? "protege tout le repository" : `${run.protected_paths.length || run.planned_paths.length} fichier(s)`}</span>
+              <span>{run.protects_repository ? "protege tout le workspace" : `${run.protected_paths.length || run.planned_paths.length} fichier(s)`}</span>
               {#if run.finished_at}<span>{t("claims_view.finished_ago", { time: timeAgo(run.finished_at) })}</span>{/if}
             </span>
           </button>
@@ -384,7 +384,7 @@
 
           <div class="info-grid">
             <div><span>Appartient a</span><strong>{ownerLabel(selectedRun)}</strong></div>
-            <div><span>Repository</span><strong>{selectedRun.repo}</strong></div>
+            <div><span>Workspace</span><strong>{selectedRun.repo}</strong></div>
             <div><span>Execution</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
             <div><span>Duree</span><strong>{runDuration(selectedRun)}</strong></div>
             <div><span>Debut</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
@@ -420,7 +420,7 @@
           <section class="block">
             <h4>Protection</h4>
             {#if selectedRun.protects_repository}
-              <p class="notice">Ce run protege tout le repository.</p>
+              <p class="notice">Ce run protege tout le workspace.</p>
             {/if}
             {#if selectedRun.claims.length > 0}
               {#each selectedRun.claims as claim (claim.id)}
@@ -498,7 +498,7 @@
             </div>
           {/if}
           <div class="info-grid">
-            <div><span>Repository</span><strong>{selectedClaim.repo}</strong></div>
+            <div><span>Workspace</span><strong>{selectedClaim.repo}</strong></div>
             <div><span>Appartient a</span><strong>{claimAgentLabel(selectedClaim)}</strong></div>
             <div><span>Mode</span><strong>{selectedClaim.mode}</strong></div>
             <div><span>Age</span><strong>{claimAge(selectedClaim)}</strong></div>

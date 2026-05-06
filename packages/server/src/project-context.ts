@@ -49,7 +49,7 @@ export function resolveProject(explicit?: string): ServerProject {
 export async function createRepoOnlyProject(repoRootInput: string): Promise<ServerProject> {
   const repoRoot = path.resolve(repoRootInput);
   const basename = path.basename(repoRoot);
-  const repoId = slugify(basename) || "repository";
+  const repoId = slugify(basename) || "workspace";
   const projectName = titleFromBasename(basename);
   let defaultBranch = "main";
   try {

@@ -27,6 +27,17 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string; re
   return { root, backlogDir: path.join(root, ".backlog"), repoId: "demo" };
 }
 
+async function createPlainWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string }> {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-plain-launcher-"));
+  initLayout({
+    root,
+    projectName: "plain-launcher-test",
+    mode: "embedded",
+    repos: [{ id: "plain", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+  });
+  return { root, backlogDir: path.join(root, ".backlog"), repoId: "plain" };
+}
+
 async function createRemoteWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string; origin: string }> {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-remote-launcher-"));
   const seed = path.join(fixtureRoot, "seed");
@@ -194,6 +205,48 @@ describe("run-launcher", () => {
     expect(fs.readFileSync(path.join(root, "human-note.txt"), "utf8")).toBe("do not stage me\n");
     expect(fs.readFileSync(path.join(root, "direct.txt"), "utf8")).toBe("ok\n");
     expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.direct_dirty_allowed"))).toBe(true);
+  });
+
+  it("runs direct-mode tasks in a normal folder without Git metadata", async () => {
+    ({ root, backlogDir, repoId } = await createPlainWorkspace());
+    addAgent(backlogDir, {
+      id: "writer",
+      provider: "custom",
+      command: "node -e \"require('fs').writeFileSync('plain.txt', 'ok\\\\n')\"",
+      successMode: "complete",
+      allowedRepos: [repoId],
+      allowedRisk: ["medium"],
+    });
+    const workItem = createTask(backlogDir, {
+      title: "Write plain file",
+      repoTargets: [repoId],
+      autoCommit: true,
+      pushWhenDone: false,
+      worktreeMode: "direct",
+      preferredAgents: ["writer"],
+    });
+    createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Write plain file",
+      repo: repoId,
+      risk: "medium",
+      preferredAgents: ["writer"],
+    });
+
+    const config = loadConfig(backlogDir);
+    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
+    const result = await startRunsForPlan({ backlogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
+
+    expect(result.skipped).toEqual([]);
+    expect(result.started).toHaveLength(1);
+    expect(result.started[0]?.worktreePath).toBe(root);
+    expect(result.started[0]?.branch).toBe("local-folder");
+    expect(fs.readFileSync(path.join(root, "plain.txt"), "utf8")).toBe("ok\n");
+
+    const run = loadRun(backlogDir, result.started[0]!.runId);
+    expect(run?.execution_mode).toBe("direct");
+    expect(run?.status).toBe("succeeded");
+    expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.no_git"))).toBe(true);
   });
 
   it("prepares an isolated execution checkout for remote-only Git repositories", async () => {

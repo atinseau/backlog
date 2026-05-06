@@ -8,6 +8,7 @@ function slugify(value: string): string {
 }
 
 export async function discoverRepoForProject(root: string, projectName: string): Promise<RepoConfig[]> {
+  const fallbackId = slugify(projectName) || slugify(path.basename(root)) || "workspace";
   try {
     const repoRoot = await detectRepoRoot(root);
     let defaultBranch = "main";
@@ -22,7 +23,7 @@ export async function discoverRepoForProject(root: string, projectName: string):
 
     return [
       {
-        id: slugify(projectName) || path.basename(repoRoot),
+        id: fallbackId,
         path: repoRoot,
         default_branch: defaultBranch,
         enabled: true,
@@ -30,7 +31,15 @@ export async function discoverRepoForProject(root: string, projectName: string):
       },
     ];
   } catch {
-    return [];
+    return [
+      {
+        id: fallbackId,
+        path: root,
+        default_branch: "main",
+        enabled: true,
+        location: "local",
+      },
+    ];
   }
 }
 

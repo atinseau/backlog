@@ -118,7 +118,7 @@
           {#if currentProjectEntry}
             <div><span class="info-label">{t("settings.project.name")}</span><strong>{currentProjectEntry.name}</strong></div>
             <div><span class="info-label">{t("settings.project.location")}</span>
-              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "in-repository"}</span>
+              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "project-folder"}</span>
             </div>
           {/if}
           <div class="full">
