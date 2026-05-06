@@ -2,10 +2,13 @@
   import { onDestroy, onMount } from "svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import Column from "./lib/Column.svelte";
+  import BacklogView from "./lib/BacklogView.svelte";
   import CommitsView from "./lib/CommitsView.svelte";
   import CreateSubTaskDialog from "./lib/CreateSubTaskDialog.svelte";
   import CreateTaskDialog from "./lib/CreateTaskDialog.svelte";
   import IntegrationsView from "./lib/IntegrationsView.svelte";
+  import InstructionsView from "./lib/InstructionsView.svelte";
+  import HooksView from "./lib/HooksView.svelte";
   import AgentsView from "./lib/AgentsView.svelte";
   import UsageView from "./lib/UsageView.svelte";
   import DiffPanel from "./lib/DiffPanel.svelte";
@@ -18,7 +21,7 @@
   import Toasts from "./lib/Toasts.svelte";
   import UpdateBanner from "./lib/UpdateBanner.svelte";
   import CardMenu from "./lib/CardMenu.svelte";
-  import { getShowReviewColumn } from "./lib/settings.svelte.js";
+  import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
   import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import DirectDirtyDialog from "./lib/DirectDirtyDialog.svelte";
@@ -43,6 +46,7 @@
     fetchRepositories,
     fetchAgents,
     fetchHealth,
+    fetchProject,
     fetchProjectsList,
     fetchUsers,
     approveRun,
@@ -338,9 +342,13 @@
   // Column visibility — when In Review is hidden (default), review-status
   // tasks are merged into the doing column so they remain visible. The
   // user can still drop into review by editing the task explicitly.
+  const showBacklog = $derived(getShowBacklogColumn());
   const showReview = $derived(getShowReviewColumn());
   const visibleColumns = $derived(
-    showReview ? COLUMN_ORDER : COLUMN_ORDER.filter((k) => k !== "review"),
+    COLUMN_ORDER.filter((k) =>
+      (k !== "backlog" || showBacklog) &&
+      (k !== "review" || showReview),
+    ),
   );
   function cardsFor(key: ColumnKey): TaskCard[] {
     if (!board) return [];
@@ -672,6 +680,12 @@
     refresh();
     refreshRepos();
     refreshAgents();
+    void fetchProject()
+      .then((project) => {
+        const show = Boolean(project.board?.show_backlog_column);
+        setShowBacklogColumn(show);
+      })
+      .catch(() => undefined);
     if (selectedProjectId && getShowReviewColumn()) {
       void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
@@ -750,6 +764,14 @@
     refresh();
     refreshRepos();
     refreshAgents();
+    if (selectedProjectId) {
+      void fetchProject()
+        .then((project) => {
+          const show = Boolean(project.board?.show_backlog_column);
+          setShowBacklogColumn(show);
+        })
+        .catch(() => undefined);
+    }
     if (selectedProjectId && getShowReviewColumn()) {
       void setReviewConfig({ show_review_column: true }).catch(() => undefined);
     }
@@ -757,11 +779,11 @@
     if (selectedProjectId) loadCloudStatus();
   }
 
-  async function handleMove(workItemId: string, toStatus: string, _toColumn: ColumnKey) {
+  async function handleMove(taskId: string, toStatus: string, _toColumn: ColumnKey) {
     if (!board) return;
-    inFlightMove = workItemId;
+    inFlightMove = taskId;
     try {
-      await moveTask(workItemId, toStatus);
+      await moveTask(taskId, toStatus);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -770,12 +792,12 @@
     }
   }
 
-  async function handleReorder(workItemId: string, beforeId: string | null, afterId: string | null) {
+  async function handleReorder(taskId: string, beforeId: string | null, afterId: string | null) {
     try {
       const input: { before_id?: string; after_id?: string } = {};
       if (beforeId) input.before_id = beforeId;
       if (afterId) input.after_id = afterId;
-      await reorderTask(workItemId, input);
+      await reorderTask(taskId, input);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -1325,6 +1347,7 @@
         <LeftPanel
           repos={repoOptions}
           repoGitStatuses={repoGitStatuses}
+          backlogCount={board?.columns.backlog?.length ?? 0}
           selectedRepoId={selectedRepoId}
           onSelectRepo={(id) => { void selectRepo(id); }}
           onManageRepos={() => { reposShowCreate = false; applySection("repos"); }}
@@ -1420,6 +1443,15 @@
               />
             {/each}
           </main>
+        {:else if leftSection === "backlog"}
+          <BacklogView
+            embedded={true}
+            items={board?.columns.backlog ?? []}
+            availableRepositories={repos}
+            onClose={() => applySection("board")}
+            onChanged={() => { if (!connected) refresh(); else void refresh(); }}
+            onOpen={selectCard}
+          />
         {:else if leftSection === "activity"}
           <ClaimsView
             embedded={true}
@@ -1464,6 +1496,20 @@
             embedded={true}
             initialShowCreate={reposShowCreate}
             onClose={() => { reposShowCreate = false; applySection("board"); }}
+            onChanged={() => {
+              refreshRepos();
+              if (!connected) refresh();
+            }}
+          />
+        {:else if leftSection === "instructions"}
+          <InstructionsView
+            embedded={true}
+            onClose={() => applySection("board")}
+          />
+        {:else if leftSection === "hooks"}
+          <HooksView
+            embedded={true}
+            onClose={() => applySection("board")}
             onChanged={() => {
               refreshRepos();
               if (!connected) refresh();

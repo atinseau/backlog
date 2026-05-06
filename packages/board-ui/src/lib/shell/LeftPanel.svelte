@@ -11,18 +11,22 @@
 
   export type SectionKey =
     | "board"
+    | "backlog"
     | "activity"
     | "usage"
     | "commits"
     | "agents"
     | "users"
     | "integrations"
+    | "instructions"
+    | "hooks"
     | "repos"
     | "settings";
 
   interface Props {
     repos: Repository[];
     repoGitStatuses?: Record<string, GitStatusSummary>;
+    backlogCount?: number;
     selectedRepoId: string | null;
     onSelectRepo: (id: string | null) => void;
     onManageRepos: () => void;
@@ -34,6 +38,7 @@
   let {
     repos,
     repoGitStatuses = {},
+    backlogCount = 0,
     selectedRepoId,
     onSelectRepo,
     onManageRepos,
@@ -44,10 +49,13 @@
 
   const SECTIONS: { key: SectionKey; label: () => string; icon: string }[] = [
     { key: "board", label: () => t("nav.board"), icon: "▦" },
+    { key: "backlog", label: () => t("nav.backlog"), icon: "☰" },
     { key: "activity", label: () => t("nav.runs"), icon: "⏱" },
     { key: "usage", label: () => t("nav.usage"), icon: "▥" },
     { key: "commits", label: () => t("nav.git"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
+    { key: "instructions", label: () => t("nav.instructions"), icon: "▤" },
+    { key: "hooks", label: () => t("nav.hooks"), icon: "⌁" },
     { key: "repos", label: () => t("nav.repos"), icon: "📦" },
     { key: "settings", label: () => t("nav.settings"), icon: "⚙" },
   ];
@@ -84,6 +92,10 @@
         {#if item.key === "commits" && gitDirtyCount > 0}
           <span class="nav-badge" title={t("git_status.changed_total", { count: gitDirtyCount })}>
             {gitDirtyCount}
+          </span>
+        {:else if item.key === "backlog" && backlogCount > 0}
+          <span class="nav-badge" title={t("backlog_view.count", { count: backlogCount })}>
+            {backlogCount}
           </span>
         {/if}
       </button>

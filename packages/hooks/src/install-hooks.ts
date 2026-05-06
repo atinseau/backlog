@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const MANAGED_HOOK_MARKER = "Managed by Backlog";
+export const PRE_COMMIT_HOOK_VERSION = "2";
 export const PAUSE_FILE_NAME = "hook-paused-until";
 
 export interface PreCommitHookStatus {
@@ -9,6 +10,7 @@ export interface PreCommitHookStatus {
   exists: boolean;
   managed: boolean;
   backlogBin?: string;
+  installedVersion?: string;
   pointsToBacklogBin: boolean;
   upToDate: boolean;
 }
@@ -26,6 +28,7 @@ const PRE_COMMIT_TEMPLATE = `#!/usr/bin/env bash
 
 # Managed by Backlog. Reinstall through:
 #   backlog hooks install
+# Backlog hook version: __BACKLOG_HOOK_VERSION__
 
 set -euo pipefail
 
@@ -134,7 +137,8 @@ function renderPreCommitHook(params: {
   return readTemplate()
     .replace("__BACKLOG_BIN__", params.backlogBin)
     .replace("__BACKLOG_WORKSPACE__", params.projectRoot)
-    .replace("__BACKLOG_PAUSE_FILE__", pauseFile);
+    .replace("__BACKLOG_PAUSE_FILE__", pauseFile)
+    .replace("__BACKLOG_HOOK_VERSION__", PRE_COMMIT_HOOK_VERSION);
 }
 
 export function inspectPreCommitHook(
@@ -156,7 +160,9 @@ export function inspectPreCommitHook(
   const contents = fs.readFileSync(hookPath, "utf8");
   const managed = contents.includes(MANAGED_HOOK_MARKER);
   const backlogBinMatch = contents.match(/BACKLOG_BIN="([^"]+)"/);
+  const versionMatch = contents.match(/Backlog hook version:\s*([^\s]+)/);
   const configuredBin = backlogBinMatch?.[1];
+  const installedVersion = versionMatch?.[1];
   const pointsToBacklogBin = backlogBin ? configuredBin === backlogBin : Boolean(configuredBin);
   const upToDate = Boolean(
     managed &&
@@ -174,6 +180,7 @@ export function inspectPreCommitHook(
     exists: true,
     managed,
     ...(configuredBin ? { backlogBin: configuredBin } : {}),
+    ...(installedVersion ? { installedVersion } : {}),
     pointsToBacklogBin,
     upToDate,
   };

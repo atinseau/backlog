@@ -363,7 +363,7 @@ export function removeSubTask(backlogDir: string, id: string): SubTask {
   if (derivedWorkStatus) {
     updateTaskStatus(backlogDir, removed.task_id, derivedWorkStatus);
   } else {
-    updateTaskStatus(backlogDir, removed.task_id, "backlog");
+    updateTaskStatus(backlogDir, removed.task_id, "ready");
   }
 
   return removed;

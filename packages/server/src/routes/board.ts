@@ -57,6 +57,7 @@ interface SubTaskCard {
 interface TaskCard {
   id: string;
   title: string;
+  description?: string;
   priority: Task["priority"];
   status: Task["status"];
   labels: string[];
@@ -174,6 +175,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
   const now = Date.now();
 
   const columns: Record<ColumnKey, TaskCard[]> = {
+    backlog: [],
     todo: [],
     doing: [],
     review: [],
@@ -270,6 +272,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
     const card: TaskCard = {
       id: parentTask.id,
       title: parentTask.title,
+      ...(parentTask.description ? { description: parentTask.description } : {}),
       priority: parentTask.priority,
       status: parentTask.status,
       labels: parentTask.labels,

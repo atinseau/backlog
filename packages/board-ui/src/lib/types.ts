@@ -1,4 +1,4 @@
-export type ColumnKey = "todo" | "doing" | "review" | "done";
+export type ColumnKey = "backlog" | "todo" | "doing" | "review" | "done";
 export type Priority = "P0" | "P1" | "P2" | "P3";
 export type OrchestratorMode = "idle" | "running" | "paused" | "stopping";
 
@@ -71,6 +71,7 @@ export interface SubTaskCard {
 export interface TaskCard {
   id: string;
   title: string;
+  description?: string;
   priority: Priority;
   status: string;
   labels: string[];
@@ -174,6 +175,13 @@ export interface ProjectInfo {
     enforce_on_commit: boolean;
     auto_claim_on_commit: boolean;
   };
+  board?: {
+    show_backlog_column: boolean;
+  };
+  review?: {
+    show_review_column: boolean;
+    auto_reviewer_agent_id?: string;
+  };
 }
 
 export interface ProjectEntry {
@@ -248,15 +256,17 @@ export interface OrchestratorState {
 }
 
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
+  backlog: "Backlog",
   todo: "À faire",
   doing: "En cours",
   review: "In Review",
   done: "Done",
 };
 
-export const COLUMN_ORDER: ColumnKey[] = ["todo", "doing", "review", "done"];
+export const COLUMN_ORDER: ColumnKey[] = ["backlog", "todo", "doing", "review", "done"];
 
 export const COLUMN_DEFAULT_STATUS: Record<ColumnKey, string> = {
+  backlog: "backlog",
   todo: "ready",
   doing: "in_progress",
   review: "review",

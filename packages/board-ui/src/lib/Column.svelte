@@ -9,6 +9,7 @@
   } from "./types.js";
 
   const COLUMN_KEY_TO_T: Record<ColumnKey, string> = {
+    backlog: "column.backlog",
     todo: "column.todo",
     doing: "column.doing",
     review: "column.review",

@@ -10,6 +10,7 @@ import { claimsRoutes } from "./routes/claims.js";
 import { commitsRoutes } from "./routes/commits.js";
 import { eventsRoutes } from "./routes/events.js";
 import { integrationsRoutes } from "./routes/integrations.js";
+import { instructionsRoutes } from "./routes/instructions.js";
 import { healthRoutes } from "./routes/health.js";
 import { orchestrateRoutes } from "./routes/orchestrate.js";
 import { activityRoutes } from "./routes/activity.js";
@@ -116,6 +117,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", projectsRoutes(options.project));
   app.route("/api/v1", commitsRoutes());
   app.route("/api/v1", integrationsRoutes());
+  app.route("/api/v1", instructionsRoutes());
   app.route("/api/v1", usersRoutes());
   app.route("/api/v1", eventsRoutes(buses));
 

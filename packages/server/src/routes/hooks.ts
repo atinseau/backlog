@@ -1,7 +1,7 @@
 import { listRepos } from "@backlog/core";
 import { isLocalShimUpToDate, pickLocalShimProjectRoot, writeLocalShim } from "@backlog/config";
 import { repoCheckoutPath, type RepoConfig } from "@backlog/schemas";
-import { inspectPreCommitHook, installPreCommitHook, readPauseUntil, uninstallPreCommitHook } from "@backlog/hooks";
+import { PRE_COMMIT_HOOK_VERSION, inspectPreCommitHook, installPreCommitHook, readPauseUntil, uninstallPreCommitHook } from "@backlog/hooks";
 import { Hono } from "hono";
 import path from "node:path";
 import fs from "node:fs";
@@ -18,6 +18,8 @@ interface HookStatus {
   hook_path: string;
   exists: boolean;
   managed: boolean;
+  installed_version: string | null;
+  expected_version: string;
   points_to_backlog_bin: boolean;
   shim_up_to_date: boolean;
   up_to_date: boolean;
@@ -105,6 +107,8 @@ export function hooksRoutes(): Hono<AppEnv> {
           hook_path: "",
           exists: false,
           managed: false,
+          installed_version: null,
+          expected_version: PRE_COMMIT_HOOK_VERSION,
           points_to_backlog_bin: false,
           shim_up_to_date: shimUpToDate,
           up_to_date: false,
@@ -121,6 +125,8 @@ export function hooksRoutes(): Hono<AppEnv> {
           hook_path: "",
           exists: false,
           managed: false,
+          installed_version: null,
+          expected_version: PRE_COMMIT_HOOK_VERSION,
           points_to_backlog_bin: false,
           shim_up_to_date: shimUpToDate,
           up_to_date: false,
@@ -138,6 +144,8 @@ export function hooksRoutes(): Hono<AppEnv> {
         hook_path: status.hookPath,
         exists: status.exists,
         managed: status.managed,
+        installed_version: status.installedVersion ?? null,
+        expected_version: PRE_COMMIT_HOOK_VERSION,
         points_to_backlog_bin: status.pointsToBacklogBin,
         shim_up_to_date: shimUpToDate,
         up_to_date: status.upToDate && shimUpToDate,
@@ -190,6 +198,8 @@ export function hooksRoutes(): Hono<AppEnv> {
         hook_path: hookPath,
         exists: status.exists,
         managed: status.managed,
+        installed_version: status.installedVersion ?? null,
+        expected_version: PRE_COMMIT_HOOK_VERSION,
         points_to_backlog_bin: status.pointsToBacklogBin,
         shim_up_to_date: shimUpToDate,
         up_to_date: status.upToDate && shimUpToDate,
@@ -231,6 +241,8 @@ export function hooksRoutes(): Hono<AppEnv> {
         hook_path: status.hookPath,
         exists: status.exists,
         managed: status.managed,
+        installed_version: status.installedVersion ?? null,
+        expected_version: PRE_COMMIT_HOOK_VERSION,
         points_to_backlog_bin: status.pointsToBacklogBin,
         shim_up_to_date: shimUpToDate,
         up_to_date: status.upToDate && shimUpToDate,

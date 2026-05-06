@@ -445,7 +445,7 @@ export function removeRepo(backlogDir: string, repoId: string, options?: { force
         changed = true;
       }
       if (affectedProjectTasks.has(item.id)) {
-        item.status = deriveTaskStatusFromSubTasks(backlogDir, item.id) ?? "backlog";
+        item.status = deriveTaskStatusFromSubTasks(backlogDir, item.id) ?? "ready";
         changed = true;
       }
       if (changed) {

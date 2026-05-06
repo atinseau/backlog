@@ -17,7 +17,7 @@ import {
 } from "@backlog/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import { AiSplitterUnavailableError, fallbackTitle, suggestSplit, suggestTitle } from "../lib/ai-splitter.js";
+import { AiSplitterUnavailableError, fallbackTitle, refineTaskText, suggestSplit, suggestTitle } from "../lib/ai-splitter.js";
 import type { AppEnv } from "../project-resolver.js";
 
 const moveBodySchema = z.object({
@@ -43,6 +43,16 @@ const createBodySchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   priority: z.enum(["P0", "P1", "P2", "P3"]).optional(),
+  status: z.enum([
+    "backlog",
+    "ready",
+    "in_progress",
+    "review",
+    "test",
+    "released",
+    "done",
+    "blocked",
+  ]).optional(),
   repo_targets: z.array(z.string().min(1)).optional(),
   labels: z.array(z.string().min(1)).optional(),
   acceptance_criteria: z.array(z.string().min(1)).optional(),
@@ -190,6 +200,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       if (parsed.data.merge_pr !== undefined) input.mergePr = parsed.data.merge_pr;
       if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
+      if (parsed.data.status !== undefined) input.status = parsed.data.status;
       let workItem = createTask(project.backlogDir, input);
       if (parsed.data.estimated_duration_seconds) {
         workItem = setTaskEstimate(project.backlogDir, workItem.id, parsed.data.estimated_duration_seconds);
@@ -220,6 +231,33 @@ export function tasksRoutes(): Hono<AppEnv> {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return c.json({ error: "update_failed", detail: message }, 404);
+    }
+  });
+
+  app.post("/tasks/:id/refine", async (c) => {
+    const project = c.get("project");
+    const id = c.req.param("id");
+    const taskRecord = listTasks(project.backlogDir).find((item) => item.id === id);
+    if (!taskRecord) {
+      return c.json({ error: "unknown_task", id }, 404);
+    }
+    try {
+      const config = loadConfig(project.backlogDir);
+      const provider = config.ai_provider;
+      const secretKey = provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+      const apiKey = getSecret(project.backlogDir, secretKey) ?? undefined;
+      const refined = await refineTaskText(taskRecord, apiKey ? { provider, apiKey } : { provider });
+      const task = updateTask(project.backlogDir, id, {
+        title: refined.title,
+        description: refined.description,
+      });
+      return c.json({ task, model: refined.model });
+    } catch (error) {
+      if (error instanceof AiSplitterUnavailableError) {
+        return c.json({ error: "ai_unavailable", detail: error.message }, 503);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "refine_failed", detail: message }, 500);
     }
   });
 

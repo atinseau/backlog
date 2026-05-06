@@ -113,6 +113,11 @@ export const projectConfigSchema = z.object({
     cleanup_worktree_on_approve: true,
     delete_branch_after_merge: true,
   }),
+  board: z.object({
+    show_backlog_column: z.boolean().default(false),
+  }).default({
+    show_backlog_column: false,
+  }),
   // Review-mode policy. Only relevant when an agent's success_mode is
   // "review" (the run terminates in awaiting_review instead of
   // completing). When auto_reviewer_agent_id is set, the orchestrator

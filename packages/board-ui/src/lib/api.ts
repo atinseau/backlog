@@ -353,6 +353,23 @@ export async function setClaimsConfig(input: {
   }
 }
 
+export interface BoardConfig {
+  show_backlog_column?: boolean;
+}
+
+export async function setBoardConfig(input: BoardConfig): Promise<{ board: { show_backlog_column: boolean } }> {
+  const response = await fetch(apiUrl("/project/board"), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Board config update failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as { board: { show_backlog_column: boolean } };
+}
+
 export interface ReviewConfig {
   show_review_column?: boolean;
   auto_reviewer_agent_id?: string | null;
@@ -535,6 +552,7 @@ export interface CreateTaskInput {
   title?: string;
   description?: string;
   priority?: "P0" | "P1" | "P2" | "P3";
+  status?: "backlog" | "ready" | "in_progress" | "review" | "test" | "released" | "done" | "blocked";
   repo_targets?: string[];
   labels?: string[];
   acceptance_criteria?: string[];
@@ -667,6 +685,26 @@ export async function patchTask(id: string, input: PatchTaskInput): Promise<void
   if (!response.ok) {
     throw new Error(`Patch failed (${response.status}): ${await response.text().catch(() => "")}`);
   }
+}
+
+export interface RefinedTaskResult {
+  task: TaskDetail;
+  model: string;
+}
+
+export async function refineTask(id: string): Promise<RefinedTaskResult> {
+  const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}/refine`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof json === "object" && json && "detail" in json
+      ? String((json as { detail: string }).detail)
+      : `Refine failed (${response.status})`);
+  }
+  return json as RefinedTaskResult;
 }
 
 export interface CreateSubTaskInput {
@@ -1022,6 +1060,31 @@ export async function fetchUsage(opts: {
   }));
   if (!response.ok) throw new Error(`Usage fetch failed: ${response.status}`);
   return (await response.json()) as UsageResponse;
+}
+
+export interface InstructionFile {
+  scope: "project" | "repository";
+  repository_id?: string;
+  repository_name?: string;
+  root: string;
+  path: string;
+  relative_path: string;
+  name: string;
+  size_bytes: number;
+  updated_at: string;
+  content: string;
+  truncated: boolean;
+}
+
+export interface InstructionsResponse {
+  generated_at: string;
+  files: InstructionFile[];
+}
+
+export async function fetchInstructions(): Promise<InstructionsResponse> {
+  const response = await fetch(apiUrl("/instructions"));
+  if (!response.ok) throw new Error(`Instructions fetch failed: ${response.status}`);
+  return (await response.json()) as InstructionsResponse;
 }
 
 export async function startRun(input: StartRunInput): Promise<StartRunResult> {
@@ -2133,6 +2196,8 @@ export interface HookStatus {
   hook_path: string;
   exists: boolean;
   managed: boolean;
+  installed_version: string | null;
+  expected_version: string;
   points_to_backlog_bin: boolean;
   shim_up_to_date: boolean;
   up_to_date: boolean;

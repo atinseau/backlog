@@ -113,6 +113,9 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       cleanup_worktree_on_approve: true,
       delete_branch_after_merge: true,
     },
+    board: {
+      show_backlog_column: false,
+    },
     review: {
       show_review_column: false,
     },

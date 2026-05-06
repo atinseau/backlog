@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.45] - 2026-05-06
+
+Backlog, instructions, and hooks navigation.
+
+- **Backlog is now a first-class sidebar section** for ideas and pending requests that are not ready to become real tasks yet, with actions to refine an item with AI or move it into À faire.
+- **Projects can optionally show a Backlog kanban column** to the left of À faire, while normal task creation continues to land in À faire by default.
+- **Instructions and Hooks now have dedicated sidebar pages** — Backlog can read project/repository instruction files such as `AGENTS.md` and `CLAUDE.md`, and hooks show installed/expected versions with explicit install, update, and uninstall actions.
+- **The header model label is easier to read** with the selected model shown in the primary text color.
+
 ## [1.4.44] - 2026-05-06
 
 Git diff and file action polish.

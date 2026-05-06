@@ -5,6 +5,7 @@
 // behaves.
 
 const STORAGE_PREFIX = "backlog.settings.";
+const KEY_SHOW_BACKLOG = `${STORAGE_PREFIX}show_backlog_column`;
 const KEY_SHOW_REVIEW = `${STORAGE_PREFIX}show_review_column`;
 const KEY_NOTIFY_ON_RUN_COMPLETE = `${STORAGE_PREFIX}notify_on_run_complete`;
 const LEGACY_KEY_DISPLAY_NAME = `${STORAGE_PREFIX}display_name`;
@@ -15,6 +16,7 @@ const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
 // by other Backlog code we forgot about (e.g. project-keyed chat
 // history). A targeted list is safer.
 const APP_PREFERENCE_KEYS = [
+  KEY_SHOW_BACKLOG,
   KEY_SHOW_REVIEW,
   KEY_NOTIFY_ON_RUN_COMPLETE,
   LEGACY_KEY_DISPLAY_NAME,
@@ -54,8 +56,17 @@ function writeBool(key: string, value: boolean): void {
 // "doing" column and only enable it when they have a dedicated review
 // stage. When off, review-status cards still appear, merged into the
 // doing column so no work goes invisible.
+let showBacklogColumn = $state(readBool(KEY_SHOW_BACKLOG, false));
 let showReviewColumn = $state(readBool(KEY_SHOW_REVIEW, false));
 let notifyOnRunComplete = $state(readBool(KEY_NOTIFY_ON_RUN_COMPLETE, false));
+
+export function getShowBacklogColumn(): boolean {
+  return showBacklogColumn;
+}
+export function setShowBacklogColumn(value: boolean): void {
+  showBacklogColumn = value;
+  writeBool(KEY_SHOW_BACKLOG, value);
+}
 
 export function getShowReviewColumn(): boolean {
   return showReviewColumn;

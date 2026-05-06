@@ -23,6 +23,12 @@ const reviewBodySchema = z
   })
   .strict();
 
+const boardBodySchema = z
+  .object({
+    show_backlog_column: z.boolean().optional(),
+  })
+  .strict();
+
 export function projectRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
@@ -38,6 +44,7 @@ export function projectRoutes(): Hono<AppEnv> {
         autonomy_mode: config.autonomy_mode,
         max_agents: config.max_agents,
         claims: config.claims,
+        board: config.board,
         review: config.review,
       },
     });
@@ -56,6 +63,7 @@ export function projectRoutes(): Hono<AppEnv> {
         autonomy_mode: config.autonomy_mode,
         max_agents: config.max_agents,
         claims: config.claims,
+        board: config.board,
         review: config.review,
       },
     });
@@ -94,6 +102,24 @@ export function projectRoutes(): Hono<AppEnv> {
 
   app.patch("/project/claims", patchClaims);
   app.patch("/workspace/claims", patchClaims);
+
+  async function patchBoard(c: Context<AppEnv>) {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = boardBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    const config = loadConfig(project.backlogDir);
+    if (parsed.data.show_backlog_column !== undefined) {
+      config.board.show_backlog_column = parsed.data.show_backlog_column;
+    }
+    saveConfig(project.backlogDir, config);
+    return c.json({ board: config.board });
+  }
+
+  app.patch("/project/board", patchBoard);
+  app.patch("/workspace/board", patchBoard);
 
   async function patchReview(c: Context<AppEnv>) {
     const project = c.get("project");

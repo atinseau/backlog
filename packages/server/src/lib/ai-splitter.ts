@@ -15,6 +15,12 @@ export interface SplitProposal {
   model: string;
 }
 
+export interface RefinedTaskText {
+  title: string;
+  description: string;
+  model: string;
+}
+
 export type AiProvider = "anthropic" | "openai" | "codex";
 
 export class AiSplitterUnavailableError extends Error {
@@ -75,25 +81,59 @@ const PROPOSAL_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-function buildUserPrompt(workItem: Task, repos: string[]): string {
+const REFINE_SYSTEM_PROMPT = `You refine rough backlog ideas into actionable software tasks.
+
+Return ONLY a JSON object with:
+- title: a concise imperative software task title, max 70 characters
+- description: a polished task description in the same language as the input, 1-4 short paragraphs
+
+Rules:
+- Keep the user's intent intact; do not invent scope, deadlines, or technical decisions
+- Make unclear wording more concrete and actionable
+- If the input is already clear, improve wording lightly
+- Do not create sub-tasks or acceptance criteria unless they are already implied`;
+
+const REFINE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    description: { type: "string" },
+  },
+  required: ["title", "description"],
+  additionalProperties: false,
+} as const;
+
+function buildUserPrompt(task: Task, repositories: string[]): string {
   const lines: string[] = [];
-  lines.push(`Task id: ${workItem.id}`);
-  lines.push(`Title: ${workItem.title}`);
-  lines.push(`Priority: ${workItem.priority}`);
-  if (workItem.description) lines.push(`Description: ${workItem.description}`);
-  if (workItem.acceptance_criteria.length > 0) {
+  lines.push(`Task id: ${task.id}`);
+  lines.push(`Title: ${task.title}`);
+  lines.push(`Priority: ${task.priority}`);
+  if (task.description) lines.push(`Description: ${task.description}`);
+  if (task.acceptance_criteria.length > 0) {
     lines.push("Acceptance criteria:");
-    for (const ac of workItem.acceptance_criteria) lines.push(`- ${ac}`);
+    for (const ac of task.acceptance_criteria) lines.push(`- ${ac}`);
   }
-  if (workItem.labels.length > 0) lines.push(`Labels: ${workItem.labels.join(", ")}`);
-  lines.push(`Risk hint: ${workItem.planning.risk}`);
+  if (task.labels.length > 0) lines.push(`Labels: ${task.labels.join(", ")}`);
+  lines.push(`Risk hint: ${task.planning.risk}`);
   lines.push("");
-  lines.push(`Available repos for this project: ${repos.join(", ")}`);
-  if (workItem.repo_targets.length > 0) {
-    lines.push(`Preferred repo targets on this task: ${workItem.repo_targets.join(", ")}`);
+  lines.push(`Available repositories for this project: ${repositories.join(", ")}`);
+  if (task.repo_targets.length > 0) {
+    lines.push(`Preferred repository targets on this task: ${task.repo_targets.join(", ")}`);
   }
   lines.push("");
   lines.push("Propose 2 to 6 sub-tasks following the schema. Maximize parallelism where scopes don't overlap.");
+  return lines.join("\n");
+}
+
+function buildRefinePrompt(task: Task): string {
+  const lines: string[] = [];
+  lines.push(`Task id: ${task.id}`);
+  lines.push(`Current title: ${task.title}`);
+  if (task.description) lines.push(`Current description: ${task.description}`);
+  if (task.labels.length > 0) lines.push(`Labels: ${task.labels.join(", ")}`);
+  if (task.repo_targets.length > 0) lines.push(`Target repositories: ${task.repo_targets.join(", ")}`);
+  lines.push("");
+  lines.push("Refine this backlog idea into a clearer task, preserving the language and intent.");
   return lines.join("\n");
 }
 
@@ -124,8 +164,8 @@ Examples:
 description: "the user dropdown in the topbar is broken when the avatar is missing"
 title: Fix topbar user dropdown when avatar is missing
 
-description: "add a hello.html with a basic h1 and link to the homepage at the repo root"
-title: Add hello.html with h1 and homepage link at repo root
+description: "add a hello.html with a basic h1 and link to the homepage at the repository root"
+title: Add hello.html with h1 and homepage link at repository root
 
 description: "configure GitHub Actions to run tests on every push to main"
 title: Wire GitHub Actions to run tests on every push to main`;
@@ -232,25 +272,133 @@ export function fallbackTitle(description: string): string {
   return capitalised.length > 70 ? capitalised.slice(0, 67).trimEnd() + "…" : capitalised;
 }
 
+export async function refineTaskText(
+  task: Task,
+  options: SuggestOptions = {},
+): Promise<RefinedTaskText> {
+  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
+  if (provider === "anthropic") return refineTaskTextAnthropic(task, options);
+  if (provider === "openai" || provider === "codex") return refineTaskTextOpenAi(task, { ...options, isCodex: provider === "codex" });
+  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
+}
+
+async function refineTaskTextAnthropic(
+  task: Task,
+  options: SuggestOptions,
+): Promise<RefinedTaskText> {
+  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
+  }
+  const client = new Anthropic({ apiKey });
+  const model = options.model ?? "claude-haiku-4-5";
+  const response = await client.messages.create({
+    model,
+    max_tokens: 900,
+    system: REFINE_SYSTEM_PROMPT,
+    output_config: {
+      format: {
+        type: "json_schema",
+        schema: REFINE_SCHEMA as unknown as Record<string, unknown>,
+      },
+    },
+    messages: [{ role: "user", content: buildRefinePrompt(task) }],
+  });
+  const textBlock = response.content.find(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  );
+  if (!textBlock) {
+    throw new Error("Anthropic response had no text block.");
+  }
+  return validateRefinedText(parseJsonObject(textBlock.text, "Anthropic"), model);
+}
+
+async function refineTaskTextOpenAi(
+  task: Task,
+  options: SuggestOptions & { isCodex?: boolean },
+): Promise<RefinedTaskText> {
+  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new AiSplitterUnavailableError("OPENAI_API_KEY is not set.");
+  }
+  const model = options.model ?? (options.isCodex ? "gpt-5-codex" : "gpt-5-mini");
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: REFINE_SYSTEM_PROMPT },
+        { role: "user", content: buildRefinePrompt(task) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "refined_task",
+          strict: true,
+          schema: REFINE_SCHEMA,
+        },
+      },
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`OpenAI returned ${response.status}: ${detail.slice(0, 500)}`);
+  }
+  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const text = json.choices?.[0]?.message?.content ?? "";
+  if (!text.trim()) throw new Error("OpenAI returned an empty refinement.");
+  return validateRefinedText(parseJsonObject(text, "OpenAI"), model);
+}
+
+function parseJsonObject(text: string, provider: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(
+      `${provider} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
+    );
+  }
+}
+
+function validateRefinedText(parsed: unknown, model: string): RefinedTaskText {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Refinement is not an object.");
+  }
+  const obj = parsed as Record<string, unknown>;
+  const title = cleanupTitle(String(obj.title ?? ""));
+  const description = String(obj.description ?? "").trim();
+  if (!title) throw new Error("Refinement did not include a title.");
+  if (!description) throw new Error("Refinement did not include a description.");
+  return {
+    title,
+    description: description.length > 4000 ? `${description.slice(0, 3997).trimEnd()}...` : description,
+    model,
+  };
+}
+
 export async function suggestSplit(
-  workItem: Task,
-  repos: string[],
+  task: Task,
+  repositories: string[],
   options: SuggestOptions = {},
 ): Promise<SplitProposal> {
-  if (repos.length === 0) {
+  if (repositories.length === 0) {
     throw new Error("No repositories available — configure at least one repository in the project before splitting.");
   }
   const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
-  if (provider === "anthropic") return suggestSplitAnthropic(workItem, repos, options);
+  if (provider === "anthropic") return suggestSplitAnthropic(task, repositories, options);
   if (provider === "openai" || provider === "codex") {
-    return suggestSplitOpenAi(workItem, repos, { ...options, isCodex: provider === "codex" });
+    return suggestSplitOpenAi(task, repositories, { ...options, isCodex: provider === "codex" });
   }
   throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
 }
 
 async function suggestSplitAnthropic(
-  workItem: Task,
-  repos: string[],
+  task: Task,
+  repositories: string[],
   options: SuggestOptions,
 ): Promise<SplitProposal> {
   const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
@@ -275,7 +423,7 @@ async function suggestSplitAnthropic(
     messages: [
       {
         role: "user",
-        content: buildUserPrompt(workItem, repos),
+        content: buildUserPrompt(task, repositories),
       },
     ],
   });
@@ -293,12 +441,12 @@ async function suggestSplitAnthropic(
       `Anthropic returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${textBlock.text.slice(0, 500)}`,
     );
   }
-  return validateProposal(parsed, repos, model);
+  return validateProposal(parsed, repositories, model);
 }
 
 async function suggestSplitOpenAi(
-  workItem: Task,
-  repos: string[],
+  task: Task,
+  repositories: string[],
   options: SuggestOptions & { isCodex?: boolean },
 ): Promise<SplitProposal> {
   const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
@@ -318,7 +466,7 @@ async function suggestSplitOpenAi(
       model,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(workItem, repos) },
+        { role: "user", content: buildUserPrompt(task, repositories) },
       ],
       response_format: {
         type: "json_schema",
@@ -347,10 +495,10 @@ async function suggestSplitOpenAi(
       `OpenAI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
     );
   }
-  return validateProposal(parsed, repos, model);
+  return validateProposal(parsed, repositories, model);
 }
 
-function validateProposal(parsed: unknown, repos: string[], model: string): SplitProposal {
+function validateProposal(parsed: unknown, repositories: string[], model: string): SplitProposal {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Proposal is not an object");
   }
@@ -370,9 +518,9 @@ function validateProposal(parsed: unknown, repos: string[], model: string): Spli
       : [];
     if (!title) throw new Error(`tasks[${index}].title is required`);
     if (!repo) throw new Error(`tasks[${index}].repo is required`);
-    if (!repos.includes(repo)) {
+    if (!repositories.includes(repo)) {
       throw new Error(
-        `tasks[${index}].repo='${repo}' is not in the project repos [${repos.join(", ")}]`,
+        `tasks[${index}].repo='${repo}' is not in the project repositories [${repositories.join(", ")}]`,
       );
     }
     if (risk !== "low" && risk !== "medium" && risk !== "high") {

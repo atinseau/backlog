@@ -185,7 +185,7 @@
   .trigger.inline .name {
     font-size: 13px;
     font-weight: 400;
-    color: var(--text-muted);
+    color: var(--text-primary);
   }
   .trigger.inline .trigger-text {
     max-width: min(230px, 20vw);

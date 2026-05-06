@@ -123,6 +123,7 @@
       const input: Parameters<typeof createTask>[0] = {
         description: description.trim(),
         priority,
+        status: "ready",
       };
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = manualApproval;

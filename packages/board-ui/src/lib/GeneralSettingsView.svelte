@@ -9,12 +9,13 @@
   import { t } from "./i18n.svelte.js";
   import { formatAgentLabel } from "./agent-label.js";
   import {
+    getShowBacklogColumn, setShowBacklogColumn,
     getShowReviewColumn, setShowReviewColumn,
     getNotifyOnRunComplete, setNotifyOnRunComplete,
     resetOnboarding,
     resetAllLocalSettings,
   } from "./settings.svelte.js";
-  import { fetchAgents, fetchHealth, fetchProject, setReviewConfig, updateBacklogCli, type HealthResponse } from "./api.js";
+  import { fetchAgents, fetchHealth, fetchProject, setBoardConfig, setReviewConfig, updateBacklogCli, type HealthResponse } from "./api.js";
   import type { AgentSummary } from "./types.js";
 
   interface Props {
@@ -23,6 +24,7 @@
 
   let { onClose }: Props = $props();
 
+  const showBacklog = $derived(getShowBacklogColumn());
   const showReview = $derived(getShowReviewColumn());
   const notifyRuns = $derived(getNotifyOnRunComplete());
 
@@ -51,6 +53,15 @@
       agentOptions = agents.filter(
         (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
       );
+      const board = (project as unknown as { board?: { show_backlog_column?: boolean } } | null)?.board;
+      if (board?.show_backlog_column) {
+        setShowBacklogColumn(board.show_backlog_column);
+      } else if (getShowBacklogColumn()) {
+        await setBoardConfig({ show_backlog_column: true });
+      } else if (board?.show_backlog_column !== undefined) {
+        setShowBacklogColumn(false);
+      }
+
       const review = (project as unknown as { review?: { show_review_column?: boolean; auto_reviewer_agent_id?: string } } | null)?.review;
       if (review?.show_review_column) {
         setShowReviewColumn(review.show_review_column);
@@ -115,6 +126,15 @@
       reviewerSaving = false;
     }
   }
+  async function toggleBacklog(event: Event) {
+    const value = (event.currentTarget as HTMLInputElement).checked;
+    setShowBacklogColumn(value);
+    try {
+      await setBoardConfig({ show_backlog_column: value });
+    } catch {
+      setShowBacklogColumn(!value);
+    }
+  }
   function toggleNotify(event: Event) {
     const value = (event.currentTarget as HTMLInputElement).checked;
     setNotifyOnRunComplete(value);
@@ -157,6 +177,13 @@
       <section class="block">
         <h3>{t("settings.board.title")}</h3>
         <p class="hint">{t("settings.board.hint")}</p>
+        <label class="toggle">
+          <input type="checkbox" checked={showBacklog} onchange={toggleBacklog} />
+          <span>
+            <span class="toggle-label">{t("settings.board.show_backlog")}</span>
+            <span class="toggle-desc">{t("settings.board.show_backlog_desc")}</span>
+          </span>
+        </label>
         <label class="toggle">
           <input type="checkbox" checked={showReview} onchange={toggleReview} />
           <span>

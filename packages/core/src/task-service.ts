@@ -18,6 +18,7 @@ export interface CreateTaskInput {
   createPr?: boolean;
   mergePr?: boolean;
   worktreeMode?: "isolated_worktree" | "direct";
+  status?: TaskStatus;
   // Default assignee for sub-tasks generated from this task. Single
   // agent / user id, or empty for "auto". Threaded into the auto-shim
   // sub-task in POST /runs.
@@ -53,7 +54,7 @@ export function createTask(backlogDir: string, input: CreateTaskInput): Task {
     title: input.title,
     ...(input.description ? { description: input.description } : {}),
     source_links: input.sourceLinks ?? [],
-    status: "backlog",
+    status: input.status ?? "ready",
     priority: input.priority ?? "P2",
     labels: input.labels ?? [],
     repo_targets: input.repoTargets ?? [],
