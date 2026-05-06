@@ -190,7 +190,9 @@ export async function migrateProjectIds(backlogDir: string): Promise<MigrationRe
     const oldId = r.id;
     rewriteIdField(r, runNum.map);
     r.task_id = rewriteRef(r.task_id, taskNum.map) ?? r.task_id;
-    r.subtask_id = rewriteRef(r.subtask_id, subtaskNum.map) ?? r.subtask_id;
+    if (r.subtask_id) r.subtask_id = rewriteRef(r.subtask_id, subtaskNum.map) ?? r.subtask_id;
+    if (r.target_type === "task" && r.target_id) r.target_id = rewriteRef(r.target_id, taskNum.map) ?? r.target_id;
+    if ((r.target_type ?? "subtask") === "subtask" && r.target_id) r.target_id = rewriteRef(r.target_id, subtaskNum.map) ?? r.target_id;
     r.claim_ids = (r.claim_ids ?? []).map((id) => claimNum.map.get(id) ?? id);
     runsRenamed.push(r);
     // Run directories on disk are named after the run id — rename them.

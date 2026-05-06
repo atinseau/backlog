@@ -16,9 +16,13 @@ import {
   listAllRuns,
   loadRun,
   requestRunChanges,
+  runSubTaskId,
+  runTargetId,
+  runTargetType,
   sendRunToReview,
   updateRunStatus,
   updateSubTaskStatus,
+  updateTaskStatus,
 } from "@backlog/core";
 
 export function registerRunCommand(program: Command): void {
@@ -96,7 +100,7 @@ export function registerRunCommand(program: Command): void {
         if (options.repo && run.repo !== options.repo) {
           return false;
         }
-        if (options.subtask && run.subtask_id !== options.subtask) {
+        if (options.subtask && runSubTaskId(run) !== options.subtask) {
           return false;
         }
         if (options.task && run.task_id !== options.task) {
@@ -124,7 +128,7 @@ export function registerRunCommand(program: Command): void {
       }
       for (const run of runs) {
         const bucket = isTerminalRunStatus(run.status) ? "archived" : "active";
-        console.log(`${run.id} | ${bucket} | ${run.subtask_id} | ${run.repo} | ${run.agent_id} | ${run.status} | ${run.execution_mode} | claims=${run.claim_ids.length}`);
+        console.log(`${run.id} | ${bucket} | ${runTargetType(run)}:${runTargetId(run)} | ${run.repo} | ${run.agent_id} | ${run.status} | ${run.execution_mode} | claims=${run.claim_ids.length}`);
       }
     });
 
@@ -147,7 +151,8 @@ export function registerRunCommand(program: Command): void {
         return;
       }
       console.log(`Run: ${run.id}`);
-      console.log(`Task: ${run.subtask_id}`);
+      console.log(`Target: ${runTargetType(run)}:${runTargetId(run)}`);
+      console.log(`Task: ${run.task_id}`);
       console.log(`Repository: ${run.repo}`);
       console.log(`Agent: ${run.agent_id}`);
       console.log(`Status: ${run.status}`);
@@ -192,7 +197,12 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not interruptible from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "interrupted", "Interrupted by operator");
-      updateSubTaskStatus(workspace.backlogDir, run.subtask_id, "planned");
+      const subtaskId = runSubTaskId(run);
+      if (subtaskId) {
+        updateSubTaskStatus(workspace.backlogDir, subtaskId, "planned");
+      } else {
+        updateTaskStatus(workspace.backlogDir, run.task_id, "ready");
+      }
       console.log(`Interrupted ${runId}`);
     });
 
@@ -213,9 +223,12 @@ export function registerRunCommand(program: Command): void {
         throw new Error(`Run ${runId} is not resumable from status ${run.status}`);
       }
       updateRunStatus(workspace.backlogDir, runId, "running", "Resumed by operator");
-      const task = getSubTask(workspace.backlogDir, run.subtask_id);
+      const subtaskId = runSubTaskId(run);
+      const task = subtaskId ? getSubTask(workspace.backlogDir, subtaskId) : null;
       if (task) {
         updateSubTaskStatus(workspace.backlogDir, task.id, "running");
+      } else {
+        updateTaskStatus(workspace.backlogDir, run.task_id, "in_progress");
       }
       console.log(`Resumed ${runId}`);
     });

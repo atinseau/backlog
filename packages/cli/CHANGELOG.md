@@ -4,6 +4,14 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.47] - 2026-05-06
+
+Direct task runs without synthetic subtasks.
+
+- **Simple tasks now run directly** when they do not have explicit subtasks, so Backlog no longer creates hidden planner subtasks for straightforward work.
+- **Run state now distinguishes tasks from subtasks** with explicit `target_type`/`target_id` metadata while keeping `subtask_id` only for real subtasks.
+- **Agent prompts, board state, API responses, and CLI run output now describe the actual run target** so simple runs no longer mention unnecessary subtasks.
+
 ## [1.4.46] - 2026-05-06
 
 Profile, usage, and model picker fixes.

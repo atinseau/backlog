@@ -10,6 +10,9 @@ import {
   listRepos,
   listSubTasks,
   listTasks,
+  runSubTaskId,
+  runTargetType,
+  taskExecutionTarget,
 } from "@backlog/core";
 import { emptyGitWorkingTreeStatus, getWorkingTreeStatus, type GitWorkingTreeStatus } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
@@ -97,13 +100,7 @@ function summarizeClaim(claim: ClaimRecord, blocking = false): ClaimSummary {
 }
 
 function findActiveRun(runs: Run[], subtaskId: string): Run | null {
-  // Run records carry both `subtask_id` (the executable unit) and
-  // `task_id` (the parent task). The board card's task is a
-  // SubTask, so we must match on `subtask_id` — comparing against
-  // `task_id` would only ever match the parent and silently leave
-  // `active_run` null, which collapses the progress bar to the
-  // 50% status fallback while a run is in flight.
-  return runs.find((run) => run.subtask_id === subtaskId) ?? null;
+  return runs.find((run) => runSubTaskId(run) === subtaskId) ?? null;
 }
 
 function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null {
@@ -161,15 +158,26 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
   const claims = listActiveClaims(project.backlogDir);
   const runs = listActiveRuns(project.backlogDir);
   const repoGitStatuses = await buildRepoGitStatuses(project);
+  const allRuns = listAllRuns(project.backlogDir);
   const latestRunsBySubtask = new Map<string, Run>();
-  for (const run of listAllRuns(project.backlogDir)) {
-    const previous = latestRunsBySubtask.get(run.subtask_id);
+  const latestRunsByTask = new Map<string, Run>();
+  for (const run of allRuns) {
+    const targetType = runTargetType(run);
+    const targetId = targetType === "subtask" ? runSubTaskId(run) : run.task_id;
+    if (!targetId) continue;
+    const targetMap = targetType === "task" ? latestRunsByTask : latestRunsBySubtask;
+    const previous = targetMap.get(targetId);
     const currentTime = new Date(run.finished_at ?? run.started_at ?? 0).getTime();
     const previousTime = previous ? new Date(previous.finished_at ?? previous.started_at ?? 0).getTime() : -1;
     if (!previous || currentTime >= previousTime) {
-      latestRunsBySubtask.set(run.subtask_id, run);
+      targetMap.set(targetId, run);
     }
   }
+  const activeRunsByTask = new Map(
+    runs
+      .filter((run) => runTargetType(run) === "task")
+      .map((run) => [run.task_id, run] as const),
+  );
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const archivedRunsCtx = { tasksById };
@@ -192,6 +200,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
 
     const itemTasks = tasks.filter((task) => {
       if (task.task_id !== parentTask.id) return false;
+      if (task.planner.origin === "implicit") return false;
       if (filters.repo && task.repo !== filters.repo) return false;
       return true;
     });
@@ -248,6 +257,56 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
         implicit: task.planner.origin === "implicit",
       };
     });
+
+    if (itemTasks.length === 0) {
+      const directRun = activeRunsByTask.get(parentTask.id) ?? latestRunsByTask.get(parentTask.id) ?? null;
+      if (directRun) {
+        const target = taskExecutionTarget(parentTask, directRun.repo);
+        const activeRun = activeRunsByTask.get(parentTask.id) ?? null;
+        const claimIds = activeRun?.claim_ids ?? [];
+        const activeClaim = findActiveClaimForTask(claims, target, claimIds);
+        const estimateSeconds = parentTask.estimated_duration_seconds ?? 900;
+        const progress = computeSubTaskProgress({
+          task: target,
+          activeRun,
+          estimateSeconds,
+          now,
+        });
+        const isOpen = parentTask.status !== "done" && parentTask.status !== "released";
+        cardEstimateSeconds += isOpen ? estimateSeconds : 0;
+        const elapsed = elapsedSeconds(activeRun, now);
+        cardRemainingSeconds += isOpen ? Math.max(0, estimateSeconds - (elapsed ?? 0)) : 0;
+        taskCards.push({
+          id: parentTask.id,
+          title: parentTask.title,
+          repo: directRun.repo,
+          status: target.status,
+          scopes: target.scopes,
+          blockers: target.blockers,
+          risk: target.risk,
+          priority_score: target.priority_score,
+          active_run: activeRun
+            ? {
+                id: activeRun.id,
+                status: activeRun.status,
+                agent_id: activeRun.agent_id,
+                started_at: activeRun.started_at,
+                execution_mode: activeRun.execution_mode,
+                result: activeRun.result,
+              }
+            : null,
+          latest_run: summarizeRun(directRun),
+          active_claim: activeClaim ? summarizeClaim(activeClaim) : null,
+          estimated_duration_seconds: estimateSeconds,
+          estimate_source: parentTask.estimated_duration_seconds ? "manual" : "auto",
+          elapsed_seconds: progress.elapsed_seconds,
+          progress_percent: progress.percent,
+          progress_source: progress.source,
+          eta: etaIso(activeRun, estimateSeconds),
+          implicit: true,
+        });
+      }
+    }
 
     taskCards.sort((a, b) => b.priority_score - a.priority_score);
 

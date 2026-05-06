@@ -1,19 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
+import type { Agent, Run, Task } from "@backlog/schemas";
 import { loadConfig } from "@backlog/config";
 import { appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { successModeForAgent } from "./provider-utils.js";
+import type { ExecutionTarget } from "./execution-target.js";
 
-function buildEnv(agent: Agent, run: Run, task: SubTask, workItem: Task): NodeJS.ProcessEnv {
+function buildEnv(agent: Agent, run: Run, task: ExecutionTarget, workItem: Task): NodeJS.ProcessEnv {
   return {
     ...process.env,
     ...agent.environment,
     BACKLOG_RUN_ID: run.id,
     BACKLOG_TASK_ID: workItem.id,
     BACKLOG_SUBTASK_ID: task.id,
+    BACKLOG_TARGET_TYPE: task.target_type ?? "subtask",
+    BACKLOG_TARGET_ID: task.id,
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
@@ -23,7 +26,7 @@ function buildEnv(agent: Agent, run: Run, task: SubTask, workItem: Task): NodeJS
 export async function executeCustomAgentRun(params: {
   backlogDir: string;
   run: Run;
-  task: SubTask;
+  task: ExecutionTarget;
   workItem: Task;
   agent: Agent;
 }): Promise<void> {

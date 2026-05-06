@@ -4,6 +4,7 @@ export * from "./claude-executor.js";
 export * from "./codex-executor.js";
 export * from "./custom-executor.js";
 export * from "./estimator.js";
+export * from "./execution-target.js";
 export * from "./executor.js";
 export * from "./orchestrator-loop.js";
 export * from "./orchestrator-state.js";

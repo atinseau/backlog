@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runSchema, type Artifact, type Run, type SubTask, type Task } from "@backlog/schemas";
+import { runSchema, type Artifact, type Run, type Task } from "@backlog/schemas";
 import type { Agent } from "@backlog/schemas";
 import { nextId } from "@backlog/config";
+import type { ExecutionTarget } from "./execution-target.js";
 
 function activeRunsDir(backlogDir: string): string {
   return path.join(backlogDir, "runs", "active");
@@ -31,7 +32,7 @@ export function getRunDirectory(backlogDir: string, runId: string): string {
 export function createRun(params: {
   backlogDir: string;
   runId: string;
-  task: SubTask;
+  task: ExecutionTarget;
   workItem: Task;
   agent: Agent;
   branch: string;
@@ -45,7 +46,9 @@ export function createRun(params: {
   const run: Run = {
     version: 1,
     id: params.runId,
-    subtask_id: params.task.id,
+    target_type: params.task.target_type ?? "subtask",
+    target_id: params.task.id,
+    ...((params.task.target_type ?? "subtask") === "subtask" ? { subtask_id: params.task.id } : {}),
     task_id: params.workItem.id,
     repo: params.task.repo,
     branch: params.branch,

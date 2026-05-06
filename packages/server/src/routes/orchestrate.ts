@@ -13,6 +13,8 @@ import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 
 interface EnrichedDecision {
+  target_type: SubTaskDecision["targetType"];
+  target_id: string;
   subtask_id: string;
   task_id: string;
   subtask_title: string | null;
@@ -55,16 +57,18 @@ function enrich(
 ): EnrichedDecision {
   const task = tasksById.get(decision.taskId) ?? null;
   const workItem = workItemsById.get(decision.workItemId) ?? null;
-  const repo = task?.repo ?? null;
+  const repo = task?.repo ?? decision.repo ?? null;
   const agentId = decision.assignedAgentId ?? null;
   const estimate = costEstimateFor(repo, agentId);
   return {
-    subtask_id: decision.taskId,
+    target_type: decision.targetType,
+    target_id: decision.taskId,
+    subtask_id: decision.targetType === "subtask" ? decision.taskId : "",
     task_id: decision.workItemId,
     subtask_title: task?.title ?? null,
     task_title: workItem?.title ?? null,
     repo,
-    scopes: task?.scopes ?? [],
+    scopes: task?.scopes ?? decision.scopes ?? [],
     action: decision.action,
     score: decision.score,
     reasons: decision.reasons,

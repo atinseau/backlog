@@ -1,14 +1,15 @@
 import { archiveClaim, createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir, git } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
-import type { Agent, SubTask, ProjectConfig } from "@backlog/schemas";
+import type { Agent, ProjectConfig } from "@backlog/schemas";
 import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
 import { executeAgentRun, supportsAgentExecution } from "./executor.js";
 import { appendRunEvent, addRunArtifact, createRun, getRunEvents, isAgentBusyStatus, listActiveRuns, loadRun, nextRunId, updateRunStatus } from "./run-store.js";
 import { runWithRetry, retryPolicyForAgent } from "./retry.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { getTask } from "./task-service.js";
+import { getTask, updateTaskStatus } from "./task-service.js";
+import { subTaskExecutionTarget, taskExecutionTarget, type ExecutionTarget } from "./execution-target.js";
 import {
   buildRunBranchName,
   cleanupRemoteExecutionCheckout,
@@ -86,7 +87,7 @@ export interface StartRunsForPlanInput {
 
 async function resolveAgent(
   backlogDir: string,
-  task: SubTask,
+  task: ExecutionTarget,
   decisionAgentId: string | undefined,
   forcedAgentId: string | undefined,
   skipped: SkippedRun[],
@@ -113,22 +114,58 @@ async function resolveAgent(
   return pickAgentForTask(backlogDir, task);
 }
 
+function repoForDirectTask(config: ProjectConfig, requestedRepo?: string): string | null {
+  return requestedRepo ??
+    config.repos.find((repo) => repo.enabled)?.id ??
+    config.repos[0]?.id ??
+    null;
+}
+
+function resolveExecutionTarget(
+  backlogDir: string,
+  config: ProjectConfig,
+  decision: ExecutionPlan["runnable"][number],
+): { task: ExecutionTarget; workItem: NonNullable<ReturnType<typeof getTask>> } | null {
+  if (decision.targetType === "task") {
+    const workItem = getTask(backlogDir, decision.workItemId);
+    if (!workItem) return null;
+    const repoId = repoForDirectTask(config, workItem.repo_targets[0] ?? decision.repo);
+    if (!repoId) return null;
+    return { task: taskExecutionTarget(workItem, repoId), workItem };
+  }
+  const subTask = getSubTask(backlogDir, decision.taskId);
+  if (!subTask) return null;
+  const workItem = getTask(backlogDir, subTask.task_id);
+  if (!workItem) return null;
+  return { task: subTaskExecutionTarget(subTask), workItem };
+}
+
+function updateExecutionTargetStatus(backlogDir: string, target: ExecutionTarget, status: "queued" | "running" | "blocked"): void {
+  if ((target.target_type ?? "subtask") === "subtask") {
+    updateSubTaskStatus(backlogDir, target.id, status);
+    return;
+  }
+  if (status === "running") {
+    updateTaskStatus(backlogDir, target.task_id, "in_progress");
+  } else if (status === "blocked") {
+    updateTaskStatus(backlogDir, target.task_id, "blocked");
+  } else {
+    updateTaskStatus(backlogDir, target.task_id, "ready");
+  }
+}
+
 export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<StartRunsResult> {
   const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect } = input;
   const started: StartedRun[] = [];
   const skipped: SkippedRun[] = [];
 
   for (const decision of plan.runnable.slice(0, maxStart)) {
-    const task = getSubTask(backlogDir, decision.taskId);
-    if (!task) {
+    const resolved = resolveExecutionTarget(backlogDir, config, decision);
+    if (!resolved) {
       skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
       continue;
     }
-    const workItem = getTask(backlogDir, task.task_id);
-    if (!workItem) {
-      skipped.push({ taskId: decision.taskId, reasons: ["missing_task"] });
-      continue;
-    }
+    const { task, workItem } = resolved;
     const repo = config.repos.find((candidate) => candidate.id === task.repo);
     if (!repo) {
       skipped.push({ taskId: task.id, reasons: [`unknown_repo:${task.repo}`] });
@@ -293,7 +330,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       });
     }
     updateRunStatus(backlogDir, run.id, "running", "Execution workspace prepared");
-    updateSubTaskStatus(backlogDir, task.id, "running");
+    updateExecutionTargetStatus(backlogDir, task, "running");
 
     started.push({
       runId: run.id,
@@ -356,7 +393,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     if (unsupported) {
       skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
       updateRunStatus(backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
-      updateSubTaskStatus(backlogDir, task.id, "blocked");
+      updateExecutionTargetStatus(backlogDir, task, "blocked");
     }
     void executed;
   }

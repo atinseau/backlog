@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { Agent, Run, SubTask, Task } from "@backlog/schemas";
+import type { Agent, Run, Task } from "@backlog/schemas";
 import { loadConfig } from "@backlog/config";
 import { addRunArtifact, appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { buildProviderEnv, buildProviderPrompt, buildRetryPrompt, collectWorktreeArtifacts, resolveExecutable, successModeForAgent } from "./provider-utils.js";
 import { parseClaudeJsonStdout } from "./provider-usage.js";
 import { recordUsage } from "./usage.js";
+import type { ExecutionTarget } from "./execution-target.js";
 
 // Maps a Claude tool name to the granular activity event we surface
 // in the bottom banner. Keep these short and unambiguous so the
@@ -97,7 +98,7 @@ function handleStreamEvent(
 export async function executeClaudeAgentRun(params: {
   backlogDir: string;
   run: Run;
-  task: SubTask;
+  task: ExecutionTarget;
   workItem: Task;
   agent: Agent;
   priorFailureFeedback?: string;

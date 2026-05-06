@@ -5,12 +5,16 @@ import { compatibleAgentsForTask, rankAgentsForTask } from "./agents.js";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
 import { listSubTasks, listTasks } from "./state-files.js";
 import { isGitRemoteRepository } from "./worktrees.js";
+import { runTargetId, runTargetType, subTaskExecutionTarget, taskExecutionTarget, type ExecutionTarget, type ExecutionTargetType } from "./execution-target.js";
 
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
 export interface SubTaskDecision {
   taskId: string;
   workItemId: string;
+  targetType: ExecutionTargetType;
+  repo?: string;
+  scopes?: string[];
   action: DecisionAction;
   score: number;
   reasons: string[];
@@ -28,7 +32,7 @@ export interface ExecutionPlan {
 }
 
 interface EvaluatedDecision extends SubTaskDecision {
-  task?: SubTask;
+  task?: ExecutionTarget;
   compatibleAgentIds?: string[];
 }
 
@@ -61,7 +65,7 @@ function taskPriorityWeight(workItem: Task): number {
   }
 }
 
-function riskWeight(task: SubTask): number {
+function riskWeight(task: ExecutionTarget): number {
   switch (task.risk) {
     case "low":
       return 15;
@@ -72,7 +76,7 @@ function riskWeight(task: SubTask): number {
   }
 }
 
-function blastRadiusWeight(task: SubTask): number {
+function blastRadiusWeight(task: ExecutionTarget): number {
   if (task.scopes.length <= 2) {
     return 20;
   }
@@ -82,7 +86,7 @@ function blastRadiusWeight(task: SubTask): number {
   return -20;
 }
 
-function overlapWithClaim(task: SubTask, repoPath: string, claims: ReturnType<typeof listActiveClaims>) {
+function overlapWithClaim(task: ExecutionTarget, repoPath: string, claims: ReturnType<typeof listActiveClaims>) {
   return claims.find((claim) => {
     if (claim.repo !== task.repo && claim.repo_path !== repoPath) {
       return false;
@@ -94,7 +98,7 @@ function overlapWithClaim(task: SubTask, repoPath: string, claims: ReturnType<ty
   });
 }
 
-function dependencyReasons(task: SubTask, tasksById: Map<string, SubTask>): string[] {
+function dependencyReasons(task: ExecutionTarget, tasksById: Map<string, ExecutionTarget>): string[] {
   // Differentiate between deps that might resolve (waiting_on) and
   // deps that almost certainly won't on their own (dependency_failed).
   // Lets the orchestrator panel show different copy / colors for the
@@ -117,7 +121,7 @@ function dependencyReasons(task: SubTask, tasksById: Map<string, SubTask>): stri
   return reasons;
 }
 
-function policyReasons(task: SubTask, config: ProjectConfig): string[] {
+function policyReasons(task: ExecutionTarget, config: ProjectConfig): string[] {
   const reasons: string[] = [];
   if (config.autonomy_mode === "observe") {
     reasons.push("autonomy_mode_observe");
@@ -128,7 +132,7 @@ function policyReasons(task: SubTask, config: ProjectConfig): string[] {
   return reasons;
 }
 
-function scoreTask(task: SubTask, workItem: Task): number {
+function scoreTask(task: ExecutionTarget, workItem: Task): number {
   return (
     taskPriorityWeight(workItem) +
     riskWeight(task) +
@@ -162,18 +166,20 @@ export function buildExecutionPlan(
   config: ProjectConfig,
   options?: { workItemId?: string; taskId?: string },
 ): ExecutionPlan {
-  const tasks = listSubTasks(backlogDir).filter(
+  const rawSubTasks = listSubTasks(backlogDir);
+  const tasks = rawSubTasks.filter(
     (task) =>
+      task.planner.origin !== "implicit" &&
       !task.archived_at &&
       !isTerminal(task.status) &&
       !isAlreadyHandled(task.status),
-  );
+  ).map(subTaskExecutionTarget);
   const workItems = listTasks(backlogDir).filter((item) => !item.archived_at);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
   const workItemsById = new Map(workItems.map((item) => [item.id, item]));
   const claims = listActiveClaims(backlogDir);
 
-  const candidates = tasks.filter((task) => {
+  const subTaskCandidates = tasks.filter((task) => {
     if (options?.taskId) {
       return task.id === options.taskId;
     }
@@ -182,6 +188,50 @@ export function buildExecutionPlan(
     }
     return true;
   });
+  const hasExplicitSubTasks = new Set(
+    rawSubTasks
+      .filter((task) => !task.archived_at && task.planner.origin !== "implicit")
+      .map((task) => task.task_id),
+  );
+
+  const directTaskCandidates: Array<{ task: ExecutionTarget; workItem: Task }> = [];
+  const directTaskBlocks: EvaluatedDecision[] = [];
+  const activeBusyTargetIds = new Set(
+    listActiveRuns(backlogDir)
+      .filter((run) => isAgentBusyStatus(run.status))
+      .map((run) => `${runTargetType(run)}:${runTargetId(run)}`),
+  );
+  for (const workItem of workItems) {
+    if (options?.taskId) continue;
+    if (options?.workItemId && workItem.id !== options.workItemId) continue;
+    if (!options?.workItemId && workItem.status !== "ready") continue;
+    if (options?.workItemId && workItem.status !== "ready" && workItem.status !== "backlog") continue;
+    if (hasExplicitSubTasks.has(workItem.id)) continue;
+    if (activeBusyTargetIds.has(`task:${workItem.id}`)) continue;
+    const repoId =
+      workItem.repo_targets[0] ??
+      config.repos.find((repo) => repo.enabled)?.id ??
+      config.repos[0]?.id;
+    if (!repoId) {
+      directTaskBlocks.push({
+        taskId: workItem.id,
+        workItemId: workItem.id,
+        targetType: "task",
+        action: "block",
+        score: -1000,
+        reasons: ["no_repository_configured"],
+      });
+      continue;
+    }
+    directTaskCandidates.push({
+      task: taskExecutionTarget(workItem, repoId),
+      workItem,
+    });
+  }
+  const candidates = [
+    ...subTaskCandidates.map((task) => ({ task, workItem: workItemsById.get(task.task_id) ?? null })),
+    ...directTaskCandidates,
+  ];
 
   // Only count runs that are actually keeping the agent busy. Runs in
   // awaiting_review are parked for human approval and shouldn't gate
@@ -197,12 +247,16 @@ export function buildExecutionPlan(
   const preselected: SubTaskDecision[] = [];
   const deferred: SubTaskDecision[] = [];
 
-  const evaluated: EvaluatedDecision[] = candidates.map((task) => {
-    const workItem = workItemsById.get(task.task_id);
+  const evaluated: EvaluatedDecision[] = [
+    ...directTaskBlocks,
+    ...candidates.map(({ task, workItem }) => {
     if (!workItem) {
       return {
         taskId: task.id,
         workItemId: task.task_id,
+        targetType: task.target_type ?? "subtask",
+        repo: task.repo,
+        scopes: task.scopes,
         action: "block" as const,
         score: -1000,
         reasons: ["missing_task"],
@@ -268,6 +322,9 @@ export function buildExecutionPlan(
       return {
         taskId: task.id,
         workItemId: task.task_id,
+        targetType: task.target_type ?? "subtask",
+        repo: task.repo,
+        scopes: task.scopes,
         action: "run" as const,
         score,
         reasons: ["dependencies_clear", "scope_clear", "policy_clear"],
@@ -292,6 +349,9 @@ export function buildExecutionPlan(
     return {
       taskId: task.id,
       workItemId: task.task_id,
+      targetType: task.target_type ?? "subtask",
+      repo: task.repo,
+      scopes: task.scopes,
       action,
       score,
       reasons,
@@ -299,7 +359,7 @@ export function buildExecutionPlan(
       candidateAgentIds: rankedAgents.map((candidate) => candidate.agent.id),
       task,
     };
-  });
+  })];
 
   const initialRunnable = evaluated
     .filter((decision) => decision.action === "run")
@@ -313,6 +373,9 @@ export function buildExecutionPlan(
       deferred.push({
         taskId: decision.taskId,
         workItemId: decision.workItemId,
+        targetType: decision.targetType,
+        ...(decision.repo ? { repo: decision.repo } : {}),
+        ...(decision.scopes ? { scopes: decision.scopes } : {}),
         action: "wait",
         score: decision.score,
         reasons: ["scheduler_missing_task_context"],
@@ -327,6 +390,9 @@ export function buildExecutionPlan(
       deferred.push({
         taskId: decision.taskId,
         workItemId: decision.workItemId,
+        targetType: decision.targetType,
+        ...(decision.repo ? { repo: decision.repo } : {}),
+        ...(decision.scopes ? { scopes: decision.scopes } : {}),
         action: "wait",
         score: decision.score,
         reasons: ["no_scheduler_capacity"],
@@ -348,6 +414,9 @@ export function buildExecutionPlan(
       deferred.push({
         taskId: decision.taskId,
         workItemId: decision.workItemId,
+        targetType: decision.targetType,
+        ...(decision.repo ? { repo: decision.repo } : {}),
+        ...(decision.scopes ? { scopes: decision.scopes } : {}),
         action: "wait",
         score: decision.score,
         reasons: [`scope_conflict_with_selected:${scopeConflict.taskId}`],
@@ -373,6 +442,9 @@ export function buildExecutionPlan(
       deferred.push({
         taskId: decision.taskId,
         workItemId: decision.workItemId,
+        targetType: decision.targetType,
+        ...(decision.repo ? { repo: decision.repo } : {}),
+        ...(decision.scopes ? { scopes: decision.scopes } : {}),
         action: "wait",
         score: decision.score,
         reasons: ["no_agent_capacity"],
@@ -390,6 +462,9 @@ export function buildExecutionPlan(
     preselected.push({
       taskId: decision.taskId,
       workItemId: decision.workItemId,
+      targetType: decision.targetType,
+      ...(decision.repo ? { repo: decision.repo } : {}),
+      ...(decision.scopes ? { scopes: decision.scopes } : {}),
       action: "run",
       score: decision.score,
       reasons: decision.reasons,
@@ -403,6 +478,9 @@ export function buildExecutionPlan(
     ...evaluated.filter((decision) => decision.action === "wait").map((decision) => ({
       taskId: decision.taskId,
       workItemId: decision.workItemId,
+      targetType: decision.targetType,
+      ...(decision.repo ? { repo: decision.repo } : {}),
+      ...(decision.scopes ? { scopes: decision.scopes } : {}),
       action: "wait" as const,
       score: decision.score,
       reasons: decision.reasons,
@@ -413,6 +491,9 @@ export function buildExecutionPlan(
   const blocked: SubTaskDecision[] = evaluated.filter((decision) => decision.action === "block").map((decision) => ({
     taskId: decision.taskId,
     workItemId: decision.workItemId,
+    targetType: decision.targetType,
+    ...(decision.repo ? { repo: decision.repo } : {}),
+    ...(decision.scopes ? { scopes: decision.scopes } : {}),
     action: "block" as const,
     score: decision.score,
     reasons: decision.reasons,
@@ -423,6 +504,9 @@ export function buildExecutionPlan(
     .map((decision) => ({
       taskId: decision.taskId,
       workItemId: decision.workItemId,
+      targetType: decision.targetType,
+      ...(decision.repo ? { repo: decision.repo } : {}),
+      ...(decision.scopes ? { scopes: decision.scopes } : {}),
       action: "skip" as const,
       score: decision.score,
       reasons: decision.reasons,

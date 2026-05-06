@@ -3,7 +3,6 @@ import {
   approveRun,
   buildExecutionPlan,
   cancelRun,
-  createSubTask,
   discardRun,
   getRunEvents,
   getRunHandoffPath,
@@ -11,10 +10,10 @@ import {
   listAgents,
   listAllRuns,
   listArchivedRuns,
-  listRepos,
   listSubTasks,
   listTasks,
   loadRun,
+  runSubTaskId,
   startRunsForPlan,
 } from "@backlog/core";
 import { listArchivedClaims, loadActiveClaimIfPresent } from "@backlog/claims";
@@ -81,7 +80,8 @@ export function runsRoutes(): Hono<AppEnv> {
       .map((run) => {
         const active = activeIds.has(run.id);
         const task = tasksById.get(run.task_id) ?? null;
-        const subtask = subTasksById.get(run.subtask_id) ?? null;
+        const subtaskId = runSubTaskId(run);
+        const subtask = subtaskId ? subTasksById.get(subtaskId) ?? null : null;
         const agent = agentsById.get(run.agent_id) ?? null;
         const claims = run.claim_ids
           .map(claimForId)
@@ -179,47 +179,6 @@ export function runsRoutes(): Hono<AppEnv> {
         );
       }
 
-      // Auto-shim: if the user clicked Play on a task that has no
-      // execution unit yet, create an implicit one covering the whole
-      // work and run it. It is deliberately marked `implicit` so the
-      // UI can keep simple "create one file" tasks looking like direct
-      // task runs instead of exposing an unnecessary sub-task.
-      const preflightSkipped: Array<{ taskId: string; reasons: string[] }> = [];
-      if (body.task_id && !body.subtask_id) {
-        const existing = listSubTasks(project.backlogDir).filter(
-          (s) => s.task_id === body.task_id,
-        );
-        if (existing.length === 0) {
-          const task = listTasks(project.backlogDir).find((t) => t.id === body.task_id);
-          if (task) {
-            const repos = listRepos(project.backlogDir);
-            // Pick a target repo: first explicit repo_target, else first
-            // enabled project repo, else the only repo if there is one.
-            const repoId =
-              task.repo_targets[0] ??
-              repos.find((r) => r.enabled)?.id ??
-              repos[0]?.id;
-            if (repoId) {
-              const subInput: Parameters<typeof createSubTask>[1] = {
-                workItemId: task.id,
-                title: task.title,
-                repo: repoId,
-                risk: task.planning?.risk ?? "medium",
-                plannerOrigin: "implicit",
-                manualApprovalRequired: task.execution_defaults?.manual_approval_required ?? false,
-              };
-              // Inherit the task's preferred assignee. Empty list =
-              // "auto pick" — the planner ranks all eligible agents.
-              const preferred = task.execution_defaults?.preferred_agents ?? [];
-              if (preferred.length > 0) subInput.preferredAgents = preferred;
-              createSubTask(project.backlogDir, subInput);
-            } else {
-              preflightSkipped.push({ taskId: task.id, reasons: ["no_repository_configured"] });
-            }
-          }
-        }
-      }
-
       const planOpts: { workItemId?: string; taskId?: string } = {};
       if (body.task_id) planOpts.workItemId = body.task_id;
       if (body.subtask_id) planOpts.taskId = body.subtask_id;
@@ -238,9 +197,9 @@ export function runsRoutes(): Hono<AppEnv> {
       return c.json(
         {
           started: result.started,
-          skipped: [...preflightSkipped, ...result.skipped],
-          waiting: plan.waiting.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
-          blocked: plan.blocked.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
+          skipped: result.skipped,
+          waiting: plan.waiting.map((d) => ({ target_type: d.targetType, target_id: d.taskId, subtask_id: d.targetType === "subtask" ? d.taskId : undefined, reasons: d.reasons })),
+          blocked: plan.blocked.map((d) => ({ target_type: d.targetType, target_id: d.taskId, subtask_id: d.targetType === "subtask" ? d.taskId : undefined, reasons: d.reasons })),
         },
         result.started.length > 0 ? 201 : 202,
       );

@@ -22,7 +22,9 @@ export const artifactSchema = z.object({
 export const runSchema = z.object({
   version: z.literal(1),
   id: z.string().min(1),
-  subtask_id: z.string().min(1),
+  target_type: z.enum(["task", "subtask"]).optional(),
+  target_id: z.string().min(1).optional(),
+  subtask_id: z.string().min(1).optional(),
   task_id: z.string().min(1),
   repo: z.string().min(1),
   branch: z.string().min(1),

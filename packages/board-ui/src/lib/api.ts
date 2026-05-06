@@ -850,9 +850,8 @@ export type ClaimCreateResult =
 export type DecisionAction = "run" | "wait" | "block" | "skip";
 
 export interface EnrichedDecision {
-  // The executable subtask this decision is about. Each row in the
-  // orchestrator panel corresponds to one subtask, so this is the
-  // unique key.
+  target_type: "task" | "subtask";
+  target_id: string;
   subtask_id: string;
   // The parent task (task) the subtask belongs to.
   task_id: string;
@@ -939,11 +938,8 @@ export interface SkippedRun {
 export interface StartRunResult {
   started: StartedRun[];
   skipped: SkippedRun[];
-  // Server reports waiting/blocked subtasks here (it sends `subtask_id`
-  // — see runsRoutes in @backlog/server). Don't confuse with the parent
-  // task_id elsewhere in this module.
-  waiting: Array<{ subtask_id: string; reasons: string[] }>;
-  blocked: Array<{ subtask_id: string; reasons: string[] }>;
+  waiting: Array<{ target_type?: "task" | "subtask"; target_id?: string; subtask_id?: string; reasons: string[] }>;
+  blocked: Array<{ target_type?: "task" | "subtask"; target_id?: string; subtask_id?: string; reasons: string[] }>;
 }
 
 export interface RunOwner {
@@ -978,7 +974,9 @@ export interface RunSubTaskInfo {
 export interface EnrichedRun {
   version: 1;
   id: string;
-  subtask_id: string;
+  target_type?: "task" | "subtask";
+  target_id?: string;
+  subtask_id?: string;
   task_id: string;
   repo: string;
   branch: string;

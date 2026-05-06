@@ -103,16 +103,21 @@
     }
   }
 
-  async function startTask(subtaskId: string) {
-    starting = subtaskId;
+  function decisionTitle(d: EnrichedDecision): string {
+    return d.subtask_title ?? d.task_title ?? d.target_id;
+  }
+
+  async function startTask(decision: EnrichedDecision) {
+    const targetId = decision.target_id;
+    starting = targetId;
     error = null;
     lastResult = null;
     try {
-      // Pass subtask_id (not task_id) so we start the specific row the
-      // user clicked on, not "any subtask of the parent" — the latter
-      // would let the scheduler pick a different sibling than the one
-      // the ▶ button is attached to.
-      const result = await startRun({ subtask_id: subtaskId, approve: true });
+      const result = await startRun(
+        decision.target_type === "task"
+          ? { task_id: decision.task_id, approve: true }
+          : { subtask_id: targetId, approve: true },
+      );
       if (result.started.length > 0) {
         const item = result.started[0]!;
         lastResult = `Started run ${item.runId} (${item.agentId}) on ${item.branch}`;
@@ -220,11 +225,11 @@
         <article class="wave">
           <h3>Wave {wave.wave} <span class="size">({wave.decisions.length} parallel)</span></h3>
           <ul>
-            {#each wave.decisions as d (d.subtask_id)}
+            {#each wave.decisions as d (d.target_type + ":" + d.target_id)}
               <li>
                 <div class="row">
                   <span class={actionClass(d.action)}>{d.action}</span>
-                  <span class="title">{d.subtask_title ?? d.subtask_id}</span>
+                  <span class="title">{decisionTitle(d)}</span>
                   {#if d.predicted_cost_usd != null}
                     <span
                       class="cost"
@@ -234,11 +239,11 @@
                   {#if d.action === "run"}
                     <button
                       class="start"
-                      onclick={() => startTask(d.subtask_id)}
+                      onclick={() => startTask(d)}
                       disabled={starting !== null}
                       title="Launch this run"
                     >
-                      {starting === d.subtask_id ? "…" : "▶"}
+                      {starting === d.target_id ? "…" : "▶"}
                     </button>
                   {/if}
                   <span class="score">{d.score}</span>
@@ -272,9 +277,9 @@
       <section class="other">
         <h3>Blocked <span class="size">({plan.blocked.length})</span></h3>
         <ul>
-          {#each plan.blocked as d (d.subtask_id)}
+          {#each plan.blocked as d (d.target_type + ":" + d.target_id)}
             <li>
-              <span class="title">{d.subtask_title ?? d.subtask_id}</span>
+              <span class="title">{decisionTitle(d)}</span>
               <span class="reasons">{reasonsLine(d)}</span>
             </li>
           {/each}
@@ -286,9 +291,9 @@
       <section class="other muted">
         <h3>Skipped <span class="size">({plan.skipped.length})</span></h3>
         <ul>
-          {#each plan.skipped as d (d.subtask_id)}
+          {#each plan.skipped as d (d.target_type + ":" + d.target_id)}
             <li>
-              <span class="title">{d.subtask_title ?? d.subtask_id}</span>
+              <span class="title">{decisionTitle(d)}</span>
               <span class="reasons">{reasonsLine(d)}</span>
             </li>
           {/each}

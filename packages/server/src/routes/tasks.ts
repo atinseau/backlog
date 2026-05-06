@@ -6,6 +6,7 @@ import {
   listSubTasks,
   listTasks,
   listAllRuns,
+  runSubTaskId,
   removeTask,
   reorderTask,
   resolveSplitRepos,
@@ -113,11 +114,13 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
     const runsBySubtask = new Map<string, ReturnType<typeof listAllRuns>[number]>();
     for (const run of listAllRuns(project.backlogDir)) {
-      const previous = runsBySubtask.get(run.subtask_id);
+      const subtaskId = runSubTaskId(run);
+      if (!subtaskId) continue;
+      const previous = runsBySubtask.get(subtaskId);
       const currentTime = new Date(run.finished_at ?? run.started_at ?? 0).getTime();
       const previousTime = previous ? new Date(previous.finished_at ?? previous.started_at ?? 0).getTime() : -1;
       if (!previous || currentTime >= previousTime) {
-        runsBySubtask.set(run.subtask_id, run);
+        runsBySubtask.set(subtaskId, run);
       }
     }
     const subtasks = listSubTasks(project.backlogDir)

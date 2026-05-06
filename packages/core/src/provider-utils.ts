@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Agent, Artifact, ProjectConfig, Run, SubTask, Task } from "@backlog/schemas";
+import type { Agent, Artifact, ProjectConfig, Run, Task } from "@backlog/schemas";
 import { execa } from "execa";
 import { getSecret } from "@backlog/config";
+import type { ExecutionTarget } from "./execution-target.js";
 
 // Provider env vars sourced from the workspace's encrypted secrets
 // store. Each entry maps a project secret key → the env var the
@@ -61,7 +62,7 @@ export function executableExists(command: string): boolean {
 export function buildProviderEnv(
   agent: Agent,
   run: Run,
-  task: SubTask,
+  task: ExecutionTarget,
   workItem: Task,
   backlogDir?: string,
 ): NodeJS.ProcessEnv {
@@ -84,6 +85,8 @@ export function buildProviderEnv(
     BACKLOG_RUN_ID: run.id,
     BACKLOG_TASK_ID: workItem.id,
     BACKLOG_SUBTASK_ID: task.id,
+    BACKLOG_TARGET_TYPE: task.target_type ?? "subtask",
+    BACKLOG_TARGET_ID: task.id,
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
@@ -91,12 +94,12 @@ export function buildProviderEnv(
 }
 
 export function buildProviderPrompt(
-  task: SubTask,
+  task: ExecutionTarget,
   workItem: Task,
   options?: { executionMode?: Run["execution_mode"] },
 ): string {
   const direct = options?.executionMode === "direct";
-  const implicitTaskRun = task.planner.origin === "implicit";
+  const directTaskRun = task.target_type === "task" || task.planner.origin === "implicit";
   const lines = [
     direct
       ? "You are executing one Backlog coding task directly in the user's main checkout."
@@ -108,7 +111,7 @@ export function buildProviderPrompt(
     `Task: ${workItem.id}`,
     `Task title: ${workItem.title}`,
     ...(workItem.description ? [`Task description: ${workItem.description}`] : []),
-    ...(implicitTaskRun ? [] : [`Subtask: ${task.id}`, `Subtask title: ${task.title}`]),
+    ...(directTaskRun ? [] : [`Subtask: ${task.id}`, `Subtask title: ${task.title}`]),
     `Repository: ${task.repo}`,
     `Risk: ${task.risk}`,
     "",
@@ -173,7 +176,7 @@ export async function collectWorktreeArtifacts(
   return artifacts;
 }
 
-export function successModeForAgent(agent: Agent, task?: SubTask, config?: ProjectConfig): "review" | "complete" {
+export function successModeForAgent(agent: Agent, task?: ExecutionTarget, config?: ProjectConfig): "review" | "complete" {
   if (task) {
     if (task.execution.manual_approval_required) return "review";
     if (config?.review.show_review_column) return "review";

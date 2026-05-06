@@ -9,6 +9,9 @@ import {
   listTasks,
   loadRun,
   pauseOrchestrator,
+  runSubTaskId,
+  runTargetId,
+  runTargetType,
   startOrchestrator,
   startRunsForPlan,
   stopOrchestrator,
@@ -163,7 +166,9 @@ interface ToolHandlerInput {
 function runRow(run: Run): Record<string, unknown> {
   return {
     id: run.id,
-    subtask_id: run.subtask_id,
+    target_type: runTargetType(run),
+    target_id: runTargetId(run),
+    subtask_id: runSubTaskId(run),
     task_id: run.task_id,
     status: run.status,
     agent_id: run.agent_id,
@@ -303,8 +308,8 @@ async function runWriteTool(input: ToolHandlerInput): Promise<WriteToolOutcome> 
           action: "start_subtask",
           started: result.started,
           skipped: result.skipped,
-          waiting: plan.waiting.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
-          blocked: plan.blocked.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
+          waiting: plan.waiting.map((d) => ({ target_type: d.targetType, target_id: d.taskId, subtask_id: d.targetType === "subtask" ? d.taskId : null, reasons: d.reasons })),
+          blocked: plan.blocked.map((d) => ({ target_type: d.targetType, target_id: d.taskId, subtask_id: d.targetType === "subtask" ? d.taskId : null, reasons: d.reasons })),
         },
       };
     }

@@ -1,6 +1,7 @@
 import { type Run, type SubTask } from "@backlog/schemas";
 import { listActiveRuns, listArchivedRuns } from "./run-store.js";
 import { listSubTasks } from "./state-files.js";
+import { runSubTaskId } from "./execution-target.js";
 
 // Default estimates when we have no historical data. Calibrated to
 // match the kind of work that actually lands here: small HTML / config
@@ -90,7 +91,8 @@ export function estimateSubTask(
     sameRepo.push(duration);
     // Match by subtask_id — `tasksById` is keyed by SubTask.id, while
     // `run.task_id` is the parent task's id, which would never hit.
-    const runTask = tasksById.get(run.subtask_id);
+    const subtaskId = runSubTaskId(run);
+    const runTask = subtaskId ? tasksById.get(subtaskId) : undefined;
     if (lane && runTask?.execution.lane === lane) {
       sameLaneSameRepo.push(duration);
     }

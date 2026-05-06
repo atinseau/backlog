@@ -11,29 +11,60 @@ import { getTask, updateTaskStatus } from "./task-service.js";
 import { addRunArtifact, appendRunEvent, archiveRun, getRunHandoffPath, loadRun, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { cleanupRunWorktree, commitWorktreeChanges, createPullRequest, mergeRunBranch, pushWorktreeBranch, sanitizeRunBranch } from "./run-merge.js";
 import { cleanupRemoteExecutionCheckout, remoteExecutionBasePath } from "./worktrees.js";
+import { runSubTaskId, runTargetType } from "./execution-target.js";
 
 function failureBlocker(runId: string, summary?: string): string {
   const clean = (summary ?? "Run failed").replace(/\s+/g, " ").trim();
   return `run_failed:${runId}:${clean.slice(0, 180)}`;
 }
 
-function syncParentWorkAfterRun(backlogDir: string, taskId: string, status: "review" | "completed" | "blocked"): void {
-  const task = getSubTask(backlogDir, taskId);
-  if (!task) {
+function taskStatusAfterRun(status: "review" | "completed" | "blocked"): "review" | "done" | "blocked" {
+  if (status === "review") return "review";
+  if (status === "completed") return "done";
+  return "blocked";
+}
+
+function syncParentWorkAfterRun(backlogDir: string, run: Run, status: "review" | "completed" | "blocked"): void {
+  if (runTargetType(run) === "task") {
+    updateTaskStatus(backlogDir, run.task_id, taskStatusAfterRun(status));
     return;
   }
+  const subtaskId = runSubTaskId(run);
+  if (!subtaskId) return;
+  const task = getSubTask(backlogDir, subtaskId);
+  if (!task) return;
   if (status === "review") {
-    updateSubTaskStatus(backlogDir, taskId, "review");
+    updateSubTaskStatus(backlogDir, subtaskId, "review");
     updateTaskStatus(backlogDir, task.task_id, "review");
     return;
   }
   if (status === "completed") {
-    updateSubTaskStatus(backlogDir, taskId, "completed");
+    updateSubTaskStatus(backlogDir, subtaskId, "completed");
     updateTaskStatus(backlogDir, task.task_id, "done");
     return;
   }
-  updateSubTaskStatus(backlogDir, taskId, "blocked");
+  updateSubTaskStatus(backlogDir, subtaskId, "blocked");
   updateTaskStatus(backlogDir, task.task_id, "blocked");
+}
+
+function resetRunTarget(backlogDir: string, run: Run): void {
+  if (runTargetType(run) === "task") {
+    updateTaskStatus(backlogDir, run.task_id, "ready");
+    return;
+  }
+  const subtaskId = runSubTaskId(run);
+  if (subtaskId) updateSubTaskStatus(backlogDir, subtaskId, "planned");
+  updateTaskStatus(backlogDir, run.task_id, "ready");
+}
+
+function replanRunTarget(backlogDir: string, run: Run): void {
+  if (runTargetType(run) === "task") {
+    updateTaskStatus(backlogDir, run.task_id, "ready");
+    return;
+  }
+  const subtaskId = runSubTaskId(run);
+  if (subtaskId) updateSubTaskStatus(backlogDir, subtaskId, "planned");
+  updateTaskStatus(backlogDir, run.task_id, "in_progress");
 }
 
 async function releaseRunClaims(backlogDir: string, runId: string): Promise<void> {
@@ -68,7 +99,7 @@ async function releaseRunClaims(backlogDir: string, runId: string): Promise<void
 
 export async function completeRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "succeeded", summary ?? "Completed by operator");
-  syncParentWorkAfterRun(backlogDir, run.subtask_id, "completed");
+  syncParentWorkAfterRun(backlogDir, run, "completed");
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
@@ -216,8 +247,7 @@ export async function approveRun(backlogDir: string, runId: string, summary?: st
 // "stop this one", not "give up on the chain".
 export async function cancelRun(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "canceled", summary ?? "Canceled by operator");
-  updateSubTaskStatus(backlogDir, run.subtask_id, "planned");
-  updateTaskStatus(backlogDir, run.task_id, "ready");
+  resetRunTarget(backlogDir, run);
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
@@ -377,8 +407,7 @@ export async function discardRun(backlogDir: string, runId: string, summary?: st
     message: discardSummary,
   });
   const updated = updateRunStatus(backlogDir, runId, "canceled", summary ?? "Discarded by operator");
-  updateSubTaskStatus(backlogDir, updated.subtask_id, "planned");
-  updateTaskStatus(backlogDir, updated.task_id, "ready");
+  resetRunTarget(backlogDir, updated);
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
 }
@@ -390,15 +419,16 @@ export async function failRun(
   options?: { cascadeBlock?: boolean },
 ): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "failed", summary ?? "Failed by operator");
-  syncParentWorkAfterRun(backlogDir, run.subtask_id, "blocked");
-  const task = getSubTask(backlogDir, run.subtask_id);
+  syncParentWorkAfterRun(backlogDir, run, "blocked");
+  const subtaskId = runSubTaskId(run);
+  const task = subtaskId ? getSubTask(backlogDir, subtaskId) : null;
   if (task) {
     const blocker = failureBlocker(runId, summary);
     if (!task.blockers.includes(blocker)) {
       // Store the latest failure where the board/task detail can show it.
       // The archived run remains the full source of truth.
       const blockers = [...task.blockers.filter((item) => !item.startsWith("run_failed:")), blocker];
-      updateSubTask(backlogDir, run.subtask_id, { blockers });
+      updateSubTask(backlogDir, task.id, { blockers });
     }
   }
   // Optional cascade: mark every (transitive) dependent of the failed
@@ -406,7 +436,7 @@ export async function failRun(
   // default for backward compat — callers who know the failure is
   // permanent (operator giveup, hard error) can opt in.
   if (options?.cascadeBlock) {
-    cascadeBlockDependents(backlogDir, run.subtask_id);
+    if (subtaskId) cascadeBlockDependents(backlogDir, subtaskId);
   }
   await releaseRunClaims(backlogDir, runId);
   archiveRun(backlogDir, runId);
@@ -414,7 +444,7 @@ export async function failRun(
 
 export async function sendRunToReview(backlogDir: string, runId: string, summary?: string): Promise<void> {
   const run = updateRunStatus(backlogDir, runId, "awaiting_review", summary ?? "Awaiting review");
-  syncParentWorkAfterRun(backlogDir, run.subtask_id, "review");
+  syncParentWorkAfterRun(backlogDir, run, "review");
   await releaseRunClaims(backlogDir, runId);
 }
 
@@ -443,8 +473,9 @@ export async function finalizeSuccessfulRun(
 async function runPostExecutorGitWork(backlogDir: string, runId: string): Promise<void> {
   const run = loadRun(backlogDir, runId);
   if (!run) return;
-  const subtask = getSubTask(backlogDir, run.subtask_id);
-  const parent = subtask ? getTask(backlogDir, subtask.task_id) : null;
+  const subtaskId = runSubTaskId(run);
+  const subtask = subtaskId ? getSubTask(backlogDir, subtaskId) : null;
+  const parent = getTask(backlogDir, run.task_id);
   const repo = loadConfig(backlogDir).repos.find((candidate) => candidate.id === run.repo);
   // Default: commit + push on. Tasks created before the schema change
   // don't have these fields; preserve "commit by default" behaviour.
@@ -535,7 +566,7 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
     "---",
     `Run: ${run.id}`,
     `Task: ${run.task_id}`,
-    `Subtask: ${run.subtask_id}`,
+    ...(subtaskId ? [`Subtask: ${subtaskId}`] : []),
     "",
     "Generated by Backlog.",
   ].join("\n");
@@ -582,7 +613,7 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
 function buildCommitMessage(
   parent: ReturnType<typeof getTask>,
   subtask: ReturnType<typeof getSubTask>,
-  run: { id: string; subtask_id: string; task_id: string; repo: string },
+  run: Pick<Run, "id" | "target_type" | "target_id" | "subtask_id" | "task_id" | "repo">,
 ): string {
   const title = subtask?.title?.trim() || parent?.title?.trim() || "Backlog run";
   const scope = run.repo;
@@ -591,15 +622,16 @@ function buildCommitMessage(
     `Backlog-Run: ${run.id}`,
     `Backlog-Task: ${run.task_id}`,
   ];
-  if (subtask?.planner.origin !== "implicit") {
-    trailers.push(`Backlog-Subtask: ${run.subtask_id}`);
+  const subtaskId = runSubTaskId(run);
+  if (subtaskId && subtask?.planner.origin !== "implicit") {
+    trailers.push(`Backlog-Subtask: ${subtaskId}`);
   }
   return `${subject}\n\n${trailers.join("\n")}\n`;
 }
 
 export async function requestRunChanges(backlogDir: string, runId: string, reason: string): Promise<string> {
   const run = updateRunStatus(backlogDir, runId, "blocked", reason);
-  updateSubTaskStatus(backlogDir, run.subtask_id, "planned");
+  replanRunTarget(backlogDir, run);
   createRunHandoff(backlogDir, runId, reason);
   archiveRun(backlogDir, runId);
   return getRunHandoffPath(backlogDir, runId) ?? writeRunHandoff(backlogDir, runId, `# Run Handoff\n\nReason: ${reason}\n`);
@@ -610,7 +642,8 @@ export function createRunHandoff(backlogDir: string, runId: string, reason: stri
   if (!run) {
     throw new Error(`Unknown run: ${runId}`);
   }
-  const task = run ? getSubTask(backlogDir, run.subtask_id) : null;
+  const subtaskId = runSubTaskId(run);
+  const task = subtaskId ? getSubTask(backlogDir, subtaskId) : getTask(backlogDir, run.task_id);
   const handoff = [
     `# Run Handoff`,
     ``,

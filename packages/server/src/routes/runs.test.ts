@@ -211,15 +211,15 @@ describe("POST /runs", () => {
     expect(res.status).toBe(202);
     const body = (await res.json()) as {
       started: unknown[];
-      skipped: Array<{ taskId: string; reasons: string[] }>;
+      blocked: Array<{ target_type: string; target_id: string; reasons: string[] }>;
     };
     expect(body.started).toEqual([]);
-    expect(body.skipped).toEqual([
-      { taskId: task.id, reasons: ["no_repository_configured"] },
+    expect(body.blocked).toEqual([
+      { target_type: "task", target_id: task.id, reasons: ["no_repository_configured"] },
     ]);
   });
 
-  it("auto-creates an implicit execution unit and executes task_id runs in direct mode", async () => {
+  it("executes task_id runs directly without creating a subtask", async () => {
     const project = await makeGitWorkspace("assist");
     addAgent(project.backlogDir, {
       id: "writer",
@@ -257,8 +257,7 @@ describe("POST /runs", () => {
     expect(fs.readFileSync(path.join(project.root, "task-direct.txt"), "utf8")).toBe("ok\n");
     expect(fs.existsSync(path.join(project.backlogDir, "worktrees", "demo"))).toBe(false);
     const executionUnits = listSubTasks(project.backlogDir).filter((unit) => unit.task_id === task.id);
-    expect(executionUnits).toHaveLength(1);
-    expect(executionUnits[0]?.planner.origin).toBe("implicit");
+    expect(executionUnits).toHaveLength(0);
   });
 
   it("passes explicit dirty direct checkout approval to the launcher", async () => {

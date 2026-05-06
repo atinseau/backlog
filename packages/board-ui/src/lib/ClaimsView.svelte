@@ -140,7 +140,7 @@
   }
 
   function runTitle(run: EnrichedRun): string {
-    return run.subtask?.title || run.task?.title || run.subtask_id;
+    return run.subtask?.title || run.task?.title || run.target_id || run.subtask_id || run.id;
   }
 
   function statusLabel(status: string): string {

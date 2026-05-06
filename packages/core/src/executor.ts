@@ -1,8 +1,9 @@
-import type { Run, SubTask, Task, Agent } from "@backlog/schemas";
+import type { Run, Task, Agent } from "@backlog/schemas";
 import { supportsAgentExecution } from "./agents.js";
 import { executeClaudeAgentRun } from "./claude-executor.js";
 import { executeCodexAgentRun } from "./codex-executor.js";
 import { executeCustomAgentRun } from "./custom-executor.js";
+import type { ExecutionTarget } from "./execution-target.js";
 import { getRepo } from "./repo-service.js";
 
 export { supportsAgentExecution };
@@ -10,7 +11,7 @@ export { supportsAgentExecution };
 export interface ExecuteAgentRunParams {
   backlogDir: string;
   run: Run;
-  task: SubTask;
+  task: ExecutionTarget;
   workItem: Task;
   agent: Agent;
   // Set on retry attempts. Threaded into the executor so the agent
