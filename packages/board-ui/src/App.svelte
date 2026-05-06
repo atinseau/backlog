@@ -1072,6 +1072,7 @@
     error = message;
     if (action === "api_keys") apiKeysOpen = true;
     if (action === "agents") applySection("agents");
+    if (action === "repositories") applySection("repos");
   }
 
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {

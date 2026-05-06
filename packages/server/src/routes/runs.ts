@@ -184,6 +184,7 @@ export function runsRoutes(): Hono<AppEnv> {
       // The "split first" workflow stays available via the ✂ button
       // for genuinely multi-step work; for "create one file" tasks
       // the auto-shim keeps the Play button honest.
+      const preflightSkipped: Array<{ taskId: string; reasons: string[] }> = [];
       if (body.task_id && !body.subtask_id) {
         const existing = listSubTasks(project.backlogDir).filter(
           (s) => s.task_id === body.task_id,
@@ -212,6 +213,8 @@ export function runsRoutes(): Hono<AppEnv> {
               const preferred = task.execution_defaults?.preferred_agents ?? [];
               if (preferred.length > 0) subInput.preferredAgents = preferred;
               createSubTask(project.backlogDir, subInput);
+            } else {
+              preflightSkipped.push({ taskId: task.id, reasons: ["no_repository_configured"] });
             }
           }
         }
@@ -235,7 +238,7 @@ export function runsRoutes(): Hono<AppEnv> {
       return c.json(
         {
           started: result.started,
-          skipped: result.skipped,
+          skipped: [...preflightSkipped, ...result.skipped],
           waiting: plan.waiting.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
           blocked: plan.blocked.map((d) => ({ subtask_id: d.taskId, reasons: d.reasons })),
         },

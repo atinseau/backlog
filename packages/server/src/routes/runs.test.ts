@@ -197,6 +197,28 @@ describe("POST /runs", () => {
     expect(body.started ?? []).toEqual([]);
   });
 
+  it("reports a clear skipped reason when a task has no repository to run in", async () => {
+    const project = makeWorkspace("assist");
+    const task = createTask(project.backlogDir, { title: "Write a file" });
+    const app = buildApp(project);
+
+    const res = await app.request("/runs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ task_id: task.id, approve: true }),
+    });
+
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as {
+      started: unknown[];
+      skipped: Array<{ taskId: string; reasons: string[] }>;
+    };
+    expect(body.started).toEqual([]);
+    expect(body.skipped).toEqual([
+      { taskId: task.id, reasons: ["no_repository_configured"] },
+    ]);
+  });
+
   it("auto-creates a covering subtask and executes task_id runs in direct mode", async () => {
     const project = await makeGitWorkspace("assist");
     addAgent(project.backlogDir, {

@@ -1,7 +1,7 @@
 import type { StartRunResult } from "./api.js";
 import { t } from "./i18n.svelte.js";
 
-export type StartRunAction = "api_keys" | "agents" | "direct_dirty" | null;
+export type StartRunAction = "api_keys" | "agents" | "repositories" | "direct_dirty" | null;
 
 export interface StartRunExplanation {
   message: string;
@@ -27,13 +27,15 @@ export function explainStartRunResult(result: StartRunResult): StartRunExplanati
   if (apiKeyReason) return { message: t("card.play_no_api_key"), action: "api_keys" };
   if (directReasons.includes("risk_not_allowed")) return { message: t("card.play_risk_not_allowed"), action: null };
   if (directReasons.some((reason) => reason.startsWith("missing_capabilities:"))) return { message: t("card.play_missing_capabilities"), action: null };
-  if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) return { message: t("card.play_repo_blocked"), action: null };
+  if (directReasons.includes("no_repository_configured")) return { message: t("card.play_no_repository"), action: "repositories" };
+  if (directReasons.includes("repository_has_no_local_checkout")) return { message: t("card.play_repository_missing_checkout"), action: "repositories" };
+  if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) return { message: t("card.play_repo_blocked"), action: "repositories" };
   if (directReasons.includes("missing_claude_executable") || directReasons.includes("missing_codex_executable")) {
     return { message: t("card.play_missing_executable"), action: "agents" };
   }
   if (directReasons.includes("direct_checkout_dirty")) return { message: t("card.play_direct_dirty"), action: "direct_dirty" };
   if (directReasons.includes("direct_checkout_busy")) return { message: t("card.play_direct_busy"), action: null };
-  if (directReasons.includes("unknown_repo")) return { message: t("card.play_unknown_repo"), action: null };
+  if (directReasons.includes("unknown_repo")) return { message: t("card.play_unknown_repo"), action: "repositories" };
   if (directReasons.includes("autonomy_mode_observe")) return { message: t("card.play_autonomy_observe"), action: null };
   if (directReasons.includes("high_risk_requires_higher_autonomy")) return { message: t("card.play_high_risk"), action: null };
   if (directReasons.includes("no_scheduler_capacity")) return { message: t("card.play_scheduler_capacity"), action: null };

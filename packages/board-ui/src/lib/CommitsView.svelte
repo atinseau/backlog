@@ -1498,8 +1498,6 @@
             class:active={isActiveCommit}
             role="button"
             tabindex="0"
-            onfocus={() => selectCommit(commit)}
-            onmousedown={() => selectCommit(commit)}
             onclick={() => selectCommit(commit)}
             onkeydown={(e) => handleCommitKeydown(e, commit)}
           >
@@ -1537,8 +1535,6 @@
                   <button
                     type="button"
                     class="commit-file-row"
-                    onfocus={() => openCommitFileDiff(commit, file)}
-                    onmousedown={() => openCommitFileDiff(commit, file)}
                     onclick={() => openCommitFileDiff(commit, file)}
                     oncontextmenu={(e) => showFileContextMenu(e, commit.repo, file.path)}
                     title={file.old_path ? `${file.old_path} → ${file.path}` : file.path}
