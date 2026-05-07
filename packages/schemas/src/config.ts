@@ -114,9 +114,9 @@ export const projectConfigSchema = z.object({
     delete_branch_after_merge: true,
   }),
   board: z.object({
-    show_backlog_column: z.boolean().default(false),
+    show_backlog_column: z.boolean().default(true),
   }).default({
-    show_backlog_column: false,
+    show_backlog_column: true,
   }),
   // Review-mode policy. Only relevant when an agent's success_mode is
   // "review" (the run terminates in awaiting_review instead of

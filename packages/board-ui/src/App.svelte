@@ -1616,7 +1616,7 @@
     onClose={() => (createTaskOpen = false)}
     onCreated={() => {
       createTaskOpen = false;
-      if (!connected) refresh();
+      void refresh();
       toasts?.push("success", t("create_task.applied.success"));
     }}
   />
@@ -1676,7 +1676,7 @@
     workItem={createSubTaskTarget}
     availableRepos={repos}
     onClose={() => (createSubTaskTarget = null)}
-    onCreated={() => { if (!connected) refresh(); }}
+    onCreated={() => { void refresh(); }}
   />
 {/if}
 
@@ -1685,7 +1685,10 @@
     workItem={splitTarget}
     availableRepos={repos}
     onClose={() => (splitTarget = null)}
-    onSplit={() => { if (!connected) refresh(); }}
+    onSplit={(result) => {
+      void refresh();
+      toasts?.push("success", t("split_dialog.created", { count: result.created_tasks.length }));
+    }}
   />
 {/if}
 

@@ -4,6 +4,16 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.51] - 2026-05-07
+
+Board, Git, and split-task stability fixes.
+
+- **Non-Git workspaces no longer show Git commit controls** — normal folders hide the commit message, stash, discard, ignore, and commit actions because Backlog cannot commit without Git metadata.
+- **The Review column is now read-only for manual movement** so cards cannot be dragged, dropped, reordered, or moved-to-top there while review state is owned by the run flow.
+- **Running cards now have an animated status indicator** and the disabled header Play button uses the same subdued grey treatment as Stop.
+- **The Backlog column preference is project-scoped consistently** with new projects and repo-only boards defaulting to the same visible Backlog column behavior across Desktop and CLI launches.
+- **AI task splitting now uses stored API keys and refreshes the board immediately** after creating split tasks, while splitter failures stay visible instead of silently closing the task dialog.
+
 ## [1.4.50] - 2026-05-07
 
 Verified model metadata, non-Git workspace UX, and task creation cleanup.

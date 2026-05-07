@@ -60,6 +60,7 @@
   const visibleCards = $derived(localCards.slice(0, visibleLimit));
   const hasMore = $derived(visibleLimit < localCards.length);
   const archivableCards = $derived(localCards.filter((card) => !isLocked(card)));
+  const movementDisabled = $derived(columnKey === "done" || columnKey === "review");
 
   function mergeVisibleWithHidden(nextVisible: TaskCard[]): TaskCard[] {
     const visibleIds = new Set(nextVisible.map((card) => card.id));
@@ -99,7 +100,7 @@
   }
 
   function handleConsider(event: CustomEvent<{ items: TaskCard[] }>) {
-    if (columnKey === "done") {
+    if (movementDisabled) {
       localCards = cards;
       return;
     }
@@ -144,7 +145,7 @@
     const wasAlreadyInColumn = cards.some((card) => card.id === droppedId);
     const droppedCard = nextItems.find((c) => c.id === droppedId);
 
-    if (columnKey === "done") {
+    if (movementDisabled) {
       localCards = cards;
       return;
     }
@@ -217,22 +218,38 @@
   </header>
   <div
     class="cards"
-    class:locked-zone={columnKey === "done"}
+    class:locked-zone={movementDisabled}
     onscroll={handleScroll}
     use:dndzone={{
       items: visibleCards,
       type: "task",
       flipDurationMs: FLIP_MS,
       dropTargetStyle: {},
-      dragDisabled: columnKey === "done",
-      dropFromOthersDisabled: columnKey === "done",
+      dragDisabled: movementDisabled,
+      dropFromOthersDisabled: movementDisabled,
     }}
     onconsider={handleConsider}
     onfinalize={handleFinalize}
   >
     {#each visibleCards as card (card.id)}
       <div class="card-shell" class:queue-active={columnKey === "doing" && isBusy(card)} class:queue-waiting={columnKey === "doing" && !isBusy(card)}>
-        <Card {card} {onSplit} {onAddTask} {onOpen} {onPlay} {onApprove} {onDiscard} {onArchive} {onUnarchive} {onDelete} {onMoveToTop} {onSetPriority} {onAssign} {assignees} />
+        <Card
+          {card}
+          {onSplit}
+          {onAddTask}
+          {onOpen}
+          {onPlay}
+          {onApprove}
+          {onDiscard}
+          {onArchive}
+          {onUnarchive}
+          {onDelete}
+          {onMoveToTop}
+          {onSetPriority}
+          {onAssign}
+          {assignees}
+          manualMovementDisabled={movementDisabled}
+        />
       </div>
     {/each}
     {#if localCards.length === 0}

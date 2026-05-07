@@ -100,6 +100,18 @@
   let proposalModel = $state("");
   let aiUnavailable = $state(false);
   let aiUnavailableDetail = $state("");
+  let createdNotificationSent = $state(false);
+
+  function notifyCreated(subTasksCreated: number) {
+    if (!createdTask || createdNotificationSent) return;
+    createdNotificationSent = true;
+    onCreated?.({ taskId: createdTask.id, subTasksCreated });
+  }
+
+  function closeDialog() {
+    notifyCreated(0);
+    onClose();
+  }
 
   function toggleRepo(id: string) {
     repoTargets = repoTargets.includes(id) ? repoTargets.filter((r) => r !== id) : [...repoTargets, id];
@@ -148,7 +160,6 @@
           aiUnavailable = true;
           aiUnavailableDetail = result.detail;
           phase = "applied";
-          onCreated?.({ taskId: task.id, subTasksCreated: 0 });
         }
       } else {
         // Skip the "applied" phase entirely. Setting `phase = "applied"`
@@ -156,7 +167,7 @@
         // parent closes the dialog and surfaces one lightweight
         // confirmation toast. Starting is now an explicit Play action,
         // not a second modal immediately after creation.
-        onCreated?.({ taskId: task.id, subTasksCreated: 0 });
+        notifyCreated(0);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -172,7 +183,7 @@
       const result = await applySplitProposal(createdTask.id, proposalTasks);
       const count = result.created_tasks.length;
       phase = "applied";
-      onCreated?.({ taskId: createdTask.id, subTasksCreated: count });
+      notifyCreated(count);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
       phase = "proposal";
@@ -182,7 +193,7 @@
   function skipSplit() {
     if (!createdTask) return;
     phase = "applied";
-    onCreated?.({ taskId: createdTask.id, subTasksCreated: 0 });
+    notifyCreated(0);
   }
 
   function updateProposalTask(index: number, patch: Partial<ProposedTask>) {
@@ -194,8 +205,8 @@
   }
 </script>
 
-<div class="backdrop" onclick={onClose} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+<div class="backdrop" onclick={closeDialog} role="presentation">
+  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") closeDialog(); }}>
     <header>
       <h2>
         {#if phase === "input" || phase === "creating"}
@@ -210,7 +221,7 @@
           {t("create_task.title.applied")}
         {/if}
       </h2>
-      <button type="button" class="close" onclick={onClose}>✕</button>
+      <button type="button" class="close" onclick={closeDialog}>✕</button>
     </header>
 
     {#if error}
@@ -354,7 +365,7 @@
         </fieldset>
 
         <footer>
-          <button type="button" onclick={onClose}>{t("create_task.button.cancel")}</button>
+          <button type="button" onclick={closeDialog}>{t("create_task.button.cancel")}</button>
           <!-- Label was always "Créer + découper", but the splitter only
                runs when autoSplit is checked (default off). Dynamic label
                so the button matches what'll actually happen. -->
@@ -442,7 +453,11 @@
           <p class="muted">{t("create_task.applied.ai_unavailable", { detail: aiUnavailableDetail })}</p>
         {/if}
         <footer>
-          <button type="button" class="primary" onclick={onClose}>{t("create_task.applied.close")}</button>
+          <button
+            type="button"
+            class="primary"
+            onclick={closeDialog}
+          >{t("create_task.applied.close")}</button>
         </footer>
       </div>
     {/if}

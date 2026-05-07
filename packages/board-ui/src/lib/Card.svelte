@@ -31,9 +31,10 @@
     // re-fetch per card.
     onAssign?: (card: TaskCard, assigneeId: string | null) => Promise<void> | void;
     assignees?: Array<{ id: string; label: string; kind: "agent" | "user"; ready?: boolean }>;
+    manualMovementDisabled?: boolean;
   }
 
-  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees }: Props = $props();
+  let { card, onSplit, onAddTask, onOpen, onPlay, onApprove, onDiscard, onArchive, onUnarchive, onDelete, onMoveToTop, onSetPriority, onAssign, assignees, manualMovementDisabled = false }: Props = $props();
 
   const timer = useTimer();
   onDestroy(() => timer.release());
@@ -313,7 +314,7 @@
       });
     }
     if (onMoveToTop) {
-      items.push({ label: t("card_menu.move_to_top"), icon: "⤒", onSelect: () => onMoveToTop?.(card), disabled: locked });
+      items.push({ label: t("card_menu.move_to_top"), icon: "⤒", onSelect: () => onMoveToTop?.(card), disabled: locked || manualMovementDisabled });
     }
     if (onAssign && assignees && assignees.length > 0) {
       // Build the submenu: "Auto" first (clear assignment), then a
@@ -389,6 +390,9 @@
   tabindex={onOpen ? 0 : undefined}
 >
   <header>
+    {#if runningCount > 0}
+      <span class="running-indicator" title={t("card.run_status.running")} aria-label={t("card.run_status.running")}></span>
+    {/if}
     <h3>{card.title}</h3>
     {#if hasMenu}
       <button
@@ -595,6 +599,21 @@
     display: flex;
     align-items: flex-start;
     gap: 6px;
+  }
+  .running-indicator {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    margin-top: 4px;
+    border-radius: 999px;
+    background: var(--success);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 38%, transparent);
+    animation: running-pulse 1.2s ease-out infinite;
+  }
+  @keyframes running-pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent); transform: scale(0.9); }
+    70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--success) 0%, transparent); transform: scale(1); }
+    100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent); transform: scale(0.9); }
   }
   h3 {
     margin: 0;

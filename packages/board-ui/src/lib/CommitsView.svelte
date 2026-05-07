@@ -100,6 +100,7 @@
   const visibleRepos = $derived(repos.filter((repo) => repo.changes.length > 0 || repo.status.error));
   const selectedPaths = $derived([...selected]);
   const selectedRepoCount = $derived(new Set(selectedPaths.map((key) => key.split("\0")[0]).filter(Boolean)).size);
+  const hasGitChanges = $derived(repos.some((repo) => !repo.status.error && repo.changes.length > 0));
   const canCommit = $derived(Boolean(selectedPaths.length > 0 && message.trim() && !committing && !gitActionBusy));
   const canChangeSelected = $derived(Boolean(selectedPaths.length > 0 && !committing && !gitActionBusy));
 
@@ -1358,35 +1359,37 @@
           {/each}
         {/if}
       </div>
-      <aside class="commit-box">
-        <textarea
-          bind:this={messageEl}
-          bind:value={message}
-          use:focusOnMount
-          rows="5"
-          placeholder={t("git.commit.placeholder")}
-          onkeydown={handleMessageKeydown}
-        ></textarea>
-        <div class="commit-actions">
-          <button class="secondary danger" onclick={discardSelected} disabled={!canChangeSelected}>
-            {gitActionBusy === "discard" ? t("git.discard.running") : t("git.discard.button_files", { count: selectedPaths.length })}
-          </button>
-          <button class="secondary" onclick={stashSelected} disabled={!canChangeSelected}>
-            {gitActionBusy === "stash" ? t("git.stash.running") : t("git.stash.button_files", { count: selectedPaths.length })}
-          </button>
-          <button class="secondary" onclick={ignoreSelected} disabled={!canChangeSelected}>
-            {gitActionBusy === "ignore" ? t("git.ignore.running") : t("git.ignore.button_files", { count: selectedPaths.length })}
-          </button>
-          <button class="primary" onclick={commitSelected} disabled={!canCommit}>
-            {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
-          </button>
-        </div>
-        {#if selectedRepoCount > 1}
-          <p class="hint">{t("git.commit.multi_repo_hint", { count: selectedRepoCount })}</p>
-        {:else}
-          <p class="hint">{t("git.commit.enter_hint")}</p>
-        {/if}
-      </aside>
+      {#if hasGitChanges}
+        <aside class="commit-box">
+          <textarea
+            bind:this={messageEl}
+            bind:value={message}
+            use:focusOnMount
+            rows="5"
+            placeholder={t("git.commit.placeholder")}
+            onkeydown={handleMessageKeydown}
+          ></textarea>
+          <div class="commit-actions">
+            <button class="secondary danger" onclick={discardSelected} disabled={!canChangeSelected}>
+              {gitActionBusy === "discard" ? t("git.discard.running") : t("git.discard.button_files", { count: selectedPaths.length })}
+            </button>
+            <button class="secondary" onclick={stashSelected} disabled={!canChangeSelected}>
+              {gitActionBusy === "stash" ? t("git.stash.running") : t("git.stash.button_files", { count: selectedPaths.length })}
+            </button>
+            <button class="secondary" onclick={ignoreSelected} disabled={!canChangeSelected}>
+              {gitActionBusy === "ignore" ? t("git.ignore.running") : t("git.ignore.button_files", { count: selectedPaths.length })}
+            </button>
+            <button class="primary" onclick={commitSelected} disabled={!canCommit}>
+              {committing ? t("git.commit.running") : t("git.commit.button_files", { count: selectedPaths.length })}
+            </button>
+          </div>
+          {#if selectedRepoCount > 1}
+            <p class="hint">{t("git.commit.multi_repo_hint", { count: selectedRepoCount })}</p>
+          {:else}
+            <p class="hint">{t("git.commit.enter_hint")}</p>
+          {/if}
+        </aside>
+      {/if}
     </div>
   {:else if activeTab === "branches" && branches.length === 0}
     <div class="empty">{t("git.branch.empty")}</div>

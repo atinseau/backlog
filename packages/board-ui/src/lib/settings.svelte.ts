@@ -1,12 +1,12 @@
 // Local app preferences — frontend-only, persisted in localStorage.
-// Distinct from project settings (autonomy / claims) which live in
-// config.toml on disk and are managed by project/agent settings.
-// These are per-device choices about how the Backlog UI looks and
-// behaves.
+// Project settings such as board columns / review policy live in
+// config.toml on disk and are loaded explicitly by App.svelte.
+// The helpers below still expose reactive state for the UI, but the
+// project-scoped toggles are not persisted to localStorage anymore.
 
 const STORAGE_PREFIX = "backlog.settings.";
-const KEY_SHOW_BACKLOG = `${STORAGE_PREFIX}show_backlog_column`;
-const KEY_SHOW_REVIEW = `${STORAGE_PREFIX}show_review_column`;
+const LEGACY_KEY_SHOW_BACKLOG = `${STORAGE_PREFIX}show_backlog_column`;
+const LEGACY_KEY_SHOW_REVIEW = `${STORAGE_PREFIX}show_review_column`;
 const KEY_NOTIFY_ON_RUN_COMPLETE = `${STORAGE_PREFIX}notify_on_run_complete`;
 const LEGACY_KEY_DISPLAY_NAME = `${STORAGE_PREFIX}display_name`;
 const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
@@ -16,8 +16,8 @@ const KEY_ONBOARDING_DISMISSED = "backlog.onboarding.dismissed";
 // by other Backlog code we forgot about (e.g. project-keyed chat
 // history). A targeted list is safer.
 const APP_PREFERENCE_KEYS = [
-  KEY_SHOW_BACKLOG,
-  KEY_SHOW_REVIEW,
+  LEGACY_KEY_SHOW_BACKLOG,
+  LEGACY_KEY_SHOW_REVIEW,
   KEY_NOTIFY_ON_RUN_COMPLETE,
   LEGACY_KEY_DISPLAY_NAME,
   KEY_ONBOARDING_DISMISSED,
@@ -52,12 +52,10 @@ function writeBool(key: string, value: boolean): void {
   localStorage.setItem(key, value ? "1" : "0");
 }
 
-// "In Review" defaults to off — most teams collapse review into the
-// "doing" column and only enable it when they have a dedicated review
-// stage. When off, review-status cards still appear, merged into the
-// doing column so no work goes invisible.
-let showBacklogColumn = $state(readBool(KEY_SHOW_BACKLOG, false));
-let showReviewColumn = $state(readBool(KEY_SHOW_REVIEW, false));
+// Board-column visibility is project-scoped. App.svelte replaces these
+// defaults with /project settings as soon as a project is selected.
+let showBacklogColumn = $state(true);
+let showReviewColumn = $state(false);
 let notifyOnRunComplete = $state(readBool(KEY_NOTIFY_ON_RUN_COMPLETE, false));
 
 export function getShowBacklogColumn(): boolean {
@@ -65,7 +63,6 @@ export function getShowBacklogColumn(): boolean {
 }
 export function setShowBacklogColumn(value: boolean): void {
   showBacklogColumn = value;
-  writeBool(KEY_SHOW_BACKLOG, value);
 }
 
 export function getShowReviewColumn(): boolean {
@@ -73,7 +70,6 @@ export function getShowReviewColumn(): boolean {
 }
 export function setShowReviewColumn(value: boolean): void {
   showReviewColumn = value;
-  writeBool(KEY_SHOW_REVIEW, value);
 }
 
 export function getNotifyOnRunComplete(): boolean {

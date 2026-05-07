@@ -316,7 +316,10 @@ export function tasksRoutes(): Hono<AppEnv> {
           400,
         );
       }
-      const proposal = await suggestSplit(workItem, repos, { provider: config.ai_provider });
+      const provider = config.ai_provider;
+      const secretKey = provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+      const apiKey = getSecret(project.backlogDir, secretKey) ?? undefined;
+      const proposal = await suggestSplit(workItem, repos, apiKey ? { provider, apiKey } : { provider });
       return c.json({
         task_id: id,
         model: proposal.model,

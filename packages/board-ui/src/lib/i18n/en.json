@@ -595,6 +595,7 @@
   "split_dialog.parallel": "parallel",
   "split_dialog.serial": "serial",
   "split_dialog.no_agent": "no agent available",
+  "split_dialog.created": "{count} sub-task(s) created",
   "commits.title": "Recent commits",
   "commits.empty": "No recent commits.",
   "commits.linked": "Linked to",
