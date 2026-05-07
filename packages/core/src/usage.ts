@@ -17,7 +17,7 @@ export interface UsageEvent {
   ts: string; // ISO timestamp
   type: "usage"; // discriminator inside events.ndjson
   provider: UsageProvider;
-  model: string; // e.g. "claude-sonnet-4-6", "gpt-5"
+  model: string; // e.g. "claude-sonnet-4-20250514", "gpt-5"
   // Counts in tokens. Cache_read = served from prompt cache (cheap).
   // cache_creation = the first call that populates the cache (premium).
   input_tokens: number;
@@ -40,13 +40,12 @@ interface ModelPricing {
 
 const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   // Anthropic
-  "claude-opus-4-7": { input: 5, output: 25 },
   "claude-opus-4-1": { input: 15, output: 75 },
   "claude-opus-4-5": { input: 15, output: 75 },
   "claude-opus-4": { input: 15, output: 75 },
-  "claude-sonnet-4-6": { input: 3, output: 15 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4": { input: 3, output: 15 },
+  "claude-3-5-haiku": { input: 0.8, output: 4 },
   "claude-haiku-4-5": { input: 0.25, output: 1.25 },
   // OpenAI / Codex (placeholder; replace with verified figures)
   "gpt-5-codex": { input: 1.25, output: 10 },
@@ -55,9 +54,12 @@ const PRICING_PER_MILLION: Record<string, ModelPricing> = {
 };
 
 const PRICING_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-7",
-  haiku: "claude-haiku-4-5",
+  sonnet: "claude-sonnet-4",
+  opus: "claude-opus-4-1",
+  haiku: "claude-3-5-haiku",
+  "claude-sonnet-4-20250514": "claude-sonnet-4",
+  "claude-opus-4-1-20250805": "claude-opus-4-1",
+  "claude-3-5-haiku-20241022": "claude-3-5-haiku",
   "gpt-5-codex": "gpt-5-codex",
 };
 

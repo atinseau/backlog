@@ -47,6 +47,7 @@
     fetchHealth,
     fetchProject,
     fetchProjectsList,
+    fetchRuns,
     fetchUsers,
     approveRun,
     archiveTask,
@@ -537,6 +538,11 @@
   const blockingPreflightItems = $derived(preflightItems.filter((item) => !item.ok));
   const playReady = $derived(Boolean(selectedProjectId && board && blockingPreflightItems.length === 0));
   const playBlockedTitle = $derived(blockingPreflightItems[0]?.label ?? t("orchestrator.play.nothing"));
+  let pendingStartCount = $state(0);
+
+  function isBusyRunStatus(status: string | null | undefined): boolean {
+    return status === "running" || status === "queued" || status === "preparing";
+  }
 
   // True whenever any sub-task on the board has an active run in a
   // status that's actually doing work (running / queued / preparing).
@@ -549,7 +555,7 @@
       for (const card of column) {
         for (const sub of card.tasks) {
           const status = sub.active_run?.status;
-          if (status === "running" || status === "queued" || status === "preparing") {
+          if (isBusyRunStatus(status)) {
             return true;
           }
         }
@@ -557,6 +563,7 @@
     }
     return false;
   });
+  const controlsRunning = $derived(hasInFlightRun || pendingStartCount > 0);
   // Track previous tick so we can fire the toast exactly once per
   // running → idle transition.
   let previousHasInFlight = $state(false);
@@ -960,28 +967,39 @@
   // but individual runs are. Best-effort per run — one failure
   // doesn't block the others.
   async function handleStopActiveRuns() {
-    if (!board) return;
-    const runIds: string[] = [];
-    for (const column of Object.values(board.columns)) {
-      for (const card of column) {
-        for (const sub of card.tasks) {
-          const status = sub.active_run?.status;
-          if (sub.active_run && (status === "running" || status === "queued" || status === "preparing")) {
-            runIds.push(sub.active_run.id);
+    const runIds = new Set<string>();
+    if (board) {
+      for (const column of Object.values(board.columns)) {
+        for (const card of column) {
+          for (const sub of card.tasks) {
+            const status = sub.active_run?.status;
+            if (sub.active_run && isBusyRunStatus(status)) {
+              runIds.add(sub.active_run.id);
+            }
           }
         }
       }
     }
-    if (runIds.length === 0) return;
-    const results = await Promise.allSettled(runIds.map((id) => cancelRun(id, "Stopped from topbar")));
+    try {
+      const activeRuns = await fetchRuns({ scope: "active" });
+      for (const run of activeRuns) {
+        if (run.active && isBusyRunStatus(run.status)) runIds.add(run.id);
+      }
+    } catch (err) {
+      console.warn("active run fetch failed", err);
+    }
+    if (runIds.size === 0) return;
+    const ids = Array.from(runIds);
+    const results = await Promise.allSettled(ids.map((id) => cancelRun(id, "Stopped from topbar")));
     const failures = results.filter((r) => r.status === "rejected");
     if (failures.length > 0) {
       const first = failures[0];
       error = first && first.status === "rejected" ? String((first as PromiseRejectedResult).reason) : "cancel failed";
     } else {
-      toasts?.push("info", t("topbar.stop_done", { count: runIds.length }));
+      toasts?.push("info", t("topbar.stop_done", { count: ids.length }));
     }
-    if (!connected) await refresh();
+    pendingStartCount = 0;
+    await refresh();
   }
 
   function openActivityPanel() {
@@ -1003,6 +1021,7 @@
     dirtyGitPrompt = null;
     dirtyGitBypassTaskId = null;
     openActivityPanel();
+    pendingStartCount += 1;
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
       if (selectedRunAgentId) runInput.agent_id = selectedRunAgentId;
@@ -1014,6 +1033,7 @@
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
+      pendingStartCount = Math.max(0, pendingStartCount - 1);
       if (!connected) await refresh();
     }
   }
@@ -1362,7 +1382,7 @@
           onError={(message) => (error = message)}
           onStarted={openActivityPanel}
           onPlay={handleTopbarPlay}
-          externalActive={hasInFlightRun}
+          externalActive={controlsRunning}
           canPlay={playReady}
           playBlockedTitle={playBlockedTitle}
           onStopActiveRuns={handleStopActiveRuns}

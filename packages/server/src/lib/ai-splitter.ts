@@ -53,7 +53,6 @@ const PROPOSAL_SCHEMA = {
   properties: {
     tasks: {
       type: "array",
-      minItems: 2,
       maxItems: 6,
       items: {
         type: "object",
@@ -193,10 +192,7 @@ async function suggestTitleAnthropic(
     throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
   }
   const client = new Anthropic({ apiKey });
-  // Haiku is plenty for a 70-char generation — fast, cheap, no
-  // thinking budget needed. The user types a description and the
-  // title pops back in under a second.
-  const model = options.model ?? "claude-haiku-4-5";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
   const response = await client.messages.create({
     model,
     max_tokens: 60,
@@ -291,7 +287,7 @@ async function refineTaskTextAnthropic(
     throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? "claude-haiku-4-5";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
   const response = await client.messages.create({
     model,
     max_tokens: 900,
@@ -408,7 +404,7 @@ async function suggestSplitAnthropic(
     );
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-5";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
   const response = await client.messages.create({
     model,
     max_tokens: 4096,

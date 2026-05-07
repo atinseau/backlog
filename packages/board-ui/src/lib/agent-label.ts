@@ -16,13 +16,15 @@ import type { AgentSummary } from "./types.js";
 // versions.
 const MODEL_CONTEXT: Record<string, string> = {
   // Anthropic
-  "claude-opus-4-7": "1M",
-  "claude-sonnet-4-6": "1M",
+  "claude-opus-4-1-20250805": "200k",
+  "claude-opus-4-20250514": "200k",
+  "claude-sonnet-4-20250514": "200k",
+  "claude-3-7-sonnet-20250219": "200k",
+  "claude-3-5-haiku-20241022": "200k",
   "claude-opus-4-1": "200k",
   "claude-opus-4": "200k",
-  "claude-sonnet-4-5": "200k",
   "claude-sonnet-4": "200k",
-  "claude-haiku-4-5": "200k",
+  "claude-3-7-sonnet": "200k",
   "claude-3-5-sonnet": "200k",
   "claude-3-5-haiku": "200k",
   // OpenAI
@@ -66,9 +68,21 @@ const FAMILY_ALIAS_LABELS: Record<string, string> = {
 };
 
 const DISPLAY_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-7",
-  haiku: "claude-haiku-4-5",
+  sonnet: "claude-sonnet-4-20250514",
+  opus: "claude-opus-4-1-20250805",
+  haiku: "claude-3-5-haiku-20241022",
+  "claude-sonnet-4-6": "claude-sonnet-4-20250514",
+  "claude-sonnet-4-5": "claude-sonnet-4-20250514",
+  "claude-opus-4-7": "claude-opus-4-1-20250805",
+  "claude-haiku-4-5": "claude-3-5-haiku-20241022",
+};
+
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "claude-opus-4-1-20250805": "Opus 4.1",
+  "claude-opus-4-20250514": "Opus 4",
+  "claude-sonnet-4-20250514": "Sonnet 4",
+  "claude-3-7-sonnet-20250219": "Sonnet 3.7",
+  "claude-3-5-haiku-20241022": "Haiku 3.5",
 };
 
 // Convert "claude-opus-4-1" to "Opus 4.1" — strip the provider
@@ -78,6 +92,8 @@ const DISPLAY_MODEL_ALIASES: Record<string, string> = {
 function prettyModel(model: string): string {
   const alias = FAMILY_ALIAS_LABELS[model];
   if (alias) return alias;
+  const documentedName = MODEL_DISPLAY_NAMES[model];
+  if (documentedName) return documentedName;
   if (model.startsWith("gpt-")) {
     const rest = model
       .slice(4)

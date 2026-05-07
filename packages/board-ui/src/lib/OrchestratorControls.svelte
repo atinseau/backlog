@@ -44,7 +44,8 @@
   let orchestrator = $state<OrchestratorState | null>(null);
   let runnableCount = $state<number | null>(null);
   let blockedByAgent = $state(false);
-  let busy = $state(false);
+  let startBusy = $state(false);
+  let stopBusy = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
@@ -64,7 +65,7 @@
   }
 
   async function handleStart() {
-    busy = true;
+    startBusy = true;
     try {
       // The parent owns the "what to start" decision (it has the
       // board state). Fall back to the orchestrator-level start when
@@ -79,12 +80,12 @@
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
-      busy = false;
+      startBusy = false;
     }
   }
 
   async function handleStop() {
-    busy = true;
+    stopBusy = true;
     try {
       // Two cases: global orchestrator running → stop it. Otherwise
       // the user has individual runs in flight and the parent owns
@@ -97,7 +98,7 @@
     } catch (err) {
       onError?.(err instanceof Error ? err.message : String(err));
     } finally {
-      busy = false;
+      stopBusy = false;
     }
   }
 
@@ -139,12 +140,11 @@
 <div class="controls" role="toolbar" aria-label="Orchestrator controls">
   <!-- Stop on the left, Play on the right (DAW / tape-recorder convention
        of "destructive action first"). Stop is greyed when nothing is
-       running; Play stays bright + clickable so the user always has a
-       way to launch. -->
+       running; Play is greyed while work is already in flight. -->
   <button
     class="ctrl stop"
     onclick={handleStop}
-    disabled={busy || !isRunning}
+    disabled={stopBusy || !isRunning}
     title={stopTitle}
     aria-label="Stop"
   >
@@ -156,7 +156,7 @@
     class="ctrl play"
     class:running={isRunning}
     onclick={handleStart}
-    disabled={busy || isRunning || !canPlay}
+    disabled={startBusy || isRunning || !canPlay}
     title={playTitle}
     aria-label="Play"
   >
@@ -194,10 +194,8 @@
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);
   }
-  /* Play is the affirmative action — always bright (var(--text-primary)
-     = white in dark mode) and always clickable when nothing is running.
-     The "nothing to run" condition no longer disables it visually; if
-     the user clicks with nothing queued, the orchestrator just no-ops. */
+  /* Play is the affirmative action while idle, then goes disabled while
+     a run is active so it cannot launch the same work twice. */
   .ctrl.play {
     color: var(--accent-on);
     background: var(--accent);
@@ -210,12 +208,12 @@
   .ctrl.play:hover:not(:disabled) {
     background: var(--accent-hover);
   }
-  .ctrl.play.running {
+  .ctrl.play.running:not(:disabled) {
     color: var(--success);
     background: var(--success-bg);
     opacity: 1;
   }
-  .ctrl.play.running:hover { background: var(--success-bg); }
+  .ctrl.play.running:hover:not(:disabled) { background: var(--success-bg); }
 
   /* Stop turns red + interactive when something is running, otherwise
      it sits greyed (visible but non-clickable). */

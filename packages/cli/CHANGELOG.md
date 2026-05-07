@@ -4,6 +4,15 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.52] - 2026-05-07
+
+Run controls, model selection, and split-task fixes.
+
+- **Header Play/Stop now tracks active runs correctly** — Play disables as soon as work starts and Stop stays available while the run is queued, preparing, or running.
+- **Task title/refine/split AI calls now use the selected header agent** instead of silently falling back to Haiku when a task is created from the board.
+- **Anthropic split suggestions no longer send an unsupported array schema** while Backlog still validates that the returned plan contains 2 to 6 subtasks.
+- **Claude model labels now use documented Anthropic model names and context windows** instead of invented Sonnet, Opus, or Haiku versions.
+
 ## [1.4.51] - 2026-05-07
 
 Board, Git, and split-task stability fixes.
