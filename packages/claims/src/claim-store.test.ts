@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   archiveClaim,
   createClaim,
@@ -64,28 +64,22 @@ describe("loadActiveClaim / loadActiveClaimIfPresent", () => {
 });
 
 describe("listActiveClaims", () => {
-  it("skips malformed claim files instead of crashing the scan", () => {
+  it("quarantines malformed claim files instead of crashing or logging during scans", () => {
     const backlogDir = tmpBacklogDir();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const claim = createClaim({
-        backlogDir,
-        repo: "demo",
-        repoPath: "/tmp/demo",
-        topic: "feature",
-        paths: ["src/**"],
-      });
-      fs.writeFileSync(
-        path.join(backlogDir, "claims", "active", "claim_bad.json"),
-        "{not valid json",
-        "utf8",
-      );
+    const claim = createClaim({
+      backlogDir,
+      repo: "demo",
+      repoPath: "/tmp/demo",
+      topic: "feature",
+      paths: ["src/**"],
+    });
+    const badPath = path.join(backlogDir, "claims", "active", "claim_bad.json");
+    fs.writeFileSync(badPath, "{not valid json", "utf8");
 
-      expect(listActiveClaims(backlogDir).map((candidate) => candidate.id)).toEqual([claim.id]);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("ignoring unreadable claim file"));
-    } finally {
-      warn.mockRestore();
-    }
+    expect(listActiveClaims(backlogDir).map((candidate) => candidate.id)).toEqual([claim.id]);
+    expect(fs.existsSync(badPath)).toBe(false);
+    expect(fs.existsSync(path.join(backlogDir, "claims", "archive", "invalid", "claim_bad.json"))).toBe(true);
+    expect(fs.existsSync(path.join(backlogDir, "claims", "archive", "invalid", "claim_bad.json.error.txt"))).toBe(true);
   });
 });
 

@@ -4,6 +4,12 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.53] - 2026-05-07
+
+Claim cleanup patch.
+
+- **Malformed active claim files are now quarantined silently** so a corrupt claim from another project cannot print noisy JSON parse warnings when launching the board or scanning claims.
+
 ## [1.4.52] - 2026-05-07
 
 Run controls, model selection, and split-task fixes.

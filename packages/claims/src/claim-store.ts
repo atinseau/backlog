@@ -19,8 +19,6 @@ function claimFilePath(directory: string, claimId: string): string {
   return path.join(directory, `${claimId}.json`);
 }
 
-const warnedUnreadableClaimFiles = new Set<string>();
-
 function findClaimFilePath(directory: string, claimId: string): string | null {
   const direct = claimFilePath(directory, claimId);
   if (fs.existsSync(direct)) return direct;
@@ -42,12 +40,29 @@ function readClaimFileIfValid(filePath: string): ClaimRecord | null {
   try {
     return readClaimFile(filePath);
   } catch (error) {
-    if (!warnedUnreadableClaimFiles.has(filePath)) {
-      warnedUnreadableClaimFiles.add(filePath);
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`backlog: ignoring unreadable claim file ${filePath}: ${message}`);
-    }
+    quarantineUnreadableClaimFile(filePath, error);
     return null;
+  }
+}
+
+function quarantineUnreadableClaimFile(filePath: string, error: unknown): void {
+  try {
+    if (!fs.existsSync(filePath)) return;
+    const claimsDir = path.dirname(path.dirname(filePath));
+    const invalidDir = path.join(claimsDir, "archive", "invalid");
+    fs.mkdirSync(invalidDir, { recursive: true });
+    const parsed = path.parse(filePath);
+    let target = path.join(invalidDir, parsed.base);
+    for (let i = 1; fs.existsSync(target); i += 1) {
+      target = path.join(invalidDir, `${parsed.name}-${i}${parsed.ext}`);
+    }
+    fs.renameSync(filePath, target);
+    const message = error instanceof Error ? error.message : String(error);
+    fs.writeFileSync(`${target}.error.txt`, `${message}\n`, "utf8");
+  } catch {
+    // If quarantine fails (permissions, concurrent scan, etc.), keep
+    // treating the claim as inactive. A malformed claim must never
+    // block a commit or pollute the board startup logs.
   }
 }
 
