@@ -1,7 +1,7 @@
 <script lang="ts">
   // Three Xcode-style toggle buttons for the left, bottom, and right
   // panels. Each shows a small rectangle with the corresponding edge
-  // filled when the panel is open. Clicking toggles.
+  // permanently marked; the active state only changes emphasis.
   interface Props {
     leftOpen: boolean;
     bottomOpen: boolean;
@@ -32,7 +32,7 @@
   >
     <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
       <rect x="0.5" y="0.5" width="17" height="13" rx="2" stroke="currentColor" />
-      <rect x="0.5" y="0.5" width="6" height="13" fill={leftOpen ? "currentColor" : "transparent"} />
+      <rect class="pane-marker" x="0.5" y="0.5" width="6" height="13" fill="currentColor" />
     </svg>
   </button>
   <button
@@ -45,7 +45,7 @@
   >
     <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
       <rect x="0.5" y="0.5" width="17" height="13" rx="2" stroke="currentColor" />
-      <rect x="0.5" y="8.5" width="17" height="5" fill={bottomOpen ? "currentColor" : "transparent"} />
+      <rect class="pane-marker" x="0.5" y="8.5" width="17" height="5" fill="currentColor" />
     </svg>
   </button>
   <button
@@ -58,7 +58,7 @@
   >
     <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
       <rect x="0.5" y="0.5" width="17" height="13" rx="2" stroke="currentColor" />
-      <rect x="11.5" y="0.5" width="6" height="13" fill={rightOpen ? "currentColor" : "transparent"} />
+      <rect class="pane-marker" x="11.5" y="0.5" width="6" height="13" fill="currentColor" />
     </svg>
   </button>
 </div>
@@ -86,12 +86,18 @@
     line-height: 0;
     transition: background 120ms ease, color 120ms ease;
   }
+  .toggle :global(.pane-marker) {
+    opacity: 0.4;
+  }
   .toggle:hover {
     background: var(--bg-active);
     color: var(--text-secondary);
   }
   .toggle.active {
     color: var(--accent);
+  }
+  .toggle.active :global(.pane-marker) {
+    opacity: 1;
   }
   .toggle.active:hover {
     background: var(--accent-bg);

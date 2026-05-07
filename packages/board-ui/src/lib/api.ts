@@ -1466,6 +1466,21 @@ export async function ensureGitIgnore(repo: string): Promise<{ path: string }> {
   return json as { path: string };
 }
 
+export async function initGitRepository(repo: string): Promise<{ state: GitRepoBranches }> {
+  const response = await fetch(apiUrl("/git/init"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ repo }),
+  });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof json === "object" && json && "detail" in json ? String((json as { detail: string }).detail) : "";
+    const error = typeof json === "object" && json && "error" in json ? String((json as { error: string }).error) : `HTTP ${response.status}`;
+    throw new Error(detail ? `${error}: ${detail}` : error);
+  }
+  return json as { state: GitRepoBranches };
+}
+
 export interface GitFileDiff {
   repo: string;
   file: string;

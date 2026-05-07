@@ -81,6 +81,35 @@ describe("git routes", () => {
     expect(statusAfter).not.toContain("new.ts");
   });
 
+  it("initializes Git for a normal folder", async () => {
+    const project = makeProject();
+    const folder = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-normal-folder-"));
+    fs.writeFileSync(path.join(folder, "index.html"), "Hello\n", "utf8");
+    addRepo(project.backlogDir, { id: "site", path: folder, defaultBranch: "main" });
+
+    const app = harness(project);
+    const changesBefore = await app.request("/git/changes?repo=site");
+    expect(changesBefore.status).toBe(200);
+    const beforeBody = (await changesBefore.json()) as { repos: Array<{ status: { error?: string } }> };
+    expect(beforeBody.repos[0]?.status.error).toContain("not a git repository");
+
+    const initRes = await app.request("/git/init", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repo: "site" }),
+    });
+    expect(initRes.status).toBe(200);
+    const inside = await git(["rev-parse", "--is-inside-work-tree"], folder);
+    expect(inside).toBe("true");
+
+    const changesAfter = await app.request("/git/changes?repo=site");
+    const afterBody = (await changesAfter.json()) as { repos: Array<{ status: { total: number; untracked: number }; changes: Array<{ path: string }> }> };
+    expect(afterBody.repos[0]).toMatchObject({
+      status: { total: 1, untracked: 1 },
+      changes: [{ path: "index.html" }],
+    });
+  });
+
   it("decodes git-quoted paths before showing changes and reading diffs", async () => {
     const project = makeProject();
     const repoRoot = await makeRepo();

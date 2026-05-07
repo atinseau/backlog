@@ -50,7 +50,7 @@ interface SubTaskCard {
   latest_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null;
   active_claim: ClaimSummary | null;
   estimated_duration_seconds: number;
-  estimate_source: "manual" | "auto";
+  estimate_source: "manual" | "auto" | "fallback";
   elapsed_seconds: number | null;
   progress_percent: number;
   progress_source: "agent" | "elapsed" | "status";
@@ -72,6 +72,7 @@ interface TaskCard {
   tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;
+  estimate_source: "manual" | "auto" | "fallback";
   remaining_seconds: number;
   progress_percent: number;
 }
@@ -223,6 +224,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
 
     let cardEstimateSeconds = 0;
     let cardRemainingSeconds = 0;
+    let cardEstimateSource: "manual" | "auto" | "fallback" = parentTask.estimated_duration_seconds ? "manual" : "fallback";
 
     const taskCards: SubTaskCard[] = itemTasks.map((task) => {
       const activeRun = findActiveRun(runs, task.id);
@@ -237,6 +239,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
         now,
       });
       const isOpen = task.status !== "completed" && task.status !== "canceled";
+      cardEstimateSource = mergeEstimateSource(cardEstimateSource, estimate.source);
       cardEstimateSeconds += isOpen ? estimate.seconds : 0;
       const elapsed = elapsedSeconds(activeRun, now);
       const remainingForTask = isOpen
@@ -284,7 +287,9 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
         };
         const claimIds = activeRun?.claim_ids ?? [];
         const activeClaim = findActiveClaimForTask(claims, target, claimIds);
+        const estimateSource: "manual" | "auto" | "fallback" = parentTask.estimated_duration_seconds ? "manual" : "fallback";
         const estimateSeconds = parentTask.estimated_duration_seconds ?? 900;
+        cardEstimateSource = mergeEstimateSource(cardEstimateSource, estimateSource);
         const progress = computeSubTaskProgress({
           task: target,
           activeRun,
@@ -317,7 +322,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
           latest_run: summarizeRun(directRun),
           active_claim: activeClaim ? summarizeClaim(activeClaim) : null,
           estimated_duration_seconds: estimateSeconds,
-          estimate_source: parentTask.estimated_duration_seconds ? "manual" : "auto",
+          estimate_source: estimateSource,
           elapsed_seconds: progress.elapsed_seconds,
           progress_percent: progress.percent,
           progress_source: progress.source,
@@ -363,6 +368,7 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
       tasks: taskCards,
       blocked_by_claims: blockedByClaims,
       estimated_duration_seconds: itemEstimate,
+      estimate_source: cardEstimateSource,
       remaining_seconds: cardRemainingSeconds,
       progress_percent: itemProgress,
     };
@@ -408,6 +414,15 @@ function priorityOrder(priority: Task["priority"]): number {
     case "P3":
       return 3;
   }
+}
+
+function mergeEstimateSource(
+  current: "manual" | "auto" | "fallback",
+  next: "manual" | "auto" | "fallback",
+): "manual" | "auto" | "fallback" {
+  if (current === "manual" || next === "manual") return "manual";
+  if (current === "auto" || next === "auto") return "auto";
+  return "fallback";
 }
 
 export function boardRoutes(): Hono<AppEnv> {

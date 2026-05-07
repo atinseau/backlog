@@ -12,11 +12,12 @@
   interface Props {
     availableRepos: string[];
     agentId?: string | null;
+    hasGitRepository?: boolean;
     onClose: () => void;
     onCreated?: (result: { taskId: string; subTasksCreated: number }) => void;
   }
 
-  let { availableRepos, agentId = null, onClose, onCreated }: Props = $props();
+  let { availableRepos, agentId = null, hasGitRepository = true, onClose, onCreated }: Props = $props();
 
   function focusOnMount(node: HTMLElement): void {
     queueMicrotask(() => node.focus());
@@ -61,6 +62,16 @@
   });
 
   $effect(() => {
+    if (!hasGitRepository) {
+      worktreeMode = "direct";
+      commitWhenDone = false;
+      pushWhenDone = false;
+      createPr = false;
+      mergePr = false;
+    }
+  });
+
+  $effect(() => {
     if (worktreeMode === "direct") {
       createPr = false;
       mergePr = false;
@@ -75,13 +86,11 @@
     }
   });
 
-  // AI splitter / estimator — both opt-in. Splitter is conditional
-  // ("only if needed"); estimator runs an LLM once to ballpark the
-  // task duration. Max tasks / max sub-agents are pretty-printed in
-  // the splitter prompt; defaults match what the splitter expects
+  // AI splitter. It is conditional ("only if needed"); most tasks run
+  // directly as one unit. Max tasks / max sub-agents are pretty-printed
+  // in the splitter prompt; defaults match what the splitter expects
   // server-side.
   let autoSplit = $state(false);
-  let autoEstimateWithAi = $state(false);
   let maxSplitTasks = $state(6);
   let maxSubagents = $state(3);
 
@@ -110,11 +119,11 @@
       };
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = showReview ? manualApproval : false;
-      input.auto_commit = worktreeMode === "isolated_worktree" ? true : commitWhenDone;
-      input.push_when_done = worktreeMode === "direct" ? commitWhenDone && pushWhenDone : pushWhenDone;
-      input.create_pr = worktreeMode === "isolated_worktree" ? createPr : false;
-      input.merge_pr = worktreeMode === "isolated_worktree" ? mergePr : false;
-      input.worktree_mode = worktreeMode;
+      input.auto_commit = hasGitRepository ? (worktreeMode === "isolated_worktree" ? true : commitWhenDone) : false;
+      input.push_when_done = hasGitRepository ? (worktreeMode === "direct" ? commitWhenDone && pushWhenDone : pushWhenDone) : false;
+      input.create_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? createPr : false;
+      input.merge_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? mergePr : false;
+      input.worktree_mode = hasGitRepository ? worktreeMode : "direct";
       // New tasks inherit the concrete model/agent selected in the
       // header. The creation form should not ask again for the model;
       // the header is the single source of truth for the next run.
@@ -144,11 +153,9 @@
       } else {
         // Skip the "applied" phase entirely. Setting `phase = "applied"`
         // briefly rendered "Tâche créée" / "✓ Tâche créée" before the
-        // parent closed the dialog — visually a duplicate of the
-        // StartPromptDialog body that opens next, which leads users to
-        // think they've already confirmed. Just hand off via onCreated;
-        // the parent closes the dialog and surfaces the start prompt
-        // as the single visible confirmation.
+        // parent closes the dialog and surfaces one lightweight
+        // confirmation toast. Starting is now an explicit Play action,
+        // not a second modal immediately after creation.
         onCreated?.({ taskId: task.id, subTasksCreated: 0 });
       }
     } catch (err) {
@@ -246,8 +253,22 @@
           </div>
         {/if}
 
+        {#if showReview}
+          <fieldset class="execution">
+            <legend>{t("create_task.execution.title")}</legend>
+            <label class="toggle">
+              <input type="checkbox" bind:checked={manualApproval} />
+              <span>
+                <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
+                <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
+              </span>
+            </label>
+          </fieldset>
+        {/if}
+
+        {#if hasGitRepository}
         <fieldset class="execution">
-          <legend>{t("create_task.execution.title")}</legend>
+          <legend>{t("create_task.git.title")}</legend>
 
           <!-- Worktree mode first — it's the single biggest decision
                for this task: do you want the agent to touch your
@@ -306,16 +327,8 @@
             </label>
           {/if}
 
-          {#if showReview}
-            <label class="toggle">
-              <input type="checkbox" bind:checked={manualApproval} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.manual_approval")}</span>
-                <span class="toggle-desc">{t("create_task.execution.manual_approval_desc")}</span>
-              </span>
-            </label>
-          {/if}
         </fieldset>
+        {/if}
 
         <fieldset class="execution">
           <legend>{t("create_task.ai.title")}</legend>
@@ -338,13 +351,6 @@
               </label>
             </div>
           {/if}
-          <label class="toggle">
-            <input type="checkbox" bind:checked={autoEstimateWithAi} />
-            <span>
-              <span class="toggle-label">{t("create_task.ai.estimate")}</span>
-              <span class="toggle-desc">{t("create_task.ai.estimate_desc")}</span>
-            </span>
-          </label>
         </fieldset>
 
         <footer>

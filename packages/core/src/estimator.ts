@@ -23,7 +23,7 @@ function fallbackForRisk(risk: SubTask["risk"]): number {
 
 export interface TaskEstimate {
   seconds: number;
-  source: "manual" | "auto";
+  source: "manual" | "auto" | "fallback";
   sample_size?: number;
 }
 
@@ -115,10 +115,11 @@ export function estimateSubTask(
     return { seconds: task.estimated_duration_seconds, source: task.estimate_source ?? "auto" };
   }
 
-  // No history yet → fall back to a risk-keyed default. Keeps the
-  // initial "il reste 2 min" / "5 min" / "20 min" pills realistic
-  // until enough runs land to compute a per-repo median.
-  return { seconds: fallbackForRisk(task.risk), source: "auto", sample_size: 0 };
+  // No history or explicit estimate yet. Keep an internal fallback so
+  // progress can move while a run is active, but mark it separately so
+  // the UI does not present a made-up ETA as if the user requested an
+  // estimate.
+  return { seconds: fallbackForRisk(task.risk), source: "fallback", sample_size: 0 };
 }
 
 export function estimateTask(

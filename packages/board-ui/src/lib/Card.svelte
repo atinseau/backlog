@@ -51,6 +51,7 @@
   const reviewCount = $derived(card.tasks.filter((t) => t.active_run?.status === "awaiting_review").length);
   const blockedTaskCount = $derived(card.tasks.filter((t) => t.status === "blocked").length);
   const visibleBlockedCount = $derived(blockedCount + blockedTaskCount);
+  const hasDisplayedEstimate = $derived(card.estimate_source !== "fallback");
   // A card is "locked" while any of its subtasks has an active run —
   // the executor owns its status, dragging is blocked at the dndzone
   // level (Column.svelte), and we surface the state visually with a
@@ -414,15 +415,17 @@
         <li class:running={task.active_run !== null} class:claimed={task.active_claim !== null}>
           <div class="task-line">
             <span class="task-title">{task.title}</span>
-            <span class="task-eta">
-              {#if task.active_run?.status === "awaiting_review"}
-                {t("card.task_ready_to_apply")}
-              {:else if task.eta && task.active_run}
-                {formatRemaining(task.eta, timer.now) ?? formatDuration(task.estimated_duration_seconds)}
-              {:else}
-                ~{formatDuration(task.estimated_duration_seconds)}
-              {/if}
-            </span>
+            {#if task.active_run?.status === "awaiting_review" || task.estimate_source !== "fallback"}
+              <span class="task-eta">
+                {#if task.active_run?.status === "awaiting_review"}
+                  {t("card.task_ready_to_apply")}
+                {:else if task.eta && task.active_run}
+                  {formatRemaining(task.eta, timer.now) ?? formatDuration(task.estimated_duration_seconds)}
+                {:else}
+                  ~{formatDuration(task.estimated_duration_seconds)}
+                {/if}
+              </span>
+            {/if}
           </div>
           <span class="task-meta">
             {task.repo}
@@ -473,8 +476,11 @@
       </div>
       <div class="card-stats">
         <span>{displayProgressPercent}%</span>
-        <span class="dot">·</span>
-        <span>{reviewCount > 0 ? t("card.awaiting_apply") : t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
+        {#if reviewCount > 0}
+          <span class="dot">·</span><span>{t("card.awaiting_apply")}</span>
+        {:else if hasDisplayedEstimate}
+          <span class="dot">·</span><span>{t("card.remaining", { duration: formatDuration(card.remaining_seconds) })}</span>
+        {/if}
         {#if runningCount > 0}<span class="dot">·</span><span class="badge running">▶ {runningCount}</span>{/if}
         {#if reviewCount > 0}<span class="dot">·</span><span class="badge review">✓ {reviewCount}</span>{/if}
         {#if visibleBlockedCount > 0}<span class="dot">·</span><span class="badge blocked">⚠ {visibleBlockedCount}</span>{/if}

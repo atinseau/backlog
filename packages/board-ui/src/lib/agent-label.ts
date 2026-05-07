@@ -10,23 +10,29 @@
 
 import type { AgentSummary } from "./types.js";
 
-// Context window per exact, documented model id. Family aliases like
-// `sonnet`, `opus`, and `haiku` deliberately do not map to a version
-// or a context size: the provider CLI resolves those aliases, so the UI
-// must not invent a version number.
+// Context window per documented model id. Family aliases still go to
+// the provider CLI unchanged, but the UI displays the currently
+// documented default so the header remains useful without inventing
+// versions.
 const MODEL_CONTEXT: Record<string, string> = {
   // Anthropic
+  "claude-opus-4-7": "1M",
+  "claude-sonnet-4-6": "1M",
   "claude-opus-4-1": "200k",
-  "claude-opus-4-5": "200k",
   "claude-opus-4": "200k",
   "claude-sonnet-4-5": "200k",
   "claude-sonnet-4": "200k",
   "claude-haiku-4-5": "200k",
-  "claude-haiku-4": "200k",
   "claude-3-5-sonnet": "200k",
   "claude-3-5-haiku": "200k",
   // OpenAI
+  "gpt-5.2-codex": "400k",
+  "gpt-5.1-codex": "400k",
+  "gpt-5.1-codex-max": "400k",
   "gpt-5": "400k",
+  "gpt-5-codex": "400k",
+  "gpt-5-mini": "400k",
+  "gpt-5-nano": "400k",
   "gpt-4.1": "1M",
   "gpt-4o": "128k",
   "gpt-4o-mini": "128k",
@@ -57,6 +63,12 @@ const FAMILY_ALIAS_LABELS: Record<string, string> = {
   sonnet: "Sonnet",
   opus: "Opus",
   haiku: "Haiku",
+};
+
+const DISPLAY_MODEL_ALIASES: Record<string, string> = {
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
 };
 
 // Convert "claude-opus-4-1" to "Opus 4.1" — strip the provider
@@ -95,7 +107,8 @@ function prettyModel(model: string): string {
 
 function displayModelId(model: string | null): string | null {
   if (!model) return null;
-  return model.trim() || null;
+  const value = model.trim();
+  return (DISPLAY_MODEL_ALIASES[value] ?? value) || null;
 }
 
 function shouldPrefixProvider(provider: string, modelOnly: string): boolean {

@@ -1007,6 +1007,32 @@ export function commitsRoutes(): Hono<AppEnv> {
     }
   });
 
+  app.post("/git/init", async (c) => {
+    const project = c.get("project");
+    const raw = await c.req.json().catch(() => null);
+    const parsed = syncBodySchema.safeParse(raw);
+    if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+    const config = loadConfig(project.backlogDir);
+    const repo = config.repos.find((candidate) => candidate.id === parsed.data.repo);
+    if (!repo) return c.json({ error: "unknown_repo" }, 404);
+    const repoPath = requireCheckoutPath(repo);
+    if (!repoPath) return c.json({ error: "repository_has_no_local_checkout" }, 400);
+
+    try {
+      const stat = await fs.stat(repoPath);
+      if (!stat.isDirectory()) return c.json({ error: "repository_path_not_directory" }, 400);
+      const existing = await gitOrNull(["rev-parse", "--is-inside-work-tree"], repoPath);
+      if (existing === "true") {
+        return c.json({ ok: true, repo: repo.id, state: await readBranchState(repo.id, repoPath, repo.default_branch) });
+      }
+      await git(["init", "-b", repo.default_branch], repoPath);
+      return c.json({ ok: true, repo: repo.id, state: await readBranchState(repo.id, repoPath, repo.default_branch) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return c.json({ error: "git_init_failed", detail: message }, 400);
+    }
+  });
+
   app.get("/git/worktrees", async (c) => {
     const project = c.get("project");
     const repoFilter = repositoryQuery(c);

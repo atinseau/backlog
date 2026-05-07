@@ -40,6 +40,7 @@ interface ModelPricing {
 
 const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   // Anthropic
+  "claude-opus-4-7": { input: 5, output: 25 },
   "claude-opus-4-1": { input: 15, output: 75 },
   "claude-opus-4-5": { input: 15, output: 75 },
   "claude-opus-4": { input: 15, output: 75 },
@@ -54,8 +55,8 @@ const PRICING_PER_MILLION: Record<string, ModelPricing> = {
 };
 
 const PRICING_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-5",
-  opus: "claude-opus-4-1",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
   haiku: "claude-haiku-4-5",
   "gpt-5-codex": "gpt-5-codex",
 };

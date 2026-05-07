@@ -4,6 +4,17 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.50] - 2026-05-07
+
+Verified model metadata, non-Git workspace UX, and task creation cleanup.
+
+- **Header model labels show verified versions and context windows again** — Claude aliases now display the current documented defaults (Sonnet 4.6 1M, Opus 4.7 1M, Haiku 4.5 200k) and Codex/OpenAI defaults include documented context where known.
+- **Panel toggle icons now permanently show which panel they control** so the left, bottom, and right layout buttons remain understandable even when a panel is closed.
+- **Git now handles normal folders gracefully** — non-Git workspaces show a clear message with an Initialize Git action instead of a raw `git status` failure.
+- **Task creation hides Git-only options for non-Git workspaces** and groups commit, push, pull request, merge, and worktree controls under a dedicated Git section when Git is available.
+- **New task creation no longer opens a broken Start prompt**; Backlog confirms creation and leaves starting to the explicit Play button.
+- **Fallback duration estimates are no longer presented as real ETAs** when the user did not request or set an estimate, while still allowing internal progress to move during active runs.
+
 ## [1.4.49] - 2026-05-06
 
 Model labels, review policy, and board progress fixes.

@@ -23,7 +23,6 @@
   import CardMenu from "./lib/CardMenu.svelte";
   import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn, setShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
-  import StartPromptDialog from "./lib/StartPromptDialog.svelte";
   import DirectDirtyDialog from "./lib/DirectDirtyDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
@@ -247,7 +246,6 @@
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let splitTarget = $state<TaskCard | null>(null);
-  let startPrompt = $state<{ taskId: string; subTasksCreated: number } | null>(null);
   let directDirtyPrompt = $state<{ taskId: string; title: string } | null>(null);
   let dirtyGitPrompt = $state<TaskCard | null>(null);
   let dirtyGitBypassTaskId = $state<string | null>(null);
@@ -339,6 +337,19 @@
   });
   const repoGitStatuses = $derived(board?.repo_git_statuses ?? {});
   const repos = $derived(repoOptions.map((r) => r.id));
+  function isNotGitRepositoryError(value?: string | null): boolean {
+    if (!value) return false;
+    return /not a git repository|not inside a git work tree|must be run in a work tree/i.test(value);
+  }
+  const createTaskHasGitRepository = $derived.by(() => {
+    const targets = selectedRepoId ? [selectedRepoId] : repos;
+    if (targets.length === 0) return false;
+    return targets.some((id) => {
+      const repo = repoOptions.find((candidate) => candidate.id === id);
+      if (repo?.location === "remote" || repo?.remote_type === "git" || repo?.remote_url || repo?.git_url) return true;
+      return !isNotGitRepositoryError(repoGitStatuses[id]?.error);
+    });
+  });
 
   // Column visibility — when In Review is hidden (default), review-status
   // tasks are merged into the doing column so they remain visible. The
@@ -1601,43 +1612,12 @@
   <CreateTaskDialog
     availableRepos={repos}
     agentId={selectedRunAgentId}
+    hasGitRepository={createTaskHasGitRepository}
     onClose={() => (createTaskOpen = false)}
-    onCreated={(result) => {
-      // Auto-close the create dialog the moment the task lands. The
-      // dialog used to linger on an "applied" screen showing
-      // "Tâche créée" / "✓ Tâche créée" — visually duplicating its
-      // own header text in the body. Worse, it stacked in front of the
-      // StartPromptDialog that opens next, so the user often saw the
-      // "created" confirmation, hit Close, and never noticed the
-      // "Start now?" prompt — leading to "the task says created but
-      // nothing happened" confusion. Now: create dialog closes, start
-      // prompt is the single visible follow-up. Clean handoff.
+    onCreated={() => {
       createTaskOpen = false;
       if (!connected) refresh();
-      startPrompt = result;
-    }}
-  />
-{/if}
-
-{#if startPrompt}
-  <StartPromptDialog
-    taskId={startPrompt.taskId}
-    subTasksCreated={startPrompt.subTasksCreated}
-    agentId={selectedRunAgentId}
-    onClose={() => (startPrompt = null)}
-    onBlocked={(message, action, taskId) => {
-      const card = findCardById(taskId);
-      surfaceStartRunBlock(message, action, card ?? { id: taskId, title: taskId });
-    }}
-    onStarted={() => {
-      // Same UX as clicking the card-level Play: pop the bottom
-      // Activity panel open so the user immediately sees logs,
-      // refresh state if SSE isn't connected yet. Without
-      // openActivityPanel here, hitting "Démarrer" silently kicked
-      // off a run with no visible feedback — user thought nothing
-      // happened.
-      openActivityPanel();
-      if (!connected) refresh();
+      toasts?.push("success", t("create_task.applied.success"));
     }}
   />
 {/if}

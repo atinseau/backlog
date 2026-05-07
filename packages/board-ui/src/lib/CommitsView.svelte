@@ -17,6 +17,7 @@
     fetchGitRemoteState,
     fetchGitWorktrees,
     ignoreGitChanges,
+    initGitRepository,
     mergeGitBranch,
     pruneGitWorktrees,
     removeGitWorktree,
@@ -432,6 +433,11 @@
     return value;
   }
 
+  function isNotGitRepositoryError(value?: string | null): boolean {
+    if (!value) return false;
+    return /not a git repository|not inside a git work tree|must be run in a work tree/i.test(value);
+  }
+
   function previewKey(repo: string, target: string, source: string): string {
     return `${repo}\0${target}\0${source}`;
   }
@@ -617,6 +623,22 @@
       openPath(result.path);
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function initializeGitRepository(repoId: string) {
+    error = null;
+    info = null;
+    branchBusy = repoId;
+    try {
+      await initGitRepository(repoId);
+      info = t("git.not_git.initialized");
+      await load();
+      onCommitted?.();
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      branchBusy = null;
     }
   }
 
@@ -1086,6 +1108,12 @@
                 <button type="button" onclick={() => handleRelocateRepo(state)}>
                   {t("repos_view.relocate")}
                 </button>
+              {:else if isNotGitRepositoryError(state.error)}
+                <strong>{t("git.not_git.title")}</strong>
+                <span>{t("git.not_git.body")}</span>
+                <button type="button" onclick={() => initializeGitRepository(state.repo)} disabled={branchBusy !== null || !state.path}>
+                  {branchBusy === state.repo ? t("git.not_git.initializing") : t("git.not_git.button")}
+                </button>
               {:else}
                 {state.error}
               {/if}
@@ -1288,6 +1316,12 @@
                     <button type="button" onclick={() => handleRelocateRepo(repo)}>
                       {t("repos_view.relocate")}
                     </button>
+                  {:else if isNotGitRepositoryError(repo.status.error)}
+                    <strong>{t("git.not_git.title")}</strong>
+                    <span>{t("git.not_git.body")}</span>
+                    <button type="button" onclick={() => initializeGitRepository(repo.repo)} disabled={branchBusy !== null || !repo.path}>
+                      {branchBusy === repo.repo ? t("git.not_git.initializing") : t("git.not_git.button")}
+                    </button>
                   {:else}
                     {repo.status.error}
                   {/if}
@@ -1383,6 +1417,12 @@
                   <span>{t("repos_view.missing_body", { path: repo.path })}</span>
                   <button type="button" onclick={() => handleRelocateRepo(repo)}>
                     {t("repos_view.relocate")}
+                  </button>
+                {:else if isNotGitRepositoryError(repo.error)}
+                  <strong>{t("git.not_git.title")}</strong>
+                  <span>{t("git.not_git.body")}</span>
+                  <button type="button" onclick={() => initializeGitRepository(repo.repo)} disabled={branchBusy !== null || !repo.path}>
+                    {branchBusy === repo.repo ? t("git.not_git.initializing") : t("git.not_git.button")}
                   </button>
                 {:else}
                   {worktreeErrorText(repo.error)}

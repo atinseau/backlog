@@ -60,7 +60,7 @@ export interface SubTaskCard {
   active_run: RunSummary | null;
   active_claim: ClaimSummary | null;
   estimated_duration_seconds: number;
-  estimate_source: "manual" | "auto";
+  estimate_source: "manual" | "auto" | "fallback";
   elapsed_seconds: number | null;
   progress_percent: number;
   progress_source: "agent" | "elapsed" | "status";
@@ -83,6 +83,7 @@ export interface TaskCard {
   tasks: SubTaskCard[];
   blocked_by_claims: ClaimSummary[];
   estimated_duration_seconds: number;
+  estimate_source: "manual" | "auto" | "fallback";
   remaining_seconds: number;
   progress_percent: number;
 }

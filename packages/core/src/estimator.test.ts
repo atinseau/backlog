@@ -90,7 +90,7 @@ describe("estimateSubTask", () => {
     const task = makeTask();
     const result = estimateSubTask(backlogDir, task);
     expect(result.seconds).toBe(FALLBACK_TASK_DURATION_SECONDS);
-    expect(result.source).toBe("auto");
+    expect(result.source).toBe("fallback");
     expect(result.sample_size).toBe(0);
   });
 
