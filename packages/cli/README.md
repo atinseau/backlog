@@ -2,8 +2,9 @@
 
 **The task orchestrator for AI coding agents.**
 
-Run Claude Code, Codex, and your own CLIs across isolated git worktrees,
-with claims, retries, and review. Local by default — no account required.
+Run Claude Code, Codex, and your own CLIs across local folders, Git
+repositories, and isolated worktrees, with claims, retries, live activity,
+and optional review. Local by default — no account required.
 
 [![npm version](https://img.shields.io/npm/v/backlog.svg)](https://www.npmjs.com/package/backlog)
 [![license](https://img.shields.io/npm/l/backlog.svg)](https://github.com/osmove/backlog/blob/main/LICENSE)
@@ -30,13 +31,17 @@ disk, audit log export. See [backlog.so/cloud](https://backlog.so/cloud).
 Backlog is the engine that sits between your backlog and your agents.
 
 It ingests work from sources you already use (Markdown, CSV, Jira, GitHub
-Issues — more on the [roadmap](docs/ROADMAP.md)), decomposes tasks
-into scoped, executable subtasks, and runs each subtask in an isolated git
-worktree under a file-scope claim so multiple agents can work in parallel
-without stepping on each other.
+Issues — more on the [roadmap](docs/ROADMAP.md)), keeps ideas separate
+from executable tasks, optionally decomposes larger tasks into scoped
+subtasks, and runs each task with the selected agent/model.
 
-When a run finishes, you review it, approve it, request changes, or hand
-it off — and the next eligible task can start immediately.
+Git-backed work can run in an isolated worktree under a file-scope claim so
+multiple agents can work in parallel without stepping on each other. Normal
+folders work too: Backlog edits them directly and hides Git-only commit,
+stash, discard, hook, and sync controls.
+
+When a run finishes, Backlog either completes it automatically or moves it
+to review, depending on the project's review setting.
 
 Backlog runs end-to-end on your machine by default. Remote sources,
 remote repositories, remote sandboxes, remote executors, and deploy targets are
@@ -48,15 +53,17 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 |-------|--------------|
 | **Sources** | Ingest tasks from Markdown, CSV, Jira (and more — see roadmap) |
 | **Projects** | Group one or many repositories under a single banner; tasks can be filtered per-project |
-| **Repositories** | Local paths or cloned from GitHub / GitLab / Bitbucket / arbitrary Git URLs |
-| **Tasks** | High-level units of intent imported from sources |
-| **Subtasks** | Executable units scoped to one repository and split out from tasks |
+| **Backlog** | Early ideas and pending requests before they are ready to become tasks |
+| **Workspaces** | Local folders, local Git repositories, or remote Git repositories where agents work |
+| **Git** | Changes, History, Branches, Worktrees, Hooks, and Sync when a workspace has Git metadata |
+| **Tasks** | High-level units of intent imported from sources or created on the board |
+| **Subtasks** | Executable units scoped to one workspace and split out from tasks |
 | **Claims** | Lock file/path scopes so concurrent runs cannot conflict |
-| **Worktrees** | Each run executes in its own isolated git worktree |
+| **Worktrees** | Git runs can execute in isolated worktrees; normal folders run directly |
 | **Scheduler** | Picks eligible tasks, assigns agents, respects claim conflicts |
-| **Orchestrator** | Persistent ▶/⏸/⏹ loop that re-runs the scheduler on a tick and dispatches runs |
-| **Runs** | Track agent execution with summary, log, changed files, ETA, and live progress |
-| **Review** | Approve, request changes, complete, fail, or handoff each run |
+| **Orchestrator** | Persistent dispatcher controlled by Play/Stop in the UI and start/pause/stop in the CLI |
+| **Runs** | Track agent execution with owner, activity, token usage, summary, changed files, ETA, and live progress |
+| **Review** | Optional In Review flow for approving, requesting changes, or discarding a run |
 | **Agents** | Per-agent permissions, sandbox mode, risk level, repository restrictions |
 
 ## Quickstart
@@ -64,12 +71,12 @@ part of the [multi-target roadmap](docs/ROADMAP.md).
 ```bash
 npm install -g backlog
 
-# Single-repository project: drop a .backlog/ inside the repository.
+# Single-folder or single-repository project: drop a .backlog/ inside it.
 cd ~/Dev/my-repository
 backlog init --name my-project
 
-# Multi-repository project: keep project state at ~/.backlog/<slug>/ instead so it
-# isn't tied to any one repository.
+# Multi-workspace project: keep project state at ~/.backlog/<slug>/ instead so it
+# is not tied to any one folder or repository.
 cd ~/Dev/my-multi-repository-parent
 backlog init --user-level --name my-project
 
@@ -113,7 +120,8 @@ Svelte UI, same `@backlog/server`:
 #   - If a server is already running, just opens the URL.
 #   - Otherwise spawns `backlog serve` and blocks until Ctrl+C.
 #   - `backlog` with no subcommand is the same shortcut.
-#   - From inside a tracked repository, it opens that project + repository directly.
+#   - From inside a folder, it opens that folder as the selected workspace.
+#     Git is optional; normal folders can run agents directly.
 backlog board
 ```
 
@@ -137,21 +145,28 @@ Both open at `http://127.0.0.1:7878` (Desktop picks a random port).
 The topbar and sidebars carry:
 
 - **Project selector** + project settings
-- **Play / Pause / Stop** controls for the persistent orchestrator
+- **Selected model/agent** next to the project name
+- **Play / Stop** run controls: grey when configuration is incomplete,
+  white when ready but no task is available, blue when a task can start
+- **Backlog** list for ideas and pending requests that are not tasks yet
 - **Git** view with Changes, History, branch/worktree controls, hooks status, and sync
-- **Repositories** management for local paths and cloned Git URLs
+- **Workspaces** management for local folders, local Git repositories, and cloned Git URLs
 - **Agents** view with per-agent permissions and runtime restrictions
-- **Runs** view for execution history and review
+- **Runs** view for execution history, ownership, protected paths, activity, and token usage
+- **Instructions** view for `AGENTS.md`, `CLAUDE.md`, and similar coding guidance files
+- **Hooks** view for installed/available hook versions and explicit install/update/uninstall actions
+- **Usage** in the profile menu, with token/cost charts by period and model
 - **+ Task** / **+ Claim** quick-create dialogs
 - **Total ETA pill** showing remaining work across the visible columns
 
-Cards drag between **À faire / En cours / In Review / Done**, *and* within a
-column to reorder by priority (sparse `priority_score` rewrite). Each task
-shows a 4 px progress bar (agent-reported > elapsed/estimate > status
-fallback) with an ETA that ticks every second client-side. The **+ Claim**
-modal creates a file-scope claim with a per-tier retry-after hint on
-collision, and the **Split** action decomposes a task into subtasks
-mechanically or via Claude (`ANTHROPIC_API_KEY` required).
+Cards drag between **Backlog / À faire / En cours / In Review / Done** when
+those columns are enabled, and within movable columns to reorder by priority
+(sparse `priority_score` rewrite). In Review is controlled by the run flow,
+so review cards are not manually draggable. Each task shows a progress bar
+(agent-reported > elapsed/estimate > status fallback) with an ETA that ticks
+client-side while work is active. The **+ Claim** modal creates a file-scope
+claim with a per-tier retry-after hint on collision, and AI split can ask the
+selected planner model to divide large work across up to 99 sub-agents.
 
 The board is served from the same `backlog` binary — no extra install,
 no docker. Kill with Ctrl+C.
@@ -239,13 +254,13 @@ to **in_repo** (the same directory you ran it in); pass `--user-level` to put
 project state under your home folder instead. Both layouts hold the same set
 of files; only the path on disk differs.
 
-**in_repo** (default — best for a single-repo project)
+**in_repo** (default — best for a single-repository project)
 
 ```
 <project root>/.backlog/
 ```
 
-**user_level** (best for multi-repo projects so project state lives outside
+**user_level** (best for multi-repository projects so project state lives outside
 any one repository)
 
 ```
@@ -267,7 +282,7 @@ config.toml          # project + repositories + autonomy_mode + claims TTL
                      # (project_location = "in_repo" | "user_level")
 tasks.yaml           # tasks (incl. project_id, rank, estimate)
 subtasks.yaml        # executable units split out from tasks
-orchestrator.json    # persistent ▶/⏸/⏹ state
+orchestrator.json    # persistent dispatcher state
 sources.yaml
 agents.yaml          # provider, sandbox, allowed_repos, allowed_risk, ...
 claims/              # active and archived
@@ -299,9 +314,10 @@ backlog agents update codex-default --model gpt-5
 backlog agents update codex-default --command /usr/local/bin/codex
 ```
 
-By default, `claude` and `codex` runs land in `awaiting_review` instead of
-auto-completing. Their claims are released, but the run and worktree stay
-available for review.
+By default, `claude` and `codex` runs complete tasks automatically when the
+project does not use an In Review column. When manual review is enabled, a
+successful run lands in `awaiting_review`; claims are released, but the run
+and worktree stay available for inspection.
 
 ```bash
 backlog runs list --review                # see the review queue
@@ -331,9 +347,11 @@ changed files detected in the worktree.
 
 ## Hooks
 
-In multi-repository projects, `backlog hooks status|install|uninstall --all` lets
-you audit or roll out the managed pre-commit hook across every configured
-repository in one pass. You can also target one configured repository explicitly with
+Hooks are opt-in: Backlog never installs or updates them without an explicit
+user action. In multi-repository projects,
+`backlog hooks status|install|uninstall --all` lets you audit or roll out the
+managed pre-commit hook across every configured Git repository in one pass.
+You can also target one configured repository explicitly with
 `--repository <id>`.
 
 `backlog hooks status` reports whether the hook and the local shim are up

@@ -246,7 +246,10 @@ describe("run-launcher", () => {
     const run = loadRun(backlogDir, result.started[0]!.runId);
     expect(run?.execution_mode).toBe("direct");
     expect(run?.status).toBe("succeeded");
-    expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.no_git"))).toBe(true);
+    const events = getRunEvents(backlogDir, result.started[0]!.runId);
+    expect(events.some((line) => line.includes("workspace.no_git"))).toBe(false);
+    expect(events.some((line) => line.includes("run.commit_skipped"))).toBe(false);
+    expect(events.some((line) => line.includes(`Working directly in ${root}`))).toBe(true);
   });
 
   it("prepares an isolated execution checkout for remote-only Git repositories", async () => {

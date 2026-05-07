@@ -67,6 +67,8 @@ const createBodySchema = z.object({
   merge_pr: z.boolean().optional(),
   worktree_mode: z.enum(["isolated_worktree", "direct"]).optional(),
   preferred_agents: z.array(z.string().min(1)).optional(),
+  planner_agent_id: z.string().min(1).optional(),
+  max_subagents: z.number().int().min(1).max(99).optional(),
 });
 
 const reorderBodySchema = z.object({
@@ -100,9 +102,16 @@ const applySplitBodySchema = z.object({
       }),
     )
     .min(1)
-    .max(12),
+    .max(99),
   force: z.boolean().optional(),
+  max_subagents: z.number().int().min(1).max(99).optional(),
 });
+
+const suggestSplitBodySchema = z.object({
+  max_subagents: z.number().int().min(1).max(99).optional(),
+  planner_prompt: z.string().max(12000).optional(),
+  planner_agent_id: z.string().min(1).optional(),
+}).optional();
 
 const ANTHROPIC_API_MODEL_ALIASES: Record<string, string> = {
   sonnet: "claude-sonnet-4-20250514",
@@ -224,7 +233,11 @@ export function tasksRoutes(): Hono<AppEnv> {
     }
     try {
       const config = loadConfig(project.backlogDir);
-      const aiOptions = aiOptionsForSelection(project.backlogDir, config, parsed.data.preferred_agents);
+      const aiOptions = aiOptionsForSelection(
+        project.backlogDir,
+        config,
+        parsed.data.planner_agent_id ? [parsed.data.planner_agent_id] : parsed.data.preferred_agents,
+      );
       // Resolve the title. If the caller provided one, keep it
       // verbatim; otherwise synthesize one from the description via
       // the AI title-suggester. Falls back to fallbackTitle() (first
@@ -274,6 +287,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       if (parsed.data.merge_pr !== undefined) input.mergePr = parsed.data.merge_pr;
       if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
+      if (parsed.data.max_subagents !== undefined) input.maxSubagents = parsed.data.max_subagents;
       if (parsed.data.status !== undefined) input.status = parsed.data.status;
       let workItem = createTask(project.backlogDir, input);
       if (parsed.data.estimated_duration_seconds) {
@@ -374,6 +388,11 @@ export function tasksRoutes(): Hono<AppEnv> {
   app.post("/tasks/:id/suggest-split", async (c) => {
     const project = c.get("project");
     const id = c.req.param("id");
+    const raw = await c.req.json().catch(() => undefined);
+    const parsed = suggestSplitBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
     try {
       const config = loadConfig(project.backlogDir);
       const workItem = listTasks(project.backlogDir).find((item) => item.id === id);
@@ -390,7 +409,15 @@ export function tasksRoutes(): Hono<AppEnv> {
       const proposal = await suggestSplit(
         workItem,
         repos,
-        aiOptionsForSelection(project.backlogDir, config, workItem.execution_defaults.preferred_agents),
+        {
+          ...aiOptionsForSelection(
+            project.backlogDir,
+            config,
+            parsed.data?.planner_agent_id ? [parsed.data.planner_agent_id] : workItem.execution_defaults.preferred_agents,
+          ),
+          maxSubagents: parsed.data?.max_subagents ?? workItem.execution_defaults.max_subagents ?? config.max_agents,
+          ...(parsed.data?.planner_prompt !== undefined ? { plannerPrompt: parsed.data.planner_prompt } : {}),
+        },
       );
       return c.json({
         task_id: id,
@@ -432,6 +459,7 @@ export function tasksRoutes(): Hono<AppEnv> {
           dependsOnIndices: task.depends_on_indices,
         })),
         ...(parsed.data.force !== undefined ? { force: parsed.data.force } : {}),
+        ...(parsed.data.max_subagents !== undefined ? { maxSubagents: parsed.data.max_subagents } : {}),
       });
       return c.json(
         {

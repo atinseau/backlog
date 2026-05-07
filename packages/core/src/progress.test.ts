@@ -60,7 +60,7 @@ describe("computeSubTaskProgress", () => {
 
   it("derives from elapsed/estimate when running", () => {
     const startedMs = Date.parse("2026-04-26T10:00:00.000Z");
-    const task = makeTask({ status: "running" });
+    const task = makeTask({ status: "running", estimate_source: "auto" });
     const run = makeRun({ started_at: "2026-04-26T10:00:00.000Z" });
     const result = computeSubTaskProgress({
       task,
@@ -75,7 +75,7 @@ describe("computeSubTaskProgress", () => {
 
   it("caps elapsed-derived progress at 95% before completion", () => {
     const startedMs = Date.parse("2026-04-26T10:00:00.000Z");
-    const task = makeTask({ status: "running" });
+    const task = makeTask({ status: "running", estimate_source: "auto" });
     const run = makeRun({ started_at: "2026-04-26T10:00:00.000Z" });
     const result = computeSubTaskProgress({
       task,
@@ -92,6 +92,21 @@ describe("computeSubTaskProgress", () => {
     const result = computeSubTaskProgress({ task, activeRun: null, estimateSeconds: 600 });
     expect(result.percent).toBe(90);
     expect(result.source).toBe("status");
+  });
+
+  it("uses an optimistic short-ramp fallback when running without an estimate", () => {
+    const startedMs = Date.parse("2026-04-26T10:00:00.000Z");
+    const task = makeTask({ status: "running" });
+    const run = makeRun({ started_at: "2026-04-26T10:00:00.000Z" });
+    const result = computeSubTaskProgress({
+      task,
+      activeRun: run,
+      estimateSeconds: 900,
+      now: startedMs + 5_000,
+    });
+    expect(result.percent).toBeGreaterThan(0);
+    expect(result.percent).toBeLessThan(95);
+    expect(result.source).toBe("elapsed");
   });
 
   it("returns 100 for completed", () => {

@@ -24,7 +24,7 @@ import type { AppEnv } from "../project-resolver.js";
 const startBodySchema = z.object({
   subtask_id: z.string().min(1).optional(),
   task_id: z.string().min(1).optional(),
-  max_start: z.number().int().positive().max(50).optional(),
+  max_start: z.number().int().positive().max(99).optional(),
   agent_id: z.string().min(1).optional(),
   approve: z.boolean().optional(),
   allow_dirty_direct: z.boolean().optional(),
@@ -161,7 +161,8 @@ export function runsRoutes(): Hono<AppEnv> {
     const body = parsed.data;
 
     try {
-      const config = loadConfig(project.backlogDir);
+      const baseConfig = loadConfig(project.backlogDir);
+      let config = baseConfig;
       if (config.autonomy_mode === "observe") {
         return c.json(
           { error: "autonomy_mode_observe", detail: "Runs are disabled in observe mode." },
@@ -182,16 +183,32 @@ export function runsRoutes(): Hono<AppEnv> {
       const planOpts: { workItemId?: string; taskId?: string } = {};
       if (body.task_id) planOpts.workItemId = body.task_id;
       if (body.subtask_id) planOpts.taskId = body.subtask_id;
-      const plan = buildExecutionPlan(project.backlogDir, config, planOpts);
+      const taskRows = listTasks(project.backlogDir);
+      const subtaskRows = listSubTasks(project.backlogDir);
+      const parentTask = body.task_id
+        ? taskRows.find((task) => task.id === body.task_id) ?? null
+        : body.subtask_id
+          ? taskRows.find((task) => task.id === subtaskRows.find((subtask) => subtask.id === body.subtask_id)?.task_id) ?? null
+          : null;
+      const taskMaxSubagents = parentTask?.execution_defaults?.max_subagents;
+      const effectiveMaxStart = body.max_start ?? taskMaxSubagents ?? config.max_agents;
+      if (taskMaxSubagents !== undefined) {
+        config = { ...baseConfig, max_agents: taskMaxSubagents };
+      }
+      const plan = buildExecutionPlan(project.backlogDir, config, {
+        ...planOpts,
+        ...(taskMaxSubagents !== undefined ? { maxAgentsOverride: taskMaxSubagents, allowAgentOversubscribe: true } : {}),
+      });
 
       const launcherInput: Parameters<typeof startRunsForPlan>[0] = {
         backlogDir: project.backlogDir,
         config,
         plan,
-        maxStart: body.max_start ?? 1,
+        maxStart: effectiveMaxStart,
       };
       if (body.agent_id) launcherInput.forcedAgentId = body.agent_id;
       if (body.allow_dirty_direct) launcherInput.allowDirtyDirect = true;
+      if (taskMaxSubagents !== undefined) launcherInput.allowAgentOversubscribe = true;
       const result = await startRunsForPlan(launcherInput);
 
       return c.json(

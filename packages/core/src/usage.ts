@@ -16,6 +16,7 @@ export type UsageProvider = "anthropic" | "openai" | "codex" | "custom";
 export interface UsageEvent {
   ts: string; // ISO timestamp
   type: "usage"; // discriminator inside events.ndjson
+  message?: string;
   provider: UsageProvider;
   model: string; // e.g. "claude-sonnet-4-20250514", "gpt-5"
   // Counts in tokens. Cache_read = served from prompt cache (cheap).
@@ -24,6 +25,22 @@ export interface UsageEvent {
   output_tokens: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
+}
+
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function usageMessage(event: Omit<UsageEvent, "type" | "ts" | "message">): string {
+  const total = event.input_tokens
+    + event.output_tokens
+    + (event.cache_read_input_tokens ?? 0)
+    + (event.cache_creation_input_tokens ?? 0);
+  const cacheBits: string[] = [];
+  if (event.cache_read_input_tokens) cacheBits.push(`cache read ${formatTokenCount(event.cache_read_input_tokens)}`);
+  if (event.cache_creation_input_tokens) cacheBits.push(`cache write ${formatTokenCount(event.cache_creation_input_tokens)}`);
+  const cache = cacheBits.length > 0 ? ` · ${cacheBits.join(" · ")}` : "";
+  return `${event.provider} ${event.model} · ${formatTokenCount(total)} tokens · input ${formatTokenCount(event.input_tokens)} · output ${formatTokenCount(event.output_tokens)}${cache}`;
 }
 
 // USD per 1 million tokens. Update when published prices move.
@@ -140,6 +157,7 @@ export function recordUsage(backlogDir: string, runId: string, event: Omit<Usage
   const full: UsageEvent = {
     ts: event.ts ?? new Date().toISOString(),
     type: "usage",
+    message: usageMessage(event),
     provider: event.provider,
     model: event.model,
     input_tokens: event.input_tokens,

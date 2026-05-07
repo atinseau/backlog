@@ -176,10 +176,9 @@ export async function collectWorktreeArtifacts(
   return artifacts;
 }
 
-export function successModeForAgent(agent: Agent, task?: ExecutionTarget, config?: ProjectConfig): "review" | "complete" {
+export function successModeForAgent(agent: Agent, task?: ExecutionTarget, _config?: ProjectConfig): "review" | "complete" {
   if (task) {
     if (task.execution.manual_approval_required) return "review";
-    if (config?.review.show_review_column) return "review";
     return "complete";
   }
   if (agent.success_mode) {

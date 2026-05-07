@@ -30,9 +30,11 @@ export class AiSplitterUnavailableError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog task down into a small set of concrete sub-tasks.
+const DEFAULT_MAX_SUBAGENTS = 5;
 
-For each task you receive, propose between 2 and 6 sub-tasks. Each task must:
+const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog task down into concrete sub-tasks designed for parallel execution.
+
+For each task you receive, propose the smallest useful set of sub-tasks up to the provided max_subagents cap. Each sub-task must:
 - have a short imperative title (≤ 80 chars)
 - target one of the provided repositories (use the exact repository id)
 - include 1 to 6 file scopes (paths or globs, repository-relative) that the task will touch
@@ -42,18 +44,20 @@ For each task you receive, propose between 2 and 6 sub-tasks. Each task must:
 Hard rules:
 - Tasks with non-overlapping scopes can run in parallel — prefer parallel decomposition when possible
 - A task that must read another task's output goes serial via depends_on_indices
-- Never propose more than 6 tasks; condense if needed
+- Never propose more sub-tasks than max_subagents; condense or group work evenly when needed
+- For repetitive work, group items into balanced chunks. Example: 10 independent files with max_subagents=5 should become 5 sub-tasks with 2 files each
 - Scopes should be specific files when known; use globs ('src/foo/**') only when many files are touched
 - Risk reflects blast radius, not difficulty: a tedious-but-safe task is 'low'
 
 Also include a one-paragraph 'rationale' (≤ 200 chars) explaining the parallel/serial structure of your proposal.`;
 
-const PROPOSAL_SCHEMA = {
+function proposalSchema(maxSubagents: number) {
+  return {
   type: "object",
   properties: {
     tasks: {
       type: "array",
-      maxItems: 6,
+      maxItems: clampMaxSubagents(maxSubagents),
       items: {
         type: "object",
         properties: {
@@ -78,7 +82,8 @@ const PROPOSAL_SCHEMA = {
   },
   required: ["tasks", "rationale"],
   additionalProperties: false,
-} as const;
+  } as const;
+}
 
 const REFINE_SYSTEM_PROMPT = `You refine rough backlog ideas into actionable software tasks.
 
@@ -102,7 +107,18 @@ const REFINE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-function buildUserPrompt(task: Task, repositories: string[]): string {
+function clampMaxSubagents(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_MAX_SUBAGENTS;
+  return Math.max(1, Math.min(99, Math.round(value)));
+}
+
+function buildSplitSystemPrompt(customPrompt: string | undefined): string {
+  const custom = customPrompt?.trim();
+  if (!custom) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}\n\nAdditional user-editable planning instructions:\n${custom}`;
+}
+
+function buildUserPrompt(task: Task, repositories: string[], maxSubagents: number): string {
   const lines: string[] = [];
   lines.push(`Task id: ${task.id}`);
   lines.push(`Title: ${task.title}`);
@@ -116,11 +132,12 @@ function buildUserPrompt(task: Task, repositories: string[]): string {
   lines.push(`Risk hint: ${task.planning.risk}`);
   lines.push("");
   lines.push(`Available repositories for this project: ${repositories.join(", ")}`);
+  lines.push(`max_subagents: ${maxSubagents}`);
   if (task.repo_targets.length > 0) {
     lines.push(`Preferred repository targets on this task: ${task.repo_targets.join(", ")}`);
   }
   lines.push("");
-  lines.push("Propose 2 to 6 sub-tasks following the schema. Maximize parallelism where scopes don't overlap.");
+  lines.push("Propose up to max_subagents sub-tasks following the schema. Maximize safe parallelism and keep independent chunks dependency-free.");
   return lines.join("\n");
 }
 
@@ -140,6 +157,8 @@ interface SuggestOptions {
   provider?: AiProvider;
   apiKey?: string;
   model?: string;
+  maxSubagents?: number;
+  plannerPrompt?: string;
 }
 
 // ---- Title suggestion ----------------------------------------------------
@@ -405,21 +424,22 @@ async function suggestSplitAnthropic(
   }
   const client = new Anthropic({ apiKey });
   const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
+  const maxSubagents = clampMaxSubagents(options.maxSubagents);
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
     thinking: { type: "adaptive" },
-    system: SYSTEM_PROMPT,
+    system: buildSplitSystemPrompt(options.plannerPrompt),
     output_config: {
       format: {
         type: "json_schema",
-        schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
+        schema: proposalSchema(maxSubagents) as unknown as Record<string, unknown>,
       },
     },
     messages: [
       {
         role: "user",
-        content: buildUserPrompt(task, repositories),
+        content: buildUserPrompt(task, repositories, maxSubagents),
       },
     ],
   });
@@ -437,7 +457,7 @@ async function suggestSplitAnthropic(
       `Anthropic returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${textBlock.text.slice(0, 500)}`,
     );
   }
-  return validateProposal(parsed, repositories, model);
+  return validateProposal(parsed, repositories, model, maxSubagents);
 }
 
 async function suggestSplitOpenAi(
@@ -452,6 +472,7 @@ async function suggestSplitOpenAi(
     );
   }
   const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5-codex" : "gpt-5.2");
+  const maxSubagents = clampMaxSubagents(options.maxSubagents);
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -461,15 +482,15 @@ async function suggestSplitOpenAi(
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(task, repositories) },
+        { role: "system", content: buildSplitSystemPrompt(options.plannerPrompt) },
+        { role: "user", content: buildUserPrompt(task, repositories, maxSubagents) },
       ],
       response_format: {
         type: "json_schema",
         json_schema: {
           name: "split_proposal",
           strict: true,
-          schema: PROPOSAL_SCHEMA,
+          schema: proposalSchema(maxSubagents),
         },
       },
     }),
@@ -491,16 +512,17 @@ async function suggestSplitOpenAi(
       `OpenAI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
     );
   }
-  return validateProposal(parsed, repositories, model);
+  return validateProposal(parsed, repositories, model, maxSubagents);
 }
 
-function validateProposal(parsed: unknown, repositories: string[], model: string): SplitProposal {
+function validateProposal(parsed: unknown, repositories: string[], model: string, maxSubagents: number): SplitProposal {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Proposal is not an object");
   }
   const obj = parsed as Record<string, unknown>;
-  if (!Array.isArray(obj.tasks) || obj.tasks.length < 2 || obj.tasks.length > 6) {
-    throw new Error("Proposal must contain 2 to 6 tasks");
+  const max = clampMaxSubagents(maxSubagents);
+  if (!Array.isArray(obj.tasks) || obj.tasks.length < 1 || obj.tasks.length > max) {
+    throw new Error(`Proposal must contain 1 to ${max} tasks`);
   }
   const tasks: ProposedTask[] = obj.tasks.map((raw, index) => {
     if (!raw || typeof raw !== "object") throw new Error(`tasks[${index}] is not an object`);

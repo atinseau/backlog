@@ -66,6 +66,8 @@ interface TaskCard {
   status: Task["status"];
   labels: string[];
   repo_targets: string[];
+  preferred_agents: string[];
+  max_subagents: number;
   rank: number | null;
   created_at: string;
   updated_at: string;
@@ -362,6 +364,8 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
       status: parentTask.status,
       labels: parentTask.labels,
       repo_targets: parentTask.repo_targets,
+      preferred_agents: parentTask.execution_defaults.preferred_agents,
+      max_subagents: parentTask.execution_defaults.max_subagents ?? 5,
       rank: parentTask.rank ?? null,
       created_at: parentTask.created_at,
       updated_at: parentTask.updated_at,

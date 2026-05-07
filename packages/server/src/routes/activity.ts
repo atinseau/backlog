@@ -11,6 +11,7 @@ import type { AppEnv } from "../project-resolver.js";
 // `appendRunEvent` in core.
 interface ActivityLine {
   run_id: string;
+  agent_id?: string;
   ts: string;
   type: string;
   message?: string;
@@ -62,7 +63,7 @@ function readNewLines(cursor: RunCursor): { lines: string[]; offset: number } {
   }
 }
 
-function parseLine(line: string, runId: string): ActivityLine | null {
+function parseLine(line: string, runId: string, agentId?: string): ActivityLine | null {
   const trimmed = line.trim();
   // Defensive guard for transient stream/tail artifacts. We should
   // only ever store NDJSON objects here, but a live reader can still
@@ -76,10 +77,10 @@ function parseLine(line: string, runId: string): ActivityLine | null {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     const ts = typeof parsed["ts"] === "string" ? (parsed["ts"] as string) : new Date().toISOString();
     const type = typeof parsed["type"] === "string" ? (parsed["type"] as string) : "raw";
-    const event: ActivityLine = { ...parsed, run_id: runId, ts, type };
+    const event: ActivityLine = { ...parsed, run_id: runId, ...(agentId ? { agent_id: agentId } : {}), ts, type };
     return event;
   } catch {
-    return { run_id: runId, ts: new Date().toISOString(), type: "raw", message: trimmed };
+    return { run_id: runId, ...(agentId ? { agent_id: agentId } : {}), ts: new Date().toISOString(), type: "raw", message: trimmed };
   }
 }
 
@@ -111,7 +112,7 @@ export function activityRoutes(): Hono<AppEnv> {
           cursors.set(run.id, { run_id: run.id, events_path: eventsPath, offset: stat.size });
           const all = fs.readFileSync(eventsPath, "utf8").split("\n").filter((l) => l.length > 0);
           for (const line of all.slice(-INITIAL_TAIL_LINES)) {
-            const parsed = parseLine(line, run.id);
+            const parsed = parseLine(line, run.id, run.agent_id);
             if (parsed) seedLines.push(parsed);
           }
         } catch {
@@ -139,7 +140,9 @@ export function activityRoutes(): Hono<AppEnv> {
       // runs, events.ndjson under a few KB).
       while (!aborted) {
         try {
-          for (const run of listActiveRuns(project.backlogDir)) {
+          const activeRuns = listActiveRuns(project.backlogDir);
+          const agentsByRun = new Map(activeRuns.map((run) => [run.id, run.agent_id]));
+          for (const run of activeRuns) {
             if (cursors.has(run.id)) continue;
             const eventsPath = path.join(project.backlogDir, "runs", "active", run.id, "events.ndjson");
             cursors.set(run.id, { run_id: run.id, events_path: eventsPath, offset: 0 });
@@ -148,7 +151,7 @@ export function activityRoutes(): Hono<AppEnv> {
             const { lines, offset } = readNewLines(cursor);
             cursor.offset = offset;
             for (const line of lines) {
-              const parsed = parseLine(line, cursor.run_id);
+              const parsed = parseLine(line, cursor.run_id, agentsByRun.get(cursor.run_id));
               if (parsed) await send("activity", parsed);
             }
           }

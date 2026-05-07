@@ -23,6 +23,7 @@ export interface CreateTaskInput {
   // agent / user id, or empty for "auto". Threaded into the auto-shim
   // sub-task in POST /runs.
   preferredAgents?: string[];
+  maxSubagents?: number;
 }
 
 export interface UpdateTaskInput {
@@ -44,6 +45,12 @@ export interface UpdateTaskInput {
   // as priority. Existing sub-tasks aren't retroactively updated.
   preferredAgents?: string[];
   worktreeMode?: "isolated_worktree" | "direct";
+  maxSubagents?: number;
+}
+
+function clampMaxSubagents(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 5;
+  return Math.max(1, Math.min(99, Math.round(value)));
 }
 
 export function createTask(backlogDir: string, input: CreateTaskInput): Task {
@@ -72,6 +79,7 @@ export function createTask(backlogDir: string, input: CreateTaskInput): Task {
       merge_pr: input.mergePr ?? false,
       worktree_mode: input.worktreeMode ?? "direct",
       preferred_agents: input.preferredAgents ?? [],
+      max_subagents: clampMaxSubagents(input.maxSubagents),
     },
     sync: {
       source_of_truth: "backlog",
@@ -143,6 +151,12 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
     item.execution_defaults = {
       ...item.execution_defaults,
       worktree_mode: input.worktreeMode,
+    };
+  }
+  if (input.maxSubagents !== undefined) {
+    item.execution_defaults = {
+      ...item.execution_defaults,
+      max_subagents: clampMaxSubagents(input.maxSubagents),
     };
   }
 

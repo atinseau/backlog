@@ -90,6 +90,10 @@ export const taskSchema = z.object({
     // specific agent (claude-code, codex, etc.) or a user. The
     // sub-task can still override per-row.
     preferred_agents: z.array(z.string()).default([]),
+    // Per-task cap for parallel split execution. The planner may
+    // produce fewer chunks, but it should not run more than this many
+    // agent processes for the task at once.
+    max_subagents: z.number().int().min(1).max(99).default(5),
   }).default({
     manual_approval_required: false,
     auto_commit: true,
@@ -98,6 +102,7 @@ export const taskSchema = z.object({
     merge_pr: false,
     worktree_mode: "direct",
     preferred_agents: [],
+    max_subagents: 5,
   }),
   sync: z.object({
     source_of_truth: z.enum(["external", "backlog"]).default("backlog"),

@@ -4,6 +4,17 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.54] - 2026-05-07
+
+Parallel split, non-Git workspace, and documentation polish.
+
+- **AI split now plans for parallel sub-agents instead of fixed subtasks** — task creation exposes max sub-agents (default 5, up to 99), a sub-agent model picker, and an editable planner prompt, and the run launcher can start those split runs in parallel when the task asks for it.
+- **Non-Git workspaces no longer emit Git or commit noise in Activity** — normal folders run directly, hide Git-only controls, and no longer log skipped commits or local-folder branch details.
+- **Runs and Activity now show who did what and how many tokens were consumed** — live activity rows include the agent id, usage events include provider/model/input/output/cache token counts, and the Runs detail view totals tokens per run.
+- **The profile avatar opens the profile menu consistently** instead of jumping straight into the account modal when signed out.
+- **The header Play button now has three visible states**: subdued grey when configuration is incomplete, white when Backlog is ready but no task is available, and blue when a task can start.
+- **README and package docs were refreshed** to match the current Desktop/board surface: Play/Stop controls, Workspaces, Backlog, Instructions, Hooks, Usage, non-Git folders, and opt-in hooks.
+
 ## [1.4.53] - 2026-05-07
 
 Claim cleanup patch.

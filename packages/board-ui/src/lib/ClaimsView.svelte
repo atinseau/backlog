@@ -216,9 +216,66 @@
     return typeof event.ts === "string" ? formatDate(event.ts) : "";
   }
 
+  function visibleEvents(run: EnrichedRun): Array<Record<string, unknown>> {
+    return run.events.filter((event) => {
+      const type = typeof event.type === "string" ? event.type : "";
+      const message = typeof event.message === "string" ? event.message : "";
+      if (type === "workspace.no_git") return false;
+      if (type === "run.commit_skipped" && /not a Git repository|Commit disabled/i.test(message)) return false;
+      return true;
+    });
+  }
+
+  function eventNumber(event: Record<string, unknown>, key: string): number {
+    const value = event[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  }
+
+  function formatTokens(value: number): string {
+    return new Intl.NumberFormat().format(value);
+  }
+
+  function usageTotals(run: EnrichedRun): { input: number; output: number; cache: number; total: number } {
+    let input = 0;
+    let output = 0;
+    let cache = 0;
+    for (const event of run.events) {
+      if (event.type !== "usage") continue;
+      input += eventNumber(event, "input_tokens");
+      output += eventNumber(event, "output_tokens");
+      cache += eventNumber(event, "cache_read_input_tokens") + eventNumber(event, "cache_creation_input_tokens");
+    }
+    return { input, output, cache, total: input + output + cache };
+  }
+
+  function usageLabel(run: EnrichedRun): string {
+    const totals = usageTotals(run);
+    return totals.total > 0 ? formatTokens(totals.total) : "—";
+  }
+
   function eventText(event: Record<string, unknown>): string {
     const type = typeof event.type === "string" ? event.type : null;
     const message = typeof event.message === "string" ? event.message : null;
+    if (type === "usage") {
+      if (message) return message;
+      const provider = typeof event.provider === "string" ? event.provider : null;
+      const model = typeof event.model === "string" ? event.model : null;
+      const input = eventNumber(event, "input_tokens");
+      const output = eventNumber(event, "output_tokens");
+      const cacheRead = eventNumber(event, "cache_read_input_tokens");
+      const cacheWrite = eventNumber(event, "cache_creation_input_tokens");
+      const total = input + output + cacheRead + cacheWrite;
+      const label = [provider, model].filter(Boolean).join(" ") || "Usage";
+      const bits = [
+        label,
+        `${formatTokens(total)} tokens`,
+        `input ${formatTokens(input)}`,
+        `output ${formatTokens(output)}`,
+      ];
+      if (cacheRead > 0) bits.push(`cache lu ${formatTokens(cacheRead)}`);
+      if (cacheWrite > 0) bits.push(`cache ecrit ${formatTokens(cacheWrite)}`);
+      return bits.join(" · ");
+    }
     return [type, message].filter(Boolean).join(" · ") || JSON.stringify(event);
   }
 
@@ -387,6 +444,7 @@
             <div><span>Workspace</span><strong>{selectedRun.repo}</strong></div>
             <div><span>Execution</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
             <div><span>Duree</span><strong>{runDuration(selectedRun)}</strong></div>
+            <div><span>Tokens</span><strong>{usageLabel(selectedRun)}</strong></div>
             <div><span>Debut</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
             <div>
               <span>Fin</span>
@@ -464,11 +522,11 @@
             </section>
           {/if}
 
-          {#if selectedRun.events.length > 0}
+          {#if visibleEvents(selectedRun).length > 0}
             <section class="block">
               <h4>Evenements</h4>
               <ol class="events">
-                {#each selectedRun.events as event, index (index)}
+                {#each visibleEvents(selectedRun) as event, index (index)}
                   <li>
                     <span>{eventTime(event)}</span>
                     <p>{eventText(event)}</p>

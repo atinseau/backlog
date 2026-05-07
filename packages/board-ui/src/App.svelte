@@ -498,12 +498,11 @@
   // We intentionally do not render a checklist on the board; the UI
   // should only interrupt the user when a clicked action needs a clear
   // fix (API key, agent config, workspace, etc.).
+  const selectedRunAgent = $derived(
+    agentsList.find((agent) => agent.id === selectedRunAgentId) ?? null,
+  );
   const hasReadyAIAgent = $derived(
-    agentsList.some(
-      (a) =>
-        (a.provider === "claude" || a.provider === "codex" || a.provider === "custom") &&
-        !a.needs_api_key,
-    ),
+    Boolean(selectedRunAgent && isExecutableAgent(selectedRunAgent) && !selectedRunAgent.needs_api_key),
   );
   type PreflightItem = {
     label: string;
@@ -527,17 +526,21 @@
       ok: Boolean(selectedProjectId && hasRunnableWorkspace),
     },
     {
-      label: t("preflight.task"),
-      ok: Boolean(selectedProjectId && todoCount > 0),
-    },
-    {
       label: t("preflight.agent"),
       ok: Boolean(selectedProjectId && hasReadyAIAgent),
     },
   ]);
   const blockingPreflightItems = $derived(preflightItems.filter((item) => !item.ok));
-  const playReady = $derived(Boolean(selectedProjectId && board && blockingPreflightItems.length === 0));
-  const playBlockedTitle = $derived(blockingPreflightItems[0]?.label ?? t("orchestrator.play.nothing"));
+  const playConfigured = $derived(Boolean(selectedProjectId && board && blockingPreflightItems.length === 0));
+  const playState = $derived<"blocked" | "empty" | "ready">(
+    !playConfigured ? "blocked" : todoCount > 0 ? "ready" : "empty",
+  );
+  const playReady = $derived(playState === "ready");
+  const playBlockedTitle = $derived(
+    playState === "blocked"
+      ? blockingPreflightItems[0]?.label ?? t("orchestrator.play.nothing")
+      : t("orchestrator.play.nothing"),
+  );
   let pendingStartCount = $state(0);
 
   function isBusyRunStatus(status: string | null | undefined): boolean {
@@ -1024,7 +1027,7 @@
     pendingStartCount += 1;
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
-      if (selectedRunAgentId) runInput.agent_id = selectedRunAgentId;
+      if (selectedRunAgentId && card.preferred_agents.length === 0) runInput.agent_id = selectedRunAgentId;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
@@ -1143,7 +1146,8 @@
   async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
     const input: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
     if (options.allowDirtyDirect) input.allow_dirty_direct = true;
-    if (selectedRunAgentId) input.agent_id = selectedRunAgentId;
+    const fullCard = "preferred_agents" in card ? (card as TaskCard) : findCardById(card.id);
+    if (selectedRunAgentId && (!fullCard || fullCard.preferred_agents.length === 0)) input.agent_id = selectedRunAgentId;
     const result = await startRun(input);
     if (result.started.length > 0) {
       directDirtyPrompt = null;
@@ -1384,6 +1388,7 @@
           onPlay={handleTopbarPlay}
           externalActive={controlsRunning}
           canPlay={playReady}
+          playState={playState}
           playBlockedTitle={playBlockedTitle}
           onStopActiveRuns={handleStopActiveRuns}
         />
@@ -1631,6 +1636,7 @@
 {#if createTaskOpen}
   <CreateTaskDialog
     availableRepos={repos}
+    agents={agentsList}
     agentId={selectedRunAgentId}
     hasGitRepository={createTaskHasGitRepository}
     onClose={() => (createTaskOpen = false)}

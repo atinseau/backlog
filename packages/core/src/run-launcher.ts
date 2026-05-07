@@ -97,6 +97,8 @@ export interface StartRunsForPlanInput {
   forcedAgentId?: string;
   /** User explicitly chose to run in direct mode even though git is dirty. */
   allowDirtyDirect?: boolean;
+  /** Explicit split batches may run several copies of the same model. */
+  allowAgentOversubscribe?: boolean;
 }
 
 async function resolveAgent(
@@ -169,9 +171,10 @@ function updateExecutionTargetStatus(backlogDir: string, target: ExecutionTarget
 }
 
 export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<StartRunsResult> {
-  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect } = input;
+  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect, allowAgentOversubscribe } = input;
   const started: StartedRun[] = [];
   const skipped: SkippedRun[] = [];
+  const executions: Array<Promise<void>> = [];
 
   for (const decision of plan.runnable.slice(0, maxStart)) {
     const resolved = resolveExecutionTarget(backlogDir, config, decision);
@@ -195,7 +198,11 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     if (!agent) continue;
 
     const activeAgentRuns = listActiveRuns(backlogDir).filter((run) => isAgentBusyStatus(run.status));
-    if (activeAgentRuns.filter((run) => run.agent_id === agent.id).length >= agent.max_concurrent_runs) {
+    const activeForAgent = activeAgentRuns.filter((run) => run.agent_id === agent.id).length;
+    const allowedConcurrent = allowAgentOversubscribe
+      ? Math.max(agent.max_concurrent_runs, maxStart)
+      : agent.max_concurrent_runs;
+    if (activeForAgent >= allowedConcurrent) {
       skipped.push({ taskId: task.id, reasons: ["no_agent_capacity"] });
       continue;
     }
@@ -244,9 +251,9 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     let modeAdjustmentMessage: string | null = null;
     try {
       if (executionMode === "direct") {
-        const directBusy = listActiveRuns(backlogDir).some(
+        const directBusy = checkoutHasGit && (listActiveRuns(backlogDir).some(
           (run) => run.repo === repo.id && run.execution_mode === "direct" && isAgentBusyStatus(run.status),
-        ) || started.some((run) => run.worktreePath === checkoutPath);
+        ) || started.some((run) => run.worktreePath === checkoutPath));
         if (directBusy) {
           archiveClaim(backlogDir, claim.id);
           skipped.push({ taskId: task.id, reasons: ["direct_checkout_busy"] });
@@ -322,20 +329,20 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         message: modeAdjustmentMessage,
       });
     }
-    try {
-      const gitDir = await detectGitDir(checkoutPath);
-      writeContextFile(gitDir, {
-        version: 1,
-        claim_id: claim.id,
-        updated_at: new Date().toISOString(),
-      });
-      await writeWorktreeContext(worktreePath, run.id, claim.id);
-    } catch {
-      appendRunEvent(backlogDir, run.id, {
-        ts: new Date().toISOString(),
-        type: "workspace.no_git",
-        message: "Working in a normal folder without Git metadata; Backlog will not auto-commit or push this run.",
-      });
+    if (checkoutHasGit) {
+      try {
+        const gitDir = await detectGitDir(checkoutPath);
+        writeContextFile(gitDir, {
+          version: 1,
+          claim_id: claim.id,
+          updated_at: new Date().toISOString(),
+        });
+        await writeWorktreeContext(worktreePath, run.id, claim.id);
+      } catch {
+        // Context files are an internal safety aid. A write failure
+        // should never turn into user-visible Git noise for normal
+        // task execution.
+      }
     }
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
     if (usingRemoteExecutionCheckout) {
@@ -371,7 +378,9 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       ts: new Date().toISOString(),
       type: executionMode === "direct" ? "workspace.direct" : "workspace.worktree",
       message: executionMode === "direct"
-        ? `Working directly in ${checkoutPath} on ${branch}`
+        ? checkoutHasGit
+          ? `Working directly in ${checkoutPath} on ${branch}`
+          : `Working directly in ${checkoutPath}`
         : `Working in isolated worktree ${worktreePath}`,
     });
     if (executionMode === "direct" && allowedDirtyDirectFiles.length > 0) {
@@ -402,53 +411,56 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     let executed = false;
     let unsupported = false;
 
-    await runWithRetry({
-      policy,
-      attempt: async ({ attemptNumber, priorFeedback }) => {
-        if (attemptNumber > 1) {
-          updateRunStatus(backlogDir, run.id, "running", `Retry attempt ${attemptNumber}`);
-          appendRunEvent(backlogDir, run.id, {
-            ts: new Date().toISOString(),
-            type: "executor.retry",
-            message: `Starting retry attempt ${attemptNumber} (policy=${policy.mode}, max=${String(policy.max_attempts)})`,
+    executions.push((async () => {
+      await runWithRetry({
+        policy,
+        attempt: async ({ attemptNumber, priorFeedback }) => {
+          if (attemptNumber > 1) {
+            updateRunStatus(backlogDir, run.id, "running", `Retry attempt ${attemptNumber}`);
+            appendRunEvent(backlogDir, run.id, {
+              ts: new Date().toISOString(),
+              type: "executor.retry",
+              message: `Starting retry attempt ${attemptNumber} (policy=${policy.mode}, max=${String(policy.max_attempts)})`,
+            });
+          }
+          const ok = await executeAgentRun({
+            backlogDir,
+            run,
+            task,
+            workItem,
+            agent,
+            ...(priorFeedback ? { priorFailureFeedback: priorFeedback } : {}),
+            ...(attemptNumber > 1 ? { attemptNumber } : {}),
           });
-        }
-        const ok = await executeAgentRun({
-          backlogDir,
-          run,
-          task,
-          workItem,
-          agent,
-          ...(priorFeedback ? { priorFailureFeedback: priorFeedback } : {}),
-          ...(attemptNumber > 1 ? { attemptNumber } : {}),
-        });
-        if (!ok) {
-          unsupported = true;
-          return { ok: true }; // stop the loop; we'll handle below
-        }
-        executed = true;
-        const finalState = loadRun(backlogDir, run.id);
-        const status = finalState?.status;
-        if (status === "succeeded" || status === "awaiting_review") {
-          return { ok: true };
-        }
-        // Capture a tail of the events.ndjson as feedback for the next
-        // attempt. We slice from the end so the most recent failure
-        // signals are kept; if it's still too long the buildRetryPrompt
-        // helper truncates again at prompt construction time.
-        const events = getRunEvents(backlogDir, run.id);
-        const feedback = events.slice(-15).join("\n").slice(-RETRY_FEEDBACK_BYTES);
-        return { ok: false, feedback };
-      },
-    });
+          if (!ok) {
+            unsupported = true;
+            return { ok: true }; // stop the loop; we'll handle below
+          }
+          executed = true;
+          const finalState = loadRun(backlogDir, run.id);
+          const status = finalState?.status;
+          if (status === "succeeded" || status === "awaiting_review") {
+            return { ok: true };
+          }
+          // Capture a tail of the events.ndjson as feedback for the next
+          // attempt. We slice from the end so the most recent failure
+          // signals are kept; if it's still too long the buildRetryPrompt
+          // helper truncates again at prompt construction time.
+          const events = getRunEvents(backlogDir, run.id);
+          const feedback = events.slice(-15).join("\n").slice(-RETRY_FEEDBACK_BYTES);
+          return { ok: false, feedback };
+        },
+      });
 
-    if (unsupported) {
-      skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
-      updateRunStatus(backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
-      updateExecutionTargetStatus(backlogDir, task, "blocked");
-    }
-    void executed;
+      if (unsupported) {
+        skipped.push({ taskId: task.id, reasons: [`unsupported_provider:${agent.provider}`] });
+        updateRunStatus(backlogDir, run.id, "blocked", `Unsupported provider ${agent.provider}`);
+        updateExecutionTargetStatus(backlogDir, task, "blocked");
+      }
+      void executed;
+    })());
   }
 
+  await Promise.all(executions);
   return { started, skipped };
 }

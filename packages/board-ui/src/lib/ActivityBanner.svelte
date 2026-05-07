@@ -78,9 +78,16 @@
     id: number;
     kind: "activity" | "bus";
     ts: string;
-    runId?: string;
+    runId?: string | undefined;
+    agentId?: string | undefined;
     type: string;
-    message?: string;
+    message?: string | undefined;
+    provider?: string | undefined;
+    model?: string | undefined;
+    inputTokens?: number | undefined;
+    outputTokens?: number | undefined;
+    cacheReadInputTokens?: number | undefined;
+    cacheCreationInputTokens?: number | undefined;
   }
   let events = $state<ActivityEvent[]>([]);
   let unread = $state(0);
@@ -91,6 +98,44 @@
   let scrollEl = $state<HTMLDivElement | null>(null);
   let stickToBottom = true;
 
+  function numberField(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  }
+
+  function formatTokens(value: number): string {
+    return new Intl.NumberFormat().format(value);
+  }
+
+  function usageMessage(ev: ActivityEvent): string | undefined {
+    if (ev.message) return ev.message;
+    if (ev.type !== "usage") return ev.message;
+    const input = ev.inputTokens ?? 0;
+    const output = ev.outputTokens ?? 0;
+    const cacheRead = ev.cacheReadInputTokens ?? 0;
+    const cacheWrite = ev.cacheCreationInputTokens ?? 0;
+    const total = input + output + cacheRead + cacheWrite;
+    const model = [ev.provider, ev.model].filter(Boolean).join(" ");
+    const bits = [
+      model || "Usage",
+      `${formatTokens(total)} tokens`,
+      `input ${formatTokens(input)}`,
+      `output ${formatTokens(output)}`,
+    ];
+    if (cacheRead > 0) bits.push(`cache read ${formatTokens(cacheRead)}`);
+    if (cacheWrite > 0) bits.push(`cache write ${formatTokens(cacheWrite)}`);
+    return bits.join(" · ");
+  }
+
+  function displayMessage(ev: ActivityEvent): string | undefined {
+    return usageMessage(ev);
+  }
+
+  function shouldHideEvent(ev: Omit<ActivityEvent, "id">): boolean {
+    if (ev.type === "workspace.no_git") return true;
+    if (ev.type === "run.commit_skipped" && /not a Git repository|Commit disabled/i.test(ev.message ?? "")) return true;
+    return false;
+  }
+
   async function scrollToBottom() {
     await tick();
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
@@ -100,6 +145,7 @@
     if (ev.type === "raw" && ev.message && /^[{}\[\],]+$/.test(ev.message.trim())) {
       return;
     }
+    if (shouldHideEvent(ev)) return;
     events = [...events, { id: nextId++, ...ev }].slice(-MAX_EVENTS);
     if (!open) unread = Math.min(unread + 1, 99);
     if (open && stickToBottom) void scrollToBottom();
@@ -128,8 +174,15 @@
           kind: "activity",
           ts: typeof data.ts === "string" ? data.ts : new Date().toISOString(),
           runId: typeof data.run_id === "string" ? data.run_id : undefined,
+          agentId: typeof data.agent_id === "string" ? data.agent_id : undefined,
           type: typeof data.type === "string" ? data.type : "raw",
           message: typeof data.message === "string" ? data.message : undefined,
+          provider: typeof data.provider === "string" ? data.provider : undefined,
+          model: typeof data.model === "string" ? data.model : undefined,
+          inputTokens: numberField(data.input_tokens),
+          outputTokens: numberField(data.output_tokens),
+          cacheReadInputTokens: numberField(data.cache_read_input_tokens),
+          cacheCreationInputTokens: numberField(data.cache_creation_input_tokens),
         });
       } catch {
         // ignore malformed
@@ -208,17 +261,19 @@
         <ul>
           {#each events as ev (ev.id)}
             {@const file = isFileEvent(ev.type) ? extractFile(ev.message) : null}
+            {@const msg = displayMessage(ev)}
             <li class="evt evt-{ev.kind}">
               <span class="ts">{new Date(ev.ts).toLocaleTimeString("fr-FR")}</span>
               {#if ev.runId}<span class="run-pill">{formatRunId(ev.runId)}</span>{/if}
+              {#if ev.agentId}<span class="agent-pill">{ev.agentId}</span>{/if}
               <code class="type">{ev.type}</code>
-              {#if ev.message}
+              {#if msg}
                 {#if file && onOpenDiff && ev.runId}
                   <span class="msg">
                     <button class="file-link" onclick={() => clickFile(ev.runId, file)} title={file}>{normalizeWorktreeFile(file)}</button>
                   </span>
                 {:else}
-                  <span class="msg">{ev.message}</span>
+                  <span class="msg">{msg}</span>
                 {/if}
               {/if}
             </li>
@@ -354,6 +409,20 @@
     font-size: 10px;
     flex-shrink: 0;
     line-height: 1.4;
+  }
+  .agent-pill {
+    background: var(--bg-hover);
+    border: 1px solid var(--console-border);
+    color: var(--console-text);
+    padding: 0 5px;
+    border-radius: 2px;
+    font-size: 10px;
+    flex-shrink: 0;
+    line-height: 1.4;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .type { flex-shrink: 0; }
   .msg {

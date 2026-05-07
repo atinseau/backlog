@@ -1,7 +1,7 @@
 import type { SubTask, Task, ProjectConfig } from "@backlog/schemas";
 import { createSubTask } from "./subtask-service.js";
 import { listSubTasks } from "./state-files.js";
-import { getTask, updateTaskPlanning, updateTaskStatus } from "./task-service.js";
+import { getTask, updateTask, updateTaskPlanning, updateTaskStatus } from "./task-service.js";
 
 export interface SplitTaskInput {
   workItemId: string;
@@ -72,6 +72,7 @@ export interface ApplySplitProposalInput {
   workItemId: string;
   tasks: ProposalTaskInput[];
   force?: boolean;
+  maxSubagents?: number;
 }
 
 export function applySplitProposal(
@@ -84,6 +85,9 @@ export function applySplitProposal(
   }
   if (input.tasks.length === 0) {
     throw new Error("Proposal must contain at least one task");
+  }
+  if (input.maxSubagents !== undefined) {
+    updateTask(backlogDir, input.workItemId, { maxSubagents: input.maxSubagents });
   }
 
   const existingTasks = listSubTasks(backlogDir).filter((task) => task.task_id === input.workItemId);
@@ -112,6 +116,8 @@ export function applySplitProposal(
       completionCriteria: workItem.acceptance_criteria,
       plannerOrigin: "split",
       lane: proposed.repo,
+      preferredAgents: workItem.execution_defaults.preferred_agents,
+      manualApprovalRequired: workItem.execution_defaults.manual_approval_required,
     });
     createdTasks.push(created);
     indexToId.set(index, created.id);

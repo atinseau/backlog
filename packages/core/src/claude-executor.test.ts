@@ -139,7 +139,7 @@ describe("executeClaudeAgentRun", () => {
     expect(loadRun(backlogDir, "RUN-claude-review")?.status).toBe("awaiting_review");
   });
 
-  it("sends successful runs to review when the project review column is enabled", async () => {
+  it("does not force review just because the project review column is enabled", async () => {
     const root = createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const repoId = path.basename(root);
@@ -188,6 +188,6 @@ describe("executeClaudeAgentRun", () => {
       agent,
     });
 
-    expect(loadRun(backlogDir, "RUN-claude-project-review")?.status).toBe("awaiting_review");
+    expect(loadRun(backlogDir, "RUN-claude-project-review")?.status).toBe("succeeded");
   });
 });

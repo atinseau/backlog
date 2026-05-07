@@ -31,6 +31,13 @@ export interface ExecutionPlan {
   skipped: SubTaskDecision[];
 }
 
+export interface BuildExecutionPlanOptions {
+  workItemId?: string;
+  taskId?: string;
+  maxAgentsOverride?: number;
+  allowAgentOversubscribe?: boolean;
+}
+
 interface EvaluatedDecision extends SubTaskDecision {
   task?: ExecutionTarget;
   compatibleAgentIds?: string[];
@@ -164,8 +171,9 @@ function compareRunnableOrder(
 export function buildExecutionPlan(
   backlogDir: string,
   config: ProjectConfig,
-  options?: { workItemId?: string; taskId?: string },
+  options?: BuildExecutionPlanOptions,
 ): ExecutionPlan {
+  const effectiveMaxAgents = Math.max(1, options?.maxAgentsOverride ?? config.max_agents);
   const rawSubTasks = listSubTasks(backlogDir);
   const tasks = rawSubTasks.filter(
     (task) =>
@@ -386,7 +394,7 @@ export function buildExecutionPlan(
     const task = decision.task;
     const compatibleAgentIds = decision.compatibleAgentIds;
 
-    if (preselected.length >= config.max_agents) {
+    if (preselected.length >= effectiveMaxAgents) {
       deferred.push({
         taskId: decision.taskId,
         workItemId: decision.workItemId,
@@ -433,8 +441,11 @@ export function buildExecutionPlan(
       }))
       .sort((left, right) => left.activeRuns - right.activeRuns)
       .find((candidate) => {
-        const maxConcurrentRuns = compatibleAgents
+        const configuredMaxConcurrentRuns = compatibleAgents
           .find((agentEntry) => agentEntry.id === candidate.id)?.max_concurrent_runs;
+        const maxConcurrentRuns = options?.allowAgentOversubscribe && configuredMaxConcurrentRuns !== undefined
+          ? Math.max(configuredMaxConcurrentRuns, effectiveMaxAgents)
+          : configuredMaxConcurrentRuns;
         return maxConcurrentRuns !== undefined && candidate.activeRuns < maxConcurrentRuns;
       });
 
@@ -515,7 +526,7 @@ export function buildExecutionPlan(
 
   return {
     generatedAt: new Date().toISOString(),
-    maxAgents: config.max_agents,
+    maxAgents: effectiveMaxAgents,
     runnable,
     waiting,
     blocked,

@@ -564,6 +564,8 @@ export interface CreateTaskInput {
   merge_pr?: boolean;
   worktree_mode?: "isolated_worktree" | "direct";
   preferred_agents?: string[];
+  planner_agent_id?: string;
+  max_subagents?: number;
 }
 
 export interface CreatedTask {
@@ -1196,11 +1198,17 @@ export type SuggestSplitResult =
   | { ok: true; proposal: SplitProposal }
   | { ok: false; error: "ai_unavailable" | "suggest_failed" | "no_repos"; detail: string };
 
-export async function suggestSplit(workItemId: string): Promise<SuggestSplitResult> {
+export interface SuggestSplitInput {
+  max_subagents?: number;
+  planner_prompt?: string;
+  planner_agent_id?: string;
+}
+
+export async function suggestSplit(workItemId: string, input: SuggestSplitInput = {}): Promise<SuggestSplitResult> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(workItemId)}/suggest-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: "{}",
+    body: JSON.stringify(input),
   });
   if (response.ok) {
     const proposal = (await response.json()) as SplitProposal;
@@ -1218,11 +1226,12 @@ export async function applySplitProposal(
   workItemId: string,
   tasks: ProposedTask[],
   force = false,
+  maxSubagents?: number,
 ): Promise<SplitResult> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(workItemId)}/apply-split`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ tasks, force }),
+    body: JSON.stringify({ tasks, force, ...(maxSubagents !== undefined ? { max_subagents: maxSubagents } : {}) }),
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");

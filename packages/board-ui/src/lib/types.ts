@@ -77,6 +77,8 @@ export interface TaskCard {
   status: string;
   labels: string[];
   repo_targets: string[];
+  preferred_agents: string[];
+  max_subagents: number;
   rank: number | null;
   created_at: string;
   updated_at: string;

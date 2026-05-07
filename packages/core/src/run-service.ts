@@ -490,6 +490,10 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
   // don't have these fields; preserve "commit by default" behaviour.
   const commitWhenDone = parent?.execution_defaults?.auto_commit ?? true;
   const pushWhenDone = parent?.execution_defaults?.push_when_done ?? true;
+  if (!(await hasGitMetadata(run.worktree_path))) {
+    return;
+  }
+
   if (!commitWhenDone) {
     appendRunEvent(backlogDir, runId, {
       ts: new Date().toISOString(),
@@ -497,15 +501,6 @@ async function runPostExecutorGitWork(backlogDir: string, runId: string): Promis
       message: run.execution_mode === "direct"
         ? "Commit disabled — changes were left in the main checkout"
         : "Commit disabled — changes were left in the execution workspace",
-    });
-    return;
-  }
-
-  if (!(await hasGitMetadata(run.worktree_path))) {
-    appendRunEvent(backlogDir, runId, {
-      ts: new Date().toISOString(),
-      type: "run.commit_skipped",
-      message: "Folder is not a Git repository — changes were left in place without commit or push.",
     });
     return;
   }

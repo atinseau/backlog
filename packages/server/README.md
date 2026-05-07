@@ -39,7 +39,7 @@ serves the UI from the same binary, and opens the browser. See the root
 corepack pnpm install
 corepack pnpm --filter @backlog/server dev
 # or, to bind a different port / project:
-PORT=8080 BACKLOG_WORKSPACE=/path/to/repo corepack pnpm --filter @backlog/server dev
+PORT=8080 BACKLOG_WORKSPACE=/path/to/project corepack pnpm --filter @backlog/server dev
 ```
 
 This runs `tsx --watch src/dev-server.ts`, no UI — hit the API directly.
@@ -55,7 +55,7 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | Project path + server version |
-| `GET` | `/board?project=...&repo=...` | Tasks grouped into 4 columns. Cards now embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`. Top-level `total_estimated_seconds` + `total_remaining_seconds`. |
+| `GET` | `/board?project=...&repo=...` | Tasks grouped into configured columns, including optional Backlog and In Review columns. Cards embed `progress_percent`, `estimate_source`, `elapsed_seconds`, `eta`, `project_id`, `rank`, selected repositories, and active run metadata. |
 | `GET` | `/runs?status=...` | Active runs |
 | `GET` | `/orchestrate?task=...&subtask=...` | Wave-bucketed execution plan (read-only — no runs are started) |
 | `GET` | `/events` | SSE: `claim.changed` / `subtask.changed` / `task.changed` / `run.changed` / `project.changed` / `orchestrator.changed` / `repo.changed`, debounced 200ms |
@@ -69,11 +69,11 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/tasks` | Create from the kanban (title, project, priority, repos, optional estimate) |
+| `POST` | `/tasks` | Create from the kanban (description, project, priority, repositories/workspaces, optional estimate, Git options, AI split options) |
 | `POST` | `/tasks/:id/move` | Drag-drop status change |
 | `POST` | `/tasks/:id/reorder` | Intra-column reorder (sparse `rank` rewrite) |
 | `PATCH` | `/tasks/:id/estimate` | Set or clear the manual estimate |
-| `POST` | `/tasks/:id/split` | Mechanical split (one subtask per repo) |
+| `POST` | `/tasks/:id/split` | Mechanical split (one subtask per repository/workspace) |
 | `POST` | `/tasks/:id/suggest-split` | AI proposal via Claude (needs `ANTHROPIC_API_KEY`) |
 | `POST` | `/tasks/:id/apply-split` | Apply an edited proposal — creates the subtasks |
 | `POST` | `/subtasks` | Create a subtask on an existing task |
@@ -82,11 +82,11 @@ All endpoints under `/api/v1/`. JSON in, JSON out (or SSE for `/events`).
 | `PATCH` | `/subtasks/:id/estimate` | Set or clear the manual estimate |
 | `PATCH` | `/tasks/:id/progress` | Agent-reported progress 0..100 |
 
-### Projects, repositories, orchestrator, permissions
+### Projects, repositories, orchestrator, and agents
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` `POST` `PATCH` `DELETE` | `/projects[/:idOrSlug]` | CRUD for projects (groups of repo ids) |
+| `GET` `POST` `PATCH` `DELETE` | `/projects[/:idOrSlug]` | CRUD for projects (groups of repository/workspace ids) |
 | `POST` | `/projects/:idOrSlug/archive` | Soft-archive shortcut |
 | `GET` `POST` `PATCH` `DELETE` | `/repositories[/:id]` | CRUD for tracked repositories. POST accepts `{ remote_url, remote_type: "git", clone_into? }` to clone first. Legacy `{ git_url }` still works. |
 | `GET` | `/orchestrator/state` | Current loop mode + last tick + last error |

@@ -97,6 +97,7 @@ function baseImportedTask(
       merge_pr: false,
       worktree_mode: "isolated_worktree",
       preferred_agents: [],
+      max_subagents: 5,
     },
     sync: {
       source_of_truth: source.sync.source_of_truth,

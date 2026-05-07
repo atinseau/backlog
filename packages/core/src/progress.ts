@@ -34,10 +34,16 @@ export function computeSubTaskProgress(input: TaskProgressInput): TaskProgress {
     return { percent: clamp(task.progress_percent), elapsed_seconds: elapsed, source: "agent" };
   }
 
-  if (task.status === "running" && activeRun?.started_at && estimateSeconds > 0 && elapsed !== null) {
-    const ratio = elapsed / estimateSeconds;
+  if (task.status === "running" && activeRun?.started_at && elapsed !== null) {
+    const hasSpecificEstimate =
+      typeof task.estimated_duration_seconds === "number" ||
+      task.estimate_source === "manual" ||
+      task.estimate_source === "auto";
+    const effectiveEstimateSeconds = hasSpecificEstimate && estimateSeconds > 0 ? estimateSeconds : 45;
+    const ratio = elapsed / effectiveEstimateSeconds;
     const capped = Math.min(0.95, Math.max(0, ratio));
-    return { percent: Math.round(capped * 100), elapsed_seconds: elapsed, source: "elapsed" };
+    const floor = hasSpecificEstimate ? 0 : Math.min(85, 8 + elapsed * 2);
+    return { percent: Math.max(floor, Math.round(capped * 100)), elapsed_seconds: elapsed, source: "elapsed" };
   }
 
   return {

@@ -1,24 +1,30 @@
 # @backlog/board-ui
 
 Svelte 5 Jira-like kanban frontend for the local Backlog server. Cards drag
-across **À faire / En cours / In Review / Done** *and* within a column to
-reorder priority. The app shell carries:
+across **Backlog / À faire / En cours / In Review / Done** when those columns
+are enabled, and within movable columns to reorder priority. The app shell
+carries:
 
 - a **project selector** (with a CRUD modal)
-- an **Xcode-style Play / Pause / Stop** trio for the persistent
-  orchestrator + a state pill
+- a selected **agent/model** next to the project name
+- topbar **Play / Stop** controls plus a run-status screen; Play is grey when
+  configuration is incomplete, white when ready but empty, and blue when a
+  task can start
+- a **Backlog** section for ideas that are not ready to become tasks
 - a **Git** section for Changes, History, branches, worktrees, hooks, and sync
-- **Repositories** management to add a local path, clone from GitHub / GitLab /
-  Bitbucket / arbitrary Git URLs, relocate missing repos, and update hooks
-- **Agents** management with per-agent sandbox / risk / repo restrictions
-- a **Runs** section for execution history and review
-- a **Plan** side panel (wave breakdown, agents-max slider, auto toggle,
-  last tick / last error)
-- **+ Ticket** and **+ Claim** dialogs
+- **Workspaces** management to add a local folder, local Git repository, clone
+  from GitHub / GitLab / Bitbucket / arbitrary Git URLs, relocate missing
+  checkouts, and update hooks
+- **Agents** management with per-agent sandbox / risk / repository restrictions
+- a **Runs** section for execution history, ownership, protected paths,
+  activity, and token usage
+- **Instructions** and **Hooks** sections for coding guidance files and managed
+  hook lifecycle
+- **+ Task** and **+ Claim** dialogs
 - a **total ETA pill** showing remaining work across visible columns
 
 Each task gets a 4 px progress bar and a live ETA badge that ticks every
-second client-side (no server round-trip).
+second client-side while work is active (no server round-trip).
 
 [![license: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](../../LICENSE)
 
@@ -79,17 +85,17 @@ src/
     ├── Card.svelte                # Card + per-task progress bar + ETA + add-task button
     ├── Column.svelte              # Kanban column; intra-column drag rewrites rank
     ├── ClaimDialog.svelte         # Create-a-claim modal with conflict UI
-    ├── CreateTaskDialog.svelte    # Create a task (title, project, priority, repos)
+    ├── CreateTaskDialog.svelte    # Create a task (description, priority, workspaces, Git/AI options)
     ├── CreateSubTaskDialog.svelte # Create a subtask on an existing task
     ├── CommitsView.svelte         # Git Changes, History, branches, worktrees, sync
     ├── GitDiffPanel.svelte        # User-friendly diff viewer in the right panel
-    ├── OrchestratorControls.svelte  # Topbar ▶/⏸/⏹ trio + state pill (Xcode-style)
-    ├── OrchestratorPanel.svelte   # Side panel: waves + agents-max slider + auto toggle
+    ├── OrchestratorControls.svelte  # Topbar Play / Stop controls
+    ├── OrchestratorPanel.svelte   # Plan internals and diagnostics
     ├── AgentsView.svelte          # Agents + per-agent restrictions
     ├── IntegrationsView.svelte    # GitHub/Jira/source integrations
     ├── ProjectSelector.svelte     # Header dropdown
     ├── ProjectsView.svelte        # CRUD modal for projects
-    ├── ReposView.svelte           # Local paths, Git clones, Cloud remote entry point
+    ├── RepositoriesView.svelte    # Local folders, Git clones, Cloud remote entry point
     ├── RetryBadge.svelte          # Per-second countdown to claim expiry
     ├── SplitDialog.svelte         # Manual + AI Suggest tabs
     ├── timer.svelte.ts            # Reactive 1 Hz now() + format helpers

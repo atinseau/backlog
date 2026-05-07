@@ -34,12 +34,7 @@
     open = !open;
   }
   function activateAvatar() {
-    if (cloudStatus?.signed_in) {
-      toggle();
-      return;
-    }
-    close();
-    onOpenProfile("signup");
+    toggle();
   }
   function close() {
     open = false;
@@ -89,7 +84,7 @@
   <button
     class="avatar"
     class:signed-in={cloudStatus?.signed_in}
-    onclick={activateAvatar}
+    onclick={(e) => { e.stopPropagation(); activateAvatar(); }}
     title={accountLabel()}
     aria-label={t("topbar.profile")}
     aria-expanded={open}

@@ -6,18 +6,21 @@
     type CreatedTask,
     type ProposedTask,
   } from "./api.js";
+  import { formatAgentLabel } from "./agent-label.js";
   import { t } from "./i18n.svelte.js";
   import { getShowReviewColumn } from "./settings.svelte.js";
+  import type { AgentSummary } from "./types.js";
 
   interface Props {
     availableRepos: string[];
+    agents?: AgentSummary[];
     agentId?: string | null;
     hasGitRepository?: boolean;
     onClose: () => void;
     onCreated?: (result: { taskId: string; subTasksCreated: number }) => void;
   }
 
-  let { availableRepos, agentId = null, hasGitRepository = true, onClose, onCreated }: Props = $props();
+  let { availableRepos, agents = [], agentId = null, hasGitRepository = true, onClose, onCreated }: Props = $props();
 
   function focusOnMount(node: HTMLElement): void {
     queueMicrotask(() => node.focus());
@@ -87,12 +90,12 @@
   });
 
   // AI splitter. It is conditional ("only if needed"); most tasks run
-  // directly as one unit. Max tasks / max sub-agents are pretty-printed
-  // in the splitter prompt; defaults match what the splitter expects
-  // server-side.
+  // directly as one unit. maxSubagents is both the planning cap and
+  // the later launch cap for this task.
   let autoSplit = $state(false);
-  let maxSplitTasks = $state(6);
-  let maxSubagents = $state(3);
+  let maxSubagents = $state(5);
+  let subAgentId = $state<string | null>(null);
+  let plannerPrompt = $state(t("create_task.ai.default_prompt"));
 
   let createdTask = $state<CreatedTask | null>(null);
   let proposalTasks = $state<ProposedTask[]>([]);
@@ -101,6 +104,30 @@
   let aiUnavailable = $state(false);
   let aiUnavailableDetail = $state("");
   let createdNotificationSent = $state(false);
+
+  const executableAgents = $derived(
+    agents.filter((agent) =>
+      (agent.provider === "claude" || agent.provider === "codex" || agent.provider === "custom") &&
+      !agent.needs_api_key,
+    ),
+  );
+
+  $effect(() => {
+    if (subAgentId && executableAgents.some((agent) => agent.id === subAgentId)) return;
+    subAgentId = agentId && executableAgents.some((agent) => agent.id === agentId)
+      ? agentId
+      : executableAgents[0]?.id ?? agentId ?? null;
+  });
+
+  $effect(() => {
+    if (autoSplit && hasGitRepository) {
+      worktreeMode = "isolated_worktree";
+    }
+  });
+
+  function normalizedMaxSubagents(): number {
+    return Math.max(1, Math.min(99, Math.round(Number(maxSubagents) || 5)));
+  }
 
   function notifyCreated(subTasksCreated: number) {
     if (!createdTask || createdNotificationSent) return;
@@ -136,10 +163,12 @@
       input.create_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? createPr : false;
       input.merge_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? mergePr : false;
       input.worktree_mode = hasGitRepository ? worktreeMode : "direct";
+      input.max_subagents = normalizedMaxSubagents();
+      if (agentId) input.planner_agent_id = agentId;
       // New tasks inherit the concrete model/agent selected in the
-      // header. The creation form should not ask again for the model;
-      // the header is the single source of truth for the next run.
-      if (agentId) input.preferred_agents = [agentId];
+      // header by default, but split tasks can choose a distinct
+      // sub-agent model below.
+      if (subAgentId) input.preferred_agents = [subAgentId];
       const result = await createTask(input);
       const task = result.task;
       createdTask = task;
@@ -150,7 +179,11 @@
       // splitting is for genuinely parallel-able multi-repository work.
       if (autoSplit && (repoTargets.length > 0 || availableRepos.length > 0)) {
         phase = "splitting";
-        const result = await suggestSplit(task.id);
+        const result = await suggestSplit(task.id, {
+          max_subagents: normalizedMaxSubagents(),
+          planner_prompt: plannerPrompt.trim(),
+          ...(agentId ? { planner_agent_id: agentId } : {}),
+        });
         if (result.ok) {
           proposalTasks = result.proposal.tasks.map((t) => ({ ...t }));
           proposalRationale = result.proposal.rationale;
@@ -180,7 +213,7 @@
     error = null;
     phase = "applying";
     try {
-      const result = await applySplitProposal(createdTask.id, proposalTasks);
+      const result = await applySplitProposal(createdTask.id, proposalTasks, false, normalizedMaxSubagents());
       const count = result.created_tasks.length;
       phase = "applied";
       notifyCreated(count);
@@ -353,12 +386,23 @@
           {#if autoSplit}
             <div class="ai-tuning">
               <label class="number-row">
-                <span>{t("create_task.ai.max_tasks")}</span>
-                <input type="number" min="1" max="20" bind:value={maxSplitTasks} />
-              </label>
-              <label class="number-row">
                 <span>{t("create_task.ai.max_subagents")}</span>
-                <input type="number" min="1" max="10" bind:value={maxSubagents} />
+                <input type="number" min="1" max="99" bind:value={maxSubagents} />
+              </label>
+              {#if executableAgents.length > 0}
+                <label class="select-row compact">
+                  <span class="select-label">{t("create_task.ai.subagent_model")}</span>
+                  <select bind:value={subAgentId}>
+                    {#each executableAgents as agent (agent.id)}
+                      <option value={agent.id}>{formatAgentLabel(agent).withContext}</option>
+                    {/each}
+                  </select>
+                  <span class="select-hint">{t("create_task.ai.subagent_model_hint")}</span>
+                </label>
+              {/if}
+              <label class="prompt-row">
+                <span>{t("create_task.ai.planner_prompt")}</span>
+                <textarea bind:value={plannerPrompt} rows="4"></textarea>
               </label>
             </div>
           {/if}
@@ -522,8 +566,9 @@
   .select-label { color: var(--text-primary); }
   .select-hint { font-size: 11px; color: var(--text-muted); font-style: italic; }
   .ai-tuning {
-    display: flex;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
     margin: 4px 0 8px 26px;
   }
   .number-row {
@@ -541,6 +586,33 @@
     background: var(--bg-input);
     font: inherit;
     font-size: 12px;
+  }
+  .select-row.compact {
+    grid-template-columns: 140px minmax(180px, 1fr);
+    gap: 8px;
+    margin-top: 0;
+  }
+  .select-row.compact .select-hint {
+    grid-column: 2;
+  }
+  .prompt-row {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .prompt-row textarea {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 6px 8px;
   }
   .title-preview {
     margin: 8px auto;

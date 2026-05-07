@@ -24,6 +24,7 @@
     // can interrupt mid-flight.
     externalActive?: boolean;
     canPlay?: boolean;
+    playState?: "blocked" | "empty" | "ready";
     playBlockedTitle?: string;
     // Called when the user clicks Stop while a run is in flight but
     // the global orchestrator isn't running. Lets the parent cancel
@@ -37,6 +38,7 @@
     onPlay,
     externalActive = false,
     canPlay = true,
+    playState = "ready",
     playBlockedTitle = "",
     onStopActiveRuns,
   }: Props = $props();
@@ -124,9 +126,9 @@
   const playTitle = $derived(
     isRunning
       ? t("orchestrator.play.running")
-      : !canPlay
+      : playState === "blocked"
         ? playBlockedTitle || t("orchestrator.play.nothing")
-      : nothingToRun
+      : playState === "empty" || nothingToRun
         ? blockedByAgent
           ? t("orchestrator.play.no_agent")
           : t("orchestrator.play.nothing")
@@ -155,8 +157,9 @@
   <button
     class="ctrl play"
     class:running={isRunning}
+    class:empty={playState === "empty" && !isRunning}
     onclick={handleStart}
-    disabled={startBusy || isRunning || !canPlay}
+    disabled={startBusy || isRunning || playState !== "ready" || !canPlay}
     title={playTitle}
     aria-label="Play"
   >
@@ -204,6 +207,9 @@
     cursor: not-allowed;
     background: transparent;
     color: var(--text-subtle);
+  }
+  .ctrl.play.empty:disabled {
+    color: var(--text-primary);
   }
   .ctrl.play:hover:not(:disabled) {
     background: var(--accent-hover);

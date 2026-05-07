@@ -268,13 +268,20 @@
     const runStatus = task.active_run?.status;
     if (
       (runStatus === "preparing" || runStatus === "running") &&
-      task.active_run?.started_at &&
-      task.estimated_duration_seconds > 0
+      task.active_run?.started_at
     ) {
       const started = Date.parse(task.active_run.started_at);
       if (Number.isFinite(started)) {
         const elapsed = Math.max(0, Math.round((now - started) / 1000));
-        const elapsedPercent = Math.min(95, Math.round((elapsed / task.estimated_duration_seconds) * 100));
+        const hasSpecificEstimate = task.estimate_source === "manual" || task.estimate_source === "auto";
+        const effectiveEstimateSeconds = hasSpecificEstimate && task.estimated_duration_seconds > 0
+          ? task.estimated_duration_seconds
+          : 45;
+        const floor = hasSpecificEstimate ? 0 : Math.min(85, 8 + elapsed * 2);
+        const elapsedPercent = Math.max(
+          floor,
+          Math.min(95, Math.round((elapsed / effectiveEstimateSeconds) * 100)),
+        );
         return Math.max(task.progress_percent, elapsedPercent);
       }
     }
