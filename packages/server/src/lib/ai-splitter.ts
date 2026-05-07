@@ -51,13 +51,12 @@ Hard rules:
 
 Also include a one-paragraph 'rationale' (≤ 200 chars) explaining the parallel/serial structure of your proposal.`;
 
-function proposalSchema(maxSubagents: number) {
+function proposalSchema() {
   return {
   type: "object",
   properties: {
     tasks: {
       type: "array",
-      maxItems: clampMaxSubagents(maxSubagents),
       items: {
         type: "object",
         properties: {
@@ -433,7 +432,7 @@ async function suggestSplitAnthropic(
     output_config: {
       format: {
         type: "json_schema",
-        schema: proposalSchema(maxSubagents) as unknown as Record<string, unknown>,
+        schema: proposalSchema() as unknown as Record<string, unknown>,
       },
     },
     messages: [
@@ -490,7 +489,7 @@ async function suggestSplitOpenAi(
         json_schema: {
           name: "split_proposal",
           strict: true,
-          schema: proposalSchema(maxSubagents),
+          schema: proposalSchema(),
         },
       },
     }),

@@ -221,10 +221,23 @@
   }
 
   function fallbackAgentId(list: AgentSummary[]): string | null {
-    const ready = list.filter((agent) => isExecutableAgent(agent) && !agent.needs_api_key);
-    if (ready.length > 0) return ready[ready.length - 1]?.id ?? null;
-    const executable = list.filter(isExecutableAgent);
-    return executable[executable.length - 1]?.id ?? null;
+    const rankAgent = (agent: AgentSummary): number => {
+      const id = agent.id.toLowerCase();
+      const model = (agent.model ?? "").toLowerCase();
+      if (id === "claude-code" || id.includes("sonnet") || model.includes("sonnet")) return 0;
+      if (id.includes("opus") || model.includes("opus")) return 1;
+      if (agent.provider === "codex" || id.includes("codex") || model.includes("codex")) return 2;
+      if (id.includes("haiku") || model.includes("haiku")) return 3;
+      return 4;
+    };
+    const byDefaultOrder = (a: AgentSummary, b: AgentSummary) =>
+      rankAgent(a) - rankAgent(b) || (a.display_name ?? a.id).localeCompare(b.display_name ?? b.id);
+    const ready = list
+      .filter((agent) => isExecutableAgent(agent) && !agent.needs_api_key)
+      .sort(byDefaultOrder);
+    if (ready.length > 0) return ready[0]?.id ?? null;
+    const executable = list.filter(isExecutableAgent).sort(byDefaultOrder);
+    return executable[0]?.id ?? null;
   }
 
   function resolveSelectedAgentId(list: AgentSummary[], current: string | null): string | null {

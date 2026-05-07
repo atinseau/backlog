@@ -98,6 +98,27 @@
   let scrollEl = $state<HTMLDivElement | null>(null);
   let stickToBottom = true;
 
+  function selectAllLogText() {
+    if (!scrollEl) return;
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    range.selectNodeContents(scrollEl);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      selectAllLogText();
+    }
+  }
+
+  function focusLog() {
+    scrollEl?.focus({ preventScroll: true });
+  }
+
   function numberField(value: unknown): number | undefined {
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }
@@ -254,7 +275,17 @@
 
 {#if open || embedded}
   <section class="panel" class:embedded aria-label={t("activity.title")}>
-    <div class="scroll" bind:this={scrollEl} onscroll={handleScroll}>
+    <div
+      class="scroll"
+      bind:this={scrollEl}
+      onscroll={handleScroll}
+      onkeydown={handleKeydown}
+      onpointerdown={focusLog}
+      tabindex="0"
+      role="textbox"
+      aria-readonly="true"
+      aria-multiline="true"
+    >
       {#if events.length === 0}
         <p class="muted">{t("activity.empty")}</p>
       {:else}
@@ -383,18 +414,28 @@
   }
   .scroll {
     flex: 1;
-    overflow-y: auto;
+    overflow: auto;
     padding: 8px 12px;
+    user-select: text;
+    -webkit-user-select: text;
+    outline: none;
   }
   .muted { color: var(--text-muted); font-style: italic; margin: 0; padding: 16px 0; text-align: center; }
-  ul { list-style: none; margin: 0; padding: 0; }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-width: max-content;
+  }
   .evt {
     display: flex;
+    flex-wrap: nowrap;
     gap: 8px;
     align-items: baseline;
     padding: 1px 0;
     border-left: 2px solid transparent;
     padding-left: 6px;
+    white-space: nowrap;
   }
   .evt-bus { opacity: 0.55; }
   .evt-bus .type { color: var(--text-muted); }
@@ -427,11 +468,11 @@
   .type { flex-shrink: 0; }
   .msg {
     color: var(--console-text);
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
     white-space: nowrap;
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: max-content;
   }
   .file-link {
     background: transparent;
@@ -441,6 +482,8 @@
     cursor: pointer;
     font: inherit;
     padding: 0;
+    user-select: text;
+    -webkit-user-select: text;
   }
   .file-link:hover { color: var(--accent-text); }
 

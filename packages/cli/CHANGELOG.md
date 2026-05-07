@@ -4,6 +4,17 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.55] - 2026-05-08
+
+AI split and Activity console polish.
+
+- **Anthropic AI split no longer sends unsupported array schema keywords** — Backlog still validates the returned plan against `max_subagents`, but the request no longer fails with `maxItems is not supported`.
+- **Task creation now asks for clarification when a request is ambiguous** with predefined choices plus a free-form answer, and all model-facing planning/clarification text is written in English regardless of UI locale.
+- **Simple tasks now follow the header-selected model at launch time** instead of storing a stale preferred agent during creation, and Backlog prefers Sonnet over Haiku when no explicit model choice exists.
+- **Agent prompts now require verifying the exact requested outcome** so existing similarly named files do not cause a run to finish without checking their content.
+- **Activity logs are easier to copy and inspect** — rows stay on one line with horizontal scroll, text is selectable, and `Cmd+A` / `Ctrl+A` selects the visible log.
+- **AI split failures now use clearer copy** so a planning error is not presented as the entire AI system being unavailable.
+
 ## [1.4.54] - 2026-05-07
 
 Parallel split, non-Git workspace, and documentation polish.

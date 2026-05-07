@@ -26,7 +26,16 @@
     queueMicrotask(() => node.focus());
   }
 
-  type Phase = "input" | "creating" | "splitting" | "proposal" | "applying" | "applied";
+  const DEFAULT_PLANNER_PROMPT = "Split the task so the work can run in parallel with as few dependencies as possible. Group independent files into balanced batches according to max_subagents. Only add dependencies when one sub-task truly needs another sub-task's output.";
+
+  type ClarificationPrompt = {
+    id: string;
+    question: string;
+    promptQuestion: string;
+    options: Array<{ label: string; value: string }>;
+  };
+
+  type Phase = "input" | "clarify" | "creating" | "splitting" | "proposal" | "applying" | "applied";
 
   let phase = $state<Phase>("input");
   // Title field removed — the server synthesises one from the
@@ -95,7 +104,9 @@
   let autoSplit = $state(false);
   let maxSubagents = $state(5);
   let subAgentId = $state<string | null>(null);
-  let plannerPrompt = $state(t("create_task.ai.default_prompt"));
+  let plannerPrompt = $state(DEFAULT_PLANNER_PROMPT);
+  let clarificationPrompts = $state<ClarificationPrompt[]>([]);
+  let clarificationAnswers = $state<Record<string, string>>({});
 
   let createdTask = $state<CreatedTask | null>(null);
   let proposalTasks = $state<ProposedTask[]>([]);
@@ -110,6 +121,9 @@
       (agent.provider === "claude" || agent.provider === "codex" || agent.provider === "custom") &&
       !agent.needs_api_key,
     ),
+  );
+  const clarificationComplete = $derived(
+    clarificationPrompts.every((prompt) => (clarificationAnswers[prompt.id] ?? "").trim().length > 0),
   );
 
   $effect(() => {
@@ -144,15 +158,101 @@
     repoTargets = repoTargets.includes(id) ? repoTargets.filter((r) => r !== id) : [...repoTargets, id];
   }
 
-  async function handleSubmit(event: SubmitEvent) {
-    event.preventDefault();
+  function hasConcreteTarget(text: string): boolean {
+    return /(?:^|\s)[\w .@()[\]-]+\.(?:html?|tsx?|jsx?|svelte|css|scss|json|ya?ml|md|txt|ts|js|rb|py|go|rs|swift|kt|java|php|sql)\b/i.test(text) ||
+      /(?:^|\s)(?:src|app|packages|components|pages|routes|screens|lib|server|client|docs|tests?)\//i.test(text) ||
+      /\b(?:header|sidebar|modal|dialog|dropdown|button|menu|api|endpoint|command|readme|hook|diff|board|task|run|workspace|repository|git)\b/i.test(text);
+  }
+
+  function buildClarificationPrompts(text: string): ClarificationPrompt[] {
+    const lower = text.toLowerCase();
+    const prompts: ClarificationPrompt[] = [];
+    const words = lower.split(/\s+/).filter(Boolean);
+    const vagueTarget = /\b(it|this|that|thing|stuff|bug|issue|screen|page|flow|ça|ceci|cela|truc|machin|bug|probl[eè]me|[ée]cran|page|flux)\b/i.test(text);
+    const vagueAction = /\b(improve|make better|clean up|handle|manage|fix|change|update|am[ée]liore|am[ée]liorer|corrige|corriger|r[ée]pare|r[ée]parer|change|changer|g[eé]rer)\b/i.test(text);
+    const repetitiveFiles = /\b(?:add|create|generate|cr[ée]e?r?|ajoute?r?|g[ée]n[èe]re?r?)\b[\s\S]*\b(?:\d+|ten|dix)\b[\s\S]*\b(?:files?|fichiers?)\b/i.test(text);
+    const mentionsNaming = /\b(?:named?|names?|naming|appel|nomm|nom|index\d*|hello\d*|path|paths|chemin|pattern|convention)\b/i.test(text);
+
+    if ((words.length <= 3 || (vagueAction && vagueTarget)) && !hasConcreteTarget(text)) {
+      prompts.push({
+        id: "target",
+        question: t("create_task.clarify.question.target"),
+        promptQuestion: "What is the exact scope?",
+        options: [
+          { label: t("create_task.clarify.option.current_workspace"), value: "Use the current workspace." },
+          { label: t("create_task.clarify.option.visible_ui"), value: "Target the visible screen or component." },
+          { label: t("create_task.clarify.option.specific_files"), value: "The exact files will be specified by the user." },
+        ],
+      });
+    }
+
+    if (vagueAction && /\b(improve|make better|clean up|am[ée]liore|am[ée]liorer|handle|manage|g[eé]rer)\b/i.test(text)) {
+      prompts.push({
+        id: "outcome",
+        question: t("create_task.clarify.question.outcome"),
+        promptQuestion: "What outcome is expected?",
+        options: [
+          { label: t("create_task.clarify.option.smallest_fix"), value: "Make the smallest safe fix that satisfies the request." },
+          { label: t("create_task.clarify.option.ui_polish"), value: "Only improve visual polish; do not change behavior." },
+          { label: t("create_task.clarify.option.refactor_only"), value: "Refactor without changing behavior." },
+        ],
+      });
+    }
+
+    if (repetitiveFiles && !mentionsNaming) {
+      prompts.push({
+        id: "naming",
+        question: t("create_task.clarify.question.naming"),
+        promptQuestion: "How should generated files be named?",
+        options: [
+          { label: t("create_task.clarify.option.index_files"), value: "Name the files index1.html, index2.html, and so on." },
+          { label: t("create_task.clarify.option.hello_files"), value: "Name the files hello1.html, hello2.html, and so on." },
+          { label: t("create_task.clarify.option.project_convention"), value: "Use the project's existing naming convention." },
+        ],
+      });
+    }
+
+    if (availableRepos.length > 1 && repoTargets.length === 0 && !availableRepos.some((repo) => lower.includes(repo.toLowerCase()))) {
+      prompts.push({
+        id: "workspace",
+        question: t("create_task.clarify.question.workspace"),
+        promptQuestion: "Which workspace should this target?",
+        options: [
+          { label: t("create_task.clarify.option.relevant_workspace"), value: "Use the most relevant workspace." },
+          { label: t("create_task.clarify.option.all_workspaces"), value: "Use all workspaces if needed." },
+          { label: t("create_task.clarify.option.choose_chips"), value: "Use the workspaces selected in the task form." },
+        ],
+      });
+    }
+
+    return prompts.slice(0, 3);
+  }
+
+  function setClarificationAnswer(id: string, value: string) {
+    clarificationAnswers = { ...clarificationAnswers, [id]: value };
+  }
+
+  function descriptionWithClarifications(): string {
+    const base = description.trim();
+    const answered = clarificationPrompts
+      .map((prompt) => {
+        const answer = (clarificationAnswers[prompt.id] ?? "").trim();
+        return answer ? `- ${prompt.promptQuestion} ${answer}` : "";
+      })
+      .filter(Boolean);
+    if (answered.length === 0) return base;
+    return `${base}\n\nClarifications:\n${answered.join("\n")}`;
+  }
+
+  async function createFromCurrentInput() {
     error = null;
     aiUnavailable = false;
     aiUnavailableDetail = "";
     phase = "creating";
     try {
+      const taskDescription = descriptionWithClarifications();
       const input: Parameters<typeof createTask>[0] = {
-        description: description.trim(),
+        description: taskDescription,
         priority,
         status: "ready",
       };
@@ -165,10 +265,10 @@
       input.worktree_mode = hasGitRepository ? worktreeMode : "direct";
       input.max_subagents = normalizedMaxSubagents();
       if (agentId) input.planner_agent_id = agentId;
-      // New tasks inherit the concrete model/agent selected in the
-      // header by default, but split tasks can choose a distinct
-      // sub-agent model below.
-      if (subAgentId) input.preferred_agents = [subAgentId];
+      // Simple tasks should follow the header model at launch time.
+      // Split tasks keep the chosen sub-agent model because that is part
+      // of the parallel execution plan.
+      if (autoSplit && subAgentId) input.preferred_agents = [subAgentId];
       const result = await createTask(input);
       const task = result.task;
       createdTask = task;
@@ -208,6 +308,23 @@
     }
   }
 
+  async function handleSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    const prompts = buildClarificationPrompts(description.trim());
+    if (prompts.length > 0) {
+      clarificationPrompts = prompts;
+      clarificationAnswers = {};
+      phase = "clarify";
+      return;
+    }
+    await createFromCurrentInput();
+  }
+
+  async function continueAfterClarification() {
+    if (!clarificationComplete) return;
+    await createFromCurrentInput();
+  }
+
   async function applyProposal() {
     if (!createdTask) return;
     error = null;
@@ -244,6 +361,8 @@
       <h2>
         {#if phase === "input" || phase === "creating"}
           {t("create_task.title.input")}
+        {:else if phase === "clarify"}
+          {t("create_task.title.clarify")}
         {:else if phase === "splitting"}
           {t("create_task.title.splitting")}
         {:else if phase === "proposal"}
@@ -422,6 +541,41 @@
           </button>
         </footer>
       </form>
+    {:else if phase === "clarify"}
+      <div class="body">
+        <p class="muted">{t("create_task.clarify.body")}</p>
+        {#each clarificationPrompts as prompt (prompt.id)}
+          <section class="clarification-card">
+            <h3>{prompt.question}</h3>
+            <div class="clarification-options">
+              {#each prompt.options as option (option.value)}
+                <button
+                  type="button"
+                  class:selected={clarificationAnswers[prompt.id] === option.value}
+                  onclick={() => setClarificationAnswer(prompt.id, option.value)}
+                >
+                  {option.label}
+                </button>
+              {/each}
+            </div>
+            <textarea
+              rows="2"
+              value={clarificationAnswers[prompt.id] ?? ""}
+              placeholder={t("create_task.clarify.free_placeholder")}
+              oninput={(event) => setClarificationAnswer(prompt.id, (event.currentTarget as HTMLTextAreaElement).value)}
+            ></textarea>
+          </section>
+        {/each}
+        <footer>
+          <button type="button" onclick={() => (phase = "input")}>{t("create_task.button.back")}</button>
+          <button
+            type="button"
+            class="primary"
+            disabled={!clarificationComplete}
+            onclick={continueAfterClarification}
+          >{t("create_task.button.continue")}</button>
+        </footer>
+      </div>
     {:else if phase === "splitting"}
       <div class="body centered">
         <div class="spinner" aria-hidden="true">⟳</div>
@@ -613,6 +767,44 @@
     font-size: 12px;
     line-height: 1.4;
     padding: 6px 8px;
+  }
+  .clarification-card {
+    border: 1px solid var(--border-default);
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .clarification-card h3 {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .clarification-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .clarification-options button {
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .clarification-options button.selected {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--accent-text);
+  }
+  .clarification-card textarea {
+    min-height: 48px;
+    background: var(--bg-input);
+    color: var(--text-primary);
   }
   .title-preview {
     margin: 8px auto;
