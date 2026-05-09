@@ -34,6 +34,7 @@
   import ProfileView from "./lib/ProfileView.svelte";
   import ProjectSelector from "./lib/ProjectSelector.svelte";
   import AgentPicker from "./lib/AgentPicker.svelte";
+  import ReasoningPicker from "./lib/ReasoningPicker.svelte";
   import RunStatusDisplay from "./lib/RunStatusDisplay.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
@@ -74,6 +75,7 @@
     type ProjectInfo,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
+  import { defaultReasoningForProvider, isReasoningLevelSupported } from "./lib/reasoning-levels.js";
   import { explainStartRunResult, type StartRunAction } from "./lib/run-start-errors.js";
   import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
@@ -90,6 +92,7 @@
   const PROJECT_STORAGE_KEY = "backlog.selected_project_id";
   const PROJECT_PICK_STORAGE_KEY = "backlog.project_picker_requested";
   const AGENT_STORAGE_PREFIX = "backlog.selected_agent_id";
+  const REASONING_STORAGE_PREFIX = "backlog.selected_reasoning_effort";
   const LAUNCH_PROJECT_PARAMS = ["project", "workspace"];
   const LAUNCH_REPO_PARAM = "repo";
   const LAUNCH_PICK_PROJECT_PARAM = "pick_project";
@@ -163,6 +166,7 @@
   let selectedProjectId = $state<string | null>(null);
   let selectedRepoId = $state<string | null>(null);
   let selectedAgentId = $state<string | null>(null);
+  let selectedReasoningEffort = $state<string | null>(null);
   let error = $state<string | null>(null);
   let loadError = $state<string | null>(null);
   let lastUpdated = $state<string | null>(null);
@@ -515,6 +519,25 @@
   const selectedRunAgent = $derived(
     agentsList.find((agent) => agent.id === selectedRunAgentId) ?? null,
   );
+  const selectedRunReasoningProvider = $derived(selectedRunAgent?.provider ?? null);
+  const selectedRunReasoningEffort = $derived.by(() => {
+    const provider = selectedRunReasoningProvider;
+    if (!provider) return null;
+    if (isReasoningLevelSupported(provider, selectedReasoningEffort)) return selectedReasoningEffort;
+    const stored = readSelectedReasoning(selectedProjectId, provider);
+    if (isReasoningLevelSupported(provider, stored)) return stored;
+    return defaultReasoningForProvider(provider);
+  });
+  $effect(() => {
+    if (!selectedProjectId || !selectedRunReasoningProvider) {
+      selectedReasoningEffort = null;
+      return;
+    }
+    const resolved = selectedRunReasoningEffort;
+    if (resolved && resolved !== selectedReasoningEffort) {
+      persistSelectedReasoning(resolved);
+    }
+  });
   const hasReadyAIAgent = $derived(
     Boolean(selectedRunAgent && isExecutableAgent(selectedRunAgent) && !selectedRunAgent.needs_api_key),
   );
@@ -678,6 +701,21 @@
     else localStorage.removeItem(key);
   }
 
+  function selectedReasoningStorageKey(projectId: string, provider: string): string {
+    return `${REASONING_STORAGE_PREFIX}.${projectId}.${provider}`;
+  }
+
+  function readSelectedReasoning(projectId: string | null, provider: string | null): string | null {
+    if (!projectId || !provider || typeof localStorage === "undefined") return null;
+    return localStorage.getItem(selectedReasoningStorageKey(projectId, provider));
+  }
+
+  function persistSelectedReasoning(value: string) {
+    selectedReasoningEffort = value;
+    if (!selectedProjectId || !selectedRunReasoningProvider || typeof localStorage === "undefined") return;
+    localStorage.setItem(selectedReasoningStorageKey(selectedProjectId, selectedRunReasoningProvider), value);
+  }
+
   async function selectRepo(id: string | null) {
     error = null;
     if (!id) {
@@ -751,6 +789,7 @@
     if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
     else localStorage.removeItem(REPO_STORAGE_KEY);
     selectedAgentId = readSelectedAgent(id);
+    selectedReasoningEffort = null;
     board = null;
     projectRepos = [];
     selectedTaskId = null;
@@ -826,10 +865,12 @@
       if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
       else localStorage.removeItem(REPO_STORAGE_KEY);
       selectedAgentId = readSelectedAgent(preferred);
+      selectedReasoningEffort = null;
     } else if (shouldPickProject) {
       selectedProjectId = null;
       selectedRepoId = null;
       selectedAgentId = null;
+      selectedReasoningEffort = null;
       setCurrentProjectId(null);
       localStorage.removeItem(PROJECT_STORAGE_KEY);
       localStorage.removeItem(REPO_STORAGE_KEY);
@@ -1042,6 +1083,7 @@
     try {
       const runInput: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
       if (selectedRunAgentId && card.preferred_agents.length === 0) runInput.agent_id = selectedRunAgentId;
+      if (selectedRunReasoningEffort) runInput.reasoning_effort = selectedRunReasoningEffort;
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
@@ -1162,6 +1204,7 @@
     if (options.allowDirtyDirect) input.allow_dirty_direct = true;
     const fullCard = "preferred_agents" in card ? (card as TaskCard) : findCardById(card.id);
     if (selectedRunAgentId && (!fullCard || fullCard.preferred_agents.length === 0)) input.agent_id = selectedRunAgentId;
+    if (selectedRunReasoningEffort) input.reasoning_effort = selectedRunReasoningEffort;
     const result = await startRun(input);
     if (result.started.length > 0) {
       directDirtyPrompt = null;
@@ -1379,6 +1422,11 @@
           onSelect={persistSelectedAgent}
           onManageAgents={() => applySection("agents")}
           variant="inline"
+        />
+        <ReasoningPicker
+          provider={selectedRunReasoningProvider}
+          value={selectedRunReasoningEffort}
+          onSelect={persistSelectedReasoning}
         />
       {/if}
     </div>

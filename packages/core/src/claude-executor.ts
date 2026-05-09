@@ -62,6 +62,11 @@ function describeProcessFailure(result: { exitCode?: number | null; signal?: str
   return "no exit status or output";
 }
 
+function claudeEffort(value: string | undefined): "low" | "medium" | "high" | "max" | null {
+  if (value === "low" || value === "medium" || value === "high" || value === "max") return value;
+  return null;
+}
+
 function handleStreamEvent(
   backlogDir: string,
   runId: string,
@@ -125,6 +130,10 @@ export async function executeClaudeAgentRun(params: {
   const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "bypassPermissions"];
   if (params.agent.model) {
     args.push("--model", params.agent.model);
+  }
+  const effort = claudeEffort(params.run.reasoning_effort);
+  if (effort) {
+    args.push("--effort", effort);
   }
   if (params.agent.profile) {
     args.push("--settings", JSON.stringify({ env: { CLAUDE_CODE_PROFILE: params.agent.profile } }));

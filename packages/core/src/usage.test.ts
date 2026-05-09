@@ -256,8 +256,8 @@ describe("estimateRunCost", () => {
     }
     const alpha = estimateRunCost(backlogDir, { repo: "alpha" })!;
     expect(alpha.sample_size).toBe(3);
-    // haiku 4.5: 100K×$0.25/MM + 50K×$1.25/MM = $0.025 + $0.0625 = $0.0875
-    expect(alpha.cost_usd).toBeCloseTo(0.0875, 4);
+    // haiku 4.5: 100K×$1/MM + 50K×$5/MM = $0.10 + $0.25 = $0.35
+    expect(alpha.cost_usd).toBeCloseTo(0.35, 4);
 
     const beta = estimateRunCost(backlogDir, { repo: "beta" })!;
     expect(beta.cost_usd).toBeCloseTo(15 + 75, 1); // 1MM in + 1MM out at opus rates

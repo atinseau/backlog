@@ -919,6 +919,7 @@ export interface StartRunInput {
   task_id?: string;
   max_start?: number;
   agent_id?: string;
+  reasoning_effort?: string;
   approve?: boolean;
   allow_dirty_direct?: boolean;
 }
@@ -984,6 +985,7 @@ export interface EnrichedRun {
   branch: string;
   agent_id: string;
   provider: string;
+  reasoning_effort?: string;
   status: string;
   claim_ids: string[];
   execution_mode: "isolated_worktree" | "direct";

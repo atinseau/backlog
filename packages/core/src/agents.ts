@@ -57,6 +57,17 @@ function defaultClaudeVariant(id: string, model: string, allowedRisk: Array<"low
   };
 }
 
+function migrateKnownAgentModels(file: AgentsFile): boolean {
+  let changed = false;
+  for (const agent of file.agents) {
+    if (agent.provider === "codex" && agent.model === "gpt-5-codex") {
+      agent.model = "gpt-5.5";
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 // Backfill the Haiku/Opus defaults for projects created before the
 // model picker exposed Claude variants as first-class choices. This
 // intentionally only touches the exact old seed set (`claude-code` +
@@ -64,11 +75,15 @@ function defaultClaudeVariant(id: string, model: string, allowedRisk: Array<"low
 export function ensureDefaultModelAgents(backlogDir: string): AgentsFile {
   const file = readAgentsFile(backlogDir);
   const ids = new Set(file.agents.map((agent) => agent.id));
+  let changed = migrateKnownAgentModels(file);
   const oldDefaultOnly =
     file.agents.length === 2 &&
     ids.has("claude-code") &&
     ids.has("codex");
-  if (!oldDefaultOnly) return file;
+  if (!oldDefaultOnly) {
+    if (changed) writeAgentsFile(backlogDir, file);
+    return file;
+  }
 
   const codexIndex = file.agents.findIndex((agent) => agent.id === "codex");
   const insertAt = codexIndex >= 0 ? codexIndex : file.agents.length;
@@ -78,7 +93,8 @@ export function ensureDefaultModelAgents(backlogDir: string): AgentsFile {
     defaultClaudeVariant("claude-opus", "opus", ["low", "medium", "high"]),
     defaultClaudeVariant("claude-haiku", "haiku", ["low", "medium"]),
   );
-  writeAgentsFile(backlogDir, file);
+  changed = true;
+  if (changed) writeAgentsFile(backlogDir, file);
   return file;
 }
 

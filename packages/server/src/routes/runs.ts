@@ -26,6 +26,7 @@ const startBodySchema = z.object({
   task_id: z.string().min(1).optional(),
   max_start: z.number().int().positive().max(99).optional(),
   agent_id: z.string().min(1).optional(),
+  reasoning_effort: z.enum(["minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
   approve: z.boolean().optional(),
   allow_dirty_direct: z.boolean().optional(),
 });
@@ -207,6 +208,7 @@ export function runsRoutes(): Hono<AppEnv> {
         maxStart: effectiveMaxStart,
       };
       if (body.agent_id) launcherInput.forcedAgentId = body.agent_id;
+      if (body.reasoning_effort) launcherInput.reasoningEffort = body.reasoning_effort;
       if (body.allow_dirty_direct) launcherInput.allowDirtyDirect = true;
       if (taskMaxSubagents !== undefined) launcherInput.allowAgentOversubscribe = true;
       const result = await startRunsForPlan(launcherInput);

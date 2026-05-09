@@ -113,7 +113,42 @@ describe("agents", () => {
       "claude-haiku",
       "codex",
     ]);
+    expect(upgraded.agents.find((agent) => agent.id === "codex")?.model).toBe("gpt-5.5");
     expect(ensureDefaultModelAgents(backlogDir).agents).toHaveLength(4);
+  });
+
+  it("migrates legacy Codex default ids to the current bundled model", () => {
+    fs.writeFileSync(
+      path.join(backlogDir, "agents.yaml"),
+      [
+        "version: 1",
+        "agents:",
+        "  - id: codex-default",
+        "    provider: codex",
+        "    model: gpt-5-codex",
+        "    enabled: false",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "  - id: claude-default",
+        "    provider: claude",
+        "    model: sonnet",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, review]",
+        "    environment: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const upgraded = ensureDefaultModelAgents(backlogDir);
+    expect(upgraded.agents.find((agent) => agent.id === "codex-default")?.model).toBe("gpt-5.5");
+    expect(ensureDefaultModelAgents(backlogDir).agents).toHaveLength(2);
   });
 
   it("keeps validation working after an agent update", () => {

@@ -114,16 +114,16 @@ const suggestSplitBodySchema = z.object({
 }).optional();
 
 const ANTHROPIC_API_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-20250514",
-  opus: "claude-opus-4-1-20250805",
-  haiku: "claude-3-5-haiku-20241022",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
   "claude-sonnet-4": "claude-sonnet-4-20250514",
-  "claude-sonnet-4-5": "claude-sonnet-4-20250514",
-  "claude-sonnet-4-6": "claude-sonnet-4-20250514",
+  "claude-sonnet-4-5": "claude-sonnet-4-6",
+  "claude-sonnet-4-6": "claude-sonnet-4-6",
   "claude-opus-4": "claude-opus-4-20250514",
   "claude-opus-4-1": "claude-opus-4-1-20250805",
-  "claude-opus-4-7": "claude-opus-4-1-20250805",
-  "claude-haiku-4-5": "claude-3-5-haiku-20241022",
+  "claude-opus-4-7": "claude-opus-4-7",
+  "claude-haiku-4-5": "claude-haiku-4-5",
   "claude-3-5-haiku": "claude-3-5-haiku-20241022",
 };
 

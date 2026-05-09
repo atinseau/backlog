@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, loadConfig, saveConfig } from "@backlog/config";
 import { createClaim } from "@backlog/claims";
-import { addAgent, archiveRun, createRun, createSubTask, createTask, listSubTasks } from "@backlog/core";
+import { addAgent, archiveRun, createRun, createSubTask, createTask, listSubTasks, loadRun } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
@@ -242,11 +242,11 @@ describe("POST /runs", () => {
     const res = await app.request("/runs", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ task_id: task.id, agent_id: "writer", approve: true }),
+      body: JSON.stringify({ task_id: task.id, agent_id: "writer", reasoning_effort: "high", approve: true }),
     });
 
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { started?: Array<{ worktreePath: string; branch: string }>; skipped?: unknown[] };
+    const body = (await res.json()) as { started?: Array<{ runId: string; worktreePath: string; branch: string }>; skipped?: unknown[] };
     expect(body.skipped ?? []).toEqual([]);
     expect(body.started).toEqual([
       expect.objectContaining({
@@ -256,6 +256,8 @@ describe("POST /runs", () => {
     ]);
     expect(fs.readFileSync(path.join(project.root, "task-direct.txt"), "utf8")).toBe("ok\n");
     expect(fs.existsSync(path.join(project.backlogDir, "worktrees", "demo"))).toBe(false);
+    const run = body.started?.[0] ? loadRun(project.backlogDir, body.started[0].runId) : null;
+    expect(run?.reasoning_effort).toBe("high");
     const executionUnits = listSubTasks(project.backlogDir).filter((unit) => unit.task_id === task.id);
     expect(executionUnits).toHaveLength(0);
   });

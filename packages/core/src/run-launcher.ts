@@ -99,6 +99,8 @@ export interface StartRunsForPlanInput {
   allowDirtyDirect?: boolean;
   /** Explicit split batches may run several copies of the same model. */
   allowAgentOversubscribe?: boolean;
+  /** Provider-specific reasoning/effort level selected by the user. */
+  reasoningEffort?: string;
 }
 
 async function resolveAgent(
@@ -171,7 +173,7 @@ function updateExecutionTargetStatus(backlogDir: string, target: ExecutionTarget
 }
 
 export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<StartRunsResult> {
-  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect, allowAgentOversubscribe } = input;
+  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect, allowAgentOversubscribe, reasoningEffort } = input;
   const started: StartedRun[] = [];
   const skipped: SkippedRun[] = [];
   const executions: Array<Promise<void>> = [];
@@ -317,6 +319,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       task,
       workItem,
       agent,
+      ...(reasoningEffort ? { reasoningEffort } : {}),
       branch,
       worktreePath,
       claimIds: [claim.id],
@@ -327,6 +330,13 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         ts: new Date().toISOString(),
         type: "workspace.mode_adjusted",
         message: modeAdjustmentMessage,
+      });
+    }
+    if (reasoningEffort) {
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "executor.reasoning",
+        message: `effort=${reasoningEffort}`,
       });
     }
     if (checkoutHasGit) {

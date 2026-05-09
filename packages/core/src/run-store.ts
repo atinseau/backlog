@@ -35,6 +35,7 @@ export function createRun(params: {
   task: ExecutionTarget;
   workItem: Task;
   agent: Agent;
+  reasoningEffort?: string;
   branch: string;
   worktreePath: string;
   claimIds: string[];
@@ -54,6 +55,7 @@ export function createRun(params: {
     branch: params.branch,
     agent_id: params.agent.id,
     provider: params.agent.provider,
+    ...(params.reasoningEffort ? { reasoning_effort: params.reasoningEffort } : {}),
     status: "preparing",
     claim_ids: params.claimIds,
     execution_mode: params.executionMode ?? "isolated_worktree",

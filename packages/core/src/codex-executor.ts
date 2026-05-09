@@ -32,6 +32,11 @@ function describeProcessFailure(result: { exitCode?: number | null; signal?: str
   return "no exit status or output";
 }
 
+function codexReasoningEffort(value: string | undefined): "minimal" | "low" | "medium" | "high" | "xhigh" | null {
+  if (value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh") return value;
+  return null;
+}
+
 function classifyCodexCommand(command: string): string {
   const c = command.replace(/.*?-l?c\s+"/, "").trim();
   if (/^(?:git|gh)\s/.test(c)) return "agent.git";
@@ -126,6 +131,10 @@ export async function executeCodexAgentRun(params: {
   if (params.agent.model) {
     args.push("--model", params.agent.model);
   }
+  const effort = codexReasoningEffort(params.run.reasoning_effort);
+  if (effort) {
+    args.push("-c", `model_reasoning_effort="${effort}"`);
+  }
   if (params.agent.profile) {
     args.push("--profile", params.agent.profile);
   }
@@ -183,7 +192,7 @@ export async function executeCodexAgentRun(params: {
 
     // Codex `--json` already streams JSON events; the last `usage` block
     // is the cumulative count for the session.
-    const fallbackModel = params.agent.model ?? "gpt-5";
+    const fallbackModel = params.agent.model ?? "gpt-5.5";
     const usage = parseCodexJsonStream(stdoutBuf, fallbackModel);
     if (usage) {
       try {

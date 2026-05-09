@@ -210,7 +210,7 @@ async function suggestTitleAnthropic(
     throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
   const response = await client.messages.create({
     model,
     max_tokens: 60,
@@ -305,7 +305,7 @@ async function refineTaskTextAnthropic(
     throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
   const response = await client.messages.create({
     model,
     max_tokens: 900,
@@ -335,7 +335,7 @@ async function refineTaskTextOpenAi(
   if (!apiKey) {
     throw new AiSplitterUnavailableError("OPENAI_API_KEY is not set.");
   }
-  const model = options.model ?? (options.isCodex ? "gpt-5-codex" : "gpt-5-mini");
+  const model = options.model ?? (options.isCodex ? "gpt-5.5" : "gpt-5.4-mini");
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -422,7 +422,7 @@ async function suggestSplitAnthropic(
     );
   }
   const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-20250514";
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
   const maxSubagents = clampMaxSubagents(options.maxSubagents);
   const response = await client.messages.create({
     model,
@@ -470,7 +470,7 @@ async function suggestSplitOpenAi(
       "OPENAI_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
     );
   }
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5-codex" : "gpt-5.2");
+  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5.5" : "gpt-5.5");
   const maxSubagents = clampMaxSubagents(options.maxSubagents);
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

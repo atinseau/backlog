@@ -129,7 +129,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.writeFileSync(path.join(backlogDir, "sync-conflicts.json"), JSON.stringify({ version: 1, conflicts: [] }, null, 2) + "\n", "utf8");
   // Default agents: Claude Sonnet, Opus, Haiku and Codex. Model strings
   // here are the family aliases — `sonnet`, `opus`, `haiku` for Claude
-  // Code and `gpt-5-codex` for Codex — which both CLIs accept and
+  // Code and `gpt-5.5` for Codex — which both CLIs accept and
   // resolve to the latest version automatically. The Agents view exposes
   // a model dropdown with curated alternatives + a free-text override.
   fs.writeFileSync(
@@ -172,7 +172,7 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "    environment: {}",
       "  - id: codex",
       "    provider: codex",
-      "    model: gpt-5-codex",
+      "    model: gpt-5.5",
       "    success_mode: complete",
       "    enabled: false",
       "    max_concurrent_runs: 1",

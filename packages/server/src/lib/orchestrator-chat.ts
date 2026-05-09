@@ -390,7 +390,7 @@ export function resolveChatCredentials(backlogDir: string): ChatCredentials | nu
 
 export async function runOrchestratorChat(input: RunChatInput): Promise<void> {
   const { backlogDir, messages, credentials, onEvent, abortSignal } = input;
-  const model = input.model ?? process.env.BACKLOG_AI_CHAT_MODEL ?? "claude-sonnet-4-5";
+  const model = input.model ?? process.env.BACKLOG_AI_CHAT_MODEL ?? "claude-sonnet-4-6";
   if (!credentials.apiKey && !credentials.authToken) {
     throw new ChatUnavailableError("No Anthropic credentials configured");
   }

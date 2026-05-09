@@ -57,27 +57,33 @@ interface ModelPricing {
 
 const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   // Anthropic
+  "claude-opus-4-7": { input: 5, output: 25 },
+  "claude-sonnet-4-6": { input: 3, output: 15 },
+  "claude-haiku-4-5": { input: 1, output: 5 },
   "claude-opus-4-1": { input: 15, output: 75 },
   "claude-opus-4-5": { input: 15, output: 75 },
   "claude-opus-4": { input: 15, output: 75 },
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4": { input: 3, output: 15 },
   "claude-3-5-haiku": { input: 0.8, output: 4 },
-  "claude-haiku-4-5": { input: 0.25, output: 1.25 },
-  // OpenAI / Codex (placeholder; replace with verified figures)
+  // OpenAI / Codex
+  "gpt-5.5": { input: 5, output: 30 },
+  "gpt-5.4-mini": { input: 0.75, output: 4.5 },
+  "gpt-5.4": { input: 2.5, output: 15 },
   "gpt-5-codex": { input: 1.25, output: 10 },
   "gpt-5": { input: 1.25, output: 10 },
   "gpt-5-mini": { input: 0.15, output: 0.6 },
 };
 
 const PRICING_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4",
-  opus: "claude-opus-4-1",
-  haiku: "claude-3-5-haiku",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
+  "claude-haiku-4-5-20251001": "claude-haiku-4-5",
+  "claude-sonnet-4-5": "claude-sonnet-4-6",
   "claude-sonnet-4-20250514": "claude-sonnet-4",
   "claude-opus-4-1-20250805": "claude-opus-4-1",
   "claude-3-5-haiku-20241022": "claude-3-5-haiku",
-  "gpt-5-codex": "gpt-5-codex",
 };
 
 function pricingFor(model: string): ModelPricing | null {

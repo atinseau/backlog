@@ -16,6 +16,10 @@ import type { AgentSummary } from "./types.js";
 // versions.
 const MODEL_CONTEXT: Record<string, string> = {
   // Anthropic
+  "claude-opus-4-7": "1M",
+  "claude-sonnet-4-6": "1M",
+  "claude-haiku-4-5-20251001": "200k",
+  "claude-haiku-4-5": "200k",
   "claude-opus-4-1-20250805": "200k",
   "claude-opus-4-20250514": "200k",
   "claude-sonnet-4-20250514": "200k",
@@ -28,13 +32,12 @@ const MODEL_CONTEXT: Record<string, string> = {
   "claude-3-5-sonnet": "200k",
   "claude-3-5-haiku": "200k",
   // OpenAI
-  "gpt-5.2-codex": "400k",
-  "gpt-5.1-codex": "400k",
-  "gpt-5.1-codex-max": "400k",
-  "gpt-5": "400k",
-  "gpt-5-codex": "400k",
-  "gpt-5-mini": "400k",
-  "gpt-5-nano": "400k",
+  "gpt-5.5": "272k",
+  "gpt-5.4": "272k",
+  "gpt-5.4-mini": "272k",
+  "gpt-5.3-codex": "272k",
+  "gpt-5.3-codex-spark": "272k",
+  "gpt-5.2": "272k",
   "gpt-4.1": "1M",
   "gpt-4o": "128k",
   "gpt-4o-mini": "128k",
@@ -68,21 +71,29 @@ const FAMILY_ALIAS_LABELS: Record<string, string> = {
 };
 
 const DISPLAY_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-20250514",
-  opus: "claude-opus-4-1-20250805",
-  haiku: "claude-3-5-haiku-20241022",
-  "claude-sonnet-4-6": "claude-sonnet-4-20250514",
-  "claude-sonnet-4-5": "claude-sonnet-4-20250514",
-  "claude-opus-4-7": "claude-opus-4-1-20250805",
-  "claude-haiku-4-5": "claude-3-5-haiku-20241022",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
+  haiku: "claude-haiku-4-5",
+  "claude-sonnet-4-5": "claude-sonnet-4-6",
+  "claude-haiku-4-5": "claude-haiku-4-5",
 };
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  "claude-opus-4-7": "Opus 4.7",
+  "claude-sonnet-4-6": "Sonnet 4.6",
+  "claude-haiku-4-5-20251001": "Haiku 4.5",
+  "claude-haiku-4-5": "Haiku 4.5",
   "claude-opus-4-1-20250805": "Opus 4.1",
   "claude-opus-4-20250514": "Opus 4",
   "claude-sonnet-4-20250514": "Sonnet 4",
   "claude-3-7-sonnet-20250219": "Sonnet 3.7",
   "claude-3-5-haiku-20241022": "Haiku 3.5",
+  "gpt-5.5": "GPT-5.5",
+  "gpt-5.4": "GPT-5.4",
+  "gpt-5.4-mini": "GPT-5.4-Mini",
+  "gpt-5.3-codex": "GPT-5.3 Codex",
+  "gpt-5.3-codex-spark": "GPT-5.3 Codex Spark",
+  "gpt-5.2": "GPT-5.2",
 };
 
 // Convert "claude-opus-4-1" to "Opus 4.1" — strip the provider
