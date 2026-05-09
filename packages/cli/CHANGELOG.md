@@ -4,6 +4,13 @@ All notable changes to the `backlog` CLI are documented here. The 1.0.0–1.2.0 
 
 ## [Unreleased]
 
+## [1.4.56] - 2026-05-09
+
+Claims debugger and timeline.
+
+- **Claims now have their own sidebar page** with an Index / logs view for open and archived claim details, run events, metadata, protected paths, linked commits, and commit files.
+- **Claims now include a scrollable timeline view** showing open and closed claim spans alongside related commits and files, with commit-file rows opening the Git diff inspector.
+
 ## [1.4.55] - 2026-05-08
 
 AI split and Activity console polish.

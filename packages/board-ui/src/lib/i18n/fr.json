@@ -803,6 +803,8 @@
   "integrations.button.close": "Fermer",
   "nav.board": "Tableau",
   "nav.backlog": "Backlog",
+  "nav.claims": "Claims",
+  "nav.claims_active": "{count} claim(s) ouvert(s)",
   "nav.runs": "Runs",
   "nav.usage": "Usage",
   "nav.commits": "Commits",

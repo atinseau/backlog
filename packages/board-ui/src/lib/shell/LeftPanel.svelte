@@ -12,6 +12,7 @@
   export type SectionKey =
     | "board"
     | "backlog"
+    | "claims"
     | "activity"
     | "commits"
     | "agents"
@@ -26,6 +27,7 @@
     repos: Repository[];
     repoGitStatuses?: Record<string, GitStatusSummary>;
     backlogCount?: number;
+    activeClaimsCount?: number;
     selectedRepoId: string | null;
     onSelectRepo: (id: string | null) => void;
     onManageRepos: () => void;
@@ -38,6 +40,7 @@
     repos,
     repoGitStatuses = {},
     backlogCount = 0,
+    activeClaimsCount = 0,
     selectedRepoId,
     onSelectRepo,
     onManageRepos,
@@ -49,6 +52,7 @@
   const SECTIONS: { key: SectionKey; label: () => string; icon: string }[] = [
     { key: "board", label: () => t("nav.board"), icon: "▦" },
     { key: "backlog", label: () => t("nav.backlog"), icon: "☰" },
+    { key: "claims", label: () => t("nav.claims"), icon: "⌖" },
     { key: "activity", label: () => t("nav.runs"), icon: "⏱" },
     { key: "commits", label: () => t("nav.git"), icon: "⎇" },
     { key: "agents", label: () => t("nav.agents"), icon: "🤖" },
@@ -94,6 +98,10 @@
         {:else if item.key === "backlog" && backlogCount > 0}
           <span class="nav-badge" title={t("backlog_view.count", { count: backlogCount })}>
             {backlogCount}
+          </span>
+        {:else if item.key === "claims" && activeClaimsCount > 0}
+          <span class="nav-badge" title={t("nav.claims_active", { count: activeClaimsCount })}>
+            {activeClaimsCount}
           </span>
         {/if}
       </button>

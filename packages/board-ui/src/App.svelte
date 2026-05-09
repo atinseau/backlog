@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
+  import ClaimsPage from "./lib/ClaimsPage.svelte";
   import Column from "./lib/Column.svelte";
   import BacklogView from "./lib/BacklogView.svelte";
   import CommitsView from "./lib/CommitsView.svelte";
@@ -1438,6 +1439,7 @@
           repos={repoOptions}
           repoGitStatuses={repoGitStatuses}
           backlogCount={board?.columns.backlog?.length ?? 0}
+          activeClaimsCount={board?.active_claims_count ?? 0}
           selectedRepoId={selectedRepoId}
           onSelectRepo={(id) => { void selectRepo(id); }}
           onManageRepos={() => { reposShowCreate = false; applySection("repos"); }}
@@ -1529,6 +1531,14 @@
             onClose={() => applySection("board")}
             onChanged={() => { if (!connected) refresh(); else void refresh(); }}
             onOpen={selectCard}
+          />
+        {:else if leftSection === "claims"}
+          <ClaimsPage
+            embedded={true}
+            repoFilter={selectedRepoId}
+            onClose={() => applySection("board")}
+            onChanged={() => { if (!connected) refresh(); else void refresh(); }}
+            onOpenDiff={openGitDiff}
           />
         {:else if leftSection === "activity"}
           <ClaimsView
