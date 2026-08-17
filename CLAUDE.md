@@ -201,6 +201,32 @@ Consequences worth knowing:
   (require one).
 - **Adding a runtime is one folder and one line** in `providers/index.ts`.
   Nothing else in the codebase branches on a provider id.
+- **Structured output is enforced by the runtime**, not coaxed out of it:
+  `--json-schema` on the CLI, `output_config` on the API. The text-parsing
+  fallback in `providers/json.ts` only covers an older CLI.
+
+### The orchestrator chat
+
+The chat has two backends and picks one at request time
+(`server/src/lib/chat/backend.ts`): the HTTP API when a key is configured,
+the local CLI otherwise. Both emit the same SSE events, so the drawer never
+learns which answered.
+
+Its nine tools live in `core/src/orchestrator-tools.ts` and are served twice:
+as `Anthropic.Tool` literals to the API, and over MCP (`backlog mcp-server`,
+`core/src/mcp/`) to the CLI. The confirmation gate — a write tool called
+without `confirmed: true` returns a refusal instead of acting — lives with
+the handlers, so it applies on both paths.
+
+Two constraints learned from the CLI, both load-bearing:
+
+- **Plan mode refuses MCP calls.** The chat therefore runs with
+  `bypassPermissions`, and safety comes from denying every built-in tool
+  explicitly.
+- **`--allowedTools` only auto-approves; it does not exclude.** Without
+  `--disallowedTools`, the model reaches for `Bash` the moment MCP is
+  unhandy — it was observed reading `.backlog/tasks.yaml` directly rather
+  than calling `list_tasks`.
 
 ---
 
@@ -396,15 +422,13 @@ scope, not scope creep.
   A subtask learns nothing from the subtask it `depends_on`.
 - Permission modes are coarse: `read-only` maps to `plan`, everything else to
   `bypassPermissions`. There is no per-tool or per-path story.
-- The orchestrator chat is the last feature still requiring
-  `ANTHROPIC_API_KEY`, and only because it has not been ported. Its eight
-  tools are `Anthropic.Tool` literals driven by a hand-rolled agentic loop;
-  the CLI equivalent is an MCP server (`--mcp-config`), so porting means
-  serving those handlers over stdio and rebuilding the SSE bridge on
-  `--output-format stream-json`. Nothing about it is impossible.
-- `ClaudeCodeProvider.completeStructured` asks for JSON in the system prompt
-  and parses what comes back. The CLI has a `--json-schema` flag that would
-  enforce it properly — worth switching to.
+- Going through the CLI costs context: a one-shot completion still pays
+  ~25k cache-creation tokens for Claude Code's own system prompt, even with
+  `--system-prompt` replacing ours. `--bare` would cut it but forces API-key
+  auth, defeating the point. The API path stays cheaper when a key exists.
+- The chat's CLI backend spawns a whole Claude Code session per turn. It is
+  noticeably slower than the API path, which is why a configured key still
+  wins.
 - The scheduler is a single-tick loop with idle backoff. Dependencies
   (`depends_on`) and claims exist, but there is no real planning or
   parallelism strategy beyond `max_agents`.

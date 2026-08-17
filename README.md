@@ -50,6 +50,18 @@ Models and effort levels are forwarded to the runtime as typed, so a model
 released tomorrow works today: `--model claude-opus-4-9` is passed straight
 through.
 
+### The orchestrator chat
+
+The board's chat drawer answers questions about what is running and can
+dispatch actions on your behalf. It works two ways:
+
+- **With `ANTHROPIC_API_KEY`** — talks to the API directly. Faster.
+- **Without one** — drives your local `claude` CLI, which reaches Backlog
+  through an MCP server the binary serves itself. Works on a subscription.
+
+Either way, anything that changes state (starting the orchestrator, launching
+a subtask) is refused until you approve it in plain language.
+
 ## Develop
 
 Requires [Bun](https://bun.sh) 1.3+. Nothing else — no Node, no pnpm.

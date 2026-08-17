@@ -36,23 +36,35 @@ function readAnthropicUsage(value: unknown, fallbackModel: string): UsageBlock |
   return block;
 }
 
+export interface ClaudeJsonResult {
+  usage: UsageBlock | null;
+  /** The answer text. */
+  summary: string | null;
+  /** Set when the call used `--json-schema`: the CLI validated and parsed it for us. */
+  structured: unknown;
+  /** Identifies the conversation, for `--resume`. */
+  sessionId?: string;
+}
+
 // Claude Code CLI in `--output-format json` mode emits a single JSON
-// object with `usage` + `summary` (or `result`) fields. We accept either
-// `.usage` or `.token_usage` since the field name has wobbled across
-// versions. If parsing fails, returns null and the caller falls back to
-// the raw text path.
-export function parseClaudeJsonStdout(
-  stdout: string,
-  fallbackModel: string,
-): { usage: UsageBlock | null; summary: string | null } {
+// object with `usage` + `result` fields, plus `structured_output` when a
+// `--json-schema` was supplied. We accept either `.usage` or `.token_usage`
+// since the field name has wobbled across versions. If parsing fails,
+// everything comes back null and the caller falls back to the raw text path.
+export function parseClaudeJsonStdout(stdout: string, fallbackModel: string): ClaudeJsonResult {
   try {
     const parsed = JSON.parse(stdout) as Record<string, unknown>;
-    const usage = readAnthropicUsage(parsed.usage ?? parsed.token_usage, fallbackModel);
     const summaryCandidate = parsed.summary ?? parsed.result ?? parsed.text ?? null;
-    const summary = typeof summaryCandidate === "string" ? summaryCandidate : null;
-    return { usage, summary };
+    const structured = parsed.structured_output;
+    const sessionId = parsed.session_id;
+    return {
+      usage: readAnthropicUsage(parsed.usage ?? parsed.token_usage, fallbackModel),
+      summary: typeof summaryCandidate === "string" ? summaryCandidate : null,
+      structured: structured && typeof structured === "object" ? structured : null,
+      ...(typeof sessionId === "string" ? { sessionId } : {}),
+    };
   } catch {
-    return { usage: null, summary: null };
+    return { usage: null, summary: null, structured: null };
   }
 }
 

@@ -8,7 +8,7 @@ import {
 } from "@backlog/config";
 import { detectRepoRoot } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
-import { selfExec } from "../self-exec.js";
+import { selfExec } from "@backlog/core";
 
 export const DEFAULT_BOARD_URL = "http://127.0.0.1:7878";
 const HEALTH_PATH = "/api/v1/health";

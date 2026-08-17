@@ -13,11 +13,30 @@ function fakeClaude(dir: string, payload: Record<string, unknown>, exitCode = 0)
   const binary = path.join(dir, "fake-claude.sh");
   fs.writeFileSync(
     binary,
-    ["#!/usr/bin/env bash", `cat <<'JSON'`, JSON.stringify(payload), "JSON", `exit ${exitCode}`].join("\n"),
+    ["#!/usr/bin/env bash", "cat > /dev/null", `cat <<'JSON'`, JSON.stringify(payload), "JSON", `exit ${exitCode}`].join("\n"),
     "utf8",
   );
   fs.chmodSync(binary, 0o755);
   return binary;
+}
+
+/** Captures stdin so we can assert the prompt never travels through argv. */
+function stdinRecordingClaude(dir: string, payload: Record<string, unknown>): { binary: string; stdinFile: string } {
+  const binary = path.join(dir, "stdin-claude.sh");
+  const stdinFile = path.join(dir, "stdin.txt");
+  fs.writeFileSync(
+    binary,
+    [
+      "#!/usr/bin/env bash",
+      `cat > ${JSON.stringify(stdinFile)}`,
+      `cat <<'JSON'`,
+      JSON.stringify(payload),
+      "JSON",
+    ].join("\n"),
+    "utf8",
+  );
+  fs.chmodSync(binary, 0o755);
+  return { binary, stdinFile };
 }
 
 /** Records the argv the CLI was invoked with, so flag choices stay observable. */
@@ -29,6 +48,7 @@ function argvRecordingClaude(dir: string, payload: Record<string, unknown>): { b
     [
       "#!/usr/bin/env bash",
       `printf '%s\\n' "$@" > ${JSON.stringify(argvFile)}`,
+      "cat > /dev/null",
       `cat <<'JSON'`,
       JSON.stringify(payload),
       "JSON",
@@ -168,7 +188,7 @@ describe("ClaudeCodeProvider.completeStructured", () => {
     expect(structured.value).toEqual({ title: "Add the widget" });
   });
 
-  it("puts the requested schema in front of the model", async () => {
+  it("lets the CLI enforce the schema rather than asking for JSON in prose", async () => {
     const dir = scratchDir();
     const { binary, argvFile } = argvRecordingClaude(dir, { result: '{"title":"x"}' });
 
@@ -180,10 +200,55 @@ describe("ClaudeCodeProvider.completeStructured", () => {
       cwd: dir,
       getSecret: noSecrets,
     });
-    const argv = fs.readFileSync(argvFile, "utf8");
+    const argv = fs.readFileSync(argvFile, "utf8").split("\n");
 
-    expect(argv).toContain('"required"');
-    expect(argv).toContain("task");
+    expect(JSON.parse(argv[argv.indexOf("--json-schema") + 1]!)).toEqual(schema);
+  });
+
+  it("prefers the object the CLI already parsed over re-parsing the text", async () => {
+    const dir = scratchDir();
+    // The text says one thing, structured_output another: whichever wins tells
+    // us which path the provider took.
+    const binary = fakeClaude(dir, {
+      result: '{"title":"from text"}',
+      structured_output: { title: "from structured_output" },
+    });
+
+    const structured = await provider.completeStructured<{ title: string }>({
+      prompt: "p",
+      schema: schema as unknown as Record<string, unknown>,
+      schemaName: "task",
+      command: binary,
+      cwd: dir,
+      getSecret: noSecrets,
+    });
+
+    expect(structured.value).toEqual({ title: "from structured_output" });
+  });
+
+  it("falls back to parsing the text when the CLI is too old for --json-schema", async () => {
+    const dir = scratchDir();
+    const binary = fakeClaude(dir, { result: '{"title":"from text"}' });
+
+    const structured = await provider.completeStructured<{ title: string }>({
+      prompt: "p",
+      schema: schema as unknown as Record<string, unknown>,
+      schemaName: "task",
+      command: binary,
+      cwd: dir,
+      getSecret: noSecrets,
+    });
+
+    expect(structured.value).toEqual({ title: "from text" });
+  });
+
+  it("sends the prompt on stdin, not in argv", async () => {
+    const dir = scratchDir();
+    const { binary, stdinFile } = stdinRecordingClaude(dir, { result: "ok" });
+
+    await provider.complete({ prompt: "name this task", command: binary, cwd: dir, getSecret: noSecrets });
+
+    expect(fs.readFileSync(stdinFile, "utf8")).toBe("name this task");
   });
 
   it("reports unparseable output instead of returning garbage", async () => {
