@@ -71,4 +71,18 @@ describe("buildProviderPrompt", () => {
 
     expect(instructions).toContain("trace");
   });
+
+  it("names the required fields of constraints, decisions and discovered_deps", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    // constraints: {statement, evidence, confidence}, confidence has no default
+    expect(prompt).toContain("confidence");
+    expect(prompt).toContain("verified");
+    expect(prompt).toContain("observed");
+    // decisions: {chose, rejected, because} — `because`, not `why`
+    expect(prompt).toContain("because");
+    // discovered_deps: discriminated union on `kind`
+    expect(prompt).toContain("kind");
+    expect(prompt).toContain("proposal");
+  });
 });

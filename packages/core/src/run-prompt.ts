@@ -43,9 +43,9 @@ const TRACE_CONTRACT = [
   "- Before you finish, record a trace. Call the `trace_write` tool if you have it; otherwise pipe the same JSON object into `backlog trace write`.",
   '- The payload is {"outcome": "implemented" | "rejected" | "blocked", "summary": "..."}.',
   "- `rejected` also requires `rejection_reason`. `blocked` also requires `open_question` — that is how you ask a human for help, and it is the only way. There is no channel to another agent.",
-  "- Add `constraints` for anything a later run would otherwise rediscover. Each one needs `evidence`: a path:line, a test name, or a command's output. No evidence, no entry.",
-  "- Add `decisions` for what you chose, what you rejected, and why. The `why` is the part nobody can reconstruct from the diff.",
-  "- Add `discovered_deps` for work this ticket turned out to depend on. An existing task id becomes a dependency edge; anything else becomes a proposal a human reviews.",
+  "- Add `constraints` for anything a later run would otherwise rediscover: `{statement, evidence, confidence}`. `evidence` is a path:line, a test name, or a command's output — no evidence, no entry. `confidence` is `verified` (you executed something that proved it) or `observed` (you read code and interpreted it); there is no default, always name one.",
+  "- Add `decisions` for what you chose, what you rejected, and why: `{chose, rejected, because}`. `because` is the part nobody can reconstruct from the diff.",
+  "- Add `discovered_deps` for work this ticket turned out to depend on: `{kind: \"existing\", task_id}` for an existing task id, or `{kind: \"proposal\", proposal: {title, motive}}` for anything else — proposals are reviewed by a human.",
   "- Do not try to move the ticket yourself. The trace moves it, and it cannot mark your own work done.",
 ];
 
