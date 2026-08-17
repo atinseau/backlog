@@ -116,19 +116,57 @@ describe("agents", () => {
       "utf8",
     );
 
-    // This fixture is old on-disk state from before Codex was removed —
-    // the migration no longer looks for "codex" by name (there's no
-    // provider left to look for), so it just appends the new variants
-    // at the end rather than inserting them ahead of the second agent.
+    // This fixture is old on-disk state from before Codex was removed as a
+    // runtime — the migration still recognises this exact pair by id (see
+    // the comment on ensureDefaultModelAgents) and inserts the new variants
+    // ahead of the old codex position, same as it always has.
     const upgraded = ensureDefaultModelAgents(backlogDir);
     expect(upgraded.agents.map((agent) => agent.id)).toEqual([
       "claude-code",
-      "codex",
       "claude-opus",
       "claude-haiku",
+      "codex",
     ]);
     expect(upgraded.agents.find((agent) => agent.id === "codex")?.model).toBe("gpt-5.5");
     expect(ensureDefaultModelAgents(backlogDir).agents).toHaveLength(4);
+  });
+
+  it("does not backfill Opus/Haiku for a two-agent project that isn't the old codex-shaped default", () => {
+    // Regression guard: a user who deleted the seeded Codex agent and added
+    // one custom agent of their own ends up with exactly 2 agents, one of
+    // them claude-code — but it is NOT the legacy `claude-code` + `codex`
+    // shape, so ensureDefaultModelAgents must leave it alone. This fails if
+    // the `ids.has("codex")` term is ever dropped from the check again.
+    fs.writeFileSync(
+      path.join(backlogDir, "agents.yaml"),
+      [
+        "version: 1",
+        "agents:",
+        "  - id: claude-code",
+        "    provider: claude",
+        "    model: sonnet",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "  - id: my-custom-agent",
+        "    provider: custom",
+        "    command: /usr/local/bin/my-agent",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const upgraded = ensureDefaultModelAgents(backlogDir);
+    expect(upgraded.agents.map((agent) => agent.id)).toEqual(["claude-code", "my-custom-agent"]);
   });
 
   it("migrates legacy Codex default ids to the current bundled model", () => {

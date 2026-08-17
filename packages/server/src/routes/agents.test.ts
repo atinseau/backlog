@@ -85,6 +85,13 @@ describe("GET /providers", () => {
     expect(body.providers.find((provider) => provider.id === "claude-code")?.capabilities.execute_run).toBe(true);
     expect(body.providers.find((provider) => provider.id === "anthropic-api")?.capabilities.execute_run).toBe(false);
   });
+
+  it("does not offer codex as a creatable runtime — the board's Add Agent picker reads straight off this list", async () => {
+    const res = await buildApp().request("/providers");
+    const body = (await res.json()) as { providers: ProviderSummary[] };
+
+    expect(body.providers.map((provider) => provider.id)).not.toContain("codex");
+  });
 });
 
 describe("POST /agents", () => {
