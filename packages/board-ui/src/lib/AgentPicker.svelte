@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isExecutableAgent } from "./types.js";
   // Agent dropdown sitting next to the project name. The user picks ONE
   // agent/model that will execute the next run; the app persists that
   // choice per project and falls back to the last ready configured agent.
@@ -25,7 +26,7 @@
   // Only AI providers can actually run a task. Manual is a marker for
   // human assignees and shouldn't show up in this picker.
   function isExecutable(a: AgentSummary): boolean {
-    return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
+    return isExecutableAgent(a);
   }
   // Sort: ready agents first (no API key issue), then the ones still
   // waiting for credentials. The picker stays open to all so the user

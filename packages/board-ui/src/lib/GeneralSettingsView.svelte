@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isExecutableAgent } from "./types.js";
   // General app settings — preferences that aren't tied to a specific
   // project: appearance, board layout, notifications, CLI
   // info, onboarding reset, and About. Project-scoped settings (API
@@ -51,7 +52,7 @@
         fetchProject().catch(() => null),
       ]);
       agentOptions = agents.filter(
-        (a) => a.provider === "claude" || a.provider === "codex" || a.provider === "custom",
+        (a) => isExecutableAgent(a),
       );
       const board = (project as unknown as { board?: { show_backlog_column?: boolean } } | null)?.board;
       setShowBacklogColumn(Boolean(board?.show_backlog_column));

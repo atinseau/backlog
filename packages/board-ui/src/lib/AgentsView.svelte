@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isExecutableAgent } from "./types.js";
   import { createAgent, deleteAgent, fetchAgents, patchAgent } from "./api.js";
   import { t } from "./i18n.svelte.js";
   import { CUSTOM_MODEL_VALUE } from "./agent-models.js";
@@ -279,7 +280,7 @@
   }
 
   function isExecutable(agent: AgentSummary): boolean {
-    return agent.provider === "claude" || agent.provider === "codex" || agent.provider === "custom";
+    return isExecutableAgent(agent);
   }
 
   load();

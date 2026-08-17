@@ -92,6 +92,9 @@ export const projectConfigSchema = z.object({
   default_branch: z.string().min(1),
   autonomy_mode: z.enum(["observe", "assist", "delegate", "autopilot"]),
   max_agents: z.number().int().positive(),
+  // Superseded by the provider registry: which runtime answers a prompt is now
+  // decided from the task's preferred agents and what is actually configured.
+  // Kept so existing config.toml files keep parsing; nothing reads it.
   ai_provider: aiProviderSchema.default("anthropic"),
   claims: z.object({
     ttl_minutes: z.number().int().positive(),

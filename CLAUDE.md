@@ -27,13 +27,14 @@ the UX/UI, the raw power of the tool, and the documentation.
 Concretely, that means three standing priorities. Treat them as the tie-breaker
 when a change could go several ways:
 
-1. **Claude Code is the reference executor, not one provider among many.**
-   Upstream treated `claude`, `codex` and a generic `custom` command as
-   interchangeable shell-outs behind one lowest-common-denominator interface
-   (`packages/core/src/executor.ts`). Claude Code has far more surface than
-   that — skills, MCP servers, hooks, subagents, structured settings,
-   permission modes, session resumption. Lean into it. Keep the other
-   executors working, but stop designing for parity with them.
+1. **Claude Code is the reference runtime, not one provider among many.**
+   Every LLM call now goes through the `AgentProvider` contract in
+   `packages/core/src/providers/`, and `ClaudeCodeProvider` is the richest
+   implementation of it: it is the only one that both runs coding tasks and
+   answers one-shot prompts, and the only one that works on a subscription.
+   Claude Code still has surface we do not use — skills, MCP servers, hooks,
+   subagents, session resumption. Lean into it. Keep the other providers
+   working, but stop designing for parity with them.
 2. **The tool should be powerful and legible, not merely feature-complete.**
    There are 152 API routes and 21 top-level CLI commands already. The gap is
    not features; it's that the sharp ones are buried and the flows are
@@ -159,6 +160,47 @@ board (Svelte)
 
 Every API route resolves a project first, so one server serves several
 projects and the board's project switcher works without a restart.
+
+### How the AI is wired
+
+Everything that talks to a model goes through **one contract**, `AgentProvider`
+in `packages/core/src/providers/types.ts`. There is no other path.
+
+```
+providers/
+  types.ts        the contract: describe / checkReadiness / executeRun
+                  / complete / completeStructured
+  registry.ts     provider id + alias → implementation
+  process.ts      executable resolution, line-streaming spawn
+  claude-code/    the reference runtime — command, auth, stream, catalogue
+  codex/          OpenAI Codex
+  custom/         any shell command the user brings
+  anthropic-api/  the HTTP API: no checkout, prompts only
+```
+
+Two entry points sit on top:
+
+- **`run-executor.ts`** — one coding task, whatever the runtime. It assembles
+  the prompt, streams activity into `events.ndjson`, writes the log, collects
+  artifacts, records usage and finalizes the run. The provider only owns the
+  conversation with the model.
+- **`ai-service.ts`** — the one-shot prompts (task naming, refinement, split
+  planning). `resolveCompletionProvider` picks the runtime: a preferred agent
+  wins when its runtime can answer and is ready, otherwise a prompt-only
+  runtime is tried before a full coding agent.
+
+Consequences worth knowing:
+
+- **A model string is never validated.** Catalogues (`describe().models`,
+  `describe().reasoning.levels`) are suggestions served to the UI over
+  `GET /providers`; whatever the user types is forwarded to the runtime.
+- **An API key is a choice, not a prerequisite.** `auth_mode` on an agent is
+  `auto` (use a key if one exists, else the CLI's own session),
+  `subscription` (never send a key — it is actively unset so an inherited
+  `ANTHROPIC_API_KEY` cannot silently move billing to the API), or `api_key`
+  (require one).
+- **Adding a runtime is one folder and one line** in `providers/index.ts`.
+  Nothing else in the codebase branches on a provider id.
 
 ---
 
@@ -344,12 +386,19 @@ scope, not scope creep.
 
 **Tooling depth**
 
-- Executors are three parallel shell-outs with a thin shared interface.
-  Claude Code's real surface (skills, MCP, subagents, hooks, session resume)
-  is unused — `claude -p --permission-mode bypassPermissions` is the whole
-  integration.
-- `bypassPermissions` is blunt. Repository `access_mode` is enforced by
-  coercing sandbox mode, but there's no finer-grained story.
+- Claude Code's real surface is still mostly unused: skills, MCP servers,
+  hooks, subagents and session resumption have no representation in the
+  provider contract. `--model`, `--effort`, `--permission-mode` and
+  `--append-system-prompt` are the whole integration.
+- **Runs have no memory.** Each one is a fresh `claude -p`; nothing carries
+  across attempts except a 4 KB tail of the previous failure's event summaries
+  (and only when `retry_policy.mode = feedback`, which is off by default).
+  A subtask learns nothing from the subtask it `depends_on`.
+- Permission modes are coarse: `read-only` maps to `plan`, everything else to
+  `bypassPermissions`. There is no per-tool or per-path story.
+- The orchestrator chat is the one feature that cannot run on a subscription:
+  it needs server-side tool definitions, so it talks to the HTTP API and
+  requires `ANTHROPIC_API_KEY`.
 - The scheduler is a single-tick loop with idle backoff. Dependencies
   (`depends_on`) and claims exist, but there is no real planning or
   parallelism strategy beyond `max_agents`.
@@ -374,7 +423,11 @@ scope, not scope creep.
 | API shape | route schema, core service, `lib/api.ts` wrapper, tests |
 | Cross-boundary data shape | `packages/schemas` first, then all call sites |
 | Run/scheduling behavior | `packages/core` (`scheduler`, `orchestrator-loop`, `run-launcher`) |
-| Executor behavior | `packages/core/src/{claude,codex,custom}-executor.ts` |
+| How a run is driven, whatever the runtime | `packages/core/src/run-executor.ts` |
+| One runtime's behavior | `packages/core/src/providers/<provider>/` |
+| Adding a runtime | new folder under `providers/`, one entry in `providers/index.ts` |
+| What the agent is told to do | `packages/core/src/run-prompt.ts` |
+| Non-run AI calls (naming, refining, splitting) | `packages/core/src/ai-service.ts` |
 | Git behavior | `packages/git` or `packages/core`, tests on real temp repos |
 | Hook behavior | `packages/hooks`, `packages/config/src/shim.ts`, hook status UI |
 | Build / embedding | `scripts/build.ts`, `ui-assets.ts`, §4 above |

@@ -126,6 +126,24 @@ describe("POST /agents", () => {
 });
 
 describe("GET /agents", () => {
+  it("marks agents the orchestrator can actually launch", async () => {
+    const app = buildApp();
+    await postAgent(app, { id: "runnable", provider: "claude-code" });
+
+    const res = await app.request("/agents");
+    const body = (await res.json()) as { agents: Array<AgentSummary & { can_execute: boolean }> };
+    expect(body.agents.find((agent) => agent.id === "runnable")?.can_execute).toBe(true);
+  });
+
+  it("marks a custom agent launchable once it carries a command", async () => {
+    const app = buildApp();
+    await postAgent(app, { id: "with-cmd", provider: "custom", command: "./run.sh" });
+
+    const res = await app.request("/agents");
+    const body = (await res.json()) as { agents: Array<AgentSummary & { can_execute: boolean }> };
+    expect(body.agents.find((agent) => agent.id === "with-cmd")?.can_execute).toBe(true);
+  });
+
   it("no longer claims a Claude agent needs an API key", async () => {
     const app = buildApp();
     await postAgent(app, { id: "on-plan", provider: "claude-code" });

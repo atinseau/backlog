@@ -221,7 +221,7 @@
   });
 
   function isExecutableAgent(a: AgentSummary): boolean {
-    return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
+    return isExecutableAgent(a);
   }
 
   function fallbackAgentId(list: AgentSummary[]): string | null {

@@ -5,6 +5,7 @@ import {
   ensureDefaultModelAgents,
   listActiveRuns,
   providerFor,
+  supportsAgentExecution,
   providerRegistry,
   updateAgent,
   type ProviderDescriptor,
@@ -103,6 +104,10 @@ function serializeAgent(backlogDir: string, agent: Agent, activeRuns: number) {
     profile: agent.profile ?? null,
     ready: readiness.ready,
     reasons: readiness.reasons,
+    // Whether the orchestrator could ever launch this agent, independent of
+    // whether it is ready right now. The board filters its pickers on this
+    // rather than on a hardcoded list of provider ids.
+    can_execute: supportsAgentExecution(agent),
     // Kept for older clients: they gate the API-keys hint on this flag.
     needs_api_key: Boolean(missingKey),
     required_secret_key: missingKey ? missingKey.slice("missing_api_key:".length) : null,

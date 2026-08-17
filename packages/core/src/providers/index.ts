@@ -20,8 +20,10 @@ export { CustomProvider, CUSTOM_PROVIDER_ID } from "./custom/provider.js";
 export {
   AnthropicApiProvider,
   ANTHROPIC_API_PROVIDER_ID,
+  ANTHROPIC_API_KEY,
   resolveAnthropicModel,
 } from "./anthropic-api/provider.js";
+export { OPENAI_API_KEY } from "./codex/provider.js";
 
 // The registry every caller shares. Adding a runtime means adding one entry
 // here — nothing else in the codebase branches on provider id. Order is the

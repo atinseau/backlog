@@ -191,6 +191,19 @@ export interface AgentSummary {
   // Which secret key is missing (e.g. "ANTHROPIC_API_KEY"). null when
   // the provider doesn't require one (custom / manual).
   required_secret_key?: string | null;
+  // Whether the orchestrator could launch this agent at all. Server-computed
+  // from the provider registry, so the board never guesses from provider ids.
+  can_execute?: boolean;
+  // Ready to run right now: installed, credentialled, correctly configured.
+  ready?: boolean;
+  reasons?: string[];
+}
+
+/** Agents the orchestrator can launch. Falls back to the legacy provider ids
+ * so a board talking to an older server keeps filtering sensibly. */
+export function isExecutableAgent(agent: Pick<AgentSummary, "provider" | "can_execute">): boolean {
+  if (agent.can_execute !== undefined) return agent.can_execute;
+  return ["claude", "claude-code", "codex", "custom"].includes(agent.provider);
 }
 
 export type UserRole = "owner" | "admin" | "member" | "guest";
