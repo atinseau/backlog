@@ -218,4 +218,16 @@ describe("executeAgentRun", () => {
 
     expect(fs.readFileSync(captured, "utf8")).toBe("read-only");
   });
+
+  it("points every command the agent runs at the real project, not the worktree's shadow copy", async () => {
+    // An in_repo worktree contains its own tracked .backlog/config.toml, so
+    // findProject() would resolve to it and the agent would read and write a
+    // project that is deleted with the worktree.
+    const f = fixture('echo "$BACKLOG_PROJECT_DIR"');
+
+    await executeAgentRun({ ...f, run: f.run });
+
+    const run = loadRun(f.backlogDir, f.run.id);
+    expect(run?.artifacts.find((artifact) => artifact.kind === "summary")?.value).toBe(f.backlogDir);
+  });
 });

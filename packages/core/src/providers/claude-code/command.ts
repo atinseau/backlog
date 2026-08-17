@@ -26,6 +26,13 @@ export interface ClaudeCodeCommandInput {
   jsonSchema?: Record<string, unknown> | undefined;
   /** MCP servers to expose, as the `--mcp-config` payload expects. */
   mcpServers?: Record<string, unknown> | undefined;
+  /**
+   * Whether to hide the user's own MCP servers behind ours. Default true, which
+   * is what the chat wants: it drives the orchestrator and has no business
+   * reaching a user's servers. A coding run passes false — those servers are
+   * capability the user configured, and removing them silently is a regression.
+   */
+  strictMcpConfig?: boolean | undefined;
   /** Tool names the session may use. Needed to allow MCP tools in -p mode. */
   allowedTools?: readonly string[] | undefined;
   /** Continue an earlier conversation instead of starting one. */
@@ -78,9 +85,14 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
     args.push("--json-schema", JSON.stringify(input.jsonSchema));
   }
   if (input.mcpServers) {
-    // `--strict-mcp-config` keeps the user's own global MCP servers out of a
-    // Backlog session: what we declare is exactly what the model gets.
-    args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }), "--strict-mcp-config");
+    args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }));
+    // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
+    // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
+    // declare is exactly what the model gets. It is on by default here, and
+    // waived only by a coding run, which passes strictMcpConfig: false.
+    if (input.strictMcpConfig !== false) {
+      args.push("--strict-mcp-config");
+    }
   }
   // Both tool flags are variadic (`<tools...>`), so each takes a single
   // comma-separated value. Passing names as separate argv entries would make

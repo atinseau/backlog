@@ -26,7 +26,13 @@ describe("buildChatCommand", () => {
 
     expect(Object.keys(config.mcpServers)).toEqual(["backlog"]);
     expect(config.mcpServers.backlog?.command).toBe("/usr/local/bin/backlog");
-    expect(config.mcpServers.backlog?.args).toEqual(["mcp-server", "--project", "/tmp/project/.backlog"]);
+    expect(config.mcpServers.backlog?.args).toEqual([
+      "mcp-server",
+      "--audience",
+      "orchestrator",
+      "--project",
+      "/tmp/project/.backlog",
+    ]);
     expect(command.args).toContain("--strict-mcp-config");
   });
 

@@ -74,6 +74,13 @@ export interface ProviderRunRequest {
   agent: Agent;
   prompt: string;
   cwd: string;
+  /**
+   * The project this run belongs to. Not derivable from `cwd`: an in_repo
+   * project's worktree carries a shadow `.backlog/config.toml`, so walking up
+   * from the worktree finds the wrong project. Runtimes that spawn Backlog's
+   * own MCP server pass it through explicitly.
+   */
+  backlogDir: string;
   /** Where a runtime may drop its own scratch files. Defaults to `cwd`. */
   scratchDir?: string | undefined;
   /** Base environment; the provider overlays its own auth on top. */

@@ -118,4 +118,26 @@ describe("buildClaudeCodeCommand", () => {
 
     expect(command.args).not.toContain("--disallowedTools");
   });
+
+  it("keeps --strict-mcp-config by default, so the chat is unaffected", () => {
+    const command = buildClaudeCodeCommand({
+      executable: "claude",
+      prompt: "hi",
+      mcpServers: { backlog: { command: "/usr/local/bin/backlog", args: ["mcp-server"] } },
+    });
+
+    expect(command.args).toContain("--strict-mcp-config");
+  });
+
+  it("leaves a run's own MCP servers in place when strictness is waived", () => {
+    const command = buildClaudeCodeCommand({
+      executable: "claude",
+      prompt: "hi",
+      mcpServers: { backlog: { command: "/usr/local/bin/backlog", args: ["mcp-server"] } },
+      strictMcpConfig: false,
+    });
+
+    expect(command.args).toContain("--mcp-config");
+    expect(command.args).not.toContain("--strict-mcp-config");
+  });
 });

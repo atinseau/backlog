@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
-import { listTraces, recordTrace, type RecordTraceResult } from "@backlog/core";
+import { listTraces, recordTrace, withTraceContextDefaults, type RecordTraceResult } from "@backlog/core";
 
 // The agent-facing write surface. JSON arrives on stdin rather than in argv: a
 // nested payload in a command line is error-prone, and argv shows up in `ps`.
@@ -39,34 +39,11 @@ export async function readTraceFromStdin(
   return parsed as Record<string, unknown>;
 }
 
-// An agent already has BACKLOG_RUN_ID / BACKLOG_TASK_ID / BACKLOG_SUBTASK_ID in
-// its environment, so the payload may omit them. Anything the payload states
-// wins, so a caller can still write a trace for another context deliberately.
-function withContextDefaults(payload: Record<string, unknown>): Record<string, unknown> {
-  const filled: Record<string, unknown> = { ...payload };
-  if (filled.version === undefined) {
-    filled.version = 1;
-  }
-  if (filled.run_id === undefined && process.env.BACKLOG_RUN_ID) {
-    filled.run_id = process.env.BACKLOG_RUN_ID;
-  }
-  if (filled.task_id === undefined && process.env.BACKLOG_TASK_ID) {
-    filled.task_id = process.env.BACKLOG_TASK_ID;
-  }
-  if (filled.subtask_id === undefined && process.env.BACKLOG_SUBTASK_ID) {
-    filled.subtask_id = process.env.BACKLOG_SUBTASK_ID;
-  }
-  if (filled.created_at === undefined) {
-    filled.created_at = new Date().toISOString();
-  }
-  return filled;
-}
-
 export function runTraceWrite(
   backlogDir: string,
   payload: Record<string, unknown>,
 ): RecordTraceResult {
-  const filled = withContextDefaults(payload);
+  const filled = withTraceContextDefaults(payload, process.env);
   // recordTrace re-parses through traceSchema, so an invalid payload throws
   // before anything is persisted.
   return recordTrace({ backlogDir, trace: filled });

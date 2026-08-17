@@ -232,6 +232,27 @@ Two constraints learned from the CLI, both load-bearing:
   unhandy — it was observed reading `.backlog/tasks.yaml` directly rather
   than calling `list_tasks`.
 
+**Two MCP audiences, one transport.** `backlog mcp-server` serves whichever
+tool set `--audience` asks for, and defaults to `agent` — the less privileged
+one — so a caller that forgets the flag loses tools rather than gaining the
+ability to start runs. The chat asks for `orchestrator` explicitly
+(`ORCHESTRATOR_TOOLS`, nine tools, confirmation-gated). A coding run gets
+`AGENT_TOOLS`: exactly one tool, `trace_write`, attached by
+`providers/claude-code/provider.ts` via `--mcp-config`. The two sets are
+separate files and separate dispatchers, and
+`packages/core/src/agent-tools.test.ts` asserts they never intersect — an
+execution agent holding `start_subtask` could launch further runs and duplicate
+itself, which is the runaway cycle `proposed` exists to close.
+
+**That disjointness holds on the MCP channel only, and the gap is known.** An
+execution agent also has `Bash`, a `backlog` binary on its PATH, and
+`BACKLOG_PROJECT_DIR` pointing at the real project, so `backlog task move <id>
+done` or `backlog orchestrator start` is reachable from a shell — contradicting
+`trace_write`'s own "you cannot mark your own work done". Nothing gates the CLI
+by audience today. Closing that is a feature with its own design, not a patch:
+until it lands, read the least-privilege property as being about which tools the
+model is *handed*, not about what it can *reach*.
+
 ---
 
 ## 4. The single binary — and the constraints it imposes
@@ -411,21 +432,28 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 333 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 763 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
 
-- Claude Code's real surface is still mostly unused: skills, MCP servers,
-  hooks, subagents and session resumption have no representation in the
-  provider contract. `--model`, `--effort`, `--permission-mode` and
-  `--append-system-prompt` are the whole integration.
+- Claude Code's real surface is still only partly used: skills, hooks and
+  subagents have no representation in the provider contract. MCP does — a
+  coding run is spawned with `--mcp-config` and Backlog's own `trace_write`
+  tool — but the emitted flags (`command.ts`) are chiefly `--model`,
+  `--effort`, `--permission-mode`, `--append-system-prompt` / `--system-prompt`,
+  `--mcp-config` / `--strict-mcp-config`, `--allowedTools` /
+  `--disallowedTools`, `--json-schema`, `--settings` and `--resume`. Session
+  resumption is the chat's, not a run's: `--resume` is emitted only from
+  `server/src/lib/chat/`, and nothing in the run pipeline supplies a session id.
 - **Runs have no memory.** Each one is a fresh `claude -p`; nothing carries
   across attempts except a 4 KB tail of the previous failure's event summaries
   (and only when `retry_policy.mode = feedback`, which is off by default).
   A subtask learns nothing from the subtask it `depends_on`.
 - Permission modes are coarse: `read-only` maps to `plan`, everything else to
-  `bypassPermissions`. There is no per-tool or per-path story.
+  `bypassPermissions`. There is no per-tool or per-path story — and because
+  plan mode refuses MCP calls, a `read-only` agent cannot reach `trace_write`
+  at all; it has to fall back to `backlog trace write`.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

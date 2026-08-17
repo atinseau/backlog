@@ -74,7 +74,9 @@ export function buildChatCommand(input: ChatCommandInput): ProviderCommand {
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: input.selfCommand,
-        args: [...input.selfPrefixArgs, "mcp-server", "--project", input.backlogDir],
+        // Explicit: `mcp-server` defaults to the agent tool set, which has no
+        // orchestration tools. The chat is the one caller that needs them.
+        args: [...input.selfPrefixArgs, "mcp-server", "--audience", "orchestrator", "--project", input.backlogDir],
       },
     },
     ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),

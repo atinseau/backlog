@@ -29,6 +29,7 @@ function runRequest(dir: string, agent: Agent) {
     agent,
     prompt: "do the thing",
     cwd: dir,
+    backlogDir: dir,
     env: { PATH: process.env.PATH ?? "" } as NodeJS.ProcessEnv,
     getSecret: () => null,
     onActivity: () => {},

@@ -78,6 +78,22 @@ describe("findProject", () => {
     expect(found!.backlogDir).toBe(path.join(root, ".backlog"));
   });
 
+  it("reports the repository root when BACKLOG_PROJECT_DIR points at an in_repo .backlog/", () => {
+    // A run exports BACKLOG_PROJECT_DIR as the state dir, not the root. Reading
+    // config.toml directly inside it once classified the project as user_level
+    // and handed back the state dir as `root`, so every consumer of `root`
+    // (`repositories add --path`, `hooks install`, `board`) resolved one level
+    // too deep.
+    const root = tmp("backlog-fp-env-backlogdir-");
+    initLayout({ root, projectName: "env-backlogdir" });
+    process.env.BACKLOG_PROJECT_DIR = path.join(root, ".backlog");
+
+    const elsewhere = tmp("backlog-fp-elsewhere-backlogdir-");
+    const found = findProject(elsewhere);
+    expect(found!.root).toBe(root);
+    expect(found!.backlogDir).toBe(path.join(root, ".backlog"));
+  });
+
   it("honours BACKLOG_PROJECT_DIR for a user_level workspace", () => {
     const userWorkspace = tmp("backlog-fp-env-userlevel-");
     initLayout({ root: userWorkspace, projectName: "env-multi", location: "user_level" });
