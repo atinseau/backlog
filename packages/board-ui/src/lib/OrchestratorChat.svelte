@@ -326,6 +326,10 @@
     history = [];
     usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
     error = null;
+    // Drop the session too, or the CLI backend would resume the conversation
+    // the user just cleared — an empty transcript on screen, full context
+    // behind it.
+    sessionId = null;
     saveHistory();
   }
 

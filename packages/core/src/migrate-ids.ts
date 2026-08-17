@@ -45,6 +45,9 @@ import { listAllRuns, writeRun } from "./run-store.js";
 
 const NEW_FORMAT = /^(task|subtask|run|claim|sync)_\d{3,}$/;
 
+/** Entity types that predate sequential ids and can therefore need migrating. */
+type MigratableIdType = Exclude<IdType, "conv">;
+
 export interface MigrationReport {
   task: { migrated: number; preserved: number };
   subtask: { migrated: number; preserved: number };
@@ -71,7 +74,7 @@ interface Numbering {
 }
 
 function assign(
-  type: IdType,
+  type: MigratableIdType,
   entities: Array<{ id: string; created_at?: string }>,
   report: MigrationReport,
 ): Numbering {

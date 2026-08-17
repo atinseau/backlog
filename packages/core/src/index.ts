@@ -1,6 +1,7 @@
 export * from "./status-builder.js";
 export * from "./agents.js";
 export * from "./ai-service.js";
+export * from "./chat-store.js";
 export * from "./estimator.js";
 export * from "./execution-target.js";
 export * from "./git-status.js";

@@ -1,4 +1,5 @@
 export * from "./agent.js";
+export * from "./chat.js";
 export * from "./claim.js";
 export * from "./config.js";
 export * from "./orchestrator.js";

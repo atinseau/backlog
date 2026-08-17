@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type IdType = "task" | "subtask" | "run" | "claim" | "sync";
+export type IdType = "task" | "subtask" | "run" | "claim" | "sync" | "conv";
 
 interface IdCountersFile {
   version: 1;
@@ -25,7 +25,7 @@ interface IdCountersFile {
 function defaultCounters(): IdCountersFile {
   return {
     version: 1,
-    counters: { task: 0, subtask: 0, run: 0, claim: 0, sync: 0 },
+    counters: { task: 0, subtask: 0, run: 0, claim: 0, sync: 0, conv: 0 },
   };
 }
 
@@ -95,4 +95,5 @@ export const ID_REGEX: Record<IdType, RegExp> = {
   run: /\brun_\d{3,}\b/g,
   claim: /\bclaim_\d{3,}\b/g,
   sync: /\bsync_\d{3,}\b/g,
+  conv: /\bconv_\d{3,}\b/g,
 };
