@@ -11,6 +11,7 @@
     type GitCommitFileEntry,
   } from "./api.js";
   import { formatAgentLabel } from "./agent-label.js";
+  import { t } from "./i18n.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { ClaimRecord } from "./types.js";
 
@@ -367,12 +368,12 @@
       }).withContext;
       return claim.agent.profile ? `${label} - ${claim.agent.profile}` : label;
     }
-    return claim.agent_id ?? "non attribue";
+    return claim.agent_id ?? t("claims_page.unassigned");
   }
 
   function statusLabel(row: ClaimRow): string {
-    if (row.expired) return "expire";
-    return row.active ? "ouvert" : "ferme";
+    if (row.expired) return t("claims_page.status.expired");
+    return row.active ? t("claims_page.status.open") : t("claims_page.status.closed");
   }
 
   function statusClass(row: ClaimRow): string {
@@ -384,19 +385,20 @@
     return run.subtask?.title || run.task?.title || run.target_id || run.subtask_id || run.id;
   }
 
+  const RUN_STATUSES = new Set([
+    "queued",
+    "preparing",
+    "running",
+    "awaiting_review",
+    "succeeded",
+    "failed",
+    "blocked",
+    "interrupted",
+    "canceled",
+  ]);
+
   function runStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      queued: "en file",
-      preparing: "preparation",
-      running: "en cours",
-      awaiting_review: "review",
-      succeeded: "termine",
-      failed: "echec",
-      blocked: "bloque",
-      interrupted: "interrompu",
-      canceled: "annule",
-    };
-    return labels[status] ?? status;
+    return RUN_STATUSES.has(status) ? t(`card.run_status.${status}`) : status;
   }
 
   function eventText(event: Record<string, unknown>): string {
@@ -410,8 +412,10 @@
   }
 
   function commitSourceLabel(commit: RelatedCommit): string {
-    if (commit.sources.length === 2) return "history + run";
-    return commit.sources[0] === "run" ? "run artifact" : "history";
+    if (commit.sources.length === 2) return t("claims_page.commit_source.both");
+    return commit.sources[0] === "run"
+      ? t("claims_page.commit_source.run")
+      : t("claims_page.commit_source.history");
   }
 
   function fileKindLabel(kind: GitCommitFileEntry["kind"]): string {
@@ -446,21 +450,25 @@
 
   function diagnostics(row: ClaimRow): string[] {
     const items: string[] = [];
-    if (row.expired) items.push("TTL depasse");
+    if (row.expired) items.push(t("claims_page.diagnostic.ttl_over"));
     if (row.active) {
       const remaining = formatRemaining(row.claim.expires_at, timer.now);
-      items.push(remaining ? `TTL ${remaining}` : "TTL termine");
+      items.push(
+        remaining
+          ? t("claims_page.diagnostic.ttl_left", { time: remaining })
+          : t("claims_page.diagnostic.ttl_done"),
+      );
     }
     if (row.claim.expected_finish_at && row.active && Date.parse(row.claim.expected_finish_at) < timer.now) {
-      items.push("ETA depassee");
+      items.push(t("claims_page.diagnostic.eta_over"));
     }
-    if (row.runs.length === 0) items.push("aucun run lie");
-    if (row.commits.length === 0) items.push("aucun commit lie");
+    if (row.runs.length === 0) items.push(t("claims_page.diagnostic.no_run"));
+    if (row.commits.length === 0) items.push(t("claims_page.diagnostic.no_commit"));
     return items;
   }
 
   async function handleArchive(claim: ClaimRecord) {
-    if (!confirm(`Finir ce claim ?\n\n${claim.topic}`)) return;
+    if (!confirm(t("claims_page.confirm_finish", { topic: claim.topic }))) return;
     busyAction = claim.id;
     try {
       await archiveClaim(claim.id);
@@ -474,11 +482,15 @@
   }
 </script>
 
-{#snippet pathsList(paths: string[], empty = "Aucun fichier")}
+{#snippet pathsList(paths: string[], empty = t("claims_page.paths.empty"))}
   {#if paths.length > 0}
     <ul class="paths">
       {#each paths as file, index (`${file}:${index}`)}
-        <li>{file === "." || file === "/" || file === "*" || file === "**" ? "Tout le workspace" : file}</li>
+        <li>
+          {file === "." || file === "/" || file === "*" || file === "**"
+            ? t("claims_page.paths.whole_repository")
+            : file}
+        </li>
       {/each}
     </ul>
   {:else}
@@ -506,11 +518,11 @@
       {/each}
     </div>
   {:else if fileError}
-    <p class="muted">Fichiers indisponibles: {fileError}</p>
+    <p class="muted">{t("claims_page.files.unavailable", { error: fileError })}</p>
   {:else if filesLoading}
-    <p class="muted">Chargement des fichiers...</p>
+    <p class="muted">{t("claims_page.files.loading")}</p>
   {:else}
-    <p class="muted">Aucun fichier trouve pour ce commit.</p>
+    <p class="muted">{t("claims_page.files.none")}</p>
   {/if}
 {/snippet}
 
@@ -518,22 +530,22 @@
   <header class="claims-header">
     <div class="title-block">
       <div>
-        <h2>Claims</h2>
-        <p>{repoFilter ? repoFilter : "Tous les workspaces"}</p>
+        <h2>{t("claims_page.title")}</h2>
+        <p>{repoFilter ? repoFilter : t("claims_page.all_repositories")}</p>
       </div>
-      <div class="tabs" role="tablist" aria-label="Claims views">
+      <div class="tabs" role="tablist" aria-label={t("claims_page.tabs_label")}>
         <button class="tab" class:active={activeTab === "index"} onclick={() => (activeTab = "index")}>
-          Index / logs
+          {t("claims_page.tab.index")}
         </button>
         <button class="tab" class:active={activeTab === "timeline"} onclick={() => (activeTab = "timeline")}>
-          Chronologie
+          {t("claims_page.tab.timeline")}
         </button>
       </div>
     </div>
     <div class="header-actions">
-      <button class="refresh" onclick={load}>Rafraichir</button>
+      <button class="refresh" onclick={load}>{t("claims_page.refresh")}</button>
       {#if !embedded}
-        <button class="close" onclick={onClose}>x</button>
+        <button class="close" onclick={onClose} aria-label={t("claim_dialog.close")}>x</button>
       {/if}
     </div>
   </header>
@@ -542,18 +554,21 @@
     <div class="error">{error}</div>
   {/if}
 
-  <div class="stats" aria-label="Claims summary">
-    <div><span>Ouverts</span><strong>{activeCount}</strong></div>
-    <div><span>Fermes</span><strong>{archivedCount}</strong></div>
-    <div><span>Runs lies</span><strong>{new Set(claimRows.flatMap((row) => row.runs.map((run) => run.id))).size}</strong></div>
-    <div><span>Commits</span><strong>{commitCount}</strong></div>
-    <div><span>Fichiers</span><strong>{fileCount}</strong></div>
+  <div class="stats" aria-label={t("claims_page.summary_label")}>
+    <div><span>{t("claims_page.stat.open")}</span><strong>{activeCount}</strong></div>
+    <div><span>{t("claims_page.stat.closed")}</span><strong>{archivedCount}</strong></div>
+    <div>
+      <span>{t("claims_page.stat.linked_runs")}</span>
+      <strong>{new Set(claimRows.flatMap((row) => row.runs.map((run) => run.id))).size}</strong>
+    </div>
+    <div><span>{t("claims_page.stat.commits")}</span><strong>{commitCount}</strong></div>
+    <div><span>{t("claims_page.stat.files")}</span><strong>{fileCount}</strong></div>
   </div>
 
   {#if loading}
-    <div class="loading">Chargement...</div>
+    <div class="loading">{t("claims_page.loading")}</div>
   {:else if claimRows.length === 0}
-    <div class="empty">Aucun claim a afficher.</div>
+    <div class="empty">{t("claims_page.empty")}</div>
   {:else if activeTab === "index"}
     <main class="claim-index">
       {#each claimRows as row (row.claim.id)}
@@ -566,22 +581,22 @@
             </span>
             <span class="summary-meta">
               <span>{row.claim.repo}</span>
-              <span>{row.claim.paths.length} fichier(s)</span>
+              <span>{t("claims_page.file_count", { count: row.claim.paths.length })}</span>
               <span>{claimDuration(row)}</span>
-              <span>{row.commits.length} commit(s)</span>
+              <span>{t("claims_page.commit_count", { count: row.commits.length })}</span>
             </span>
           </summary>
 
           <div class="claim-body">
             <div class="info-grid">
-              <div><span>Workspace</span><strong>{row.claim.repo}</strong></div>
-              <div><span>Owner</span><strong>{claimAgentLabel(row.claim)}</strong></div>
-              <div><span>Mode</span><strong>{row.claim.mode}</strong></div>
-              <div><span>Age</span><strong>{ageLabel(row.claim)}</strong></div>
-              <div><span>Debut</span><strong>{formatDate(row.claim.created_at)}</strong></div>
-              <div><span>Heartbeat</span><strong>{formatDate(row.claim.heartbeat_at)}</strong></div>
-              <div><span>Expire</span><strong>{formatDate(row.claim.expires_at)}</strong></div>
-              <div><span>Fin</span><strong>{formatDate(row.claim.finished_at)}</strong></div>
+              <div><span>{t("claims_page.field.repository")}</span><strong>{row.claim.repo}</strong></div>
+              <div><span>{t("claims_page.field.owner")}</span><strong>{claimAgentLabel(row.claim)}</strong></div>
+              <div><span>{t("claims_page.field.mode")}</span><strong>{row.claim.mode}</strong></div>
+              <div><span>{t("claims_page.field.age")}</span><strong>{ageLabel(row.claim)}</strong></div>
+              <div><span>{t("claims_page.field.started")}</span><strong>{formatDate(row.claim.created_at)}</strong></div>
+              <div><span>{t("claims_page.field.heartbeat")}</span><strong>{formatDate(row.claim.heartbeat_at)}</strong></div>
+              <div><span>{t("claims_page.field.expires")}</span><strong>{formatDate(row.claim.expires_at)}</strong></div>
+              <div><span>{t("claims_page.field.finished")}</span><strong>{formatDate(row.claim.finished_at)}</strong></div>
             </div>
 
             <div class="diagnostics">
@@ -593,19 +608,19 @@
             {#if row.active}
               <div class="actions">
                 <button type="button" onclick={() => handleArchive(row.claim)} disabled={busyAction === row.claim.id}>
-                  Finir
+                  {t("claims_page.action.finish")}
                 </button>
               </div>
             {/if}
 
             <section class="block">
-              <h3>Fichiers proteges</h3>
+              <h3>{t("claims_page.section.protected_files")}</h3>
               {@render pathsList(row.claim.paths)}
             </section>
 
             {#if row.runs.length > 0}
               <section class="block">
-                <h3>Runs et logs</h3>
+                <h3>{t("claims_page.section.runs_logs")}</h3>
                 <div class="run-stack">
                   {#each row.runs as run (run.id)}
                     <details class="run-log">
@@ -617,10 +632,10 @@
                         <span>{runStatusLabel(run.status)} - {formatDate(run.started_at)}</span>
                       </summary>
                       <div class="run-grid">
-                        <div><span>Agent</span><strong>{run.owner.display_name ?? run.agent_id}</strong></div>
-                        <div><span>Branch</span><code>{run.branch}</code></div>
-                        <div><span>Mode</span><strong>{run.execution_mode}</strong></div>
-                        <div><span>Fin</span><strong>{formatDate(run.finished_at)}</strong></div>
+                        <div><span>{t("claims_page.field.agent")}</span><strong>{run.owner.display_name ?? run.agent_id}</strong></div>
+                        <div><span>{t("claims_page.field.branch")}</span><code>{run.branch}</code></div>
+                        <div><span>{t("claims_page.field.mode")}</span><strong>{run.execution_mode}</strong></div>
+                        <div><span>{t("claims_page.field.finished")}</span><strong>{formatDate(run.finished_at)}</strong></div>
                       </div>
                       {#if run.events.length > 0}
                         <ol class="events">
@@ -632,7 +647,7 @@
                           {/each}
                         </ol>
                       {:else}
-                        <p class="muted">Aucun log pour ce run.</p>
+                        <p class="muted">{t("claims_page.no_logs")}</p>
                       {/if}
                     </details>
                   {/each}
@@ -641,9 +656,9 @@
             {/if}
 
             <section class="block">
-              <h3>Commits et fichiers lies</h3>
+              <h3>{t("claims_page.section.commits")}</h3>
               {#if row.commits.length === 0}
-                <p class="muted">Aucun commit lie a ce claim.</p>
+                <p class="muted">{t("claims_page.no_commits")}</p>
               {:else}
                 <div class="commit-stack">
                   {#each row.commits as commit (commitKey(commit))}
@@ -664,7 +679,7 @@
 
             {#if row.claim.metadata && Object.keys(row.claim.metadata).length > 0}
               <section class="block">
-                <h3>Metadonnees</h3>
+                <h3>{t("claims_page.section.metadata")}</h3>
                 <div class="chips">
                   {#each Object.entries(row.claim.metadata) as [key, value] (key)}
                     <span><strong>{key}</strong>: {value}</span>
@@ -674,7 +689,7 @@
             {/if}
 
             <details class="raw">
-              <summary>Donnees completes</summary>
+              <summary>{t("claims_page.raw")}</summary>
               <pre>{JSON.stringify(row.claim, null, 2)}</pre>
             </details>
           </div>
@@ -683,7 +698,7 @@
     </main>
   {:else}
     <main class="timeline-view">
-      <div class="timeline-scroll" aria-label="Claims timeline">
+      <div class="timeline-scroll" aria-label={t("claims_page.timeline_label")}>
         <div class="timeline-canvas">
           <div class="timeline-axis">
             <div class="axis-spacer"></div>
@@ -702,7 +717,7 @@
                 <span class="status {statusClass(row)}">{statusLabel(row)}</span>
                 <strong>{row.claim.topic}</strong>
                 <code>{row.claim.id}</code>
-                <small>{row.claim.repo} - {row.claim.paths.length} fichier(s)</small>
+                <small>{row.claim.repo} - {t("claims_page.file_count", { count: row.claim.paths.length })}</small>
               </div>
               <div class="timeline-track">
                 {#each timelineTicks as tick (tick)}
@@ -724,14 +739,14 @@
               </div>
               <div class="timeline-linked">
                 {#if row.commits.length === 0}
-                  <span class="muted">Aucun commit lie.</span>
+                  <span class="muted">{t("claims_page.no_commits_short")}</span>
                 {:else}
                   {#each row.commits as commit (commitKey(commit))}
                     <details class="timeline-commit">
                       <summary>
                         <code>{commit.short_sha}</code>
                         <span>{commit.subject}</span>
-                        <small>{filesForCommit(commit).length} fichier(s)</small>
+                        <small>{t("claims_page.file_count", { count: filesForCommit(commit).length })}</small>
                       </summary>
                       {@render commitFilesList(commit)}
                     </details>
@@ -776,6 +791,7 @@
   .modal {
     width: min(1180px, 94vw);
     height: min(860px, 88vh);
+    height: min(860px, 88dvh);
     background: var(--bg-surface);
     color: var(--text-primary);
     border-radius: 8px;
@@ -844,7 +860,7 @@
   .tab.active {
     background: var(--bg-surface);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    box-shadow: var(--elev-rest);
   }
   .header-actions {
     display: flex;
@@ -858,6 +874,9 @@
     border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 10px;
+    /* WCAG 2.5.8 floor; widens to 28px on a coarse pointer. */
+    min-height: var(--tap-size);
+    min-width: var(--tap-size);
     cursor: pointer;
     font-size: 12px;
   }
@@ -869,6 +888,12 @@
   .refresh:hover,
   .actions button:hover:not(:disabled) {
     background: var(--bg-active);
+  }
+  .refresh:focus-visible,
+  .close:focus-visible,
+  .actions button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .error {
     background: var(--warning-bg);
@@ -897,7 +922,7 @@
   .stats strong {
     display: block;
     margin-top: 2px;
-    font-size: 17px;
+    font-size: 16px;
   }
   .loading,
   .empty {
@@ -983,6 +1008,7 @@
     border-radius: 999px;
     padding: 2px 7px;
     font-size: 10px;
+    letter-spacing: 0.04em;
     font-weight: 700;
     text-transform: uppercase;
     background: var(--bg-hover);
@@ -1067,7 +1093,7 @@
     list-style: none;
     margin: 0;
     padding: 7px 9px;
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--bg-hover);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
@@ -1142,7 +1168,7 @@
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border-subtle);
-    border-radius: 5px;
+    border-radius: 4px;
     overflow: hidden;
   }
   .file-row {
@@ -1298,20 +1324,24 @@
     display: flex;
     align-items: center;
     padding: 0 7px;
-    color: var(--accent-on);
-    font-size: 10px;
+    /* No shared `color` here: each variant paints a different fill, so
+       each carries its own paired ink (DESIGN.md, encre appariée). */
+    font-size: 11px;
     font-weight: 700;
     overflow: hidden;
     white-space: nowrap;
   }
   .claim-bar.active {
     background: var(--accent);
+    color: var(--accent-on);
   }
   .claim-bar.closed {
     background: var(--success);
+    color: var(--success-on);
   }
   .claim-bar.expired {
     background: var(--danger);
+    color: var(--danger-on);
   }
   .commit-marker {
     position: absolute;
@@ -1320,7 +1350,7 @@
     height: 36px;
     transform: translateX(-1px);
     border: none;
-    border-radius: 2px;
+    border-radius: 3px;
     background: var(--warning);
     color: var(--text-primary);
     cursor: pointer;
@@ -1337,7 +1367,7 @@
     background: var(--warning-bg);
     color: var(--warning);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 10px;
+    font-size: 11px;
     white-space: nowrap;
   }
   .timeline-linked {
@@ -1352,6 +1382,7 @@
     color: var(--text-muted);
     font-size: 11px;
   }
+  /* Width thresholds: 640 / 900 / 1280 only — see src/lib/shell/breakpoints.ts */
   @media (max-width: 900px) {
     .claims-header,
     .title-block {
@@ -1366,6 +1397,19 @@
     }
     .summary-meta {
       justify-content: flex-start;
+    }
+    /* The timeline keeps a hard floor and keeps scrolling inside
+       .timeline-scroll — horizontal scroll is the allowed degradation.
+       What changes in a narrow window is the label gutter: it becomes
+       elastic (140…280px) so the floor drops from 1120px to the width
+       the track itself needs, instead of paying 280px for topic labels
+       that are ellipsed anyway. */
+    .timeline-canvas {
+      min-width: 912px;
+    }
+    .timeline-axis,
+    .timeline-row {
+      grid-template-columns: minmax(140px, 280px) minmax(760px, 1fr);
     }
   }
 </style>

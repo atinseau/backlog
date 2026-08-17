@@ -6,6 +6,7 @@
     type CreatedTask,
     type ProposedTask,
   } from "./api.js";
+  import { focusTrap } from "./DialogShell.svelte";
   import { formatAgentLabel } from "./agent-label.js";
   import { t } from "./i18n.svelte.js";
   import { getShowReviewColumn } from "./settings.svelte.js";
@@ -356,7 +357,7 @@
 </script>
 
 <div class="backdrop" onclick={closeDialog} role="presentation">
-  <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") closeDialog(); }}>
+  <div use:focusTrap class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") closeDialog(); }}>
     <header>
       <h2>
         {#if phase === "input" || phase === "creating"}
@@ -712,7 +713,7 @@
   }
   .select-row select {
     padding: 4px 6px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     font: inherit;
@@ -735,7 +736,7 @@
   .number-row input {
     width: 54px;
     padding: 3px 6px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     font: inherit;
@@ -759,7 +760,7 @@
     width: 100%;
     min-height: 72px;
     resize: vertical;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
@@ -787,7 +788,7 @@
     gap: 6px;
   }
   .clarification-options button {
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     background: var(--bg-surface);
     color: var(--text-secondary);
     border-radius: 4px;
@@ -806,12 +807,14 @@
     background: var(--bg-input);
     color: var(--text-primary);
   }
+  /* Was a 3px accent border-left. DESIGN.md keeps the coloured side
+     rail for exactly one thing — the priority rail on a card — so the
+     emphasis moves onto the fill instead of a second rail. */
   .title-preview {
     margin: 8px auto;
     padding: 10px 14px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-default);
-    border-left: 3px solid var(--accent);
+    background: var(--accent-bg);
+    border: 1px solid var(--accent);
     border-radius: 6px;
     text-align: left;
     max-width: 420px;
@@ -829,7 +832,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -838,12 +841,13 @@
   .modal {
     background: var(--bg-surface);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 640px;
     width: 92%;
     display: flex;
     flex-direction: column;
     max-height: 85vh;
+    max-height: 85dvh;
     overflow: hidden;
   }
   header {
@@ -854,7 +858,25 @@
     justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  /* min-width/min-height rather than padding: WCAG 2.5.8's 24px floor
+     without moving the header layout. */
+  .close {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
+  }
+  .close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .body {
     padding: 16px 20px;
@@ -869,12 +891,12 @@
     padding: 32px 20px;
   }
   .spinner {
-    font-size: 32px;
+    font-size: 18px;
     color: var(--accent);
     animation: spin 1.2s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .muted { color: var(--text-subtle); font-size: 12px; }
+  .muted { color: var(--text-muted); font-size: 12px; }
   .success { color: var(--success); font-size: 16px; font-weight: 600; }
   label {
     display: flex;
@@ -885,11 +907,15 @@
   }
   input, select, textarea {
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 13px;
     font-family: inherit;
   }
+  /* A placeholder is text in the WCAG sense — it bottoms out at
+     --text-muted like every other readable ink. */
+  input::placeholder,
+  textarea::placeholder { color: var(--text-muted); }
   textarea { resize: vertical; }
   .repos {
     display: flex;
@@ -915,7 +941,7 @@
     border-radius: 6px;
     padding: 10px 12px;
     font-size: 12px;
-    color: var(--accent-hover);
+    color: var(--accent-text);
     margin: 0;
     line-height: 1.5;
   }
@@ -935,14 +961,15 @@
   }
   .proposed-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     align-items: center;
   }
-  .proposed-title { flex: 1; }
+  .proposed-title { flex: 1; min-width: 140px; }
   .scopes {
     margin-top: 4px;
     font-size: 11px;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .remove {
@@ -958,6 +985,7 @@
   footer {
     margin-top: 8px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -968,15 +996,39 @@
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
+    min-height: var(--tap-size);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   button.primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border-color: var(--accent);
   }
+  /* Neutral disabled fill pair — --text-subtle is never a background. */
   button.primary:disabled {
-    background: var(--text-subtle);
-    border-color: var(--text-subtle);
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--text-inverse);
     cursor: not-allowed;
+  }
+
+  /* 640 — src/lib/shell/breakpoints.ts (BP_NARROW). Below it the modal
+     is ~330px wide: the three-track select rows can no longer hold
+     140px + 200px side by side without clipping their hint. */
+  @media (max-width: 640px) {
+    .select-row,
+    .select-row.compact {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+    }
+    .select-row.compact .select-hint {
+      grid-column: 1;
+    }
+    .ai-tuning {
+      margin-left: 0;
+    }
   }
 </style>

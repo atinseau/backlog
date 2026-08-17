@@ -38,7 +38,8 @@
     border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 1px;
-    gap: 1px;
+    /* --tap-gap widens to 4px under a coarse pointer. */
+    gap: var(--tap-gap);
     font-size: 12px;
   }
   button {
@@ -52,7 +53,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 22px;
+    /* WCAG 2.5.8 floor, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   button:hover { background: var(--bg-surface); color: var(--text-primary); }
   button.active {

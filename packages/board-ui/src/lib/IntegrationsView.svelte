@@ -753,11 +753,11 @@
               <div class="muted small">
                 {t("integrations.github.oauth.configured_hint", { hint: ghOauthConfig.client_id_hint })}
                 {#if ghOauthConfig.client_id_source === "cloud"}
-                  · via proxy
+                  · {t("integrations.oauth.source_proxy")}
                 {:else if ghOauthConfig.client_id_source === "user"}
-                  · custom
+                  · {t("integrations.oauth.source_custom")}
                 {:else if ghOauthConfig.client_id_source === "env"}
-                  · env
+                  · {t("integrations.oauth.source_env")}
                 {/if}
               </div>
             {/if}
@@ -894,7 +894,7 @@
           {/if}
           {#if jiraOauthConfig?.connected}
             <div class="status ok">
-              ✓ Connecté à {jiraOauthConfig.site_url ?? "Jira"}
+              {t("integrations.jira.oauth.success", { site: jiraOauthConfig.site_url ?? "Jira" })}
             </div>
           {/if}
           <div class="row connect-actions">
@@ -912,11 +912,11 @@
           {#if jiraOauthConfig}
             <div class="muted small">
               {#if jiraOauthConfig.mode === "cloud"}
-                via proxy · zéro config
+                {t("integrations.oauth.mode_cloud")}
               {:else if jiraOauthConfig.client_id_hint}
                 {t("integrations.jira.oauth.configured_hint", { hint: jiraOauthConfig.client_id_hint })}
-                · custom
-                <button class="link inline" onclick={clearJiraClient}>↺ reset</button>
+                · {t("integrations.oauth.source_custom")}
+                <button class="link inline" onclick={clearJiraClient}>↺ {t("integrations.jira.oauth.reset")}</button>
               {/if}
             </div>
           {/if}
@@ -1146,33 +1146,49 @@
   .tab.active {
     background: var(--bg-surface);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    box-shadow: var(--elev-rest);
   }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     background: transparent;
     border: none;
     font-size: 18px;
     cursor: pointer;
     color: var(--text-secondary);
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .content { padding: 16px 20px; overflow-y: auto; flex: 1; }
   .panel { display: flex; flex-direction: column; gap: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
   input {
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 6px 10px;
     font-size: 13px;
     font-family: inherit;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    min-height: var(--tap-size);
   }
-  small { color: var(--text-subtle); font-size: 11px; }
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  small { color: var(--text-muted); font-size: 11px; }
   hr { border: none; border-top: 1px solid var(--border-default); margin: 4px 0; }
   .status { color: var(--text-primary); font-size: 13px; }
   .status.ok { color: var(--success); display: flex; gap: 12px; align-items: center; }
   .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .filter { flex: 1; min-width: 180px; }
-  .muted { color: var(--text-subtle); font-size: 12px; }
+  .muted { color: var(--text-muted); font-size: 12px; }
   button {
     background: var(--bg-hover);
     border: 1px solid var(--border-strong);
@@ -1180,9 +1196,12 @@
     padding: 4px 12px;
     cursor: pointer;
     font-size: 13px;
+    /* WCAG 2.5.8 floor, 28px under a coarse pointer. */
+    min-height: var(--tap-size);
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
-  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  /* Paired ink: --accent lightens in dark, so the ink must flip. */
+  button.primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
   button.primary:hover:not(:disabled) { background: var(--accent-hover); }
   button.ghost { background: transparent; }
   button.ghost.danger { color: var(--danger); border-color: var(--danger); }
@@ -1214,10 +1233,13 @@
     color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 3px;
+    /* 10px only exists as spaced caps. */
     font-size: 10px;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
   }
-  .branch { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-subtle); }
+  .branch { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: var(--text-muted); }
   .desc { font-size: 12px; color: var(--text-secondary); }
   .actions { display: flex; gap: 6px; }
   .msg { font-size: 12px; padding: 6px 10px; border-radius: 4px; }
@@ -1231,21 +1253,21 @@
     flex-direction: column;
     gap: 10px;
     padding: 12px;
-    border: 1px solid #a78bfa;
+    border: 1px solid var(--apply);
     border-radius: 6px;
     background: var(--accent-bg);
   }
-  .device-flow h3 { margin: 0; font-size: 14px; color: #a78bfa; }
+  .device-flow h3 { margin: 0; font-size: 14px; color: var(--apply-text); }
   .device-flow p { margin: 0; font-size: 12px; color: var(--text-secondary); }
   .device-code {
     align-self: flex-start;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 22px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
     letter-spacing: 0.18em;
     font-weight: 600;
     color: var(--text-primary);
     background: var(--bg-surface);
-    border: 1px dashed #a78bfa;
+    border: 1px dashed var(--apply);
     border-radius: 6px;
     padding: 6px 14px;
     cursor: pointer;
@@ -1253,7 +1275,7 @@
   .device-code:hover { background: var(--bg-muted); }
   .polling {
     font-size: 12px;
-    color: #a78bfa;
+    color: var(--apply-text);
   }
   button.link.inline {
     align-self: flex-start;
@@ -1305,7 +1327,7 @@
     background: var(--bg-hover);
     padding: 1px 6px;
     border-radius: 3px;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
   }
   .callback-url {
@@ -1313,7 +1335,7 @@
     padding: 8px 10px;
     background: var(--bg-hover);
     border-radius: 4px;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     word-break: break-all;
     margin-top: 6px;
@@ -1340,18 +1362,18 @@
     margin: 8px 0;
   }
   .meta-item { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-  .meta-label { font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
+  .meta-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
   .plan-pill {
     display: inline-block;
     padding: 2px 10px;
-    border-radius: 12px;
+    border-radius: 999px;
     font-weight: 600;
     font-size: 12px;
     width: fit-content;
   }
   .plan-pill.plan-free { background: var(--bg-hover); color: var(--text-secondary); }
   .plan-pill.plan-pro { background: var(--success-bg); color: var(--success); }
-  .plan-pill.plan-enterprise { background: var(--accent-bg); color: #a78bfa; }
+  .plan-pill.plan-enterprise { background: var(--accent-bg); color: var(--apply-text); }
   .over { color: var(--danger); font-weight: 600; }
   .oauth-buttons { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
   button.oauth {
@@ -1374,27 +1396,47 @@
   button.oauth .oauth-icon {
     width: 18px;
     height: 18px;
-    border-radius: 50%;
+    border-radius: 999px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 12px;
     font-weight: 700;
   }
-  button.oauth-google .oauth-icon { background: #4285f4; color: white; }
-  button.oauth-github .oauth-icon { background: var(--text-primary); color: white; }
-  button.oauth-apple .oauth-icon { background: black; color: white; font-size: 14px; }
+  /* --brand-google is a bright fill in both themes, and pure white on it
+     only reaches 3.56:1, so it takes the --*-solid ink instead. */
+  button.oauth-google .oauth-icon { background: var(--brand-google); color: var(--text-on-solid); }
+  /* The GitHub mark inverts with the theme: its plate is the text
+     colour, so its glyph must be the page colour, not a fixed white. */
+  button.oauth-github .oauth-icon { background: var(--text-primary); color: var(--text-inverse); }
+  button.oauth-apple .oauth-icon { background: var(--brand-apple); color: var(--brand-apple-on); font-size: 14px; }
   .divider {
     display: flex;
     align-items: center;
     gap: 8px;
     margin: 4px 0;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 11px;
   }
   .divider::before, .divider::after {
     content: "";
     flex: 1;
     border-top: 1px solid var(--border-default);
+  }
+
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .meta-grid {
+      grid-template-columns: 1fr;
+    }
+    header {
+      flex-wrap: wrap;
+    }
+    .tabs {
+      flex-wrap: wrap;
+    }
+    .repo-line, .src-line {
+      flex-wrap: wrap;
+    }
   }
 </style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte.js";
+
   interface Props {
     expiresAt: string;
     expectedFinishAt?: string | null;
@@ -33,18 +35,22 @@
 </script>
 
 {#if overdue}
-  <span class="badge overdue" title="Estimate elapsed; agent over budget">
-    ⏱ overdue
+  <span class="badge overdue" title={t("retry_badge.overdue_hint")}>
+    ⏱ {t("retry_badge.overdue")}
   </span>
 {:else}
-  <span class="badge {blocking ? 'blocking' : 'active'}" title="Free in {formatRemaining(remainingMs)}">
+  <span
+    class="badge {blocking ? 'blocking' : 'active'}"
+    title={t("retry_badge.free_in", { time: formatRemaining(remainingMs) })}
+  >
     {blocking ? "🔒" : "▶"} {formatRemaining(remainingMs)}
   </span>
 {/if}
 
 <style>
   .badge {
-    font-size: 10px;
+    /* 11px, not 10px: 10px is reserved for spaced uppercase labels. */
+    font-size: 11px;
     padding: 1px 6px;
     border-radius: 3px;
     font-weight: 500;

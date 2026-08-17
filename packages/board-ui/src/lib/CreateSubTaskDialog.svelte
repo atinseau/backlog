@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createSubTask } from "./api.js";
+  import { focusTrap } from "./DialogShell.svelte";
   import { t } from "./i18n.svelte.js";
   import type { TaskCard } from "./types.js";
 
@@ -52,9 +53,22 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
+  <!-- The click handler only stops propagation to the backdrop; there is no
+       keyboard equivalent to add. Escape is intentionally NOT bound here —
+       this dialog never had it, and binding it would change behaviour. -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <form class="modal" onclick={(e) => e.stopPropagation()} onsubmit={handleSubmit}>
+  <div
+    use:focusTrap
+    class="modal"
+    onclick={(e) => e.stopPropagation()}
+    role="dialog"
+    aria-modal="true"
+    aria-label={t("create_subtask.title")}
+    tabindex={-1}
+  >
+    <!-- display: contents — the form stays the submit owner without
+         inserting a box between .modal and its flex children. -->
+    <form class="form-contents" onsubmit={handleSubmit}>
     <header>
       <h2>{t("create_subtask.title")}</h2>
       <span class="task-title">{workItem.title}</span>
@@ -106,14 +120,15 @@
         {submitting ? t("create_subtask.button.submitting") : t("create_subtask.button.submit")}
       </button>
     </footer>
-  </form>
+    </form>
+  </div>
 </div>
 
 <style>
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -122,11 +137,14 @@
   .modal {
     background: var(--bg-surface);
     border-radius: 8px;
-    box-shadow: 0 20px 24px rgba(16, 24, 40, 0.18);
+    box-shadow: var(--shadow-modal);
     max-width: 520px;
     width: 92%;
     display: flex;
     flex-direction: column;
+  }
+  .form-contents {
+    display: contents;
   }
   header {
     padding: 16px 20px;
@@ -144,7 +162,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  .close {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
+  }
   .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .body {
     padding: 16px 20px;
@@ -161,11 +191,13 @@
   }
   input, select, textarea {
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 13px;
     font-family: inherit;
   }
+  input::placeholder,
+  textarea::placeholder { color: var(--text-muted); }
   textarea { resize: vertical; font-family: ui-monospace, monospace; }
   .row {
     display: grid;
@@ -176,6 +208,7 @@
     padding: 12px 20px;
     border-top: 1px solid var(--border-default);
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -186,15 +219,30 @@
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
+    min-height: var(--tap-size);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   button.primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border-color: var(--accent);
   }
+  /* Neutral disabled fill pair — --text-subtle is never a background. */
   button.primary:disabled {
-    background: var(--text-subtle);
-    border-color: var(--text-subtle);
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--text-inverse);
     cursor: not-allowed;
+  }
+
+  /* 640 — src/lib/shell/breakpoints.ts (BP_NARROW). Three side-by-side
+     fields leave ~90px each at 360px viewport; stack them instead. */
+  @media (max-width: 640px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 </style>

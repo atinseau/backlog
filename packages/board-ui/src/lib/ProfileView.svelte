@@ -266,11 +266,16 @@
     display: flex; justify-content: space-between; align-items: center;
   }
   h2 { margin: 0; font-size: 16px; }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     background: transparent; border: none;
     font-size: 18px; cursor: pointer;
     color: var(--text-secondary);
+    min-width: var(--tap-size); min-height: var(--tap-size);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .content { padding: 20px; overflow-y: auto; }
   .status {
     padding: 10px 12px; border-radius: 6px;
@@ -291,7 +296,7 @@
   }
   .plan-pill {
     display: inline-block;
-    padding: 2px 8px; border-radius: 12px;
+    padding: 2px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
     background: var(--bg-elevated); color: var(--text-body);
     width: fit-content;
@@ -302,9 +307,11 @@
   .connect-actions { margin-top: 12px; }
   button {
     padding: 6px 12px; border-radius: 4px;
-    border: 1px solid var(--border-strong);
+    /* Transparent control on a surface: WCAG 1.4.11 asks 3:1. */
+    border: 1px solid var(--border-field);
     background: transparent; color: var(--text-body);
     cursor: pointer; font-size: 13px;
+    min-height: var(--tap-size);
   }
   button:hover { background: var(--bg-hover); color: var(--text-primary); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -325,7 +332,7 @@
     width: 20px; height: 20px;
     display: inline-flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 14px;
-    border-radius: 50%;
+    border-radius: 999px;
     background: var(--bg-elevated);
   }
   .divider {
@@ -345,7 +352,8 @@
   .field .label { font-size: 12px; color: var(--text-muted); }
   .field input {
     padding: 6px 10px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);

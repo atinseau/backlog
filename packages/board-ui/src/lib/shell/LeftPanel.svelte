@@ -82,7 +82,7 @@
     />
   </div>
 
-  <nav class="sections" aria-label="Navigator">
+  <nav class="sections" aria-label={t("shell.navigator")}>
     {#each SECTIONS as item (item.key)}
       <button
         class="section"
@@ -201,5 +201,19 @@
     align-items: center;
     gap: 8px;
     background: var(--bg-muted);
+  }
+  /* Confort au doigt. Les rangs .section font déjà ~30px de haut (la cible
+     est la rangée entière, pas le glyphe de 18px) et n'ont pas besoin de
+     grossir ; LocaleToggle et ThemeToggle dans le pied, si.
+     Requête de capacité de pointeur : ne compte pas dans les trois seuils
+     de largeur (src/lib/shell/breakpoints.ts). */
+  @media (pointer: coarse) {
+    .footer :global(button) {
+      min-width: var(--tap-size);
+      min-height: var(--tap-size);
+    }
+    .section {
+      padding: 8px 10px;
+    }
   }
 </style>

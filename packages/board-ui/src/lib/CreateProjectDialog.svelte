@@ -399,6 +399,7 @@
     width: min(920px, calc(100vw - 48px));
     max-width: 920px;
     max-height: min(760px, calc(100vh - 48px));
+    max-height: min(760px, calc(100dvh - 48px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -411,7 +412,7 @@
     justify-content: space-between;
     gap: 16px;
   }
-  h2 { margin: 0; font-size: 20px; letter-spacing: 0; }
+  h2 { margin: 0; font-size: 18px; letter-spacing: 0; }
   header p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
   .close {
     background: transparent;
@@ -420,6 +421,12 @@
     cursor: pointer;
     color: var(--text-secondary);
     padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
   }
   .content {
     padding: 18px 24px 20px;
@@ -483,7 +490,7 @@
   .label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
   input,
   select {
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 6px;
     padding: 8px 10px;
     font-size: 13px;
@@ -497,7 +504,8 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
-  small { color: var(--text-subtle); font-size: 11px; line-height: 1.35; }
+  input::placeholder { color: var(--text-muted); }
+  small { color: var(--text-muted); font-size: 11px; line-height: 1.35; }
   .path-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -515,8 +523,13 @@
     font-size: 12px;
     padding: 7px 12px;
     white-space: nowrap;
+    min-height: var(--tap-size);
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .path-summary {
     display: flex;
     flex-wrap: wrap;
@@ -530,14 +543,16 @@
     border-radius: 999px;
     padding: 2px 7px;
     color: var(--text-secondary);
-    font-size: 10.5px;
+    font-size: 11px;
     background: var(--bg-hover);
   }
   .folder-browser {
     border: 1px solid var(--border-default);
     border-radius: 8px;
     overflow: hidden;
-    background: var(--bg-canvas);
+    /* --bg-canvas was never declared in app.css, so this panel painted
+       transparent. --bg-muted is the chrome surface it wanted. */
+    background: var(--bg-muted);
   }
   .folder-toolbar {
     display: grid;
@@ -592,7 +607,7 @@
     min-width: 0;
   }
   .folder-path {
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
     overflow: hidden;
@@ -614,6 +629,7 @@
   .msg.err { background: var(--warning-bg); color: var(--warning); }
   footer {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
     position: sticky;
@@ -623,7 +639,7 @@
     padding: 12px 24px 14px;
     border-top: 1px solid var(--border-default);
     background: var(--bg-surface);
-    box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--elev-panel-top);
   }
   footer .primary {
     background: var(--accent);
@@ -634,7 +650,9 @@
     background: var(--accent-hover);
     border-color: var(--accent-hover);
   }
-  @media (max-width: 760px) {
+  /* 900 — src/lib/shell/breakpoints.ts (BP_COMPACT). Was 760px; the
+     system only recognises 640 / 900 / 1280. */
+  @media (max-width: 900px) {
     :global(.create-project-modal) {
       width: min(100vw - 24px, 920px);
     }

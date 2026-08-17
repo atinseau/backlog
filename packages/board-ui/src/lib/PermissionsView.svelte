@@ -19,12 +19,14 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  const AUTONOMY_MODES: Array<{ value: AutonomyMode; label: string; description: string }> = [
-    { value: "observe", label: "Observe", description: "Aucun run lancé. Lecture seule." },
-    { value: "assist", label: "Assist", description: "Lance avec validation manuelle." },
-    { value: "delegate", label: "Delegate", description: "Lance auto sauf high-risk." },
-    { value: "autopilot", label: "Autopilot", description: "Lance tout, y compris high-risk." },
-  ];
+  // Derived, not a module constant: t() reads the locale store, so the
+  // labels have to re-evaluate when the language changes.
+  const AUTONOMY_MODES: Array<{ value: AutonomyMode; label: string; description: string }> = $derived([
+    { value: "observe", label: t("permissions.autonomy.observe.label"), description: t("permissions.autonomy.observe.desc") },
+    { value: "assist", label: t("permissions.autonomy.assist.label"), description: t("permissions.autonomy.assist.desc") },
+    { value: "delegate", label: t("permissions.autonomy.delegate.label"), description: t("permissions.autonomy.delegate.desc") },
+    { value: "autopilot", label: t("permissions.autonomy.autopilot.label"), description: t("permissions.autonomy.autopilot.desc") },
+  ]);
 
   async function load() {
     loading = true;
@@ -102,11 +104,11 @@
     {/if}
 
     {#if loading}
-      <div class="loading">chargement…</div>
+      <div class="loading">{t("permissions.loading")}</div>
     {:else if project}
       <section class="block">
-        <h3>Projet — niveau d'autonomie</h3>
-        <p class="hint">Détermine ce que l'orchestrateur a le droit de lancer sans validation.</p>
+        <h3>{t("permissions.autonomy.title")}</h3>
+        <p class="hint">{t("permissions.autonomy.hint")}</p>
         <div class="autonomy-grid">
           {#each AUTONOMY_MODES as mode (mode.value)}
             <button
@@ -122,10 +124,10 @@
       </section>
 
       <section class="block">
-        <h3>Claims</h3>
+        <h3>{t("permissions.claims.title")}</h3>
         <div class="claims-row">
           <label>
-            TTL par défaut (min)
+            {t("permissions.claims.ttl")}
             <input
               type="number"
               min="1"
@@ -139,15 +141,15 @@
               checked={project.claims.enforce_on_commit}
               onchange={(e) => changeEnforceOnCommit((e.currentTarget as HTMLInputElement).checked)}
             />
-            Bloquer les commits sans claim couvrant les paths
+            {t("permissions.claims.enforce")}
           </label>
-          <label class="toggle" title="Au lieu de bloquer, le hook crée un claim ad-hoc à la volée à partir des paths staged et du nom de la branche.">
+          <label class="toggle" title={t("permissions.claims.auto_claim_hint")}>
             <input
               type="checkbox"
               checked={project.claims.auto_claim_on_commit}
               onchange={(e) => changeAutoClaimOnCommit((e.currentTarget as HTMLInputElement).checked)}
             />
-            Auto-claim si rien n'est posé (recommandé pour le solo)
+            {t("permissions.claims.auto_claim")}
           </label>
         </div>
       </section>
@@ -211,7 +213,15 @@
     letter-spacing: 0.04em;
     color: var(--text-secondary);
   }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
+  .close {
+    background: transparent; border: none; font-size: 18px; cursor: pointer;
+    color: var(--text-secondary);
+    min-width: var(--tap-size); min-height: var(--tap-size);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {
     background: var(--warning-bg);
     color: var(--warning);
@@ -239,18 +249,23 @@
   }
   .autonomy-card {
     background: var(--bg-surface);
-    border: 1px solid var(--border-strong);
+    /* Selectable control on a same-coloured surface: it owes 3:1 to
+       WCAG 1.4.11, which --border-strong does not give. */
+    border: 1px solid var(--border-field);
     border-radius: 6px;
     padding: 10px;
     text-align: left;
     cursor: pointer;
     transition: all 120ms ease;
   }
-  .autonomy-card:hover { border-color: var(--text-subtle); }
+  .autonomy-card:hover { border-color: var(--accent); }
+  .autonomy-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .autonomy-card.active {
     border-color: var(--accent);
     background: var(--accent-bg);
-    box-shadow: 0 0 0 1px var(--accent) inset;
   }
   .autonomy-label {
     font-weight: 600;
@@ -284,10 +299,18 @@
   }
   .claims-row input[type="number"] {
     padding: 4px 8px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 wants 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     width: 80px;
     font-size: 13px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: inherit;
+  }
+  .claims-row input[type="number"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .toggle {

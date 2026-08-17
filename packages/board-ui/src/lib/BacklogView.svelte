@@ -214,6 +214,7 @@
   .modal {
     width: min(920px, 94vw);
     max-height: 88vh;
+    max-height: 88dvh;
     border-radius: 8px;
     overflow: hidden;
     background: var(--bg-surface);
@@ -232,7 +233,8 @@
   }
   .view-header h2 {
     margin: 0;
-    font-size: 20px;
+    /* Display grade — 18px is the top of the ramp. */
+    font-size: 18px;
   }
   .view-header p {
     margin: 4px 0 0;
@@ -245,6 +247,10 @@
     color: var(--text-secondary);
     font-size: 18px;
     cursor: pointer;
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
   }
   .error {
     margin: 12px 22px 0;
@@ -266,8 +272,9 @@
   select {
     background: var(--bg-input);
     color: var(--text-primary);
-    border: 1px solid var(--border-strong);
-    border-radius: 5px;
+    /* Input outline owes 3:1 (WCAG 1.4.11). */
+    border: 1px solid var(--border-field);
+    border-radius: 4px;
     font: inherit;
   }
   textarea {
@@ -302,16 +309,19 @@
     padding: 4px 7px;
     color: var(--text-secondary);
     font-size: 12px;
+    /* WCAG 2.5.8 floor — the whole label is the checkbox's target. */
+    min-height: var(--tap-size);
   }
   .chip input { margin: 0; }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border-color: var(--accent);
   }
   button {
-    border: 1px solid var(--border-strong);
-    border-radius: 5px;
+    /* Transparent-on-surface control: same 3:1 outline rule as a field. */
+    border: 1px solid var(--border-field);
+    border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
     font: inherit;
@@ -343,7 +353,7 @@
     gap: 12px;
     align-items: center;
     border: 1px solid var(--border-default);
-    border-radius: 7px;
+    border-radius: 6px;
     background: var(--bg-elevated);
     padding: 10px;
   }
@@ -369,8 +379,10 @@
     white-space: nowrap;
   }
   .priority {
+    /* 10px is only legal in spaced caps — P0…P3 already are. */
     font-size: 10px;
     font-weight: 700;
+    letter-spacing: 0.04em;
     border-radius: 3px;
     padding: 2px 5px;
     flex-shrink: 0;
@@ -398,7 +410,8 @@
     align-items: center;
     gap: 8px;
   }
-  @media (max-width: 820px) {
+  /* BP_COMPACT — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 900px) {
     .composer-row,
     .item {
       grid-template-columns: 1fr;

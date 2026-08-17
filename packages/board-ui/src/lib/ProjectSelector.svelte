@@ -162,6 +162,7 @@
     font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
+    min-height: var(--tap-size);
   }
   .trigger:hover {
     background: var(--bg-hover);
@@ -187,8 +188,14 @@
     font: inherit;
     font-size: 14px;
     font-weight: 600;
-    outline: none;
     min-width: 200px;
+    min-height: var(--tap-size);
+  }
+  /* Was `outline: none` with no replacement — the accent border is
+     permanent here, so it never signalled focus. */
+  .rename-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .menu {
@@ -241,7 +248,7 @@
   }
   .item.action {
     color: var(--text-secondary);
-    font-size: 12.5px;
+    font-size: 12px;
   }
   .separator {
     height: 1px;

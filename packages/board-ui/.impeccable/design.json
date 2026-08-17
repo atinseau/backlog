@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-17T00:00:00Z",
+  "title": "Design System: Backlog Board",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Bleu Signal",
+        "canonical": "#1570ef",
+        "tonalRamp": ["#194185", "#1849a9", "#175cd3", "#1570ef", "#2e90fa", "#53b1fd", "#84caff", "#d1e9ff"]
+      },
+      "apply": {
+        "role": "secondary",
+        "displayName": "Violet Applique",
+        "canonical": "#7c3aed",
+        "tonalRamp": ["#2e1065", "#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#ddd6fe"]
+      },
+      "success": {
+        "role": "status",
+        "displayName": "Vert Marche",
+        "canonical": "#027a48",
+        "tonalRamp": ["#054f31", "#05603a", "#027a48", "#039855", "#12b76a", "#32d583", "#6ce9a6", "#d1fadf"]
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Ambre Attente",
+        "canonical": "#b54708",
+        "tonalRamp": ["#7a2e0e", "#93370d", "#b54708", "#dc6803", "#f79009", "#fdb022", "#fec84b", "#fef0c7"]
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Rouge Échec",
+        "canonical": "#b42318",
+        "tonalRamp": ["#7a271a", "#912018", "#b42318", "#d92d20", "#f04438", "#f97066", "#fda29b", "#fee4e2"]
+      },
+      "priority-p0": {
+        "role": "tertiary",
+        "displayName": "Priorité P0 — Rouge",
+        "canonical": "#d92d20",
+        "tonalRamp": ["#7a271a", "#912018", "#b42318", "#d92d20", "#f04438", "#f97066", "#fda29b", "#fee4e2"]
+      },
+      "priority-p1": {
+        "role": "tertiary",
+        "displayName": "Priorité P1 — Orange",
+        "canonical": "#c2410c",
+        "tonalRamp": ["#431407", "#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fdba74", "#ffedd5"]
+      },
+      "priority-p2": {
+        "role": "tertiary",
+        "displayName": "Priorité P2 — Bleu",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#194185", "#1849a9", "#175cd3", "#2563eb", "#2e90fa", "#53b1fd", "#84caff", "#d1e9ff"]
+      },
+      "priority-p3": {
+        "role": "tertiary",
+        "displayName": "Priorité P3 — Gris",
+        "canonical": "#667085",
+        "tonalRamp": ["#101828", "#1d2939", "#344054", "#475467", "#667085", "#98a2b3", "#d0d5dd", "#f2f4f7"]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Encre",
+        "canonical": "#1d2939",
+        "tonalRamp": ["#101828", "#1d2939", "#344054", "#475467", "#667085", "#98a2b3", "#d0d5dd", "#f9fafb"]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Toile",
+        "canonical": "#f7f8fa",
+        "tonalRamp": ["#050507", "#18181b", "#1f1f23", "#27272a", "#e4e7ec", "#f2f4f7", "#f7f8fa", "#ffffff"]
+      },
+      "console-bg": {
+        "role": "neutral",
+        "displayName": "Noir Console",
+        "canonical": "#0c111d",
+        "tonalRamp": ["#050507", "#0c111d", "#18181b", "#1f1f23", "#27272a", "#3f3f46", "#52525b", "#71717a"]
+      }
+    },
+    "darkTheme": {
+      "canvas": "#050507",
+      "chrome": "#18181b",
+      "surface": "#1f1f23",
+      "elevated": "#27272a",
+      "input": "#050507",
+      "hover": "#27272a",
+      "active": "#2e2e34",
+      "text-strong": "#ffffff",
+      "text-primary": "#f4f4f5",
+      "text-body": "#d4d4d8",
+      "text-secondary": "#a1a1aa",
+      "text-muted": "#97979f",
+      "text-subtle": "#78787f",
+      "text-inverse": "#09090b",
+      "text-on-fill": "#ffffff",
+      "text-on-solid": "#101828",
+      "border-strong": "#3f3f46",
+      "border-default": "#2e2e35",
+      "border-subtle": "#27272a",
+      "border-field": "#78787f",
+      "accent": "#3b82f6",
+      "accent-hover": "#60a5fa",
+      "accent-bg": "#1e293b",
+      "accent-text": "#93c5fd",
+      "accent-on": "#09090b",
+      "success": "#4ade80",
+      "success-bg": "#052e16",
+      "success-on": "#09090b",
+      "warning": "#fbbf24",
+      "warning-bg": "#422006",
+      "warning-on": "#09090b",
+      "danger": "#f87171",
+      "danger-bg": "#450a0a",
+      "danger-on": "#09090b",
+      "apply": "#a78bfa",
+      "apply-hover": "#c4b5fd",
+      "apply-text": "#c4b5fd",
+      "apply-on": "#09090b",
+      "priority-p0": "#d92d20",
+      "priority-p1": "#c2410c",
+      "priority-p2": "#2563eb",
+      "priority-p3": "#667085",
+      "console-bg": "#050507",
+      "console-text": "#d4d4d8",
+      "console-border": "#27272a",
+      "console-line": "#27272a"
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Titre d'une vue plein écran ou d'un dialogue. Un seul par écran." },
+      "headline": { "displayName": "Headline", "purpose": "Titre de section à l'intérieur d'une vue." },
+      "title": { "displayName": "Title", "purpose": "Titre de carte, en-tête de bloc." },
+      "body": { "displayName": "Body", "purpose": "Prose, libellés de formulaire, navigation, texte des boutons." },
+      "dense": { "displayName": "Dense", "purpose": "La voix de travail du produit : lignes de liste, sous-tâches, tableaux, métadonnées." },
+      "label": { "displayName": "Label", "purpose": "Méta secondaire, compteurs, badges." },
+      "micro": { "displayName": "Micro", "purpose": "Capitales espacées : en-tête de colonne, catégorie, pastille de priorité." },
+      "mono": { "displayName": "Mono", "purpose": "Identifiants machine uniquement : chemins, SHA, ids de run, diffs, sortie d'agent." }
+    },
+    "shadows": [
+      { "name": "flat", "value": "none", "purpose": "Chrome et rangs solidaires d'un panneau : navigation, onglets, lignes de liste, barre d'outils. Séparation par filet 1 px." },
+      { "name": "rest", "value": "0 1px 2px rgba(16, 24, 40, 0.10)", "purpose": "Cartes et panneaux flottants au repos. Sombre : 0 1px 2px rgba(0, 0, 0, 0.5)." },
+      { "name": "lifted", "value": "0 2px 6px rgba(16, 24, 40, 0.12)", "purpose": "Survol d'une carte cliquable ou glissement, toujours avec translateY(-1px). Sombre : 0 2px 8px rgba(0, 0, 0, 0.6)." },
+      { "name": "floating", "value": "0 12px 32px rgba(16, 24, 40, 0.18)", "purpose": "Menus contextuels, popovers, toasts, panneau de diff en surimpression. Sombre : 0 12px 32px rgba(0, 0, 0, 0.7)." },
+      { "name": "modal", "value": "0 20px 24px rgba(16, 24, 40, 0.18)", "purpose": "Dialogues, toujours avec le backdrop. Sombre : 0 20px 50px rgba(0, 0, 0, 0.7). Exposé comme --shadow-modal." }
+    ],
+    "motion": [
+      { "name": "state", "value": "120ms ease", "purpose": "Transition par défaut de tout changement d'état : fond, couleur, bordure, ombre, transform." },
+      { "name": "reveal", "value": "100ms ease", "purpose": "Apparition d'un contrôle latent au survol du conteneur (menu ⋮ d'une carte)." },
+      { "name": "progress", "value": "400ms ease-out", "purpose": "Avancement d'une barre de progression : assez lent pour être perçu comme une mesure, pas comme une animation." },
+      { "name": "running-pulse", "value": "1.2s ease-out infinite", "purpose": "Halo pulsant du point vert pendant qu'un run est en vol. Le seul mouvement perpétuel autorisé. Sous prefers-reduced-motion: reduce, il devient un anneau statique de 3 px (--success à 40 %) — converti, jamais supprimé : c'est le signal « un agent travaille en ce moment »." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce)", "purpose": "Bloc global dans src/app.css. Supprime le décoratif (lift de 1 px au survol, glissement d'entrée du toast), convertit le porteur (halo → anneau statique, spinner ralenti à 2.4s). Le `* { animation: 0.01ms !important }` global est interdit." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "900px" },
+      { "name": "lg", "value": "1280px" }
+    ],
+    "pointerTargets": [
+      { "name": "tap-size", "value": "24px", "coarse": "28px", "purpose": "min-width / min-height d'une cible de pointeur. 24 px est le plancher WCAG 2.5.8, valable partout ; 28 px est le confort sous (pointer: coarse). Token CSS --tap-size dans src/app.css, surchargé par @media (pointer: coarse)." },
+      { "name": "tap-gap", "value": "2px", "coarse": "4px", "purpose": "Gouttière minimale entre deux cibles adjacentes. Deux cibles conformes collées restent un raté. Token CSS --tap-gap." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Bouton par défaut",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "La variante majoritaire. Un bouton n'est pas bleu par défaut.",
+      "html": "<button class=\"ds-btn\">Annuler</button>",
+      "css": ".ds-btn { background: var(--bg-hover, #f2f4f7); color: var(--text-body, #344054); border: 1px solid var(--border-strong, #d0d5dd); border-radius: 4px; padding: 6px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; } .ds-btn:hover { background: var(--bg-active, #eef2f6); color: var(--text-primary, #1d2939); } .ds-btn:focus-visible { outline: 2px solid var(--accent, #1570ef); outline-offset: 2px; } .ds-btn:active { transform: translateY(0.5px); }"
+    },
+    {
+      "name": "Bouton primaire",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Un seul par dialogue ou par barre d'action.",
+      "html": "<button class=\"ds-btn-primary\">Créer la tâche</button>",
+      "css": ".ds-btn-primary { background: var(--accent, #1570ef); color: var(--accent-on, #ffffff); border: 1px solid var(--accent, #1570ef); border-radius: 4px; padding: 6px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; cursor: pointer; transition: background 120ms ease, border-color 120ms ease; } .ds-btn-primary:hover { background: var(--accent-hover, #155eef); border-color: var(--accent-hover, #155eef); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent, #1570ef); outline-offset: 2px; } .ds-btn-primary:disabled { background: var(--text-muted, #636b7d); border-color: var(--text-muted, #636b7d); color: var(--text-inverse, #ffffff); cursor: not-allowed; }"
+    },
+    {
+      "name": "Bouton Appliquer (signature)",
+      "kind": "button",
+      "refersTo": "button-apply",
+      "description": "Le seul geste violet du produit : accepter le travail d'un agent. Accompagné de son opposé, Rejeter.",
+      "html": "<div style=\"display:flex; gap:4px;\"><button class=\"ds-btn-apply\"><span aria-hidden=\"true\">✓</span><span>Appliquer</span></button><button class=\"ds-btn-discard\"><span aria-hidden=\"true\">×</span><span>Rejeter</span></button></div>",
+      "css": ".ds-btn-apply, .ds-btn-discard { display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 1px 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 120ms ease, color 120ms ease, border-color 120ms ease; } .ds-btn-apply { background: var(--apply, #7c3aed); border: 1px solid var(--apply, #7c3aed); color: var(--apply-on, #ffffff); } .ds-btn-apply:hover { background: var(--apply-hover, #6d28d9); border-color: var(--apply-hover, #6d28d9); } .ds-btn-discard { background: var(--danger-bg, #fee4e2); border: 1px solid var(--danger, #b42318); color: var(--danger, #b42318); } .ds-btn-discard:hover { background: var(--danger, #b42318); color: var(--danger-on, #ffffff); } .ds-btn-apply:focus-visible, .ds-btn-discard:focus-visible { outline: 2px solid var(--accent, #1570ef); outline-offset: 2px; }"
+    },
+    {
+      "name": "Champ de saisie",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Filet fin au repos, halo d'accent au focus. Jamais de fond sombre : la saisie est humaine.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Titre de la tâche\" />",
+      "css": ".ds-input { background: var(--bg-input, #ffffff); color: var(--text-primary, #1d2939); border: 1px solid var(--border-field, #7f8899); border-radius: 4px; padding: 6px 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; width: 260px; transition: border-color 120ms ease, box-shadow 120ms ease; } .ds-input::placeholder { color: var(--text-muted, #636b7d); } .ds-input:focus { outline: none; border-color: var(--accent, #1570ef); box-shadow: 0 0 0 3px var(--accent-bg, #eff8ff); }"
+    },
+    {
+      "name": "Carte de tâche (signature)",
+      "kind": "card",
+      "refersTo": "card-task",
+      "description": "Liseré de priorité, point d'activité pulsant, sous-tâches, progression et badges — six informations sans devenir un tableau.",
+      "html": "<article class=\"ds-card\"><header class=\"ds-card-head\"><span class=\"ds-pulse\" aria-hidden=\"true\"></span><h3 class=\"ds-card-title\">Migrer le résolveur de claims</h3><button class=\"ds-kebab\" aria-label=\"Menu\">⋮</button></header><div class=\"ds-card-meta\"><span class=\"ds-pri\">P0</span><span class=\"ds-chip\">backlog</span></div><ul class=\"ds-tasks\"><li><div class=\"ds-task-line\"><span>Extraire le store de claims</span><span class=\"ds-eta\">~4 min</span></div><span class=\"ds-task-meta\">backlog · en cours (claude-opus)</span></li></ul><div class=\"ds-card-foot\"><div class=\"ds-bar\"><div class=\"ds-bar-fill\"></div></div><div class=\"ds-stats\"><span>62 %</span><span class=\"ds-dot\">·</span><span>4 min restantes</span><span class=\"ds-dot\">·</span><span class=\"ds-badge ds-badge-running\">▶ 1</span></div></div></article>",
+      "css": ".ds-card { background: var(--bg-surface, #ffffff); color: var(--text-primary, #1d2939); border-radius: 6px; border-left: 3px solid var(--priority-p0, #d92d20); padding: 10px 12px; width: 260px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.10); cursor: grab; transition: box-shadow 120ms ease, transform 120ms ease; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; } .ds-card:hover { box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12); transform: translateY(-1px); } .ds-card:focus-visible { outline: 2px solid var(--accent, #1570ef); outline-offset: 2px; } .ds-card-head { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; } .ds-pulse { flex: 0 0 auto; width: 10px; height: 10px; margin-top: 4px; border-radius: 999px; background: var(--success, #027a48); animation: ds-running-pulse 1.2s ease-out infinite; } @keyframes ds-running-pulse { 0% { box-shadow: 0 0 0 0 rgba(2, 122, 72, 0.45); transform: scale(0.9); } 70% { box-shadow: 0 0 0 7px rgba(2, 122, 72, 0); transform: scale(1); } 100% { box-shadow: 0 0 0 0 rgba(2, 122, 72, 0); transform: scale(0.9); } } .ds-card-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.3; } .ds-kebab { flex-shrink: 0; width: var(--tap-size, 24px); height: var(--tap-size, 24px); padding: 0; border: 0; background: transparent; color: var(--text-subtle, #7f8899); font-size: 18px; line-height: 1; border-radius: 4px; cursor: pointer; opacity: 0; transition: opacity 100ms ease, background 100ms ease, color 100ms ease; } .ds-card:hover .ds-kebab, .ds-kebab:focus-visible { opacity: 1; } @media (hover: none), (pointer: coarse) { .ds-kebab { opacity: 1; } } .ds-kebab:hover { background: var(--bg-hover, #f2f4f7); color: var(--text-primary, #1d2939); } .ds-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 6px; } .ds-pri { font-size: 9px; font-weight: 700; letter-spacing: 0.04em; padding: 1px 5px; border-radius: 3px; color: var(--text-on-fill, #ffffff); background: var(--priority-p0, #d92d20); } .ds-chip { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-elevated, #ffffff); color: var(--text-secondary, #475467); } .ds-tasks { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; } .ds-tasks li { padding: 4px 0; border-top: 1px solid var(--border-subtle, #eef0f3); } .ds-task-line { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .ds-eta { font-size: 10px; color: var(--text-muted, #636b7d); white-space: nowrap; } .ds-task-meta { display: block; font-size: 11px; color: var(--text-muted, #636b7d); } .ds-card-foot { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; } .ds-bar { height: 6px; border-radius: 3px; background: var(--border-default, #e4e7ec); overflow: hidden; } .ds-bar-fill { height: 100%; width: 62%; background: linear-gradient(90deg, var(--priority-p2, #2563eb), var(--accent, #1570ef)); transition: width 400ms ease-out; } .ds-stats { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted, #636b7d); } .ds-dot { opacity: 0.5; } .ds-badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; } .ds-badge-running { background: var(--success-bg, #d1fadf); color: var(--success, #027a48); }"
+    },
+    {
+      "name": "Élément de navigateur",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Rang du panneau gauche : glyphe dans une gouttière fixe, libellé tronqué, compteur en gélule. L'état actif est le seul endroit coloré.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Navigator\"><button class=\"ds-nav-item ds-nav-item--active\"><span class=\"ds-nav-icon\">▦</span><span class=\"ds-nav-label\">Board</span></button><button class=\"ds-nav-item\"><span class=\"ds-nav-icon\">⎇</span><span class=\"ds-nav-label\">Git</span><span class=\"ds-nav-badge\">7</span></button><button class=\"ds-nav-item\"><span class=\"ds-nav-icon\">⌖</span><span class=\"ds-nav-label\">Claims</span></button></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 1px; padding: 6px; width: 200px; background: var(--bg-muted, #f9fafb); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; } .ds-nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: none; border-radius: 4px; background: transparent; color: var(--text-body, #344054); font-size: 13px; text-align: left; cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-nav-item:hover { background: var(--bg-active, #eef2f6); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent, #1570ef); outline-offset: -2px; } .ds-nav-item--active { background: var(--accent-bg, #eff8ff); color: var(--accent-text, #175cd3); font-weight: 500; } .ds-nav-icon { width: 18px; text-align: center; color: var(--text-muted, #636b7d); } .ds-nav-item--active .ds-nav-icon { color: var(--accent, #1570ef); } .ds-nav-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-nav-badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--warning-bg, #fef0c7); color: var(--warning, #b54708); border: 1px solid rgba(181, 71, 8, 0.34); font-size: 11px; font-weight: 700; line-height: 1; }"
+    },
+    {
+      "name": "Badges de statut",
+      "kind": "chip",
+      "refersTo": "badge-running",
+      "description": "Paire fond pâle / texte saturé issue d'un même token. Jamais de fond saturé.",
+      "html": "<div style=\"display:flex; gap:6px; align-items:center;\"><span class=\"ds-badge ds-badge-running\">▶ 2</span><span class=\"ds-badge ds-badge-review\">✓ 1</span><span class=\"ds-badge ds-badge-blocked\">⚠ 3</span><span class=\"ds-chip-neutral\">worktree</span></div>",
+      "css": ".ds-badge { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px; } .ds-badge-running { background: var(--success-bg, #d1fadf); color: var(--success, #027a48); } .ds-badge-review { background: var(--accent-bg, #eff8ff); color: var(--accent-text, #175cd3); } .ds-badge-blocked { background: var(--warning-bg, #fef0c7); color: var(--warning, #b54708); } .ds-chip-neutral { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg-elevated, #ffffff); color: var(--text-secondary, #475467); border: 1px solid var(--border-subtle, #eef0f3); }"
+    },
+    {
+      "name": "En-tête de colonne",
+      "kind": "custom",
+      "refersTo": "chip",
+      "description": "Le marqueur typographique du système : capitales à 13 px espacées de 0.04em, compteur en gélule.",
+      "html": "<header class=\"ds-col-head\"><div class=\"ds-col-title\"><h2>En cours</h2><span class=\"ds-count\">4</span></div><button class=\"ds-col-action\" aria-label=\"Tout archiver\">⌫</button></header>",
+      "css": ".ds-col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; width: 260px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; } .ds-col-title { display: flex; align-items: center; gap: 8px; min-width: 0; } .ds-col-head h2 { margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary, #475467); } .ds-count { background: var(--border-strong, #d0d5dd); color: var(--text-body, #344054); font-size: 11px; padding: 1px 7px; border-radius: 999px; } .ds-col-action { width: 24px; height: 24px; border: none; border-radius: 4px; background: transparent; color: var(--text-subtle, #7f8899); cursor: pointer; transition: background 120ms ease, color 120ms ease; } .ds-col-action:hover { background: var(--bg-hover, #f2f4f7); color: var(--text-primary, #1d2939); }"
+    },
+    {
+      "name": "Console d'événements (signature)",
+      "kind": "custom",
+      "refersTo": "console-surface",
+      "description": "La seule surface sombre dans les deux thèmes. Monospace 12 px, lignes séparées par un filet, vert de marche sur la ligne active.",
+      "html": "<section class=\"ds-console\" aria-label=\"Console\"><div class=\"ds-console-tabs\"><button class=\"ds-console-tab\">Activité</button></div><div class=\"ds-console-body\"><div class=\"ds-console-line\"><span class=\"ds-console-time\">14:02:11</span><span class=\"ds-console-tool\">Read</span><span class=\"ds-console-arg\">packages/core/src/scheduler.ts</span></div><div class=\"ds-console-line\"><span class=\"ds-console-time\">14:02:14</span><span class=\"ds-console-tool\">Edit</span><span class=\"ds-console-arg\">packages/claims/src/store.ts</span></div><div class=\"ds-console-line ds-console-line--active\"><span class=\"ds-console-time\">14:02:19</span><span class=\"ds-console-tool\">Bash</span><span class=\"ds-console-arg\">bun test ./packages</span></div></div></section>",
+      "css": ".ds-console { width: 420px; border-radius: 6px; overflow: hidden; background: var(--console-bg, #0c111d); } .ds-console-tabs { display: flex; padding: 0 8px; background: rgba(255, 255, 255, 0.04); border-bottom: 1px solid var(--console-border, #344054); } .ds-console-tab { background: transparent; border: none; border-bottom: 2px solid var(--accent, #1570ef); margin-bottom: -1px; padding: 6px 14px; color: var(--accent, #1570ef); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 12px; font-weight: 500; cursor: default; } .ds-console-body { padding: 4px 0; } .ds-console-line { display: flex; gap: 10px; align-items: baseline; padding: 4px 10px; border-bottom: 1px solid var(--console-line, #1d2939); color: var(--console-text, #d0d5dd); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; } .ds-console-line:last-child { border-bottom: none; } .ds-console-time { color: #667085; flex-shrink: 0; } .ds-console-tool { color: #84caff; flex-shrink: 0; } .ds-console-arg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-console-line--active .ds-console-tool { color: #6ce9a6; } .ds-console-line--active { background: rgba(108, 233, 166, 0.06); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "L'établi d'IDE",
+    "overview": "Le board n'est pas une application web posée sur un produit local : c'est un établi. La filiation est explicite dans le code lui-même — navigateur à gauche, canvas au centre, inspecteur à droite, zone de console en bas, séparateurs déplaçables entre les quatre. Xcode, Linear et le mode sombre de GitHub sont la famille ; le navigateur web n'est que le châssis. Chaque décision visuelle se juge à cette aune : est-ce qu'un IDE ferait ça ?\n\nUn établi se reconnaît à deux choses. D'abord la densité : l'information est au premier plan, la chrome se retire. Le corps de texte réel est à 12–13 px, les libellés à 10–11 px en capitales espacées, les rayons à 4 px, les respirations à 8 px. Ce n'est pas de la petitesse : c'est le refus de faire payer de la place à ce qui n'est pas de la donnée. Ensuite la partition spatiale : le canvas central est la pièce où l'on travaille, les panneaux qui l'entourent sont l'outillage, et le sombre marque toujours ce qui est « la machine qui parle » — la console reste noire dans les deux thèmes, parce que la sortie d'un agent n'est pas un document, c'est un flux.\n\nLe système est calme au repos et bavard uniquement quand un état change. La couleur ne décore rien : chaque teinte non neutre porte un statut, et une carte au repos est grise. La personnalité passe par la précision — un liseré de 3 px qui code la priorité, un point vert qui pulse pendant qu'un agent tourne, un compteur qui s'aligne en monospace — jamais par l'ornement.",
+    "keyCharacteristics": [
+      "Quatre zones redimensionnables autour d'un canvas, à la manière d'un IDE.",
+      "Densité assumée : 12 px de corps, 4 px de rayon, rythme de 8 px.",
+      "Deux thèmes à parité stricte, pilotés uniquement par tokens.",
+      "La console reste sombre dans les deux thèmes : le sombre signifie « machine ».",
+      "Couleur strictement porteuse de statut ; le gris est l'état normal.",
+      "Monospace réservé aux identifiants machine.",
+      "Composants sûrs et discrets : bordure fine, transition de 120 ms, aucun éclat au repos."
+    ],
+    "rules": [
+      { "name": "La règle de l'accent unique", "body": "Un seul bleu interactif dans tout le produit. Une nouvelle teinte n'entre dans le système que si elle nomme un état qu'aucun token existant ne nomme déjà.", "section": "colors" },
+      { "name": "La règle du gris au repos", "body": "Un objet qui ne se passe rien est gris. Si une couleur apparaît sur un écran calme, c'est un bug de design.", "section": "colors" },
+      { "name": "La règle du sombre-machine", "body": "Le fond sombre signifie « sortie de machine ». Il ne s'applique jamais à une zone de saisie humaine, quel que soit le thème.", "section": "colors" },
+      { "name": "La règle du zéro-hex", "body": "Aucune valeur de couleur littérale dans un composant. Une couleur non tokenisée n'existe pas.", "section": "colors" },
+      { "name": "La règle de l'encre appariée", "body": "Tout remplissage saturé a un token d'encre apparié — --accent-on, --success-on, --warning-on, --danger-on, --apply-on. En clair l'encre est blanche, parce que les remplissages y sont sombres ; en sombre elle devient quasi noire, parce qu'ils y sont clairs. Les cinq ne sont que des alias de --text-inverse : ils basculent tout seuls et n'ajoutent aucune valeur au système. Deux exceptions, nommées et fermées : --text-on-solid (#101828, identique dans les deux thèmes) pour la famille --*-solid, vive des deux côtés ; --text-on-fill (#ffffff) pour les remplissages qui restent sombres dans les deux thèmes — rampe de priorité, --console-bg, --console-line, --text-primary employé en fond. Poser une encre claire sur un fond de couleur sans passer par un de ces trois tokens est une régression. Le test tient en une question : ce fond s'éclaircit-il en thème sombre ? Si oui, il lui faut son token -on ; si non, --text-on-fill.", "section": "colors" },
+      { "name": "La règle de l'encre sur l'étage", "body": "Une ombre ne dispense jamais de l'appariement remplissage/encre : un objet qui monte d'un étage garde le token -on de son fond. Une ombre plus haute ne rend pas un texte plus lisible, et un bouton primaire flottant n'a pas d'autre encre qu'un bouton primaire posé.", "section": "elevation" },
+      { "name": "La règle des 24 px", "body": "Toute cible de pointeur fait au moins 24 × 24 px en boîte de bordure. C'est le plancher WCAG 2.5.8, valable dans les deux thèmes et à toutes les largeurs : un bouton de 22 px n'est pas « acceptable en desktop », il est hors norme partout. Le confort de 28 px s'obtient sous @media (pointer: coarse), jamais par un changement de padding qui déplacerait la mise en page en pointeur fin. Les deux valeurs sont tokenisées : --tap-size (24 px, 28 px en pointeur grossier) et --tap-gap (2 px, 4 px). Deux cibles conformes collées l'une à l'autre restent un raté : la taille et l'écart vont ensemble. Le discriminant est la capacité du pointeur, pas la largeur — les requêtes (pointer: coarse) et (hover: none) ne comptent pas dans les trois seuils.", "section": "layout" },
+      { "name": "La règle du survol facultatif", "body": "Toute affordance masquée en opacity: 0 jusqu'au survol doit être révélée sous @media (hover: none), (pointer: coarse). Au doigt, le geste qui la révèle n'existe pas : l'action n'est alors pas discrète, elle est absente. Un doublon par appui long ne la remplace pas — il n'est pas découvrable.", "section": "layout" },
+      { "name": "La règle du mouvement porteur", "body": "Le système distingue le mouvement qui décore du mouvement qui informe. Décoratif : le déplacement de 1 px au survol, le glissement d'entrée d'un toast. Porteur : le halo qui pulse pendant qu'un agent tourne, le spinner d'une requête en vol, l'avancement d'une barre. Sous prefers-reduced-motion: reduce, le décoratif disparaît et le porteur est converti, pas supprimé — le halo devient un anneau statique qui se distingue toujours d'un point au repos, le spinner ralentit sans s'arrêter. Le `* { animation: 0.01ms !important }` global est interdit dans ce dépôt : il effacerait le seul signal disant « un agent travaille en ce moment ». Un chargement sans aucun signal est pire que du mouvement.", "section": "components" },
+      { "name": "La règle des trois durées", "body": "--state 120 ms ease pour tout changement d'état, --reveal 100 ms ease pour l'apparition d'un contrôle latent, progress 400 ms ease-out pour une barre d'avancement. Ce sont des durées canoniques documentées, pas des variables CSS : elles ne sont pas tokenisées tant que les onze transitions du dépôt ne sont pas alignées, parce qu'un token que personne ne consomme ment sur l'état réel du code. Écrire une quatrième durée est une dérive ; les tokeniser est un chantier à part.", "section": "components" },
+      { "name": "La règle du monospace-identifiant", "body": "Le monospace est réservé à ce que la machine a produit et que l'humain doit pouvoir comparer caractère à caractère : chemins, globs de scope, SHA, ids de run et de claim, branches, diffs, sortie d'agent. Une durée, un pourcentage ou un compteur reste en sans-serif.", "section": "typography" },
+      { "name": "La règle du plancher à 10 px", "body": "10 px est le plus petit corps du système, et seulement en capitales à 600. Rien en dessous. Toute information qui doit rester lisible depuis la scène « second écran » vit à 12 px minimum.", "section": "typography" },
+      { "name": "La règle des deux voix", "body": "Sur une même ligne, sans-serif et monospace se partagent le rôle : la voix humaine nomme, la voix machine identifie. Ne pas mélanger les deux à l'intérieur d'un même fragment.", "section": "typography" },
+      { "name": "La règle du canvas souverain", "body": "Quand la place manque, ce sont les panneaux qui cèdent, jamais le canvas central.", "section": "layout" },
+      { "name": "La règle des trois seuils", "body": "Le système vise trois points de rupture — 640 px, 900 px, 1280 px — et rien d'autre. L'implémentation actuelle en compte huit, hérités ; tout travail responsive futur converge vers les trois seuils au lieu d'en ajouter un neuvième.", "section": "layout" },
+      { "name": "La règle des cinq marches", "body": "Cinq niveaux d'élévation existent : flat, rest, lifted, floating, modal. Une sixième valeur d'ombre écrite à la main est une régression, pas une nuance.", "section": "elevation" },
+      { "name": "La règle du fond d'abord", "body": "Avant d'ajouter une ombre, vérifier qu'un changement de fond ou un filet ne dit pas déjà la même chose. L'ombre est le troisième recours.", "section": "elevation" },
+      { "name": "La règle des quatre rayons", "body": "3, 4, 6, 8 (plus la gélule). Les valeurs 5, 7, 10, 12 et 16 présentes dans le code sont des dérives à résorber, pas des paliers.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do ne peindre que ce qui porte un statut. Le gris est l'état normal d'un objet au repos.",
+      "Do doubler toute information portée par la couleur d'un texte ou d'un glyphe : la pastille P0 double le liseré, le badge « ▶ 2 » double le point vert.",
+      "Do consommer les tokens de src/app.css — y compris les nouveaux --apply, --apply-hover et --priority-p0…p3 — et vérifier chaque écran dans les deux thèmes avant de le considérer fini.",
+      "Do apparier tout remplissage saturé avec son token -on (--accent-on, --success-on, --warning-on, --danger-on, --apply-on) ; ne jamais poser --text-on-fill sur un fond qui s'éclaircit en thème sombre.",
+      "Do rester dans les quatre rayons (3 / 4 / 6 / 8) et les cinq marches d'élévation.",
+      "Do garder le monospace pour les identifiants machine, et le sans-serif pour tout ce qu'un humain a écrit ou compté.",
+      "Do faire céder les panneaux avant le canvas quand la largeur manque.",
+      "Do router chaque chaîne visible par t(), dans en.json et fr.json, dès la première écriture."
+    ],
+    "donts": [
+      "Don't enrichir visuellement un composant qui fait déjà son travail. Un composant trop riche est un défaut, pas une amélioration : chaque élément ajouté doit remplacer quelque chose ou porter une information que rien d'autre ne porte. C'est le refus explicite de ce système.",
+      "Don't empiler les indicateurs sur un même état — un point pulsant, un badge, une barre et un libellé qui disent tous « en cours » se neutralisent. Un état, un signal principal, un doublon accessible au plus.",
+      "Don't écrire une valeur de couleur littérale dans un composant.",
+      "Don't utiliser --text-subtle pour du texte lisible, ni comme fond. C'est le plancher 3:1 des glyphes désactivés, des séparateurs décoratifs et des contours de composants — rien d'autre.",
+      "Don't neutraliser le mouvement en bloc sous prefers-reduced-motion : le halo d'un run en vol est une information, il se convertit en état statique distinguable, il ne s'efface pas.",
+      "Don't introduire une police, une icône bitmap, une image ou toute autre ressource distante : le board est embarqué dans un binaire et ne fait aucune requête sortante.",
+      "Don't ajouter un sixième niveau d'ombre ou un cinquième rayon.",
+      "Don't descendre sous 10 px, ni utiliser 10 px hors capitales espacées.",
+      "Don't ajouter un point de rupture hors des trois seuils visés (640 / 900 / 1280 px).",
+      "Don't appliquer le fond sombre de la console à une zone de saisie humaine, ni éclaircir la console en thème clair.",
+      "Don't introduire une mise en page promotionnelle — héros, colonnes centrées, illustration d'ambiance — à l'intérieur de l'application."
+    ]
+  }
+}

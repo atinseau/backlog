@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "./i18n.svelte.js";
+  import { focusTrap } from "./DialogShell.svelte";
   import { formatAgentLabel } from "./agent-label.js";
   import {
     applySplitProposal,
@@ -147,7 +148,7 @@
     event.preventDefault();
     error = null;
     if (selectedRepos.length === 0) {
-      error = "Select at least one workspace";
+      error = t("split_dialog.error.no_repository");
       return;
     }
     submitting = true;
@@ -208,13 +209,13 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="Split task" onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+  <div use:focusTrap class="dialog" role="dialog" aria-modal="true" aria-label={t("split_dialog.title", { taskId: workItem.id })} onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <div>
         <h2>{t("split_dialog.title", { taskId: workItem.id })}</h2>
         <p class="meta">{workItem.title}</p>
       </div>
-      <button class="close" onclick={onClose} aria-label="Close">×</button>
+      <button class="close" onclick={onClose} aria-label={t("common.close")}>×</button>
     </header>
 
     <nav class="tabs">
@@ -222,17 +223,17 @@
         class:active={view === "manual"}
         onclick={() => (view = "manual")}
         type="button"
-      >Manual</button>
+      >{t("split_dialog.tab.manual")}</button>
       <button
         class:active={view === "ai-loading" || view === "ai-proposal"}
         onclick={requestSuggestion}
         disabled={view === "ai-loading"}
         type="button"
-      >🤖 Suggest with AI</button>
+      >🤖 {t("split_dialog.tab.ai_suggest")}</button>
     </nav>
 
     {#if view === "ai-loading"}
-      <div class="placeholder">Asking Claude…</div>
+      <div class="placeholder">{t("split_dialog.ai.asking")}</div>
     {/if}
 
     {#if view === "ai-proposal" && aiTasks.length > 0}
@@ -269,12 +270,18 @@
                 </div>
                 <div class="wave-tasks">
                   {#each tasks as p (p.index)}
-                    <div class="plan-task" class:risk-low={p.task.risk === "low"} class:risk-medium={p.task.risk === "medium"} class:risk-high={p.task.risk === "high"}>
+                    <div class="plan-task">
                       <div class="plan-task-head">
                         <span class="plan-idx">#{p.index + 1}</span>
                         <span class="plan-title">{p.task.title}</span>
                       </div>
                       <div class="plan-task-meta">
+                        <!-- Risk used to be a 4px coloured border-left.
+                             DESIGN.md reserves the coloured side rail for
+                             the card's priority, and colour alone never
+                             carries information here: it is a labelled
+                             badge now, readable and translatable. -->
+                        <span class="plan-risk risk-{p.task.risk}">{t(`common.risk.${p.task.risk}`)}</span>
                         <span class="plan-repo">{p.task.repo}</span>
                         {#if p.agent}
                           <span class="plan-agent">→ {formatAgentLabel(p.agent).withContext}</span>
@@ -298,28 +305,28 @@
                 <input
                   type="text"
                   bind:value={aiTasks[index].title}
-                  placeholder="SubTask title"
+                  placeholder={t("split_dialog.placeholder.subtask_title")}
                 />
-                <select bind:value={aiTasks[index].risk} aria-label="risk">
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
+                <select bind:value={aiTasks[index].risk} aria-label={t("split_dialog.field.risk")}>
+                  <option value="low">{t("common.risk.low")}</option>
+                  <option value="medium">{t("common.risk.medium")}</option>
+                  <option value="high">{t("common.risk.high")}</option>
                 </select>
-                <select bind:value={aiTasks[index].repo} aria-label="workspace">
+                <select bind:value={aiTasks[index].repo} aria-label={t("split_dialog.field.repository")}>
                   {#each availableRepos as repo (repo)}
                     <option value={repo}>{repo}</option>
                   {/each}
                 </select>
-                <button class="remove" onclick={() => removeTask(index)} title="Remove" type="button">×</button>
+                <button class="remove" onclick={() => removeTask(index)} title={t("common.remove")} aria-label={t("common.remove")} type="button">×</button>
               </div>
               <textarea
                 rows="2"
                 value={joinScopes(task.scopes)}
                 oninput={(e) => setTaskScopes(index, (e.target as HTMLTextAreaElement).value)}
-                placeholder="Scopes, one per line"
+                placeholder={t("split_dialog.placeholder.scopes_lines")}
               ></textarea>
               {#if task.depends_on_indices.length > 0}
-                <p class="deps">depends on: {task.depends_on_indices.map((i) => `#${i + 1}`).join(", ")}</p>
+                <p class="deps">{t("split_dialog.depends_on", { list: task.depends_on_indices.map((i) => `#${i + 1}`).join(", ") })}</p>
               {/if}
             </li>
           {/each}
@@ -328,7 +335,7 @@
         {#if workItem.tasks.length > 0}
           <label class="force">
             <input type="checkbox" bind:checked={force} />
-            Append to existing {workItem.tasks.length} task(s) (force)
+            {t("split_dialog.force_append", { count: workItem.tasks.length })}
           </label>
         {/if}
 
@@ -337,10 +344,10 @@
         {/if}
 
         <footer>
-          <button type="button" onclick={onClose}>Cancel</button>
-          <button type="button" onclick={requestSuggestion} disabled={submitting}>↻ Re-ask</button>
+          <button type="button" onclick={onClose}>{t("split_dialog.button.cancel")}</button>
+          <button type="button" onclick={requestSuggestion} disabled={submitting}>↻ {t("split_dialog.button.reask")}</button>
           <button type="button" class="primary" onclick={handleApplyProposal} disabled={submitting || aiTasks.length === 0}>
-            {submitting ? "Creating…" : `Apply: create ${aiTasks.length} task${aiTasks.length === 1 ? "" : "s"}`}
+            {submitting ? t("split_dialog.button.creating") : t("split_dialog.button.apply_count", { count: aiTasks.length })}
           </button>
         </footer>
       </div>
@@ -349,9 +356,9 @@
     {#if view === "manual"}
       <form onsubmit={handleManualSubmit}>
         <fieldset>
-          <legend>Workspaces</legend>
+          <legend>{t("split_dialog.field.repos")}</legend>
           {#if availableRepos.length === 0}
-            <p class="hint">No workspaces detected on the board. Add workspace targets to this task or to the project config.</p>
+            <p class="hint">{t("split_dialog.repositories.empty")}</p>
           {:else}
             <ul class="repos">
               {#each availableRepos as repo (repo)}
@@ -366,7 +373,7 @@
                   </label>
                   {#if selectedRepos.includes(repo)}
                     <textarea
-                      placeholder="Scopes (one per line, globs OK)"
+                      placeholder={t("split_dialog.placeholder.scopes_globs")}
                       rows="2"
                       bind:value={scopesByRepo[repo]}
                     ></textarea>
@@ -379,17 +386,17 @@
 
         <div class="row">
           <fieldset class="inline">
-            <legend>Mode</legend>
-            <label><input type="radio" bind:group={mode} value="parallel" /> Parallel</label>
-            <label><input type="radio" bind:group={mode} value="serial" /> Serial (chain)</label>
+            <legend>{t("split_dialog.field.mode")}</legend>
+            <label><input type="radio" bind:group={mode} value="parallel" /> {t("split_dialog.mode.parallel")}</label>
+            <label><input type="radio" bind:group={mode} value="serial" /> {t("split_dialog.mode.serial")}</label>
           </fieldset>
 
           <label class="risk">
-            Risk
+            {t("split_dialog.field.risk")}
             <select bind:value={risk}>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
+              <option value="low">{t("common.risk.low")}</option>
+              <option value="medium">{t("common.risk.medium")}</option>
+              <option value="high">{t("common.risk.high")}</option>
             </select>
           </label>
         </div>
@@ -397,7 +404,7 @@
         {#if workItem.tasks.length > 0}
           <label class="force">
             <input type="checkbox" bind:checked={force} />
-            Append to existing {workItem.tasks.length} task(s) (force)
+            {t("split_dialog.force_append", { count: workItem.tasks.length })}
           </label>
         {/if}
 
@@ -406,9 +413,9 @@
         {/if}
 
         <footer>
-          <button type="button" onclick={onClose}>Cancel</button>
+          <button type="button" onclick={onClose}>{t("split_dialog.button.cancel")}</button>
           <button type="submit" class="primary" disabled={submitting}>
-            {submitting ? "Splitting…" : `Create ${selectedRepos.length} task${selectedRepos.length === 1 ? "" : "s"}`}
+            {submitting ? t("split_dialog.button.splitting") : t("split_dialog.button.create_count", { count: selectedRepos.length })}
           </button>
         </footer>
       </form>
@@ -420,7 +427,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -431,8 +438,9 @@
     border-radius: 8px;
     width: min(560px, 92vw);
     max-height: 92vh;
+    max-height: 92dvh;
     overflow-y: auto;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-modal);
   }
   header {
     display: flex;
@@ -450,9 +458,19 @@
   .close {
     background: none;
     border: none;
-    font-size: 22px;
+    font-size: 18px;
     cursor: pointer;
     color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .tabs {
@@ -468,6 +486,7 @@
     cursor: pointer;
     font-size: 13px;
     color: var(--text-muted);
+    min-height: var(--tap-size);
   }
   .tabs button.active {
     color: var(--accent);
@@ -480,7 +499,7 @@
   .placeholder {
     padding: 32px 16px;
     text-align: center;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 14px;
   }
 
@@ -500,7 +519,7 @@
     line-height: 1.4;
   }
   .model {
-    background: rgba(0, 0, 0, 0.06);
+    background: var(--bg-hover);
     padding: 0 4px;
     border-radius: 3px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -525,6 +544,7 @@
   }
   .task-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
   }
@@ -538,19 +558,22 @@
   }
   .task-head input[type="text"] {
     flex: 1;
+    min-width: 140px;
     font: inherit;
     padding: 4px 6px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 13px;
   }
   .task-head select {
     font: inherit;
     padding: 4px 6px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 12px;
   }
+  /* A bare × glyph on an otherwise chromeless button: --text-subtle is
+     the legitimate non-text 3:1 floor here, not an ink downgrade. */
   .remove {
     background: none;
     border: none;
@@ -558,16 +581,20 @@
     color: var(--text-subtle);
     font-size: 16px;
     padding: 0 4px;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   .remove:hover { color: var(--danger); }
   .tasks textarea {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     resize: vertical;
   }
+  textarea::placeholder,
+  input::placeholder { color: var(--text-muted); }
   .deps {
     margin: 0;
     font-size: 11px;
@@ -616,7 +643,7 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     resize: vertical;
     margin-left: 22px;
@@ -648,7 +675,7 @@
   }
   .risk select {
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font: inherit;
   }
@@ -661,7 +688,7 @@
   }
   .hint {
     margin: 0;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 12px;
   }
   .error {
@@ -673,6 +700,7 @@
   }
   footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -682,15 +710,18 @@
     border-radius: 4px;
     padding: 6px 14px;
     cursor: pointer;
+    min-height: var(--tap-size);
   }
   footer button.primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border-color: var(--accent);
   }
+  /* Neutral disabled fill pair — --text-subtle is never a background. */
   footer button.primary:disabled {
-    background: var(--text-subtle);
-    border-color: var(--text-subtle);
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--text-inverse);
     cursor: wait;
   }
   .concurrency-row {
@@ -715,15 +746,15 @@
   .concurrency input[type="range"] { flex: 1; max-width: 200px; }
   .concurrency .value {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     padding: 2px 10px;
-    border-radius: 12px;
+    border-radius: 999px;
     font-weight: 600;
     font-size: 12px;
     min-width: 32px;
     text-align: center;
   }
-  .muted { color: var(--text-subtle); }
+  .muted { color: var(--text-muted); }
   .small { font-size: 11px; }
   .plan {
     margin: 12px 0;
@@ -739,6 +770,9 @@
     flex-direction: column;
     gap: 12px;
   }
+  /* Dropped a 4px accent border-left: the "WAVE n" label already names
+     the group, and DESIGN.md keeps the coloured side rail for the
+     card's priority alone. */
   .wave {
     display: flex;
     flex-direction: column;
@@ -747,7 +781,6 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: 6px;
-    border-left: 4px solid #2e90fa;
   }
   .wave-label {
     font-size: 11px;
@@ -765,8 +798,9 @@
     font-weight: 500;
     text-transform: lowercase;
     padding: 1px 8px;
-    border-radius: 10px;
-    font-size: 10px;
+    border-radius: 999px;
+    /* 10px is caps-only in this system; lowercase copy sits at 11px. */
+    font-size: 11px;
     letter-spacing: 0;
   }
   .wave-tasks {
@@ -776,20 +810,30 @@
   }
   .plan-task {
     background: var(--bg-muted);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
     padding: 8px 10px;
-    border-left: 3px solid var(--border-strong);
   }
-  .plan-task.risk-low { border-left-color: var(--success); }
-  .plan-task.risk-medium { border-left-color: #f79009; }
-  .plan-task.risk-high { border-left-color: #f04438; }
+  /* Risk now rides a labelled badge in .plan-task-meta instead of three
+     coloured left rails, using the same pale-fill / saturated-ink pair
+     the rest of the board uses for status. */
+  .plan-risk {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .plan-risk.risk-low { background: var(--success-bg); color: var(--success); }
+  .plan-risk.risk-medium { background: var(--warning-bg); color: var(--warning); }
+  .plan-risk.risk-high { background: var(--danger-bg); color: var(--danger); }
   .plan-task-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
   .plan-idx {
     background: var(--bg-hover);
     color: var(--text-secondary);
     border-radius: 4px;
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
   }
   .plan-title { font-size: 12px; color: var(--text-primary); font-weight: 500; line-height: 1.3; }

@@ -365,7 +365,7 @@
   .periods {
     background: var(--bg-muted);
     border: 1px solid var(--border-default);
-    border-radius: 5px;
+    border-radius: 4px;
     padding: 2px;
   }
   .periods button,
@@ -396,6 +396,11 @@
   .close,
   select {
     cursor: pointer;
+  }
+  /* Input component outline: WCAG 1.4.11 asks 3:1, which only
+     --border-field gives. */
+  select {
+    border-color: var(--border-field);
   }
   .metric-grid {
     display: grid;
@@ -429,7 +434,7 @@
     font-size: 11px;
   }
   .metric strong {
-    font-size: 20px;
+    font-size: 18px;
     line-height: 1.1;
   }
   .usage-grid {
@@ -474,7 +479,8 @@
   }
   .timeline-bar span {
     height: 18px;
-    font-size: 10px;
+    /* 10px is reserved for spaced caps; a bucket date is content. */
+    font-size: 11px;
     color: var(--text-muted);
     text-align: center;
     white-space: nowrap;
@@ -548,7 +554,7 @@
     color: var(--text-body);
   }
   code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     color: var(--text-secondary);
   }
@@ -577,6 +583,7 @@
   .modal {
     width: min(1180px, calc(100vw - 40px));
     height: min(820px, calc(100vh - 40px));
+    height: min(820px, calc(100dvh - 40px));
     background: var(--bg-app);
     border: 1px solid var(--border-default);
     border-radius: 8px;
@@ -584,12 +591,26 @@
     box-shadow: var(--shadow-modal);
   }
 
-  @media (max-width: 1100px) {
+  /* BP_WIDE — src/lib/shell/breakpoints.ts */
+  @media (max-width: 1280px) {
     .metric-grid {
       grid-template-columns: repeat(3, minmax(120px, 1fr));
     }
     .usage-grid {
       grid-template-columns: 1fr;
+    }
+  }
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .metric-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .usage-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .header-actions {
+      justify-content: flex-start;
     }
   }
 </style>

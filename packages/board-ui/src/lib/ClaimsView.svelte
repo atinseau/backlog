@@ -85,7 +85,7 @@
   function withTimeout<T>(promise: Promise<T>, label: string, ms = 12_000): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const timeout = new Promise<T>((_resolve, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label} : délai dépassé`)), ms);
+      timer = setTimeout(() => reject(new Error(t("claims_view.error.timeout", { label }))), ms);
     });
     return Promise.race([promise, timeout]).finally(() => {
       if (timer) clearTimeout(timer);
@@ -99,26 +99,29 @@
 
   async function load() {
     loading = true;
+    const runsLabel = t("claims_view.source.runs");
+    const activeLabel = t("claims_view.source.active_claims");
+    const archivedLabel = t("claims_view.source.archived_claims");
     const [runsResult, activeResult, archivedResult] = await Promise.allSettled([
-      withTimeout(fetchRuns({ scope: "all" }), "Runs"),
-      withTimeout(fetchAllClaims({}), "Protections actives"),
-      withTimeout(fetchAllClaims({ archived: true }), "Protections archivées"),
+      withTimeout(fetchRuns({ scope: "all" }), runsLabel),
+      withTimeout(fetchAllClaims({}), activeLabel),
+      withTimeout(fetchAllClaims({ archived: true }), archivedLabel),
     ]);
     const errors: string[] = [];
     if (runsResult.status === "fulfilled") {
       runs = runsResult.value;
     } else {
-      errors.push(errorMessage("Runs", runsResult));
+      errors.push(errorMessage(runsLabel, runsResult));
     }
     if (activeResult.status === "fulfilled") {
       activeClaims = activeResult.value;
     } else {
-      errors.push(errorMessage("Protections actives", activeResult));
+      errors.push(errorMessage(activeLabel, activeResult));
     }
     if (archivedResult.status === "fulfilled") {
       archivedClaims = archivedResult.value;
     } else {
-      errors.push(errorMessage("Protections archivées", archivedResult));
+      errors.push(errorMessage(archivedLabel, archivedResult));
     }
     if (!selection || !selectionVisible(tab, selection)) selection = firstSelection(tab, runs);
     error = errors.length > 0 ? errors.join("\n") : null;
@@ -143,23 +146,25 @@
     return run.subtask?.title || run.task?.title || run.target_id || run.subtask_id || run.id;
   }
 
+  const RUN_STATUSES = new Set([
+    "queued",
+    "preparing",
+    "running",
+    "awaiting_review",
+    "succeeded",
+    "failed",
+    "blocked",
+    "interrupted",
+    "canceled",
+  ]);
+
   function statusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      queued: "En file",
-      preparing: "Preparation",
-      running: "En cours",
-      awaiting_review: "En review",
-      succeeded: "Termine",
-      failed: "Echec",
-      blocked: "Bloque",
-      interrupted: "Interrompu",
-      canceled: "Annule",
-    };
-    return labels[status] ?? status;
+    // Rendered inside an uppercase pill, so the shared card labels fit.
+    return RUN_STATUSES.has(status) ? t(`card.run_status.${status}`) : status;
   }
 
   function modeLabel(mode: string): string {
-    return mode === "direct" ? "Direct" : "Worktree isole";
+    return mode === "direct" ? t("claims_view.mode.direct") : t("claims_view.mode.worktree");
   }
 
   function formatDate(value?: string | null): string {
@@ -205,7 +210,7 @@
       }).withContext;
       return claim.agent.profile ? `${label} · ${claim.agent.profile}` : label;
     }
-    return claim.agent_id ?? "non attribue";
+    return claim.agent_id ?? t("claims_view.unassigned");
   }
 
   function canCancel(run: EnrichedRun): boolean {
@@ -265,15 +270,15 @@
       const cacheRead = eventNumber(event, "cache_read_input_tokens");
       const cacheWrite = eventNumber(event, "cache_creation_input_tokens");
       const total = input + output + cacheRead + cacheWrite;
-      const label = [provider, model].filter(Boolean).join(" ") || "Usage";
+      const label = [provider, model].filter(Boolean).join(" ") || t("claims_view.usage.label");
       const bits = [
         label,
-        `${formatTokens(total)} tokens`,
-        `input ${formatTokens(input)}`,
-        `output ${formatTokens(output)}`,
+        t("claims_view.usage.tokens", { count: formatTokens(total) }),
+        t("claims_view.usage.input", { count: formatTokens(input) }),
+        t("claims_view.usage.output", { count: formatTokens(output) }),
       ];
-      if (cacheRead > 0) bits.push(`cache lu ${formatTokens(cacheRead)}`);
-      if (cacheWrite > 0) bits.push(`cache ecrit ${formatTokens(cacheWrite)}`);
+      if (cacheRead > 0) bits.push(t("claims_view.usage.cache_read", { count: formatTokens(cacheRead) }));
+      if (cacheWrite > 0) bits.push(t("claims_view.usage.cache_write", { count: formatTokens(cacheWrite) }));
       return bits.join(" · ");
     }
     return [type, message].filter(Boolean).join(" · ") || JSON.stringify(event);
@@ -281,11 +286,11 @@
 
   async function runAction(run: EnrichedRun, action: "cancel" | "approve" | "discard") {
     const labels = {
-      cancel: "annuler",
-      approve: "approuver",
-      discard: "rejeter",
+      cancel: t("claims_view.action.cancel"),
+      approve: t("claims_view.action.approve"),
+      discard: t("claims_view.action.discard"),
     };
-    if (!confirm(`Confirmer : ${labels[action]} ${run.id} ?`)) return;
+    if (!confirm(t("claims_view.confirm_action", { action: labels[action], id: run.id }))) return;
     busyAction = `${action}:${run.id}`;
     try {
       if (action === "cancel") await cancelRun(run.id, "Stopped from Runs");
@@ -301,7 +306,7 @@
   }
 
   async function handleArchive(claim: ClaimRecord) {
-    if (!confirm(`Finir cette protection ?\n\n${claim.topic}`)) return;
+    if (!confirm(t("claims_view.confirm_finish", { topic: claim.topic }))) return;
     busyAction = `claim:${claim.id}`;
     try {
       await archiveClaim(claim.id);
@@ -317,11 +322,15 @@
   load();
 </script>
 
-{#snippet pathsList(paths: string[], empty = "Aucun fichier precise")}
+{#snippet pathsList(paths: string[], empty = t("claims_view.paths.empty"))}
   {#if paths.length > 0}
     <ul class="paths">
       {#each paths as file (file)}
-        <li>{file === "." || file === "/" || file === "*" || file === "**" ? "Tout le workspace" : file}</li>
+        <li>
+          {file === "." || file === "/" || file === "*" || file === "**"
+            ? t("claims_view.paths.whole_repository")
+            : file}
+        </li>
       {/each}
     </ul>
   {:else}
@@ -346,9 +355,9 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="refresh" onclick={load} title="Rafraichir">Rafraichir</button>
+      <button class="refresh" onclick={load} title={t("claims_view.refresh")}>{t("claims_view.refresh")}</button>
       {#if !embedded}
-        <button class="close" onclick={onClose}>x</button>
+        <button class="close" onclick={onClose} aria-label={t("claim_dialog.close")}>x</button>
       {/if}
     </div>
   </header>
@@ -358,15 +367,15 @@
   {/if}
 
   {#if loading}
-    <div class="loading">Chargement...</div>
+    <div class="loading">{t("claims_view.loading")}</div>
   {:else if visibleRuns.length === 0 && looseClaims.length === 0}
-    <div class="empty">Aucun run a afficher.</div>
+    <div class="empty">{t("claims_view.empty.runs")}</div>
   {:else}
     <div class="runs-layout">
-      <aside class="run-list" aria-label="Runs">
+      <aside class="run-list" aria-label={t("claims_view.title")}>
         {#each visibleRuns as run, index (run.id)}
           {#if tab === "all" && (index === 0 || visibleRuns[index - 1]?.active !== run.active)}
-            <div class="group-title">{run.active ? "Actifs" : "Archives"}</div>
+            <div class="group-title">{run.active ? t("claims_view.group.active") : t("claims_view.group.archived")}</div>
           {/if}
           <button
             class="run-row"
@@ -384,14 +393,18 @@
             </span>
             <span class="row-meta small">
               <code>{run.id}</code>
-              <span>{run.protects_repository ? "protege tout le workspace" : `${run.protected_paths.length || run.planned_paths.length} fichier(s)`}</span>
+              <span>
+                {run.protects_repository
+                  ? t("claims_view.protects_whole_repository")
+                  : t("claims_view.file_count", { count: run.protected_paths.length || run.planned_paths.length })}
+              </span>
               {#if run.finished_at}<span>{t("claims_view.finished_ago", { time: timeAgo(run.finished_at) })}</span>{/if}
             </span>
           </button>
         {/each}
 
         {#if looseClaims.length > 0}
-          <div class="group-title">Protections sans run</div>
+          <div class="group-title">{t("claims_view.group.claims_without_run")}</div>
           {#each looseClaims as claim (claim.id)}
             <button
               class="run-row claim-row"
@@ -400,12 +413,14 @@
             >
               <span class="row-top">
                 <strong>{claim.topic}</strong>
-                <span class="status">{claim.status === "active" && claimExpired(claim) ? "Expiree" : claim.status}</span>
+                <span class="status">
+                  {claim.status === "active" && claimExpired(claim) ? t("claims_view.claim_expired") : claim.status}
+                </span>
               </span>
               <span class="row-meta">
                 <span>{claim.repo}</span>
                 <span>{claimAgentLabel(claim)}</span>
-                <span>{claim.paths.length} fichier(s)</span>
+                <span>{t("claims_view.file_count", { count: claim.paths.length })}</span>
               </span>
               <span class="row-meta small"><code>{claim.id}</code></span>
             </button>
@@ -413,7 +428,7 @@
         {/if}
       </aside>
 
-      <section class="detail" aria-label="Details">
+      <section class="detail" aria-label={t("claims_view.detail_label")}>
         {#if selectedRun}
           <div class="detail-header">
             <div>
@@ -426,40 +441,40 @@
           <div class="detail-actions">
             {#if canCancel(selectedRun)}
               <button onclick={() => runAction(selectedRun, "cancel")} disabled={busyAction === `cancel:${selectedRun.id}`}>
-                Annuler
+                {t("claims_view.action.cancel")}
               </button>
             {/if}
             {#if selectedRun.status === "awaiting_review"}
               <button onclick={() => runAction(selectedRun, "approve")} disabled={busyAction === `approve:${selectedRun.id}`}>
-                Approuver
+                {t("claims_view.action.approve")}
               </button>
               <button onclick={() => runAction(selectedRun, "discard")} disabled={busyAction === `discard:${selectedRun.id}`}>
-                Rejeter
+                {t("claims_view.action.discard")}
               </button>
             {/if}
           </div>
 
           <div class="info-grid">
-            <div><span>Appartient a</span><strong>{ownerLabel(selectedRun)}</strong></div>
-            <div><span>Workspace</span><strong>{selectedRun.repo}</strong></div>
-            <div><span>Execution</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
-            <div><span>Duree</span><strong>{runDuration(selectedRun)}</strong></div>
-            <div><span>Tokens</span><strong>{usageLabel(selectedRun)}</strong></div>
-            <div><span>Debut</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
+            <div><span>{t("claims_view.field.owner")}</span><strong>{ownerLabel(selectedRun)}</strong></div>
+            <div><span>{t("claims_view.field.repository")}</span><strong>{selectedRun.repo}</strong></div>
+            <div><span>{t("claims_view.field.execution")}</span><strong>{modeLabel(selectedRun.execution_mode)}</strong></div>
+            <div><span>{t("claims_view.field.duration")}</span><strong>{runDuration(selectedRun)}</strong></div>
+            <div><span>{t("claims_view.field.tokens")}</span><strong>{usageLabel(selectedRun)}</strong></div>
+            <div><span>{t("claims_view.field.started")}</span><strong>{formatDate(selectedRun.started_at)}</strong></div>
             <div>
-              <span>Fin</span>
+              <span>{t("claims_view.field.finished")}</span>
               <strong>
                 {formatDate(selectedRun.finished_at)}
                 {#if selectedRun.finished_at}<small>{t("claims_view.finished_ago", { time: timeAgo(selectedRun.finished_at) })}</small>{/if}
               </strong>
             </div>
-            <div><span>Branche</span><code>{selectedRun.branch}</code></div>
-            <div><span>Worktree</span><code>{selectedRun.worktree_path}</code></div>
+            <div><span>{t("claims_view.field.branch")}</span><code>{selectedRun.branch}</code></div>
+            <div><span>{t("claims_view.field.worktree")}</span><code>{selectedRun.worktree_path}</code></div>
           </div>
 
           {#if selectedRun.task || selectedRun.subtask}
             <section class="block">
-              <h4>Tache</h4>
+              <h4>{t("claims_view.section.task")}</h4>
               {#if selectedRun.task}
                 <p><strong>{selectedRun.task.title}</strong> <code>{selectedRun.task.id}</code></p>
               {/if}
@@ -469,16 +484,16 @@
                   <span>{selectedRun.subtask.status}</span>
                   <span>{selectedRun.subtask.risk}</span>
                   <span>{selectedRun.subtask.claim_mode}</span>
-                  {#if selectedRun.subtask.manual_approval_required}<span>review manuelle</span>{/if}
+                  {#if selectedRun.subtask.manual_approval_required}<span>{t("claims_view.manual_review")}</span>{/if}
                 </div>
               {/if}
             </section>
           {/if}
 
           <section class="block">
-            <h4>Protection</h4>
+            <h4>{t("claims_view.section.claim")}</h4>
             {#if selectedRun.protects_repository}
-              <p class="notice">Ce run protege tout le workspace.</p>
+              <p class="notice">{t("claims_view.notice.protects_repository")}</p>
             {/if}
             {#if selectedRun.claims.length > 0}
               {#each selectedRun.claims as claim (claim.id)}
@@ -490,22 +505,25 @@
                   </div>
                   {@render pathsList(claim.paths)}
                   <p class="muted">
-                    {claim.status} · {claimAgentLabel(claim)} · expire {formatRemaining(claim.expires_at, timer.now) ?? "maintenant"}
+                    {claim.status} · {claimAgentLabel(claim)} ·
+                    {t("claims_view.expires", {
+                      time: formatRemaining(claim.expires_at, timer.now) ?? t("claims_view.now"),
+                    })}
                   </p>
                 </div>
               {/each}
             {:else}
-              <p class="muted">Aucune protection active liee au run.</p>
+              <p class="muted">{t("claims_view.claims.none")}</p>
             {/if}
             {#if selectedRun.planned_paths.length > 0}
-              <h5>Scopes prevus</h5>
+              <h5>{t("claims_view.section.planned_scopes")}</h5>
               {@render pathsList(selectedRun.planned_paths)}
             {/if}
           </section>
 
           {#if selectedRun.artifacts.length > 0}
             <section class="block">
-              <h4>Artefacts</h4>
+              <h4>{t("claims_view.section.artifacts")}</h4>
               <ul class="artifact-list">
                 {#each selectedRun.artifacts as artifact, index (`${artifact.kind}:${artifact.value}:${index}`)}
                   <li><span>{artifact.kind}</span><code>{artifact.value}</code></li>
@@ -516,15 +534,15 @@
 
           {#if selectedRun.handoff_path || selectedRun.result}
             <section class="block">
-              <h4>Resultat</h4>
+              <h4>{t("claims_view.section.result")}</h4>
               {#if selectedRun.result}<p>{selectedRun.result}</p>{/if}
-              {#if selectedRun.handoff_path}<p><span class="muted">Handoff</span> <code>{selectedRun.handoff_path}</code></p>{/if}
+              {#if selectedRun.handoff_path}<p><span class="muted">{t("claims_view.field.handoff")}</span> <code>{selectedRun.handoff_path}</code></p>{/if}
             </section>
           {/if}
 
           {#if visibleEvents(selectedRun).length > 0}
             <section class="block">
-              <h4>Evenements</h4>
+              <h4>{t("claims_view.section.events")}</h4>
               <ol class="events">
                 {#each visibleEvents(selectedRun) as event, index (index)}
                   <li>
@@ -537,7 +555,7 @@
           {/if}
 
           <details class="raw">
-            <summary>Donnees completes</summary>
+            <summary>{t("claims_view.raw")}</summary>
             <pre>{JSON.stringify(selectedRun, null, 2)}</pre>
           </details>
         {:else if selectedClaim}
@@ -546,30 +564,34 @@
               <p class="eyebrow">{selectedClaim.id}</p>
               <h3>{selectedClaim.topic}</h3>
             </div>
-            <span class="status">{selectedClaim.status === "active" && claimExpired(selectedClaim) ? "Expiree" : selectedClaim.status}</span>
+            <span class="status">
+              {selectedClaim.status === "active" && claimExpired(selectedClaim)
+                ? t("claims_view.claim_expired")
+                : selectedClaim.status}
+            </span>
           </div>
           {#if selectedClaim.status === "active"}
             <div class="detail-actions">
               <button onclick={() => handleArchive(selectedClaim)} disabled={busyAction === `claim:${selectedClaim.id}`}>
-                Finir
+                {t("claims_view.action.finish")}
               </button>
             </div>
           {/if}
           <div class="info-grid">
-            <div><span>Workspace</span><strong>{selectedClaim.repo}</strong></div>
-            <div><span>Appartient a</span><strong>{claimAgentLabel(selectedClaim)}</strong></div>
-            <div><span>Mode</span><strong>{selectedClaim.mode}</strong></div>
-            <div><span>Age</span><strong>{claimAge(selectedClaim)}</strong></div>
-            <div><span>Debut</span><strong>{formatDate(selectedClaim.created_at)}</strong></div>
-            <div><span>Expire</span><strong>{formatDate(selectedClaim.expires_at)}</strong></div>
+            <div><span>{t("claims_view.field.repository")}</span><strong>{selectedClaim.repo}</strong></div>
+            <div><span>{t("claims_view.field.owner")}</span><strong>{claimAgentLabel(selectedClaim)}</strong></div>
+            <div><span>{t("claims_view.field.mode")}</span><strong>{selectedClaim.mode}</strong></div>
+            <div><span>{t("claims_view.field.age")}</span><strong>{claimAge(selectedClaim)}</strong></div>
+            <div><span>{t("claims_view.field.started")}</span><strong>{formatDate(selectedClaim.created_at)}</strong></div>
+            <div><span>{t("claims_view.field.expires")}</span><strong>{formatDate(selectedClaim.expires_at)}</strong></div>
           </div>
           <section class="block">
-            <h4>Fichiers proteges</h4>
+            <h4>{t("claims_view.section.protected_files")}</h4>
             {@render pathsList(selectedClaim.paths)}
           </section>
           {#if selectedClaim.metadata && Object.keys(selectedClaim.metadata).length > 0}
             <section class="block">
-              <h4>Metadonnees</h4>
+              <h4>{t("claims_view.section.metadata")}</h4>
               <div class="chips">
                 {#each Object.entries(selectedClaim.metadata) as [key, value] (key)}
                   <span><strong>{key}</strong>: {value}</span>
@@ -578,11 +600,11 @@
             </section>
           {/if}
           <details class="raw">
-            <summary>Donnees completes</summary>
+            <summary>{t("claims_view.raw")}</summary>
             <pre>{JSON.stringify(selectedClaim, null, 2)}</pre>
           </details>
         {:else}
-          <div class="empty">Selectionne un run pour voir ses details.</div>
+          <div class="empty">{t("claims_view.empty.selection")}</div>
         {/if}
       </section>
     </div>
@@ -617,6 +639,7 @@
     max-width: 980px;
     width: 94%;
     max-height: 84vh;
+    max-height: 84dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -670,7 +693,7 @@
   .tab.active {
     background: var(--bg-surface);
     color: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    box-shadow: var(--elev-rest);
   }
   .header-actions { display: flex; gap: 6px; }
   .refresh, .close, .detail-actions button {
@@ -678,11 +701,18 @@
     border: 1px solid var(--border-strong);
     border-radius: 4px;
     padding: 4px 10px;
+    /* WCAG 2.5.8 floor; widens to 28px on a coarse pointer. */
+    min-height: var(--tap-size);
+    min-width: var(--tap-size);
     cursor: pointer;
     font-size: 12px;
     color: var(--text-primary);
   }
   .refresh:hover, .detail-actions button:hover:not(:disabled) { background: var(--bg-active); }
+  .refresh:focus-visible, .close:focus-visible, .detail-actions button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .close { border: none; font-size: 16px; padding: 2px 8px; }
   .error { background: var(--warning-bg); color: var(--warning); padding: 8px 18px; font-size: 12px; }
   .loading, .empty {
@@ -751,7 +781,7 @@
     color: var(--text-muted);
     font-size: 11px;
   }
-  .row-meta.small { color: var(--text-subtle); }
+  .row-meta.small { color: var(--text-muted); }
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
@@ -764,6 +794,7 @@
   .status {
     flex: 0 0 auto;
     font-size: 10px;
+    letter-spacing: 0.04em;
     font-weight: 700;
     text-transform: uppercase;
     border-radius: 999px;
@@ -891,6 +922,7 @@
   }
   .claim-title span {
     font-size: 10px;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-muted);
   }
@@ -898,7 +930,7 @@
     list-style: none;
     margin: 0;
     padding: 7px 9px;
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--bg-hover);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
@@ -962,7 +994,8 @@
     font-size: 11px;
     line-height: 1.45;
   }
-  @media (max-width: 860px) {
+  /* Width thresholds: 640 / 900 / 1280 only — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 900px) {
     .runs-layout {
       grid-template-columns: 1fr;
     }

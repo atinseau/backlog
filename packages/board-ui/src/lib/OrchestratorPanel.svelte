@@ -49,7 +49,7 @@
         auto_pick_agents: autoPick,
       };
       orchState = await startOrchestrator(input);
-      lastResult = "Orchestrateur démarré.";
+      lastResult = t("orchestrator_panel.result.started");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -61,7 +61,7 @@
     busy = true;
     try {
       orchState = await pauseOrchestrator();
-      lastResult = "Orchestrateur en pause (les runs en cours finissent).";
+      lastResult = t("orchestrator_panel.result.paused");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -72,9 +72,9 @@
   async function handleStop() {
     busy = true;
     try {
-      lastResult = "Arrêt en cours — attente de fin des runs actifs…";
+      lastResult = t("orchestrator_panel.result.stopping");
       orchState = await stopOrchestrator();
-      lastResult = "Orchestrateur arrêté.";
+      lastResult = t("orchestrator_panel.result.stopped");
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -161,8 +161,8 @@
       {/if}
     </div>
     <div class="actions">
-      <button onclick={load} disabled={loading} aria-label="Refresh plan">↻</button>
-      <button onclick={onClose} aria-label="Close panel">×</button>
+      <button onclick={load} disabled={loading} aria-label={t("orchestrator_panel.button.refresh")}>↻</button>
+      <button onclick={onClose} aria-label={t("orchestrator_panel.button.close")}>×</button>
     </div>
   </header>
 
@@ -309,10 +309,11 @@
     top: 0;
     right: 0;
     height: 100vh;
+    height: 100dvh;
     width: min(420px, 90vw);
     background: var(--bg-surface);
     border-left: 1px solid var(--border-default);
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--elev-panel-left);
     z-index: 40;
     overflow-y: auto;
     padding: 0;
@@ -366,20 +367,24 @@
   }
   .start {
     background: var(--success);
-    color: white;
+    color: var(--success-on);
     border: none;
     border-radius: 3px;
     padding: 1px 6px;
     cursor: pointer;
     font-size: 11px;
     flex-shrink: 0;
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
-  .start:hover { background: #036a3e; }
-  .start:disabled { background: var(--text-subtle); cursor: wait; }
+  .start:hover { background: var(--success-hover); }
+  /* Neutral fill pair; --text-subtle is never a background. */
+  .start:disabled { background: var(--text-muted); color: var(--text-inverse); cursor: wait; }
   .placeholder {
     padding: 32px 16px;
     text-align: center;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 14px;
   }
   .placeholder.small {
@@ -400,7 +405,7 @@
     color: var(--text-secondary);
   }
   .size {
-    color: var(--text-subtle);
+    color: var(--text-muted);
     text-transform: none;
     font-weight: 400;
   }
@@ -441,33 +446,36 @@
     color: var(--text-secondary);
     background: var(--bg-hover);
     padding: 1px 6px;
-    border-radius: 10px;
-    font-size: 10px;
+    border-radius: 999px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
   }
+  /* No shared `color` here: each variant paints a different fill and
+     therefore owns a different paired ink (DESIGN.md, "la règle de
+     l'encre appariée"). */
   .chip {
     font-size: 10px;
     font-weight: 600;
+    letter-spacing: 0.04em;
     padding: 1px 6px;
     border-radius: 3px;
-    color: white;
     text-transform: uppercase;
   }
-  .act-run    { background: var(--success); }
-  .act-wait   { background: var(--warning); }
-  .act-block  { background: var(--danger); }
-  .act-skip   { background: var(--text-subtle); }
+  .act-run    { background: var(--success); color: var(--success-on); }
+  .act-wait   { background: var(--warning); color: var(--warning-on); }
+  .act-block  { background: var(--danger); color: var(--danger-on); }
+  .act-skip   { background: var(--text-muted); color: var(--text-inverse); }
   .repo, .parent, .agent {
     background: var(--bg-hover);
     color: var(--text-body);
     padding: 1px 6px;
     border-radius: 3px;
   }
-  .agent.muted { color: var(--text-subtle); background: transparent; padding-left: 0; }
+  .agent.muted { color: var(--text-muted); background: transparent; padding-left: 0; }
   .reasons {
     margin-top: 4px;
     font-size: 11px;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .other.muted { opacity: 0.7; }
@@ -488,18 +496,23 @@
     font-size: 12px;
     color: var(--text-muted);
   }
+  /* Same rule as .chip: the ink follows the fill, variant by variant.
+     .state-paused was the worst pair in the product — white on
+     --warning-solid measured 2.35:1 light / 1.67:1 dark. The -solid
+     family stays bright in BOTH themes, so its ink is the
+     theme-invariant --text-on-solid, not a flipping --*-on token. */
   .state-pill {
     font-size: 10px;
     font-weight: 600;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     padding: 2px 8px;
-    border-radius: 10px;
-    color: white;
+    border-radius: 999px;
   }
-  .state-idle    { background: var(--text-subtle); }
-  .state-running { background: var(--success); }
-  .state-paused  { background: #f79009; }
-  .state-stopping { background: var(--danger); }
+  .state-idle    { background: var(--text-muted); color: var(--text-inverse); }
+  .state-running { background: var(--success); color: var(--success-on); }
+  .state-paused  { background: var(--warning-solid); color: var(--text-on-solid); }
+  .state-stopping { background: var(--danger); color: var(--danger-on); }
   .control-row {
     display: flex;
     align-items: center;
@@ -514,9 +527,9 @@
     background: var(--bg-surface);
     border: 1px solid var(--border-strong);
   }
-  .control-row button.play { background: var(--success); color: white; border-color: var(--success); }
-  .control-row button.play:hover:not(:disabled) { background: #036a3e; }
-  .control-row button.stop { background: var(--danger); color: white; border-color: var(--danger); }
+  .control-row button.play { background: var(--success); color: var(--success-on); border-color: var(--success); }
+  .control-row button.play:hover:not(:disabled) { background: var(--success-hover); }
+  .control-row button.stop { background: var(--danger); color: var(--danger-on); border-color: var(--danger); }
   .control-row button.stop:hover:not(:disabled) { background: var(--danger); }
   .control-row button:disabled { opacity: 0.4; cursor: not-allowed; }
   .auto {

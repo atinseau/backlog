@@ -419,9 +419,10 @@
     right: 0;
     width: min(380px, 92vw);
     height: 100vh;
+    height: 100dvh;
     background: var(--bg-surface);
     border-left: 1px solid var(--border-default);
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--elev-panel-left);
     z-index: 50;
     display: flex;
     flex-direction: column;
@@ -459,21 +460,26 @@
     cursor: pointer;
     font-size: 13px;
     color: var(--text-secondary);
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   .actions button:hover:not(:disabled) { background: var(--border-default); }
   .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
   .actions button.emergency {
     background: var(--warning-bg);
-    border-color: #f79009;
+    border-color: var(--warning-solid);
     color: var(--warning);
   }
-  .actions button.emergency:hover:not(:disabled) { background: var(--warning); color: white; }
+  .actions button.emergency:hover:not(:disabled) { background: var(--warning); color: var(--warning-on); }
   .actions button.emergency.stop {
     background: var(--danger-bg);
-    border-color: #f04438;
+    border-color: var(--danger-solid);
     color: var(--danger);
   }
-  .actions button.emergency.stop:hover:not(:disabled) { background: #f04438; color: white; }
+  /* A --*-solid fill is bright in both themes, so its ink does not
+     flip: --text-on-solid, never --text-on-fill. */
+  .actions button.emergency.stop:hover:not(:disabled) { background: var(--danger-solid); color: var(--text-on-solid); }
 
   .usage {
     flex-shrink: 0;
@@ -482,7 +488,7 @@
     padding: 4px 12px;
     border-top: 1px solid var(--border-default);
     background: var(--bg-muted);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
   }
@@ -497,7 +503,7 @@
     gap: 10px;
     font-size: 13px;
   }
-  .placeholder { color: var(--text-subtle); font-style: italic; margin: 8px 0 0; line-height: 1.45; }
+  .placeholder { color: var(--text-muted); font-style: italic; margin: 8px 0 0; line-height: 1.45; }
   .turn { display: flex; }
   .turn-user { justify-content: flex-end; }
   .bubble {
@@ -508,8 +514,10 @@
     white-space: pre-wrap;
     word-wrap: break-word;
   }
-  .turn-user .bubble { background: #2e90fa; color: white; border-top-right-radius: 2px; }
-  .turn-assistant .bubble { background: var(--bg-hover); color: var(--text-primary); border-top-left-radius: 2px; }
+  /* --accent-solid is bright in both themes, and pure white reads 3.24:1
+     light / 2.54:1 dark on it. --text-on-solid is its fixed ink. */
+  .turn-user .bubble { background: var(--accent-solid); color: var(--text-on-solid); border-top-right-radius: 3px; }
+  .turn-assistant .bubble { background: var(--bg-hover); color: var(--text-primary); border-top-left-radius: 3px; }
   .text { white-space: pre-wrap; }
 
   .tools {
@@ -526,7 +534,7 @@
     gap: 6px;
     align-items: center;
     padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.6);
+    background: var(--bg-surface);
     border-radius: 3px;
   }
   .tool code {
@@ -534,26 +542,28 @@
     color: var(--text-secondary);
   }
   .tool-icon { font-weight: 600; }
-  .tool-running .tool-icon { color: #f79009; }
+  .tool-running .tool-icon { color: var(--warning-solid); }
   .tool-done .tool-icon { color: var(--success); }
   .tool-error .tool-icon { color: var(--danger); }
   .tool-awaiting_confirmation .tool-icon { color: var(--warning); }
+  /* Was a 2px coloured left rail. DESIGN.md reserves that geometry
+     for the card priority marker, so the "this tool writes" signal
+     moves onto the tinted-surface pair instead — same information,
+     an authorised support. */
   .tool.write {
-    border-left: 2px solid #d92d20;
-    padding-left: 4px;
+    background: var(--danger-bg);
   }
   .tool.write.tool-done {
-    border-left-color: var(--success);
     background: var(--success-bg);
   }
   .write-tag {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--success);
     font-weight: 600;
   }
-  .tool-err { color: var(--danger); font-size: 10px; }
+  .tool-err { color: var(--danger); font-size: 11px; }
 
   .error {
     background: var(--danger-bg);
@@ -574,7 +584,9 @@
   }
   .composer textarea {
     flex: 1;
-    border: 1px solid var(--border-strong);
+    /* Input outline owes 3:1 (WCAG 1.4.11); --border-strong gives
+       1.47:1 on a white field. */
+    border: 1px solid var(--border-field);
     border-radius: 6px;
     padding: 6px 8px;
     font-family: inherit;
@@ -582,20 +594,23 @@
     resize: none;
     line-height: 1.4;
   }
-  .composer textarea:focus { outline: 2px solid #2e90fa; outline-offset: -1px; border-color: #2e90fa; }
+  .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
   .composer textarea:disabled { opacity: 0.6; }
   .send {
     background: var(--success);
-    color: white;
+    color: var(--success-on);
     border: none;
     border-radius: 6px;
     padding: 0 14px;
     cursor: pointer;
     font-size: 16px;
     font-weight: 600;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
-  .send:hover:not(:disabled) { background: #036a3e; }
-  .send:disabled { background: var(--text-subtle); cursor: not-allowed; }
+  .send:hover:not(:disabled) { background: var(--success-hover); }
+  /* Neutral fill pair; --text-subtle is never a background. */
+  .send:disabled { background: var(--text-muted); color: var(--text-inverse); cursor: not-allowed; }
 
   /* The activity feed CSS that used to live here moved to
      ActivityBanner.svelte when we lifted the feed out of the drawer. */

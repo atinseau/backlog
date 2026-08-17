@@ -13,34 +13,102 @@
   --bg-hover: #f2f4f7;
   --bg-active: #eef2f6;
 
-  /* Text */
+  /* Text — six inks that may carry content, then a floor that may not.
+     --text-subtle is NOT a text colour: it cannot reach 4.5:1 on white
+     without becoming --text-muted. It is the 3:1 floor for non-text
+     bits (disabled glyphs, decorative separators, component outlines),
+     per WCAG 1.4.11. Readable metadata bottoms out at --text-muted. */
   --text-primary: #1d2939;
   --text-strong: #101828;
   --text-body: #344054;
   --text-secondary: #475467;
-  --text-muted: #667085;
-  --text-subtle: #98a2b3;
+  --text-muted: #636b7d;
+  --text-subtle: #7f8899;
   --text-inverse: #ffffff;
 
-  /* Borders */
+  /* Borders. --border-strong stays low-contrast on purpose: raising it
+     would thicken every panel rule and table line. Input components get
+     --border-field instead, which owes 3:1 to WCAG 1.4.11. It aliases
+     --text-subtle deliberately — same floor, they move together. */
   --border-strong: #d0d5dd;
   --border-default: #e4e7ec;
   --border-subtle: #eef0f3;
+  --border-field: var(--text-subtle);
 
   /* Accent (interactive blue) */
   --accent: #1570ef;
   --accent-hover: #155eef;
   --accent-bg: #eff8ff;
   --accent-text: #175cd3;
-  --accent-on: #ffffff;
+  /* Paired ink. Aliasing --text-inverse is what makes it flip on its
+     own: light fills are dark so the ink is white, dark fills are light
+     so the ink goes near-black. Never hardcode it per theme. */
+  --accent-on: var(--text-inverse);
 
-  /* Status */
+  /* Status. Each saturated fill owns a paired ink token — see
+     "La règle de l'encre appariée" in DESIGN.md. */
   --success: #027a48;
+  --success-hover: #036a3e;
   --success-bg: #d1fadf;
+  --success-tint: #ecfdf3;
+  --success-on: var(--text-inverse);
   --warning: #b54708;
   --warning-bg: #fef0c7;
+  --warning-tint: #fef9f3;
+  --warning-on: var(--text-inverse);
   --danger: #b42318;
   --danger-bg: #fee4e2;
+  --danger-on: var(--text-inverse);
+
+  /* Saturated variants. --*-solid is the bright mid-tone used as a
+     fill or a 2px marker where the base token (tuned for text on a
+     pale background) reads too dark. --accent-solid is also the
+     lighter half of the progress gradient. */
+  --accent-solid: #2e90fa;
+  --warning-solid: #f79009;
+  --danger-solid: #f04438;
+
+  /* Apply — accepting an agent's work. The only violet in the
+     product, and the only place it may appear.
+     Light drops to violet-600 so the filled button can carry white; the
+     dark block keeps violet-400. This is the one token whose value
+     diverges by theme, and only because the gesture must stay violet
+     AND stay a solid button. --apply-text is the darker text-grade
+     variant, same relation as --accent / --accent-text. */
+  --apply: #7c3aed;
+  --apply-hover: #6d28d9;
+  --apply-bg: #f4ebff;
+  --apply-text: #6d28d9;
+  --apply-on: var(--text-inverse);
+
+  /* Priority rail + pill (P0…P3). Deliberately distinct from the
+     status colours: a priority is not an incident. Identical in both
+     themes — these are fills that carry white text, so lightening
+     them for dark mode would break the pill. Dark enough that the 3px
+     rail also clears 3:1 on all four canvases (#ffffff, #f7f8fa,
+     #1f1f23, #050507), not just that the pill clears 4.5:1. p3 owns a
+     literal now: it no longer borrows the (non-text) --text-subtle. */
+  --priority-p0: #d92d20;
+  --priority-p1: #c2410c;
+  --priority-p2: #2563eb;
+  --priority-p3: #667085;
+
+  /* Text sitting on a fill that stays DARK in both themes: the
+     priority ramp, --console-bg, --console-line, --text-primary used
+     as a background. Anything that lightens in dark mode uses its
+     paired --*-on token instead. */
+  --text-on-fill: #ffffff;
+
+  /* Text sitting on the --*-solid family, which is bright in BOTH
+     themes — so its ink does not flip. Declared once, no dark
+     override. The single new literal in the whole palette. */
+  --text-on-solid: #101828;
+
+  /* Third-party brand marks. The only colours in the system that
+     answer to someone else's design system. */
+  --brand-google: #4285f4;
+  --brand-apple: #000000;
+  --brand-apple-on: #ffffff;
 
   /* Console (bottom panel + agent activity) — kept dark in both
      modes so the run output reads like a terminal regardless of OS
@@ -54,9 +122,40 @@
   --splitter: #e4e7ec;
   --splitter-hover: #1570ef;
 
-  /* Shadow */
+  /* Elevation — five steps, and only five. Flat (no shadow, 1px rule)
+     is the default for anything welded to a panel; the four tokens
+     below cover everything that sits above one. See DESIGN.md,
+     "Elevation & Depth". */
+  --elev-rest: 0 1px 2px rgba(16, 24, 40, 0.10);
+  --elev-lifted: 0 2px 6px rgba(16, 24, 40, 0.12);
+  --elev-floating: 0 12px 32px rgba(16, 24, 40, 0.18);
   --shadow-modal: 0 20px 24px rgba(16, 24, 40, 0.18);
+  /* Directional variants of --elev-floating, for slide-over panels
+     anchored to an edge. */
+  --elev-panel-left: -4px 0 16px rgba(16, 24, 40, 0.10);
+  --elev-panel-top: 0 -8px 18px rgba(16, 24, 40, 0.08);
+
   --backdrop: rgba(16, 24, 40, 0.45);
+
+  /* Pointer targets. WCAG 2.5.8 floors every target at 24×24 CSS px in
+     border-box, at every width and in both themes — 24px is not a
+     mobile concession. --tap-size is the min-width/min-height a
+     control writes once; it widens to a comfortable 28px under a
+     coarse pointer, so density survives on a 700px desktop window
+     while an iPad at 1024px still gets finger-sized hits. Size is a
+     pointer-capability question, never a breakpoint question, so this
+     override is (pointer: coarse) and does not count against the
+     three width thresholds. --tap-gap is the matching minimum gutter:
+     two 24px targets welded together are still a miss. */
+  --tap-size: 24px;
+  --tap-gap: 2px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --tap-size: 28px;
+    --tap-gap: 4px;
+  }
 }
 
 /* Dark = neutral near-black greys, no blue cast. Tuned to match the
@@ -79,8 +178,15 @@
   --text-strong: #ffffff;
   --text-body: #d4d4d8;
   --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  --text-subtle: #52525b;
+  /* Structural limit of the dark palette: clearing 4.5:1 on
+     --bg-surface #1f1f23 needs a relative luminance ≥ 0.234, so dark
+     can host six readable inks, not seven. --text-muted rises to stay
+     legible on every dark surface; --text-subtle rises to the 3:1
+     non-text floor and stops being an ink. */
+  --text-muted: #97979f;
+  --text-subtle: #78787f;
+  /* Pivot of the whole system: every --*-on token aliases this, which
+     is why the dark block adds no new colour literal. */
   --text-inverse: #09090b;
 
   --border-strong: #3f3f46;
@@ -91,14 +197,40 @@
   --accent-hover: #60a5fa;
   --accent-bg: #1e293b;
   --accent-text: #93c5fd;
-  --accent-on: #ffffff;
+  /* No --accent-on here on purpose: the :root alias resolves to
+     --text-inverse #09090b, which is what a light blue fill needs.
+     Same for --success-on / --warning-on / --danger-on / --apply-on
+     and for --border-field. --text-on-solid stays #101828 in both
+     themes because the --*-solid fills are bright on both sides. */
 
   --success: #4ade80;
+  /* Hover goes *lighter* in dark, like --accent-hover. The old
+     hardcoded #036a3e made the button darker than its rest state,
+     which read as "disabled" rather than "about to fire". */
+  --success-hover: #86efac;
   --success-bg: #052e16;
+  --success-tint: #04240f;
   --warning: #fbbf24;
   --warning-bg: #422006;
+  --warning-tint: #2e1703;
   --danger: #f87171;
   --danger-bg: #450a0a;
+
+  --accent-solid: #60a5fa;
+  --warning-solid: #fbbf24;
+  --danger-solid: #f87171;
+
+  /* Violet stays light here; only the ink flips, via --apply-on. */
+  --apply: #a78bfa;
+  --apply-hover: #c4b5fd;
+  --apply-bg: #2e1065;
+  --apply-text: #c4b5fd;
+
+  /* Priority fills are theme-invariant on purpose — see the light
+     block. All four, p3 included, now hold their own literal there. */
+
+  --brand-apple: #ffffff;
+  --brand-apple-on: #000000;
 
   --console-bg: #050507;
   --console-text: #d4d4d8;
@@ -108,7 +240,15 @@
   --splitter: #2e2e35;
   --splitter-hover: #3b82f6;
 
+  /* Dark needs pure black and a wider radius: a blue-grey shadow is
+     invisible against a #050507 canvas. */
+  --elev-rest: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --elev-lifted: 0 2px 8px rgba(0, 0, 0, 0.6);
+  --elev-floating: 0 12px 32px rgba(0, 0, 0, 0.7);
   --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.7);
+  --elev-panel-left: -4px 0 16px rgba(0, 0, 0, 0.6);
+  --elev-panel-top: 0 -8px 18px rgba(0, 0, 0, 0.5);
+
   --backdrop: rgba(0, 0, 0, 0.7);
 }
 
@@ -124,3 +264,48 @@ html, body, #app {
    the theme palette without touching every file. Component-scoped
    styles can opt out by being more specific. */
 [data-theme="dark"] body { background: var(--bg-app); color: var(--text-primary); }
+
+/* Reduced motion — a scalpel, not the usual sledgehammer.
+   The blanket `* { animation: 0.01ms !important }` is banned here: on
+   this board the only perpetual animation IS the information. A pulsing
+   dot means "an agent is executing right now"; flattening it to a plain
+   green dot deletes the one signal the product exists to give, and a
+   user who asked for less motion asked for less motion, not less state.
+   So each moving thing is handled on its merits:
+     · the pulsing halo becomes a static ring — still visibly "live",
+       just no longer breathing;
+     · hover keeps its colour and its shadow (they carry state) and
+       loses only the 1px lift (pure decoration);
+     · the toast stops sliding in but still appears;
+     · the loading spinner keeps turning, slower. A load with no signal
+       at all is worse than motion.
+   Component styles are Svelte-scoped (0,2,0), hence the targeted
+   !important — it is the override, not a style of its own. */
+@media (prefers-reduced-motion: reduce) {
+  /* Card.svelte — run in flight. Static equivalent of running-pulse:
+     the same success ring, frozen at its widest readable radius, so a
+     running card still reads differently from an idle one at a glance. */
+  .running-indicator {
+    animation: none !important;
+    transform: none !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 40%, transparent) !important;
+  }
+
+  /* Card.svelte — the lift is decorative; --elev-lifted and the colour
+     change stay and say "hoverable" on their own. */
+  .card.clickable:hover,
+  .card.clickable:active {
+    transform: none !important;
+  }
+
+  /* Toasts.svelte — it appears, it no longer travels. */
+  .toast {
+    animation: none !important;
+  }
+
+  /* CreateTaskDialog.svelte — kept alive at half speed: the spinner is
+     the only proof the request is still in flight. */
+  .spinner {
+    animation-duration: 2.4s !important;
+  }
+}

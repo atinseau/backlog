@@ -89,23 +89,24 @@
     gap: 16px;
     padding: 12px 20px;
     margin: 8px 16px 0;
-    background: linear-gradient(90deg, var(--accent-bg), #f4ebff);
+    background: linear-gradient(90deg, var(--accent-bg), var(--apply-bg));
     border: 1px solid var(--accent);
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    box-shadow: var(--elev-rest);
   }
   .onboarding.step-1 {
-    background: linear-gradient(90deg, var(--warning-bg), #fef9f3);
+    background: linear-gradient(90deg, var(--warning-bg), var(--warning-tint));
     border-color: var(--warning);
   }
   .onboarding.step-final {
-    background: linear-gradient(90deg, var(--success-bg), #ecfdf3);
+    background: linear-gradient(90deg, var(--success-bg), var(--success-tint));
     border-color: var(--success);
   }
   .step-pill {
     background: var(--bg-surface);
     border: 1px solid var(--border-strong);
-    border-radius: 16px;
+    /* Counter pill → the pill radius, not an off-scale 16px. */
+    border-radius: 999px;
     padding: 2px 10px;
     font-size: 11px;
     font-weight: 600;
@@ -135,10 +136,16 @@
   button.link {
     background: transparent;
     border: none;
-    color: var(--text-subtle);
+    /* An active dismiss control, not a decorative glyph: --text-subtle
+       only reached 3.25:1 on the banner's pale gradient. */
+    color: var(--text-muted);
     font-size: 14px;
     cursor: pointer;
     padding: 4px 8px;
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
   }
   button.link:hover { color: var(--text-secondary); }
   .muted { color: var(--text-secondary); font-size: 12px; font-style: italic; }

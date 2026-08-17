@@ -97,23 +97,26 @@
     return modelChoicesFor(provider).some((choice) => choice.value === model);
   }
 
-  const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = [
-    { value: "default", label: "(défaut provider)", help: "Reprend la valeur par défaut du provider" },
-    { value: "read-only", label: "read-only", help: "Lecture seule, aucune écriture." },
-    { value: "workspace-write", label: "project-write", help: "Écriture sandbox autorisée." },
-    { value: "danger-full-access", label: "⚠ danger-full-access", help: "Aucune restriction." },
-  ];
+  // Derived, not a module constant: t() reads the locale store, so the
+  // labels have to re-evaluate when the language changes. The mode names
+  // themselves are machine values and stay untranslated.
+  const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = $derived([
+    { value: "default", label: t("agents_view.sandbox.default"), help: t("agents_view.sandbox.default_help") },
+    { value: "read-only", label: "read-only", help: t("agents_view.sandbox.read_only_help") },
+    { value: "workspace-write", label: "project-write", help: t("agents_view.sandbox.workspace_write_help") },
+    { value: "danger-full-access", label: "⚠ danger-full-access", help: t("agents_view.sandbox.full_access_help") },
+  ]);
 
   const ALL_RISKS: Array<"low" | "medium" | "high"> = ["low", "medium", "high"];
 
   // Capability presets — common combos so the user can flip between
   // "read-only inspector" and "full coding agent" without typing each
   // capability by hand.
-  const CAPABILITY_PRESETS: Array<{ label: string; caps: string[] }> = [
-    { label: "Plan + edit + review (defaut Claude)", caps: ["plan", "edit_code", "review"] },
-    { label: "Plan + edit + tests + shell + git (defaut Codex)", caps: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"] },
-    { label: "Lecture seule", caps: ["plan", "review"] },
-  ];
+  const CAPABILITY_PRESETS: Array<{ label: string; caps: string[] }> = $derived([
+    { label: t("agents_view.preset.claude_default"), caps: ["plan", "edit_code", "review"] },
+    { label: t("agents_view.preset.codex_default"), caps: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"] },
+    { label: t("agents_view.preset.read_only"), caps: ["plan", "review"] },
+  ]);
 
   async function load() {
     loading = true;
@@ -324,7 +327,7 @@
                   {@const label = formatAgentLabel(agent)}
                   <strong
                     class="agent-label"
-                    title={agent.id + (agent.display_name ? ` · double-click to rename` : "")}
+                    title={agent.id + (agent.display_name ? ` · ${t("agents_view.rename_hint")}` : "")}
                     ondblclick={(e) => startRename(agent, e)}
                   >{label.withContext}</strong>
                 {/if}
@@ -333,7 +336,9 @@
                   <span class="warn">{t("agents_view.not_executable")}</span>
                 {/if}
                 {#if agent.active_runs > 0}
-                  <span class="active">▶ {agent.active_runs} actif{agent.active_runs > 1 ? "s" : ""}</span>
+                  <span class="active">▶ {agent.active_runs > 1
+                    ? t("agents_view.active_runs_many", { count: agent.active_runs })
+                    : t("agents_view.active_runs_one", { count: agent.active_runs })}</span>
                 {/if}
               </div>
               <div class="status-cell" onclick={(e) => e.stopPropagation()} role="presentation">
@@ -641,13 +646,21 @@
   }
   h2 { margin: 0; font-size: 16px; }
   .subtitle { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     background: transparent;
     border: none;
     font-size: 18px;
     cursor: pointer;
     color: var(--text-secondary);
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {
     background: var(--danger-bg);
     color: var(--danger);
@@ -715,8 +728,8 @@
   ul.agents li.expanded > .grid { padding-top: 12px; }
   ul.agents li.expanded > .caps-row { padding-bottom: 12px; }
   .model-pill {
-    font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
     background: var(--bg-input);
     color: var(--text-secondary);
     padding: 1px 6px;
@@ -738,19 +751,21 @@
     padding: 2px 6px;
     min-width: 180px;
   }
+  /* No shared `color` here: each variant paints a different fill, so
+     each one carries its own paired ink (DESIGN.md, encre appariée). */
   .provider {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 2px 6px;
     border-radius: 3px;
-    color: white;
     font-weight: 600;
   }
-  .provider-claude { background: var(--danger); }
-  .provider-codex { background: var(--success); }
-  .provider-manual { background: var(--text-subtle); }
-  .provider-custom { background: #a78bfa; }
+  .provider-claude { background: var(--danger); color: var(--danger-on); }
+  .provider-codex { background: var(--success); color: var(--success-on); }
+  /* Neutral fill pair — --text-subtle is never a background. */
+  .provider-manual { background: var(--text-muted); color: var(--text-inverse); }
+  .provider-custom { background: var(--apply); color: var(--apply-on); }
   .warn {
     background: var(--warning-bg);
     color: var(--warning);
@@ -791,6 +806,7 @@
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
+    min-height: var(--tap-size);
   }
   .api-key-link:hover { filter: brightness(1.05); }
 
@@ -816,11 +832,19 @@
   .field input,
   .field select {
     padding: 4px 6px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 12px;
     background: var(--bg-surface);
-    font-family: ui-monospace, monospace;
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    min-height: var(--tap-size);
+  }
+  .field input:focus-visible,
+  .field select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .field input:disabled,
   .field select:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -834,17 +858,32 @@
     font-size: 12px;
   }
   .chip {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     background: var(--bg-surface);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 3px;
     padding: 2px 8px;
     cursor: pointer;
     font-size: 11px;
+    min-height: var(--tap-size);
   }
-  .chip input { display: none; }
+  /* Visually hidden, not display:none — display:none drops the checkbox
+     out of the tab order, so these toggles were mouse-only. */
+  .chip input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .chip:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .chip.on {
     background: var(--accent-bg);
     border-color: var(--accent);
@@ -854,7 +893,8 @@
   .risk-low.on { background: var(--success-bg); border-color: var(--success); color: var(--success); }
   .risk-medium.on { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); }
   .risk-high.on { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
-  .hint { color: var(--text-subtle); font-style: italic; }
+  /* Readable metadata bottoms out at --text-muted. */
+  .hint { color: var(--text-muted); font-style: italic; }
 
   .caps-row {
     margin-top: 8px;
@@ -871,6 +911,9 @@
     cursor: pointer;
     color: var(--text-secondary);
     user-select: none;
+    /* WCAG 2.5.8 floor for the disclosure target. */
+    min-height: var(--tap-size);
+    padding: 4px 0;
   }
   .preset-list {
     display: flex;
@@ -888,7 +931,7 @@
     font-size: 11px;
     color: var(--text-body);
   }
-  .preset-list button:hover { background: var(--bg-hover); border-color: var(--text-subtle); }
+  .preset-list button:hover { background: var(--bg-hover); border-color: var(--border-field); }
 
   .header-actions {
     display: inline-flex;
@@ -897,7 +940,8 @@
   }
   .btn-primary {
     background: var(--accent);
-    color: white;
+    /* Paired ink: --accent lightens in dark, so the ink must flip. */
+    color: var(--accent-on);
     border: none;
     border-radius: 4px;
     padding: 6px 12px;
@@ -920,7 +964,8 @@
   .btn-secondary:hover { background: var(--bg-hover); }
   .btn-danger {
     background: var(--danger);
-    color: white;
+    /* Paired ink: --danger lightens in dark, so the ink must flip. */
+    color: var(--danger-on);
     border: none;
     border-radius: 4px;
     padding: 5px 10px;
@@ -998,10 +1043,25 @@
     flex-shrink: 0;
   }
 
-  @media (max-width: 700px) {
+  /* BP_COMPACT — src/lib/shell/breakpoints.ts */
+  @media (max-width: 900px) {
     .grid {
       grid-template-columns: 1fr 1fr;
     }
     .field.narrow { max-width: none; }
+  }
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .grid,
+    .create-grid {
+      grid-template-columns: 1fr;
+    }
+    header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .header-actions {
+      justify-content: space-between;
+    }
   }
 </style>

@@ -483,7 +483,9 @@
   {#if card.tasks.length > 0}
     <div class="card-footer">
       <div class="card-progress" aria-label={t("card.progress_aria")}>
-        <div class="card-progress-fill" style:width="{displayProgressPercent}%"></div>
+        <!-- Animé en transform: scaleX plutôt qu'en width — même rendu, mais
+             la barre n'entraîne plus un relayout à chaque tick du timer. -->
+        <div class="card-progress-fill" style:transform="scaleX({displayProgressPercent / 100})"></div>
       </div>
       <div class="card-stats">
         <span>{displayProgressPercent}%</span>
@@ -575,7 +577,7 @@
     border-radius: 6px;
     padding: 10px 12px;
     margin-bottom: 8px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--elev-rest);
     /* Left border colour conveys priority at a glance during a column
        scan; the textual P0/P1/… pill in the meta row is the
        a11y-friendly fallback. */
@@ -583,10 +585,12 @@
     cursor: grab;
     transition: box-shadow 120ms ease, transform 120ms ease;
   }
-  .card.prio-p0 { --card-accent: #d92d20; }
-  .card.prio-p1 { --card-accent: #f79009; }
-  .card.prio-p2 { --card-accent: #2e90fa; }
-  .card.prio-p3 { --card-accent: var(--text-subtle); }
+  .card.prio-p0 { --card-accent: var(--priority-p0); }
+  .card.prio-p1 { --card-accent: var(--priority-p1); }
+  .card.prio-p2 { --card-accent: var(--priority-p2); }
+  /* La rampe de priorité passe par ses propres tokens : p3 ne s'adosse
+     plus à --text-subtle, qui n'est plus une couleur de contenu. */
+  .card.prio-p3 { --card-accent: var(--priority-p3); }
   /* Locked = a run is in flight on one of its subtasks. The cursor
      hint prevents the user from expecting drag-to-move behaviour;
      the actual reject lives in Column.svelte's handleFinalize so the
@@ -594,7 +598,7 @@
   .card.locked { cursor: not-allowed; }
   .card.locked.clickable:hover { transform: none; }
   .card.clickable:hover {
-    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
+    box-shadow: var(--elev-lifted);
     transform: translateY(-1px);
   }
   .card.clickable:focus-visible {
@@ -633,8 +637,9 @@
   }
   .kebab {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    /* WCAG 2.5.8 : 24×24 est un plancher, pas une concession mobile. */
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: 0;
     background: transparent;
@@ -656,8 +661,20 @@
     opacity: 1;
   }
   .kebab:hover {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+    background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  /* Sans survol, le geste qui révèle le menu n'existe pas : la carte n'a
+     alors simplement pas de menu (l'appui long via handleContextMenu marche
+     mais n'est pas découvrable). C'est la CAPACITÉ du pointeur qui décide,
+     pas la largeur : une fenêtre desktop de 700px garde le survol.
+     Requête de capacité : hors des trois seuils de largeur. */
+  @media (hover: none), (pointer: coarse) {
+    .kebab {
+      opacity: 1;
+      min-width: var(--tap-size);
+      min-height: var(--tap-size);
+    }
   }
   /* Archived cards: still clickable / present, but visually muted so
      they read as "shelved". The board hides them by default — when a
@@ -679,18 +696,20 @@
     font-size: 10px;
   }
   .pri {
-    font-size: 9px;
+    /* Micro = 10px, en capitales à 700 avec letter-spacing 0.04em : le
+       plancher du système. 9px était sous la rampe. */
+    font-size: 10px;
     font-weight: 700;
     padding: 1px 5px;
     border-radius: 3px;
-    color: white;
+    color: var(--text-on-fill);
     flex-shrink: 0;
     letter-spacing: 0.04em;
   }
-  .pri-p0 { background: #d92d20; }
-  .pri-p1 { background: #f79009; }
-  .pri-p2 { background: #2e90fa; }
-  .pri-p3 { background: var(--text-subtle); }
+  .pri-p0 { background: var(--priority-p0); }
+  .pri-p1 { background: var(--priority-p1); }
+  .pri-p2 { background: var(--priority-p2); }
+  .pri-p3 { background: var(--priority-p3); }
 
   /* Action toolbar at the bottom of the card. Lets the title row use
      the full card width (= fewer wrap-lines on narrow columns) by
@@ -705,52 +724,59 @@
   }
   .icon-btn {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    /* Contrôle à fond transparent : son contour doit 3:1 (WCAG 1.4.11). */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 1px 6px;
     font-size: 12px;
     cursor: pointer;
     color: var(--text-secondary);
     flex-shrink: 0;
+    /* Ces trois boutons portent les seules actions irréversibles de la
+       carte ; un raté au doigt y coûte cher. --tap-size vaut 24px, 28px
+       sous pointeur grossier (app.css). */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   .icon-btn:hover {
     background: var(--bg-hover);
-    border-color: var(--text-subtle);
+    border-color: var(--border-field);
   }
   .icon-btn.play {
     background: var(--success);
     border-color: var(--success);
-    color: white;
+    color: var(--success-on);
   }
   .icon-btn.play:hover:not(:disabled) {
-    background: #036a3e;
-    border-color: #036a3e;
+    background: var(--success-hover);
+    border-color: var(--success-hover);
   }
   .icon-btn.approve {
-    background: #a78bfa;
-    border-color: #a78bfa;
-    color: white;
-    display: inline-flex;
-    align-items: center;
+    background: var(--apply);
+    border-color: var(--apply-text);
+    /* Le violet s'éclaircit en thème sombre : il lui faut son encre
+       appariée, pas --text-on-fill. */
+    color: var(--apply-on);
     gap: 4px;
     font-weight: 600;
   }
   .icon-btn.approve:hover:not(:disabled) {
-    background: #8b5cf6;
-    border-color: #8b5cf6;
+    background: var(--apply-hover);
+    border-color: var(--apply-hover);
   }
   .icon-btn.discard {
     background: var(--danger-bg);
     border-color: var(--danger);
     color: var(--danger);
-    display: inline-flex;
-    align-items: center;
     gap: 4px;
     font-weight: 600;
   }
   .icon-btn.discard:hover:not(:disabled) {
     background: var(--danger);
-    color: var(--text-inverse);
+    color: var(--danger-on);
   }
   .icon-btn:disabled {
     opacity: 0.5;
@@ -818,8 +844,10 @@
   }
   .card-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #2e90fa, var(--accent));
-    transition: width 0.4s ease-out;
+    width: 100%;
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--accent-solid), var(--accent));
+    transition: transform 0.4s ease-out;
   }
   .card-stats {
     display: flex;

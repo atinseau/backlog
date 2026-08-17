@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createClaim, type ClaimConflict } from "./api.js";
+  import { focusTrap } from "./DialogShell.svelte";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
@@ -43,7 +44,7 @@
 
     const paths = parsePaths();
     if (!repo || !topic || paths.length === 0) {
-      genericError = "repository, topic and at least one path are required";
+      genericError = t("claim_dialog.error.required");
       return;
     }
 
@@ -73,7 +74,7 @@
 </script>
 
 <div class="backdrop" onclick={onClose} role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" aria-label={t("claim_dialog.title")} onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
+  <div use:focusTrap class="dialog" role="dialog" aria-modal="true" aria-label={t("claim_dialog.title")} onclick={(e) => e.stopPropagation()} tabindex={-1} onkeydown={(e) => { if (e.key === "Escape") onClose(); }}>
     <header>
       <h2>{t("claim_dialog.title")}</h2>
       <button class="close" onclick={onClose} aria-label={t("claim_dialog.close")}>×</button>
@@ -83,7 +84,7 @@
       <label>
         {t("claim_dialog.field.repo")}
         {#if repos.length === 0}
-          <input type="text" bind:value={repo} placeholder="repository ID" required />
+          <input type="text" bind:value={repo} placeholder={t("claim_dialog.field.repo.placeholder")} required />
         {:else}
           <select bind:value={repo} required>
             {#each repos as r (r)}
@@ -151,7 +152,7 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -161,7 +162,7 @@
     background: var(--bg-surface);
     border-radius: 8px;
     width: min(480px, 90vw);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-modal);
     padding: 0;
   }
   .dialog header {
@@ -175,9 +176,15 @@
   .close {
     background: none;
     border: none;
-    font-size: 22px;
+    font-size: 18px;
     cursor: pointer;
     color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
   }
   form {
     padding: 16px;
@@ -195,10 +202,12 @@
   input, select, textarea {
     font: inherit;
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     width: 100%;
   }
+  input::placeholder,
+  textarea::placeholder { color: var(--text-muted); }
   textarea {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
@@ -228,6 +237,7 @@
   }
   footer {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
     padding-top: 4px;
@@ -238,15 +248,22 @@
     border-radius: 4px;
     padding: 6px 14px;
     cursor: pointer;
+    min-height: var(--tap-size);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   button.primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border-color: var(--accent);
   }
+  /* Neutral disabled fill pair — --text-subtle is never a background. */
   button.primary:disabled {
-    background: var(--text-subtle);
-    border-color: var(--text-subtle);
+    background: var(--text-muted);
+    border-color: var(--text-muted);
+    color: var(--text-inverse);
     cursor: wait;
   }
 </style>

@@ -187,7 +187,7 @@
                       {#if isCurrent}<span class="badge">{t("manage_projects.current")}</span>{/if}
                     </button>
                   {/if}
-                  <span class="loc-pill">{project.location === "user_level" ? "user-level" : "project-folder"}</span>
+                  <span class="loc-pill">{project.location === "user_level" ? t("manage_projects.location.user_level") : t("manage_projects.location.project_folder")}</span>
                 </div>
                 <button class="path-link" onclick={() => revealPath(project.path)} title={t("repos_view.open_folder")}>
                   📂 <span class="path-text">{project.path}</span>
@@ -264,11 +264,16 @@
     display: flex; align-items: center; justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     background: transparent; border: none;
     font-size: 18px; cursor: pointer;
     color: var(--text-secondary);
+    min-width: var(--tap-size); min-height: var(--tap-size);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {
     background: var(--danger-bg); color: var(--danger);
     padding: 8px 20px; font-size: 12px;
@@ -333,6 +338,7 @@
     text-align: left;
     color: var(--text-primary); font-size: 14px;
     display: inline-flex; align-items: center; gap: 6px;
+    min-height: var(--tap-size);
   }
   .name-btn:hover { color: var(--accent); }
   .rename-input {
@@ -346,25 +352,33 @@
     font-size: 14px;
     font-weight: 600;
     font-family: inherit;
-    outline: none;
+    min-height: var(--tap-size);
+  }
+  /* Was `outline: none` with no replacement — the accent border is
+     permanent here, so it never signalled focus. */
+  .rename-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .badge {
     background: var(--accent-bg); color: var(--accent-text);
-    font-size: 10px; padding: 1px 6px; border-radius: 10px;
+    font-size: 10px; padding: 1px 6px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.04em;
     font-weight: 500;
   }
   .loc-pill {
     background: var(--bg-hover); color: var(--text-body);
-    padding: 1px 8px; border-radius: 10px;
+    padding: 1px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 500;
   }
   .path-link {
     background: transparent; border: none; padding: 0;
     text-align: left; cursor: pointer;
     color: var(--text-secondary); font-size: 11px;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     display: inline-flex; align-items: center; gap: 4px;
     overflow: hidden; min-width: 0;
+    min-height: var(--tap-size);
   }
   .path-link:hover { color: var(--accent); }
   .path-text {
@@ -373,12 +387,14 @@
   .actions { flex-shrink: 0; display: flex; gap: 6px; }
   button.ghost {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    /* Transparent control on a surface: WCAG 1.4.11 asks 3:1. */
+    border: 1px solid var(--border-field);
     color: var(--text-secondary);
     border-radius: 4px;
     padding: 4px 10px;
     font-size: 12px;
     cursor: pointer;
+    min-height: var(--tap-size);
   }
   button.ghost:hover:not(:disabled) {
     background: var(--bg-hover);
@@ -393,6 +409,7 @@
     padding: 4px 10px;
     font-size: 12px;
     cursor: pointer;
+    min-height: var(--tap-size);
   }
   button.danger:hover:not(:disabled) {
     background: var(--danger-bg);
@@ -415,4 +432,14 @@
     cursor: pointer;
   }
   button.primary:hover { background: var(--accent-hover); }
+
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .projects li {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .actions { justify-content: flex-end; }
+    .row1 { flex-wrap: wrap; }
+  }
 </style>

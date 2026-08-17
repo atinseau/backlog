@@ -272,6 +272,16 @@
     min-height: 0;
     overflow: hidden;
   }
+  /* Inerte tant que le conteneur ne déclare pas scroll-snap-type : c'est
+     App.svelte qui l'active, uniquement en mode compact et sous pointeur
+     grossier. La colonne ne connaît pas le mode du shell.
+     Requête de capacité : ne compte pas dans les trois seuils de largeur
+     (src/lib/shell/breakpoints.ts). */
+  @media (pointer: coarse) {
+    .column {
+      scroll-snap-align: start;
+    }
+  }
   header {
     display: flex;
     align-items: center;
@@ -298,7 +308,8 @@
     color: var(--text-body);
     font-size: 11px;
     padding: 1px 7px;
-    border-radius: 10px;
+    /* Compteur ovale : gélule, pas un rayon de 10px hors échelle. */
+    border-radius: 999px;
   }
   .archive-all {
     flex: 0 0 auto;
@@ -324,6 +335,15 @@
     opacity: 0.35;
     cursor: not-allowed;
   }
+  /* 24×24 est conforme en pointeur fin et l'en-tête de colonne est dense
+     par construction : on ne grossit que sous pointeur grossier.
+     Requête de capacité : hors des trois seuils de largeur. */
+  @media (pointer: coarse) {
+    .archive-all {
+      width: var(--tap-size);
+      height: var(--tap-size);
+    }
+  }
   .cards {
     flex: 1;
     min-height: 0;
@@ -345,7 +365,9 @@
     width: 3px;
     border-radius: 999px;
     background: var(--success);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--success) 45%, transparent);
+    /* Le halo box-shadow écrit à la main a été retiré : l'élévation ne
+       connaît que les cinq tokens --elev-*. Le repère de file d'attente
+       reste porté par le rail plein, qui suffit à le lire. */
   }
   .card-shell.queue-waiting {
     opacity: 0.92;
@@ -353,13 +375,15 @@
   .placeholder {
     padding: 16px 0;
     text-align: center;
-    color: var(--text-subtle);
+    /* Message d'état vide = contenu lisible : plancher --text-muted. */
+    color: var(--text-muted);
     font-size: 13px;
   }
   .load-more {
     width: 100%;
     margin-top: 8px;
-    border: 1px dashed var(--border-strong);
+    /* Contrôle à fond transparent : son contour doit 3:1 (WCAG 1.4.11). */
+    border: 1px dashed var(--border-field);
     border-radius: 6px;
     background: transparent;
     color: var(--text-muted);

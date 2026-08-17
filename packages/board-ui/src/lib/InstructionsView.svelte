@@ -173,7 +173,8 @@
   }
   .view-header h2 {
     margin: 0;
-    font-size: 20px;
+    /* Display step — 18px is the top of the type ramp. */
+    font-size: 18px;
   }
   .view-header p {
     margin: 4px 0 0;
@@ -188,7 +189,7 @@
   }
   button {
     border: 1px solid var(--border-strong);
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
     font: inherit;
@@ -199,12 +200,20 @@
     opacity: 0.55;
     cursor: default;
   }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     border: none;
     background: transparent;
     color: var(--text-secondary);
     font-size: 18px;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {
     margin: 12px 20px 0;
     color: var(--danger);
@@ -267,7 +276,7 @@
   }
   .file-row small {
     color: var(--text-muted);
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
   }
   .reader {
@@ -290,7 +299,7 @@
   }
   .reader-head small {
     color: var(--text-muted);
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
   }
   .scope {
@@ -313,13 +322,14 @@
     padding: 16px 18px;
     background: var(--bg-surface);
     color: var(--text-primary);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
   }
-  @media (max-width: 820px) {
+  /* BP_COMPACT — src/lib/shell/breakpoints.ts */
+  @media (max-width: 900px) {
     .layout {
       grid-template-columns: 1fr;
     }

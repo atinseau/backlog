@@ -189,12 +189,24 @@
   }
   button {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 2px 8px;
+    /* WCAG 2.5.8 floor; widens to 28px on a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
     color: var(--text-secondary);
     cursor: pointer;
     font: inherit;
+  }
+  button:hover { background: var(--bg-hover); }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .body {
     flex: 1 1 auto;

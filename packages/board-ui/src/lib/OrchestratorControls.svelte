@@ -182,7 +182,8 @@
     width: 38px;
     height: 38px;
     border: none;
-    border-radius: 50%;
+    /* Deliberately round object → the pill radius, not an off-scale 50%. */
+    border-radius: 999px;
     background: transparent;
     cursor: pointer;
     color: var(--text-primary);
@@ -193,6 +194,12 @@
     transition: background 120ms ease, color 120ms ease;
   }
   .ctrl + .ctrl { margin-left: -10px; }
+  /* Pointer capability, not width. Stop and Play mean opposite things;
+     at the finger they get the system's minimum gutter instead of the
+     -10px overlap that welds them into one visual control. */
+  @media (pointer: coarse) {
+    .ctrl + .ctrl { margin-left: var(--tap-gap); }
+  }
   .ctrl :global(svg) { width: 16px; height: 16px; }
   .ctrl:hover:not(:disabled) {
     background: var(--bg-hover);

@@ -150,7 +150,10 @@
     border-color: var(--accent);
   }
   .run-status.inline {
-    width: auto;
+    /* The .agent-run-screen wrapper in App.svelte already sizes this
+       slot; the min(460px, 42vw) above was a second, competing
+       constraint that stopped the topbar compressing cleanly. */
+    width: 100%;
     min-width: 130px;
     height: 100%;
     border: none;
@@ -166,16 +169,17 @@
   .pulse {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
-    background: var(--text-subtle);
+    border-radius: 999px;
+    /* Neutral fill pair; --text-subtle is never a background. */
+    background: var(--text-muted);
   }
   .run-status-active .pulse {
     background: var(--success);
     box-shadow: 0 0 0 3px var(--success-bg);
   }
   .run-status-review .pulse {
-    background: #a78bfa;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18);
+    background: var(--apply);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--apply) 18%, transparent);
   }
   .run-status-blocked .pulse {
     background: var(--warning);
@@ -202,11 +206,14 @@
     font-size: 13px;
   }
   .detail {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
   }
 
-  @media (max-width: 980px) {
+  /* BP_COMPACT — see src/lib/shell/breakpoints.ts. This component lives
+     in .topbar-center: it must degrade at exactly the width where the
+     shell goes compact, not 80px later. */
+  @media (max-width: 900px) {
     .run-status {
       width: min(330px, 34vw);
       min-width: 160px;

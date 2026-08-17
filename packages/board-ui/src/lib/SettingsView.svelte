@@ -118,7 +118,7 @@
           {#if currentProjectEntry}
             <div><span class="info-label">{t("settings.project.name")}</span><strong>{currentProjectEntry.name}</strong></div>
             <div><span class="info-label">{t("settings.project.location")}</span>
-              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? "user-level" : "project-folder"}</span>
+              <span class="loc-pill">{currentProjectEntry.location === "user_level" ? t("manage_projects.location.user_level") : t("manage_projects.location.project_folder")}</span>
             </div>
           {/if}
           <div class="full">
@@ -236,7 +236,15 @@
     display: flex; align-items: center; justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
+  .close {
+    background: transparent; border: none; font-size: 18px; cursor: pointer;
+    color: var(--text-secondary);
+    min-width: var(--tap-size); min-height: var(--tap-size);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .content {
     overflow-y: auto;
     padding: 16px 20px 32px;
@@ -259,11 +267,13 @@
   button.ghost {
     align-self: flex-start;
     background: transparent;
-    border: 1px solid var(--border-strong);
+    /* Transparent control on a surface: WCAG 1.4.11 asks 3:1. */
+    border: 1px solid var(--border-field);
     color: var(--text-body);
     border-radius: 4px;
     padding: 4px 12px;
     cursor: pointer; font-size: 13px;
+    min-height: var(--tap-size);
   }
   button.ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -282,13 +292,13 @@
     background: var(--bg-input);
     border: 1px solid var(--border-default);
     padding: 2px 6px; border-radius: 3px;
-    font-family: ui-monospace, monospace; font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     color: var(--text-body);
   }
   .loc-pill {
     background: var(--bg-elevated); color: var(--text-body);
-    padding: 1px 8px; border-radius: 10px;
+    padding: 1px 8px; border-radius: 999px;
     font-size: 11px; font-weight: 500;
   }
 
@@ -309,7 +319,7 @@
   .key-head strong { font-size: 13px; color: var(--text-primary); flex-shrink: 0; }
   .key-state {
     font-size: 11px; color: var(--text-muted);
-    padding: 1px 7px; border-radius: 10px;
+    padding: 1px 7px; border-radius: 999px;
     background: var(--bg-hover);
   }
   .key-state.set {
@@ -326,12 +336,14 @@
   .key-row input[type="password"] {
     flex: 1;
     padding: 5px 10px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
     font-size: 13px;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    min-height: var(--tap-size);
   }
   .key-row input[type="password"]:focus { outline: none; border-color: var(--accent); }
   button.primary.small {
@@ -339,15 +351,18 @@
     border: 1px solid var(--accent);
     padding: 4px 12px; border-radius: 4px;
     font-size: 12px; cursor: pointer;
+    min-height: var(--tap-size);
   }
   button.primary.small:hover:not(:disabled) { background: var(--accent-hover); }
   button.primary.small:disabled { opacity: 0.4; cursor: not-allowed; }
   button.ghost.small {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     color: var(--text-secondary);
     padding: 4px 8px; border-radius: 4px;
     font-size: 12px; cursor: pointer;
+    min-height: var(--tap-size);
+    min-width: var(--tap-size);
   }
   button.ghost.small:hover:not(:disabled) {
     background: var(--bg-hover); color: var(--text-primary);
@@ -360,6 +375,9 @@
     cursor: pointer;
     color: var(--text-muted);
     user-select: none;
+    /* WCAG 2.5.8 floor for the disclosure target. */
+    min-height: var(--tap-size);
+    padding: 4px 0;
   }
   .cli-fallback summary:hover { color: var(--text-body); }
   .cli-fallback .cli-row { margin-top: 6px; }
@@ -370,18 +388,28 @@
     border: 1px solid var(--border-default);
     color: var(--text-body);
     padding: 4px 8px; border-radius: 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11.5px; overflow-x: auto; white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px; overflow-x: auto; white-space: nowrap;
   }
   .copy {
     background: transparent; border: 1px solid var(--border-default);
     color: var(--text-secondary); border-radius: 4px;
     padding: 2px 8px; cursor: pointer; font-size: 12px; flex-shrink: 0;
+    min-height: var(--tap-size); min-width: var(--tap-size);
   }
   .copy:hover { background: var(--bg-hover); color: var(--text-primary); }
   .msg.err {
     background: var(--danger-bg); color: var(--danger);
     padding: 4px 8px; border-radius: 4px;
     font-size: 11px; margin-top: 6px;
+  }
+
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .info-grid {
+      grid-template-columns: 1fr;
+    }
+    .key-head { flex-wrap: wrap; }
+    .link-out { margin-left: 0; }
   }
 </style>
