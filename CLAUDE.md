@@ -79,8 +79,10 @@ Project ──┬── Repository (a git checkout the project tracks)
   completed`, plus `blocked` / `canceled`.
 - **Run** — one agent execution against one subtask. Statuses: `queued →
   preparing → running → awaiting_review → succeeded`, plus `failed` /
-  `blocked` / `interrupted` / `canceled`. Two `execution_mode`s:
-  `isolated_worktree` (default) or `direct` (in the working checkout).
+  `blocked` / `interrupted` / `canceled`. Every run executes in its own
+  isolated git worktree — there is no mode that edits the user's working
+  checkout directly. A repository whose checkout has no git metadata cannot
+  be run; the launcher skips it with `repository_not_a_git_repository`.
   Produces `artifacts` (branch, commit, patch, PR URL, logs…).
 - **Claim** — a lock on a set of paths in a repository, `exclusive` or
   `shared`, with a heartbeat and an expiry. This is what stops two agents from

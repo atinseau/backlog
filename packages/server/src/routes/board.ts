@@ -46,8 +46,8 @@ interface SubTaskCard {
   blockers: string[];
   risk: SubTask["risk"];
   priority_score: number;
-  active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "execution_mode" | "result"> | null;
-  latest_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null;
+  active_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "result"> | null;
+  latest_run: Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "result"> | null;
   active_claim: ClaimSummary | null;
   estimated_duration_seconds: number;
   estimate_source: "manual" | "auto" | "fallback";
@@ -122,7 +122,7 @@ function directTargetStatus(parentTask: Task, latestRun: Run, activeRun: Run | n
   return "queued";
 }
 
-function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "execution_mode" | "result"> | null {
+function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" | "started_at" | "finished_at" | "result"> | null {
   if (!run) return null;
   return {
     id: run.id,
@@ -130,7 +130,6 @@ function summarizeRun(run: Run | null): Pick<Run, "id" | "status" | "agent_id" |
     agent_id: run.agent_id,
     started_at: run.started_at,
     finished_at: run.finished_at,
-    execution_mode: run.execution_mode,
     result: run.result,
   };
 }
@@ -263,7 +262,6 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
               status: activeRun.status,
               agent_id: activeRun.agent_id,
               started_at: activeRun.started_at,
-              execution_mode: activeRun.execution_mode,
               result: activeRun.result,
             }
           : null,
@@ -317,7 +315,6 @@ async function buildBoard(project: ServerProject, filters: BoardFilters): Promis
                 status: activeRun.status,
                 agent_id: activeRun.agent_id,
                 started_at: activeRun.started_at,
-                execution_mode: activeRun.execution_mode,
                 result: activeRun.result,
               }
             : null,

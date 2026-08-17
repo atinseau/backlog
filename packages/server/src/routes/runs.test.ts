@@ -110,7 +110,6 @@ describe("GET /runs", () => {
       branch: "backlog/run_active",
       worktreePath: project.root,
       claimIds: [claim.id],
-      executionMode: "direct",
     });
     createRun({
       backlogDir: project.backlogDir,
@@ -121,7 +120,6 @@ describe("GET /runs", () => {
       branch: "backlog/run_archived",
       worktreePath: project.root,
       claimIds: [],
-      executionMode: "isolated_worktree",
     });
     archiveRun(project.backlogDir, "run_archived");
 
@@ -219,7 +217,7 @@ describe("POST /runs", () => {
     ]);
   });
 
-  it("executes task_id runs directly without creating a subtask", async () => {
+  it("executes task_id runs in an isolated worktree without creating a subtask", async () => {
     const project = await makeGitWorkspace("assist");
     addAgent(project.backlogDir, {
       id: "writer",
@@ -234,7 +232,6 @@ describe("POST /runs", () => {
       repoTargets: ["demo"],
       autoCommit: false,
       pushWhenDone: false,
-      worktreeMode: "direct",
       preferredAgents: ["writer"],
     });
 
@@ -248,57 +245,14 @@ describe("POST /runs", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as { started?: Array<{ runId: string; worktreePath: string; branch: string }>; skipped?: unknown[] };
     expect(body.skipped ?? []).toEqual([]);
-    expect(body.started).toEqual([
-      expect.objectContaining({
-        worktreePath: project.root,
-        branch: "main",
-      }),
-    ]);
-    expect(fs.readFileSync(path.join(project.root, "task-direct.txt"), "utf8")).toBe("ok\n");
-    expect(fs.existsSync(path.join(project.backlogDir, "worktrees", "demo"))).toBe(false);
-    const run = body.started?.[0] ? loadRun(project.backlogDir, body.started[0].runId) : null;
+    expect(body.started).toHaveLength(1);
+    const started = body.started![0]!;
+    expect(started.worktreePath).toBe(path.join(project.backlogDir, "worktrees", "demo", started.runId));
+    expect(started.branch.startsWith(`backlog/${task.id}-`)).toBe(true);
+    expect(fs.readFileSync(path.join(started.worktreePath, "task-direct.txt"), "utf8")).toBe("ok\n");
+    const run = loadRun(project.backlogDir, started.runId);
     expect(run?.reasoning_effort).toBe("high");
     const executionUnits = listSubTasks(project.backlogDir).filter((unit) => unit.task_id === task.id);
     expect(executionUnits).toHaveLength(0);
-  });
-
-  it("passes explicit dirty direct checkout approval to the launcher", async () => {
-    const project = await makeGitWorkspace("assist");
-    addAgent(project.backlogDir, {
-      id: "writer",
-      provider: "custom",
-      command: "node -e \"require('fs').writeFileSync('dirty-direct.txt', 'ok\\\\n')\"",
-      successMode: "complete",
-      allowedRepos: ["demo"],
-      allowedRisk: ["medium"],
-    });
-    const task = createTask(project.backlogDir, {
-      title: "Write direct file anyway",
-      repoTargets: ["demo"],
-      autoCommit: false,
-      pushWhenDone: false,
-      worktreeMode: "direct",
-      preferredAgents: ["writer"],
-    });
-    fs.writeFileSync(path.join(project.root, "human-note.txt"), "already here\n", "utf8");
-
-    const app = buildApp(project);
-    const res = await app.request("/runs", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        task_id: task.id,
-        agent_id: "writer",
-        approve: true,
-        allow_dirty_direct: true,
-      }),
-    });
-
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as { started?: Array<{ worktreePath: string }>; skipped?: unknown[] };
-    expect(body.skipped ?? []).toEqual([]);
-    expect(body.started?.[0]?.worktreePath).toBe(project.root);
-    expect(fs.readFileSync(path.join(project.root, "dirty-direct.txt"), "utf8")).toBe("ok\n");
-    expect(fs.readFileSync(path.join(project.root, "human-note.txt"), "utf8")).toBe("already here\n");
   });
 });

@@ -10,7 +10,6 @@ import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { subTaskExecutionTarget, taskExecutionTarget, type ExecutionTarget } from "./execution-target.js";
-import { isBacklogInternalPath, parsePorcelainPaths } from "./git-status.js";
 import {
   buildRunBranchName,
   cleanupRemoteExecutionCheckout,
@@ -24,38 +23,6 @@ import {
 // attempt's prompt. Bounded so a verbose Claude log doesn't explode
 // the prompt size.
 const RETRY_FEEDBACK_BYTES = 4_000;
-
-async function inspectDirectCheckout(repoPath: string, options: { allowDirty?: boolean } = {}): Promise<
-  | { ok: true; branch: string; dirtyFiles?: string[]; git: boolean }
-  | { ok: false; reason: string }
-> {
-  let branch: string;
-  try {
-    branch = await git(["symbolic-ref", "--short", "HEAD"], repoPath);
-  } catch {
-    try {
-      await detectGitDir(repoPath);
-      return { ok: false, reason: "direct_checkout_detached_head" };
-    } catch {
-      return { ok: true, branch: "local-folder", git: false };
-    }
-  }
-
-  // Direct mode writes into the user's checkout, and auto-commit uses
-  // `git add -A`. Refuse local dirt before the run so unrelated human
-  // work cannot be swept into the agent commit. `.backlog/` is allowed
-  // because embedded workspaces keep their own state inside the repo.
-  const status = await git(["status", "--porcelain"], repoPath);
-  const dirty = parsePorcelainPaths(status).filter((file) => !isBacklogInternalPath(file));
-  if (dirty.length > 0) {
-    if (options.allowDirty) {
-      return { ok: true, branch, dirtyFiles: dirty, git: true };
-    }
-    return { ok: false, reason: "direct_checkout_dirty" };
-  }
-
-  return { ok: true, branch, git: true };
-}
 
 async function hasGitMetadata(repoPath: string): Promise<boolean> {
   try {
@@ -92,8 +59,6 @@ export interface StartRunsForPlanInput {
   maxStart: number;
   /** Override agent for every started run (matches CLI --agent). */
   forcedAgentId?: string;
-  /** User explicitly chose to run in direct mode even though git is dirty. */
-  allowDirtyDirect?: boolean;
   /** Explicit split batches may run several copies of the same model. */
   allowAgentOversubscribe?: boolean;
   /** Provider-specific reasoning/effort level selected by the user. */
@@ -170,7 +135,7 @@ function updateExecutionTargetStatus(backlogDir: string, target: ExecutionTarget
 }
 
 export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<StartRunsResult> {
-  const { backlogDir, config, plan, maxStart, forcedAgentId, allowDirtyDirect, allowAgentOversubscribe, reasoningEffort } = input;
+  const { backlogDir, config, plan, maxStart, forcedAgentId, allowAgentOversubscribe, reasoningEffort } = input;
   const started: StartedRun[] = [];
   const skipped: SkippedRun[] = [];
   const executions: Array<Promise<void>> = [];
@@ -239,57 +204,22 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       agentId: agent.id,
     });
 
-    const requestedExecutionMode = workItem.execution_defaults?.worktree_mode ?? "direct";
     const checkoutHasGit = await hasGitMetadata(checkoutPath);
-    let executionMode = persistentCheckoutPath
-      ? (checkoutHasGit ? requestedExecutionMode : "direct")
-      : "isolated_worktree";
-    let branch = buildRunBranchName(task.id, task.title, runId);
+    if (!checkoutHasGit) {
+      archiveClaim(backlogDir, claim.id);
+      skipped.push({ taskId: task.id, reasons: ["repository_not_a_git_repository"] });
+      continue;
+    }
+    const branch = buildRunBranchName(task.id, task.title, runId);
     let worktreePath: string;
-    let allowedDirtyDirectFiles: string[] = [];
-    let modeAdjustmentMessage: string | null = null;
     try {
-      if (executionMode === "direct") {
-        const directBusy = checkoutHasGit && (listActiveRuns(backlogDir).some(
-          (run) => run.repo === repo.id && run.execution_mode === "direct" && isAgentBusyStatus(run.status),
-        ) || started.some((run) => run.worktreePath === checkoutPath));
-        if (directBusy) {
-          archiveClaim(backlogDir, claim.id);
-          skipped.push({ taskId: task.id, reasons: ["direct_checkout_busy"] });
-          continue;
-        }
-
-        const direct = await inspectDirectCheckout(checkoutPath, allowDirtyDirect ? { allowDirty: true } : {});
-        if (!direct.ok) {
-          if (direct.reason === "direct_checkout_detached_head" && checkoutHasGit) {
-            executionMode = "isolated_worktree";
-            modeAdjustmentMessage = "Direct mode is unavailable from a detached HEAD — using an isolated execution workspace.";
-            worktreePath = await ensureWorktree({
-              backlogDir,
-              repoId: repo.id,
-              repoPath: checkoutPath,
-              branch,
-              runId,
-            });
-          } else {
-            archiveClaim(backlogDir, claim.id);
-            skipped.push({ taskId: task.id, reasons: [direct.reason] });
-            continue;
-          }
-        } else {
-          branch = direct.branch;
-          allowedDirtyDirectFiles = direct.dirtyFiles ?? [];
-          worktreePath = checkoutPath;
-        }
-      } else {
-        worktreePath = await ensureWorktree({
-          backlogDir,
-          repoId: repo.id,
-          repoPath: checkoutPath,
-          branch,
-          runId,
-        });
-      }
+      worktreePath = await ensureWorktree({
+        backlogDir,
+        repoId: repo.id,
+        repoPath: checkoutPath,
+        branch,
+        runId,
+      });
     } catch (worktreeError) {
       // Worktree creation failed — most often because the branch
       // already exists from a previous run that didn't clean up. The
@@ -320,15 +250,7 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
       branch,
       worktreePath,
       claimIds: [claim.id],
-      executionMode,
     });
-    if (modeAdjustmentMessage) {
-      appendRunEvent(backlogDir, run.id, {
-        ts: new Date().toISOString(),
-        type: "workspace.mode_adjusted",
-        message: modeAdjustmentMessage,
-      });
-    }
     if (reasoningEffort) {
       appendRunEvent(backlogDir, run.id, {
         ts: new Date().toISOString(),
@@ -336,20 +258,18 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         message: `effort=${reasoningEffort}`,
       });
     }
-    if (checkoutHasGit) {
-      try {
-        const gitDir = await detectGitDir(checkoutPath);
-        writeContextFile(gitDir, {
-          version: 1,
-          claim_id: claim.id,
-          updated_at: new Date().toISOString(),
-        });
-        await writeWorktreeContext(worktreePath, run.id, claim.id);
-      } catch {
-        // Context files are an internal safety aid. A write failure
-        // should never turn into user-visible Git noise for normal
-        // task execution.
-      }
+    try {
+      const gitDir = await detectGitDir(checkoutPath);
+      writeContextFile(gitDir, {
+        version: 1,
+        claim_id: claim.id,
+        updated_at: new Date().toISOString(),
+      });
+      await writeWorktreeContext(worktreePath, run.id, claim.id);
+    } catch {
+      // Context files are an internal safety aid. A write failure
+      // should never turn into user-visible Git noise for normal
+      // task execution.
     }
     addRunArtifact(backlogDir, run.id, { kind: "branch", value: branch });
     if (usingRemoteExecutionCheckout) {
@@ -357,19 +277,6 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
         ts: new Date().toISOString(),
         type: "workspace.remote_checkout",
         message: `Created temporary checkout for remote repository ${repo.id}`,
-      });
-      if (requestedExecutionMode === "direct") {
-        appendRunEvent(backlogDir, run.id, {
-          ts: new Date().toISOString(),
-          type: "workspace.mode_adjusted",
-          message: "Direct mode is unavailable without a local checkout — using an isolated execution workspace",
-        });
-      }
-    } else if (!checkoutHasGit && requestedExecutionMode !== "direct") {
-      appendRunEvent(backlogDir, run.id, {
-        ts: new Date().toISOString(),
-        type: "workspace.mode_adjusted",
-        message: "Isolated Git worktrees are unavailable because this folder is not a Git repository — using direct mode.",
       });
     }
     try {
@@ -383,20 +290,9 @@ export async function startRunsForPlan(input: StartRunsForPlanInput): Promise<St
     }
     appendRunEvent(backlogDir, run.id, {
       ts: new Date().toISOString(),
-      type: executionMode === "direct" ? "workspace.direct" : "workspace.worktree",
-      message: executionMode === "direct"
-        ? checkoutHasGit
-          ? `Working directly in ${checkoutPath} on ${branch}`
-          : `Working directly in ${checkoutPath}`
-        : `Working in isolated worktree ${worktreePath}`,
+      type: "workspace.worktree",
+      message: `Working in isolated worktree ${worktreePath}`,
     });
-    if (executionMode === "direct" && allowedDirtyDirectFiles.length > 0) {
-      appendRunEvent(backlogDir, run.id, {
-        ts: new Date().toISOString(),
-        type: "workspace.direct_dirty_allowed",
-        message: `Continuing despite ${allowedDirtyDirectFiles.length} pre-existing local change(s)`,
-      });
-    }
     updateRunStatus(backlogDir, run.id, "running", "Execution workspace prepared");
     updateExecutionTargetStatus(backlogDir, task, "running");
 

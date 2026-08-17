@@ -39,7 +39,6 @@ export function createRun(params: {
   branch: string;
   worktreePath: string;
   claimIds: string[];
-  executionMode?: Run["execution_mode"];
 }): Run {
   const directory = runDirectory(activeRunsDir(params.backlogDir), params.runId);
   fs.mkdirSync(directory, { recursive: true });
@@ -58,7 +57,6 @@ export function createRun(params: {
     ...(params.reasoningEffort ? { reasoning_effort: params.reasoningEffort } : {}),
     status: "preparing",
     claim_ids: params.claimIds,
-    execution_mode: params.executionMode ?? "isolated_worktree",
     worktree_path: params.worktreePath,
     artifacts: [],
     result: null,

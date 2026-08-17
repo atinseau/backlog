@@ -139,18 +139,6 @@ describe("release and worktree operators", () => {
       claimIds: [],
     });
     archiveRun(backlogDir, "RUN-terminal");
-    createRun({
-      backlogDir,
-      runId: "RUN-direct",
-      task,
-      workItem,
-      agent,
-      branch: "main",
-      worktreePath: root,
-      claimIds: [],
-      executionMode: "direct",
-    });
-    archiveRun(backlogDir, "RUN-direct");
 
     const worktrees = listKnownWorktrees(backlogDir);
     expect(worktrees).toEqual([

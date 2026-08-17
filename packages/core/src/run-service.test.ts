@@ -6,7 +6,7 @@ import { writeContextFile } from "@backlog/claims";
 import { initLayout, loadConfig } from "@backlog/config";
 import { createClaim, listActiveClaims } from "@backlog/claims";
 import { detectGitDir, git } from "@backlog/git";
-import { addRunArtifact, createRun, getRunHandoffPath, loadRun } from "./run-store.js";
+import { createRun, getRunHandoffPath, loadRun } from "./run-store.js";
 import { approveRun, completeRun, discardRun, requestRunChanges, sendRunToReview } from "./run-service.js";
 import { createSubTask, getSubTask } from "./subtask-service.js";
 import { createTask, getTask } from "./task-service.js";
@@ -342,142 +342,44 @@ describe("completeRun", () => {
     expect(fs.existsSync(worktreePath)).toBe(true);
   });
 
-  it("discards a reviewed direct run by resetting its run commit", async () => {
+  it("discards a reviewed run by removing its worktree and branch", async () => {
     const root = await createWorkspace();
     const backlogDir = path.join(root, ".backlog");
     const config = loadConfig(backlogDir);
     const repoId = config.repos[0]!.id;
-    const initialHead = await git(["rev-parse", "HEAD"], root);
+    const branch = "backlog/test-discard";
+    const worktreePath = path.join(backlogDir, "worktrees", repoId, "RUN-discard");
+    await git(["worktree", "add", "-b", branch, worktreePath, "HEAD"], root);
+    fs.writeFileSync(path.join(worktreePath, "discard.txt"), "discard me\n", "utf8");
+    await commitAll(worktreePath, "add discard file");
 
-    const workItem = createTask(backlogDir, { title: "Discard direct commit", repoTargets: [repoId] });
+    const workItem = createTask(backlogDir, { title: "Discard worktree run", repoTargets: [repoId] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
-      title: "Add direct file",
+      title: "Add discard file",
       repo: repoId,
-      scopes: ["direct.txt"],
+      scopes: ["discard.txt"],
       risk: "low",
     });
     const agent = getAgent(backlogDir, "claude-code");
     if (!agent) throw new Error("Expected claude-code agent");
     createRun({
       backlogDir,
-      runId: "RUN-discard-direct",
+      runId: "RUN-discard",
       task,
       workItem,
       agent,
-      branch: "main",
-      worktreePath: root,
+      branch,
+      worktreePath,
       claimIds: [],
-      executionMode: "direct",
     });
-    addRunArtifact(backlogDir, "RUN-discard-direct", { kind: "commit", value: initialHead });
-    fs.writeFileSync(path.join(root, "direct.txt"), "discard me\n", "utf8");
-    await git(["add", "direct.txt"], root);
-    await git(
-      ["-c", "user.name=Backlog", "-c", "user.email=backlog@example.com", "commit", "-m", "add direct file"],
-      root,
-    );
-    const runHead = await git(["rev-parse", "HEAD"], root);
-    addRunArtifact(backlogDir, "RUN-discard-direct", { kind: "commit", value: runHead });
-    await sendRunToReview(backlogDir, "RUN-discard-direct", "ready");
+    await sendRunToReview(backlogDir, "RUN-discard", "ready");
 
-    await discardRun(backlogDir, "RUN-discard-direct", "discarded");
+    await discardRun(backlogDir, "RUN-discard", "discarded");
 
-    expect(await git(["rev-parse", "HEAD"], root)).toBe(initialHead);
-    expect(fs.existsSync(path.join(root, "direct.txt"))).toBe(false);
-    expect(loadRun(backlogDir, "RUN-discard-direct")?.status).toBe("canceled");
-    expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
-    expect(getTask(backlogDir, workItem.id)?.status).toBe("ready");
-  });
-
-  it("discards a reviewed direct run by reversing its patch when it was not committed", async () => {
-    const root = await createWorkspace();
-    const backlogDir = path.join(root, ".backlog");
-    const config = loadConfig(backlogDir);
-    const repoId = config.repos[0]!.id;
-    const initialHead = await git(["rev-parse", "HEAD"], root);
-
-    const workItem = createTask(backlogDir, { title: "Discard direct patch", repoTargets: [repoId] });
-    const task = createSubTask(backlogDir, {
-      workItemId: workItem.id,
-      title: "Add patch file",
-      repo: repoId,
-      scopes: ["patch.txt"],
-      risk: "low",
-    });
-    const agent = getAgent(backlogDir, "claude-code");
-    if (!agent) throw new Error("Expected claude-code agent");
-    createRun({
-      backlogDir,
-      runId: "RUN-discard-patch",
-      task,
-      workItem,
-      agent,
-      branch: "main",
-      worktreePath: root,
-      claimIds: [],
-      executionMode: "direct",
-    });
-    addRunArtifact(backlogDir, "RUN-discard-patch", { kind: "commit", value: initialHead });
-    addRunArtifact(backlogDir, "RUN-discard-patch", { kind: "commit", value: initialHead });
-    fs.writeFileSync(path.join(root, "patch.txt"), "discard me\n", "utf8");
-    addRunArtifact(backlogDir, "RUN-discard-patch", { kind: "file", value: "patch.txt" });
-    const patch = await git(["diff", "--binary"], root);
-    if (patch.trim()) {
-      const patchPath = path.join(backlogDir, "runs", "active", "RUN-discard-patch", "run.patch");
-      fs.writeFileSync(patchPath, patch, "utf8");
-      addRunArtifact(backlogDir, "RUN-discard-patch", { kind: "patch", value: patchPath });
-    }
-    await sendRunToReview(backlogDir, "RUN-discard-patch", "ready");
-
-    await discardRun(backlogDir, "RUN-discard-patch", "discarded");
-
-    expect(await git(["rev-parse", "HEAD"], root)).toBe(initialHead);
-    expect(fs.existsSync(path.join(root, "patch.txt"))).toBe(false);
-    expect(loadRun(backlogDir, "RUN-discard-patch")?.status).toBe("canceled");
-    expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
-    expect(getTask(backlogDir, workItem.id)?.status).toBe("ready");
-  });
-
-  it("discards an empty untracked direct file recorded as an absolute artifact", async () => {
-    const root = await createWorkspace();
-    const backlogDir = path.join(root, ".backlog");
-    const config = loadConfig(backlogDir);
-    const repoId = config.repos[0]!.id;
-    const initialHead = await git(["rev-parse", "HEAD"], root);
-    const emptyPath = path.join(root, "empty.txt");
-
-    const workItem = createTask(backlogDir, { title: "Discard empty file", repoTargets: [repoId] });
-    const task = createSubTask(backlogDir, {
-      workItemId: workItem.id,
-      title: "Add empty file",
-      repo: repoId,
-      scopes: ["empty.txt"],
-      risk: "low",
-    });
-    const agent = getAgent(backlogDir, "claude-code");
-    if (!agent) throw new Error("Expected claude-code agent");
-    createRun({
-      backlogDir,
-      runId: "RUN-discard-empty",
-      task,
-      workItem,
-      agent,
-      branch: "main",
-      worktreePath: root,
-      claimIds: [],
-      executionMode: "direct",
-    });
-    addRunArtifact(backlogDir, "RUN-discard-empty", { kind: "commit", value: initialHead });
-    fs.writeFileSync(emptyPath, "", "utf8");
-    addRunArtifact(backlogDir, "RUN-discard-empty", { kind: "file", value: emptyPath });
-    await sendRunToReview(backlogDir, "RUN-discard-empty", "ready");
-
-    await discardRun(backlogDir, "RUN-discard-empty", "discarded");
-
-    expect(await git(["rev-parse", "HEAD"], root)).toBe(initialHead);
-    expect(fs.existsSync(emptyPath)).toBe(false);
-    expect(loadRun(backlogDir, "RUN-discard-empty")?.status).toBe("canceled");
+    expect(fs.existsSync(worktreePath)).toBe(false);
+    expect(fs.existsSync(path.join(root, "discard.txt"))).toBe(false);
+    expect(loadRun(backlogDir, "RUN-discard")?.status).toBe("canceled");
     expect(getSubTask(backlogDir, task.id)?.status).toBe("planned");
     expect(getTask(backlogDir, workItem.id)?.status).toBe("ready");
   });

@@ -17,7 +17,6 @@ export interface CreateTaskInput {
   pushWhenDone?: boolean;
   createPr?: boolean;
   mergePr?: boolean;
-  worktreeMode?: "isolated_worktree" | "direct";
   status?: TaskStatus;
   // Default assignee for sub-tasks generated from this task. Single
   // agent / user id, or empty for "auto". Threaded into the auto-shim
@@ -44,7 +43,6 @@ export interface UpdateTaskInput {
   // card-menu Assign action can set it via the same patch endpoint
   // as priority. Existing sub-tasks aren't retroactively updated.
   preferredAgents?: string[];
-  worktreeMode?: "isolated_worktree" | "direct";
   maxSubagents?: number;
   proposal?: TaskProposal;
 }
@@ -78,7 +76,6 @@ export function createTask(backlogDir: string, input: CreateTaskInput): Task {
       push_when_done: input.pushWhenDone ?? true,
       create_pr: input.createPr ?? false,
       merge_pr: input.mergePr ?? false,
-      worktree_mode: input.worktreeMode ?? "direct",
       preferred_agents: input.preferredAgents ?? [],
       max_subagents: clampMaxSubagents(input.maxSubagents),
     },
@@ -146,12 +143,6 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
     item.execution_defaults = {
       ...item.execution_defaults,
       preferred_agents: input.preferredAgents,
-    };
-  }
-  if (input.worktreeMode !== undefined) {
-    item.execution_defaults = {
-      ...item.execution_defaults,
-      worktree_mode: input.worktreeMode,
     };
   }
   if (input.maxSubagents !== undefined) {

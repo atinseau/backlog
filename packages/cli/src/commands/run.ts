@@ -128,7 +128,7 @@ export function registerRunCommand(program: Command): void {
       }
       for (const run of runs) {
         const bucket = isTerminalRunStatus(run.status) ? "archived" : "active";
-        console.log(`${run.id} | ${bucket} | ${runTargetType(run)}:${runTargetId(run)} | ${run.repo} | ${run.agent_id} | ${run.status} | ${run.execution_mode} | claims=${run.claim_ids.length}`);
+        console.log(`${run.id} | ${bucket} | ${runTargetType(run)}:${runTargetId(run)} | ${run.repo} | ${run.agent_id} | ${run.status} | claims=${run.claim_ids.length}`);
       }
     });
 

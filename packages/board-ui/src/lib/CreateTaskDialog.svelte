@@ -60,16 +60,9 @@
   // Commit / push / PR / merge: the user's "what should happen at the
   // end of the run?" sequence. Defaults match the most common case —
   // commit + push on, PR + merge off (PR creation needs gh installed).
-  let commitWhenDone = $state(true);
   let pushWhenDone = $state(true);
   let createPr = $state(false);
   let mergePr = $state(false);
-  // Where the agent works. "direct" lands the edits straight in the
-  // user's working copy — what most users actually expect when they
-  // click Play on a single quick task. "isolated_worktree" is for
-  // multi-agent parallelism / longer runs where they want their main
-  // branch protected.
-  let worktreeMode = $state<"isolated_worktree" | "direct">("direct");
 
   $effect(() => {
     if (!showReview) manualApproval = false;
@@ -77,8 +70,6 @@
 
   $effect(() => {
     if (!hasGitRepository) {
-      worktreeMode = "direct";
-      commitWhenDone = false;
       pushWhenDone = false;
       createPr = false;
       mergePr = false;
@@ -86,18 +77,11 @@
   });
 
   $effect(() => {
-    if (worktreeMode === "direct") {
+    if (!pushWhenDone) {
       createPr = false;
       mergePr = false;
-      if (!commitWhenDone) pushWhenDone = false;
-    } else {
-      commitWhenDone = true;
-      if (!pushWhenDone) {
-        createPr = false;
-        mergePr = false;
-      }
-      if (!createPr) mergePr = false;
     }
+    if (!createPr) mergePr = false;
   });
 
   // AI splitter. It is conditional ("only if needed"); most tasks run
@@ -133,12 +117,6 @@
     subAgentId = agentId && executableAgents.some((agent) => agent.id === agentId)
       ? agentId
       : executableAgents[0]?.id ?? agentId ?? null;
-  });
-
-  $effect(() => {
-    if (autoSplit && hasGitRepository) {
-      worktreeMode = "isolated_worktree";
-    }
   });
 
   function normalizedMaxSubagents(): number {
@@ -260,11 +238,10 @@
       };
       if (repoTargets.length > 0) input.repo_targets = repoTargets;
       input.manual_approval_required = showReview ? manualApproval : false;
-      input.auto_commit = hasGitRepository ? (worktreeMode === "isolated_worktree" ? true : commitWhenDone) : false;
-      input.push_when_done = hasGitRepository ? (worktreeMode === "direct" ? commitWhenDone && pushWhenDone : pushWhenDone) : false;
-      input.create_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? createPr : false;
-      input.merge_pr = hasGitRepository && worktreeMode === "isolated_worktree" ? mergePr : false;
-      input.worktree_mode = hasGitRepository ? worktreeMode : "direct";
+      input.auto_commit = hasGitRepository;
+      input.push_when_done = hasGitRepository ? pushWhenDone : false;
+      input.create_pr = hasGitRepository ? createPr : false;
+      input.merge_pr = hasGitRepository ? mergePr : false;
       input.max_subagents = normalizedMaxSubagents();
       if (agentId) input.planner_agent_id = agentId;
       // Simple tasks should follow the header model at launch time.
@@ -434,64 +411,29 @@
         {#if hasGitRepository}
         <fieldset class="execution">
           <legend>{t("create_task.git.title")}</legend>
+          <span class="field-hint">{t("create_task.execution.worktree_note")}</span>
 
-          <!-- Worktree mode first — it's the single biggest decision
-               for this task: do you want the agent to touch your
-               working copy directly, or do its thing in an isolated
-               git worktree? Default is direct (matches the most
-               common single-task expectation). -->
-          <label class="select-row">
-            <span class="select-label">{t("create_task.execution.worktree_mode")}</span>
-            <select bind:value={worktreeMode}>
-              <option value="direct">{t("create_task.execution.worktree_direct")}</option>
-              <option value="isolated_worktree">{t("create_task.execution.worktree_isolated")}</option>
-            </select>
-            <span class="select-hint">
-              {worktreeMode === "direct"
-                ? t("create_task.execution.worktree_direct_hint")
-                : t("create_task.execution.worktree_isolated_hint")}
+          <label class="toggle">
+            <input type="checkbox" bind:checked={pushWhenDone} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
+              <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
             </span>
           </label>
-
-          {#if worktreeMode === "direct"}
-            <label class="toggle">
-              <input type="checkbox" bind:checked={commitWhenDone} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.commit_when_done")}</span>
-                <span class="toggle-desc">{t("create_task.execution.commit_when_done_desc")}</span>
-              </span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={pushWhenDone} disabled={!commitWhenDone} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
-                <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
-              </span>
-            </label>
-          {:else}
-            <label class="toggle">
-              <input type="checkbox" bind:checked={pushWhenDone} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.push_when_done")}</span>
-                <span class="toggle-desc">{t("create_task.execution.push_when_done_desc")}</span>
-              </span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={createPr} disabled={!pushWhenDone} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.create_pr")}</span>
-                <span class="toggle-desc">{t("create_task.execution.create_pr_desc")}</span>
-              </span>
-            </label>
-            <label class="toggle">
-              <input type="checkbox" bind:checked={mergePr} disabled={!createPr} />
-              <span>
-                <span class="toggle-label">{t("create_task.execution.merge_pr")}</span>
-                <span class="toggle-desc">{t("create_task.execution.merge_pr_desc")}</span>
-              </span>
-            </label>
-          {/if}
-
+          <label class="toggle">
+            <input type="checkbox" bind:checked={createPr} disabled={!pushWhenDone} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.create_pr")}</span>
+              <span class="toggle-desc">{t("create_task.execution.create_pr_desc")}</span>
+            </span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" bind:checked={mergePr} disabled={!createPr} />
+            <span>
+              <span class="toggle-label">{t("create_task.execution.merge_pr")}</span>
+              <span class="toggle-desc">{t("create_task.execution.merge_pr_desc")}</span>
+            </span>
+          </label>
         </fieldset>
         {/if}
 

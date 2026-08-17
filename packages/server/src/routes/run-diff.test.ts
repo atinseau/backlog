@@ -61,7 +61,6 @@ describe("GET /runs/:id/diff", () => {
       branch: "main",
       worktreePath: root,
       claimIds: [],
-      executionMode: "direct",
     });
     fs.writeFileSync(path.join(root, "empty.txt"), "", "utf8");
 

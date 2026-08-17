@@ -27,15 +27,15 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string; re
   return { root, backlogDir: path.join(root, ".backlog"), repoId: "demo" };
 }
 
-async function createPlainWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string }> {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-plain-launcher-"));
+async function makeProjectWithNonGitCheckout(): Promise<{ root: string; backlogDir: string; repoId: string; checkoutPath: string }> {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-nongit-launcher-"));
   initLayout({
     root,
-    projectName: "plain-launcher-test",
+    projectName: "nongit-launcher-test",
     mode: "embedded",
     repos: [{ id: "plain", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
   });
-  return { root, backlogDir: path.join(root, ".backlog"), repoId: "plain" };
+  return { root, backlogDir: path.join(root, ".backlog"), repoId: "plain", checkoutPath: root };
 }
 
 async function createRemoteWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string; origin: string }> {
@@ -81,175 +81,38 @@ describe("run-launcher", () => {
     ({ root, backlogDir, repoId } = await createWorkspace());
   });
 
-  it("runs direct-mode tasks in the main checkout instead of an isolated worktree", async () => {
-    addAgent(backlogDir, {
-      id: "writer",
-      provider: "custom",
-      command: "node -e \"require('fs').writeFileSync('direct.txt', 'ok\\\\n')\"",
-      successMode: "complete",
-      allowedRepos: [repoId],
-      allowedRisk: ["medium"],
-    });
-    const workItem = createTask(backlogDir, {
-      title: "Write direct file",
-      repoTargets: [repoId],
-      autoCommit: false,
-      pushWhenDone: false,
-      worktreeMode: "direct",
-      preferredAgents: ["writer"],
-    });
-    createSubTask(backlogDir, {
-      workItemId: workItem.id,
-      title: "Write direct file",
-      repo: repoId,
-      risk: "medium",
-      preferredAgents: ["writer"],
-    });
-
-    const config = loadConfig(backlogDir);
-    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
-    const result = await startRunsForPlan({ backlogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
-
-    expect(result.skipped).toEqual([]);
-    expect(result.started).toHaveLength(1);
-    expect(result.started[0]?.worktreePath).toBe(root);
-    expect(result.started[0]?.branch).toBe("main");
-    expect(fs.readFileSync(path.join(root, "direct.txt"), "utf8")).toBe("ok\n");
-    expect(fs.existsSync(path.join(root, ".backlog-executor.log"))).toBe(false);
-
-    const run = loadRun(backlogDir, result.started[0]!.runId);
-    expect(run?.execution_mode).toBe("direct");
-    expect(run?.worktree_path).toBe(root);
-    expect(run?.status).toBe("succeeded");
-  });
-
-  it("refuses direct-mode tasks when the main checkout is dirty", async () => {
-    addAgent(backlogDir, {
-      id: "writer",
-      provider: "custom",
-      command: "node -e \"require('fs').writeFileSync('direct.txt', 'ok\\\\n')\"",
-      successMode: "complete",
-      allowedRepos: [repoId],
-      allowedRisk: ["medium"],
-    });
-    const workItem = createTask(backlogDir, {
-      title: "Write direct file",
-      repoTargets: [repoId],
-      autoCommit: false,
-      pushWhenDone: false,
-      worktreeMode: "direct",
-      preferredAgents: ["writer"],
-    });
-    createSubTask(backlogDir, {
-      workItemId: workItem.id,
-      title: "Write direct file",
-      repo: repoId,
-      risk: "medium",
-      preferredAgents: ["writer"],
-    });
-    fs.writeFileSync(path.join(root, "human-note.txt"), "do not stage me\n", "utf8");
-
-    const config = loadConfig(backlogDir);
-    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
-    const result = await startRunsForPlan({ backlogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
-
-    expect(result.started).toEqual([]);
-    expect(result.skipped).toEqual([
-      {
-        taskId: expect.any(String),
-        reasons: ["direct_checkout_dirty"],
-      },
-    ]);
-    expect(fs.existsSync(path.join(root, "direct.txt"))).toBe(false);
-  });
-
-  it("can run direct-mode tasks on a dirty checkout when explicitly allowed", async () => {
-    addAgent(backlogDir, {
-      id: "writer",
-      provider: "custom",
-      command: "node -e \"require('fs').writeFileSync('direct.txt', 'ok\\\\n')\"",
-      successMode: "complete",
-      allowedRepos: [repoId],
-      allowedRisk: ["medium"],
-    });
-    const workItem = createTask(backlogDir, {
-      title: "Write direct file anyway",
-      repoTargets: [repoId],
-      autoCommit: false,
-      pushWhenDone: false,
-      worktreeMode: "direct",
-      preferredAgents: ["writer"],
-    });
-    createSubTask(backlogDir, {
-      workItemId: workItem.id,
-      title: "Write direct file anyway",
-      repo: repoId,
-      risk: "medium",
-      preferredAgents: ["writer"],
-    });
-    fs.writeFileSync(path.join(root, "human-note.txt"), "do not stage me\n", "utf8");
-
-    const config = loadConfig(backlogDir);
-    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
-    const result = await startRunsForPlan({
-      backlogDir,
-      config,
-      plan,
-      maxStart: 1,
-      forcedAgentId: "writer",
-      allowDirtyDirect: true,
-    });
-
-    expect(result.skipped).toEqual([]);
-    expect(result.started).toHaveLength(1);
-    expect(fs.readFileSync(path.join(root, "human-note.txt"), "utf8")).toBe("do not stage me\n");
-    expect(fs.readFileSync(path.join(root, "direct.txt"), "utf8")).toBe("ok\n");
-    expect(getRunEvents(backlogDir, result.started[0]!.runId).some((line) => line.includes("workspace.direct_dirty_allowed"))).toBe(true);
-  });
-
-  it("runs direct-mode tasks in a normal folder without Git metadata", async () => {
-    ({ root, backlogDir, repoId } = await createPlainWorkspace());
-    addAgent(backlogDir, {
+  it("a repository whose checkout is not a git repository is skipped, not run directly", async () => {
+    const { backlogDir: nonGitBacklogDir, repoId: nonGitRepoId, checkoutPath } = await makeProjectWithNonGitCheckout();
+    addAgent(nonGitBacklogDir, {
       id: "writer",
       provider: "custom",
       command: "node -e \"require('fs').writeFileSync('plain.txt', 'ok\\\\n')\"",
       successMode: "complete",
-      allowedRepos: [repoId],
+      allowedRepos: [nonGitRepoId],
       allowedRisk: ["medium"],
     });
-    const workItem = createTask(backlogDir, {
+    const workItem = createTask(nonGitBacklogDir, {
       title: "Write plain file",
-      repoTargets: [repoId],
+      repoTargets: [nonGitRepoId],
       autoCommit: true,
       pushWhenDone: false,
-      worktreeMode: "direct",
       preferredAgents: ["writer"],
     });
-    createSubTask(backlogDir, {
+    createSubTask(nonGitBacklogDir, {
       workItemId: workItem.id,
       title: "Write plain file",
-      repo: repoId,
+      repo: nonGitRepoId,
       risk: "medium",
       preferredAgents: ["writer"],
     });
 
-    const config = loadConfig(backlogDir);
-    const plan = buildExecutionPlan(backlogDir, config, { workItemId: workItem.id });
-    const result = await startRunsForPlan({ backlogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
+    const config = loadConfig(nonGitBacklogDir);
+    const plan = buildExecutionPlan(nonGitBacklogDir, config, { workItemId: workItem.id });
+    const result = await startRunsForPlan({ backlogDir: nonGitBacklogDir, config, plan, maxStart: 1, forcedAgentId: "writer" });
 
-    expect(result.skipped).toEqual([]);
-    expect(result.started).toHaveLength(1);
-    expect(result.started[0]?.worktreePath).toBe(root);
-    expect(result.started[0]?.branch).toBe("local-folder");
-    expect(fs.readFileSync(path.join(root, "plain.txt"), "utf8")).toBe("ok\n");
-
-    const run = loadRun(backlogDir, result.started[0]!.runId);
-    expect(run?.execution_mode).toBe("direct");
-    expect(run?.status).toBe("succeeded");
-    const events = getRunEvents(backlogDir, result.started[0]!.runId);
-    expect(events.some((line) => line.includes("workspace.no_git"))).toBe(false);
-    expect(events.some((line) => line.includes("run.commit_skipped"))).toBe(false);
-    expect(events.some((line) => line.includes(`Working directly in ${root}`))).toBe(true);
+    expect(result.started).toHaveLength(0);
+    expect(result.skipped[0]?.reasons).toContain("repository_not_a_git_repository");
+    expect(fs.existsSync(path.join(checkoutPath, ".backlog-agent-prompt.md"))).toBe(false);
   });
 
   it("prepares an isolated execution checkout for remote-only Git repositories", async () => {
@@ -267,7 +130,6 @@ describe("run-launcher", () => {
       repoTargets: [repoId],
       autoCommit: false,
       pushWhenDone: false,
-      worktreeMode: "direct",
       preferredAgents: ["writer"],
     });
     createSubTask(backlogDir, {
@@ -290,10 +152,8 @@ describe("run-launcher", () => {
     expect(fs.readFileSync(path.join(started.worktreePath, "remote.txt"), "utf8")).toBe("ok\n");
 
     const run = loadRun(backlogDir, started.runId);
-    expect(run?.execution_mode).toBe("isolated_worktree");
     expect(run?.status).toBe("succeeded");
     expect(fs.existsSync(path.join(backlogDir, "remote-checkouts", repoId, started.runId, "repo", ".git"))).toBe(true);
     expect(getRunEvents(backlogDir, started.runId).some((line) => line.includes("workspace.remote_checkout"))).toBe(true);
-    expect(getRunEvents(backlogDir, started.runId).some((line) => line.includes("workspace.mode_adjusted"))).toBe(true);
   });
 });

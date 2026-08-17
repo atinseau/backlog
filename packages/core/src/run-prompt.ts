@@ -1,4 +1,4 @@
-import type { Run, Task } from "@backlog/schemas";
+import type { Task } from "@backlog/schemas";
 import type { ExecutionTarget } from "./execution-target.js";
 
 // The instructions every agent run starts from. Provider-agnostic on purpose:
@@ -52,20 +52,14 @@ const TRACE_CONTRACT = [
 export function buildProviderPrompt(
   task: ExecutionTarget,
   workItem: Task,
-  options?: { executionMode?: Run["execution_mode"] },
 ): string {
-  const direct = options?.executionMode === "direct";
   // A run created straight from a task (no split) has no meaningful subtask
   // identity to show — repeating the same title twice only adds noise.
   const isWholeTask = task.target_type === "task" || task.planner.origin === "implicit";
 
   const lines = [
-    direct
-      ? "You are executing one Backlog coding task directly in the user's main checkout."
-      : "You are executing one Backlog coding task in an isolated git worktree.",
-    direct
-      ? "Your file edits affect the user's working copy immediately. Stay within the declared scope."
-      : "Stay within the declared scope whenever possible.",
+    "You are executing one Backlog coding task in an isolated git worktree.",
+    "Stay within the declared scope whenever possible.",
     "",
     `Task: ${workItem.id}`,
     `Task title: ${workItem.title}`,

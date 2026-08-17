@@ -1,7 +1,7 @@
 import type { StartRunResult } from "./api.js";
 import { t } from "./i18n.svelte.js";
 
-export type StartRunAction = "api_keys" | "agents" | "repositories" | "git" | "direct_dirty" | null;
+export type StartRunAction = "api_keys" | "agents" | "repositories" | "git" | null;
 
 export interface StartRunExplanation {
   message: string;
@@ -39,9 +39,7 @@ export function explainStartRunResult(result: StartRunResult): StartRunExplanati
   ) {
     return { message: t("card.play_missing_executable"), action: "agents" };
   }
-  if (directReasons.includes("direct_checkout_dirty")) return { message: t("card.play_direct_dirty"), action: "direct_dirty" };
-  if (directReasons.includes("direct_checkout_detached_head")) return { message: t("card.play_detached_head"), action: "git" };
-  if (directReasons.includes("direct_checkout_busy")) return { message: t("card.play_direct_busy"), action: null };
+  if (directReasons.includes("repository_not_a_git_repository")) return { message: t("card.play_repository_not_git"), action: "repositories" };
   if (directReasons.includes("unknown_repo")) return { message: t("card.play_unknown_repo"), action: "repositories" };
   if (directReasons.includes("autonomy_mode_observe")) return { message: t("card.play_autonomy_observe"), action: null };
   if (directReasons.includes("high_risk_requires_higher_autonomy")) return { message: t("card.play_high_risk"), action: null };

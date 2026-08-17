@@ -634,7 +634,6 @@
                       <div class="run-grid">
                         <div><span>{t("claims_page.field.agent")}</span><strong>{run.owner.display_name ?? run.agent_id}</strong></div>
                         <div><span>{t("claims_page.field.branch")}</span><code>{run.branch}</code></div>
-                        <div><span>{t("claims_page.field.mode")}</span><strong>{run.execution_mode}</strong></div>
                         <div><span>{t("claims_page.field.finished")}</span><strong>{formatDate(run.finished_at)}</strong></div>
                       </div>
                       {#if run.events.length > 0}
