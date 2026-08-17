@@ -2,9 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { Command } from "commander";
 import { initLayout } from "@backlog/config";
 import { contextFor, createTask, orchestratorToolNames } from "@backlog/core";
-import { mcpHostFor, parseAudience, resolveMcpHost } from "./mcp.js";
+import { EXEMPT_COMMAND } from "../role-guard.js";
+import { mcpHostFor, parseAudience, registerMcpCommand, resolveMcpHost } from "./mcp.js";
 
 const executionToolNames = [...contextFor("execution").mcpTools];
 
@@ -160,5 +162,18 @@ describe("resolveMcpHost", () => {
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-mcp-empty-"));
 
     expect(() => resolveMcpHost({ project: empty })).toThrow(/No \.backlog project/);
+  });
+});
+
+describe("registerMcpCommand", () => {
+  // The execution-role guard exempts one sub-command by name. Renaming the
+  // command without renaming the exemption would leave an execution agent's
+  // MCP server refusing itself on startup — the run would lose every tool it
+  // has, and no other test would notice.
+  it("registers under the name the role guard exempts", () => {
+    const program = new Command();
+    registerMcpCommand(program);
+
+    expect(program.commands.map((command) => command.name())).toContain(EXEMPT_COMMAND);
   });
 });

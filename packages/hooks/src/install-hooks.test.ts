@@ -158,6 +158,14 @@ describe("rendered hook template — escape hatches", () => {
     expect(hook).toContain("backlog hooks uninstall");
   });
 
+  it("marks its own invocation so the CLI's execution-role refusal spares it", () => {
+    const hook = rendered();
+    expect(hook).toContain("export BACKLOG_HOOK_INVOCATION=1");
+    // Before the claim check, or the CLI refuses under BACKLOG_AGENT_ROLE and
+    // the commit is blocked for the wrong reason.
+    expect(hook.indexOf("BACKLOG_HOOK_INVOCATION")).toBeLessThan(hook.indexOf("claim check"));
+  });
+
   it("allows commits when the local Backlog runtime is unavailable", () => {
     const hook = rendered();
     expect(hook).toContain("Backlog is unavailable, so this commit is allowed.");

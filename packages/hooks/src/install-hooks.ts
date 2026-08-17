@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const MANAGED_HOOK_MARKER = "Managed by Backlog";
-export const PRE_COMMIT_HOOK_VERSION = "2";
+// Bumped whenever the generated script changes, so `backlog hooks install` and
+// `backlog doctor` report an already-installed hook as stale. 3 adds the
+// BACKLOG_HOOK_INVOCATION marker: a version-2 hook installed in a checkout an
+// execution agent commits into gets refused by the CLI and blocks the commit
+// with a misleading message until it is reinstalled.
+export const PRE_COMMIT_HOOK_VERSION = "3";
 export const PAUSE_FILE_NAME = "hook-paused-until";
 
 export interface PreCommitHookStatus {
@@ -73,6 +78,17 @@ Backlog did not block this commit. To remove this hook from the repository:
 EOF
   exit 0
 fi
+
+# The CLI refuses every command when it is run by an execution agent
+# (BACKLOG_AGENT_ROLE=execution) — that agent's Backlog surface is meant to be
+# the MCP server its run spawns, nothing else. This hook is the one exemption,
+# and it is not a convenience: it execs the same binary and inherits the agent's
+# environment, and a refusal here would exit 1 with a message the failure path
+# below does not recognise, so it would block the commit with the wrong reason.
+# Narrow on purpose — the marker is set here, immediately before the claim
+# check, and not in the shim, which is a generic launcher every
+# .backlog/bin/backlog invocation goes through.
+export BACKLOG_HOOK_INVOCATION=1
 
 HOOK_OUTPUT="$(mktemp "\${TMPDIR:-/tmp}/backlog-pre-commit.XXXXXX")"
 if "$BACKLOG_BIN" claim check --repo-root "$REPO_ROOT" --staged --auto >"$HOOK_OUTPUT" 2>&1; then

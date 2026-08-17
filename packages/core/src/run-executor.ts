@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, getSecret } from "@backlog/config";
 import type { Agent, Run, Task } from "@backlog/schemas";
+import { contextFor } from "./contexts/contexts.js";
 import type { ExecutionTarget } from "./execution-target.js";
 import { providerFor } from "./providers/index.js";
 import { expandedPath } from "./providers/process.js";
@@ -60,6 +61,9 @@ function promptFor(params: ExecuteAgentRunParams): string {
 function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
   const { run, task, workItem, agent } = params;
   const targetType = task.target_type ?? "subtask";
+  // The role the CLI refuses on. Read from the context table, not written here:
+  // whether a Backlog-launched model may reach the CLI is that table's call.
+  const cliRole = contextFor("execution").cliRole;
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: expandedPath(),
@@ -85,6 +89,11 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
     ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
+    // What makes `backlog <anything>` refuse from this agent's shell. Its whole
+    // Backlog surface is the MCP server this run spawns — which keeps working,
+    // because the guard exempts `mcp-server` (see cli/src/role-guard.ts) and the
+    // `claude` CLI hands that child this very environment.
+    ...(cliRole ? { BACKLOG_AGENT_ROLE: cliRole } : {}),
   };
   // `...process.env` is spread in above, so an inherited value has to be
   // removed rather than merely not written.

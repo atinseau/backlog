@@ -100,6 +100,17 @@ describe("executeAgentRun", () => {
     expect(run?.artifacts.find((artifact) => artifact.kind === "summary")?.value).toBe("Renamed the widget");
   });
 
+  it("hands the agent the role the CLI refuses on", async () => {
+    // Read back out of a real run rather than asserted against the map, so this
+    // covers the export and not a restatement of it. Without it the CLI is on
+    // the agent's PATH with nothing telling it to refuse.
+    const f = fixture('printf "%s" "${BACKLOG_AGENT_ROLE-}"');
+
+    await executeAgentRun({ ...f, run: f.run });
+
+    expect(loadRun(f.backlogDir, f.run.id)?.artifacts.find((a) => a.kind === "summary")?.value).toBe("execution");
+  });
+
   it("writes the prompt the agent was given, for later inspection", async () => {
     const f = fixture("true");
 
