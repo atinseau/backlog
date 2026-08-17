@@ -160,25 +160,19 @@ describe("release and worktree operators", () => {
     });
     archiveRun(backlogDir, "RUN-direct");
 
-    const worktrees = listKnownWorktrees(backlogDir);
-    expect(worktrees).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          runId: "RUN-terminal",
-          repo: repoId,
-          exists: true,
-          active: false,
-        }),
-        expect.objectContaining({
-          runId: "RUN-direct",
-          repo: repoId,
-          path: root,
-          exists: true,
-          active: false,
-        }),
-      ]),
-    );
-    expect(worktrees).toHaveLength(2);
+    // The legacy record is left out entirely: `worktree list` answers "which
+    // worktrees does Backlog own", and presenting the user's own checkout as
+    // one of them invites the removal that GC refuses two lines below.
+    const worktrees = listKnownWorktrees(backlogDir, loadConfig(backlogDir));
+    expect(worktrees).toEqual([
+      expect.objectContaining({
+        runId: "RUN-terminal",
+        repo: repoId,
+        exists: true,
+        active: false,
+      }),
+    ]);
+    expect(worktrees.map((entry) => entry.path)).not.toContain(root);
 
     const dryRun = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir), { dryRun: true });
     expect(dryRun.removed).toContain(worktreePath);
@@ -220,5 +214,44 @@ describe("release and worktree operators", () => {
     const result = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir));
     expect(result.removed).not.toContain(root);
     expect(fs.existsSync(root)).toBe(true);
+  });
+
+  it("keeps cleaning after a record git refuses to remove", async () => {
+    // The path guard keys on the checkout path *as configured today*. Move the
+    // repository in config.toml and a legacy record stops matching it, so
+    // `git worktree remove --force` runs against something that is not a
+    // worktree and throws — which used to leave every archived run behind it
+    // uncleaned, the exact failure the guard was written to prevent.
+    const { root, backlogDir, repoId } = await createWorkspace();
+    const workItem = createTask(backlogDir, { title: "moved repository", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, { workItemId: workItem.id, title: "task", repo: repoId });
+    const agent = getAgent(backlogDir, "claude-code");
+    if (!agent) {
+      throw new Error("Expected claude-code agent");
+    }
+
+    const stalePath = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-moved-checkout-"));
+    const worktreePath = path.join(backlogDir, "worktrees", repoId, "RUN-after");
+    await git(["worktree", "add", "-b", "backlog/after", worktreePath], root);
+
+    for (const [runId, worktree] of [["RUN-unremovable", stalePath], ["RUN-after", worktreePath]] as const) {
+      createRun({
+        backlogDir,
+        runId,
+        task,
+        workItem,
+        agent,
+        branch: "main",
+        worktreePath: worktree,
+        claimIds: [],
+      });
+      archiveRun(backlogDir, runId);
+    }
+
+    const result = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir));
+
+    expect(result.skipped).toContain(stalePath);
+    expect(result.removed).toContain(worktreePath);
+    expect(fs.existsSync(stalePath)).toBe(true);
   });
 });
