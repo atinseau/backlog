@@ -134,12 +134,55 @@ describe("buildRunCommand", () => {
     const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
       mcpServers: Record<string, { args: string[] }>;
     };
-    expect(config.mcpServers.backlog?.args).toContain("--audience");
-    expect(config.mcpServers.backlog?.args).toContain("agent");
-    expect(config.mcpServers.backlog?.args.slice(-2)).toEqual(["--project", "/tmp/project/.backlog"]);
+    // The *pair*, not the two strings independently: `--project
+    // /…/agent-mcp-tools/.backlog` supplies the word "agent" all by itself, so
+    // a `toContain` pair would still pass against `--audience orchestrator`.
+    // This is the one assertion standing between a refactor and a privilege
+    // escalation.
+    const args = config.mcpServers.backlog!.args;
+    expect(args[args.indexOf("--audience") + 1]).toBe("agent");
+    expect(args.slice(-2)).toEqual(["--project", "/tmp/project/.backlog"]);
 
     const allowed = command.args[command.args.indexOf("--allowedTools") + 1]!.split(",");
     expect(allowed).toEqual(["mcp__backlog__trace_write"]);
     expect(command.args).not.toContain("--strict-mcp-config");
+  });
+
+  it("declares the run context on the MCP server rather than trusting inheritance", () => {
+    const command = buildRunCommand({
+      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      prompt: "do the work",
+      cwd: "/tmp/worktree",
+      backlogDir: "/tmp/project/.backlog",
+      env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_SUBTASK_ID: "subtask_1" },
+      getSecret: noSecrets,
+      onActivity: () => {},
+    });
+
+    const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
+      mcpServers: Record<string, { env: Record<string, string> }>;
+    };
+    expect(config.mcpServers.backlog?.env).toEqual({
+      BACKLOG_RUN_ID: "run_1",
+      BACKLOG_TASK_ID: "task_1",
+      BACKLOG_SUBTASK_ID: "subtask_1",
+    });
+  });
+
+  it("omits the subtask id on a task-level run instead of writing an empty or task-shaped one", () => {
+    const command = buildRunCommand({
+      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      prompt: "do the work",
+      cwd: "/tmp/worktree",
+      backlogDir: "/tmp/project/.backlog",
+      env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_TARGET_TYPE: "task" },
+      getSecret: noSecrets,
+      onActivity: () => {},
+    });
+
+    const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
+      mcpServers: Record<string, { env: Record<string, string> }>;
+    };
+    expect(Object.keys(config.mcpServers.backlog?.env ?? {})).toEqual(["BACKLOG_RUN_ID", "BACKLOG_TASK_ID"]);
   });
 });

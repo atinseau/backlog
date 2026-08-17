@@ -86,9 +86,10 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
   }
   if (input.mcpServers) {
     args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }));
-    // `--strict-mcp-config` keeps the user's own global MCP servers out of a
-    // Backlog session: what we declare is exactly what the model gets. Off by
-    // default only for a coding run, which passes strictMcpConfig: false.
+    // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
+    // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
+    // declare is exactly what the model gets. It is on by default here, and
+    // waived only by a coding run, which passes strictMcpConfig: false.
     if (input.strictMcpConfig !== false) {
       args.push("--strict-mcp-config");
     }

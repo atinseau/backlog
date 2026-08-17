@@ -57,6 +57,32 @@ function namespacedAgentTools(): string[] {
 }
 
 /**
+ * The run context the MCP server subprocess needs to fill a trace's `run_id`,
+ * `task_id` and `subtask_id` without the agent restating them.
+ *
+ * Declared explicitly, and deliberately redundant: a `claude` CLI probed for
+ * this branch does hand a stdio MCP server the parent environment, but that is
+ * undocumented third-party behaviour — the reference MCP SDK filters the child
+ * environment down to an allowlist, and nothing here would notice the CLI
+ * adopting the same policy. Declaring the three keys makes the dependency a
+ * contract instead of a coincidence.
+ *
+ * Absent keys are omitted rather than written as `undefined`, so a task-level
+ * run — which has no subtask, see `environmentFor` in run-executor.ts — does not
+ * regain a `BACKLOG_SUBTASK_ID` holding a task id through this path.
+ */
+function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const carried: Record<string, string> = {};
+  for (const key of ["BACKLOG_RUN_ID", "BACKLOG_TASK_ID", "BACKLOG_SUBTASK_ID"] as const) {
+    const value = env[key];
+    if (value !== undefined && value.length > 0) {
+      carried[key] = value;
+    }
+  }
+  return carried;
+}
+
+/**
  * The `claude` invocation for one coding run. Extracted from executeRun so the
  * flag matrix — which tool set the agent gets, and which it does not — is
  * asserted by a unit test rather than by spawning a real CLI.
@@ -78,13 +104,18 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
         // execution agent's reach. --project is mandatory: the run's cwd is a
         // worktree carrying a shadow .backlog/, so resolution from cwd is wrong.
         args: [...self.prefixArgs, "mcp-server", "--audience", "agent", "--project", request.backlogDir],
+        env: mcpServerEnv(request.env),
       },
     },
     // `--allowedTools` only auto-approves; it excludes nothing. The agent keeps
     // every built-in tool it needs to do the work.
     allowedTools: namespacedAgentTools(),
     // The user's own MCP servers stay available to a coding agent — see the
-    // note on strictMcpConfig in command.ts.
+    // note on strictMcpConfig in command.ts. The other edge of that trade-off:
+    // without `--strict-mcp-config` the CLI also loads project-scoped
+    // `.mcp.json` from the worktree, so a server named `backlog` committed to
+    // the repository would collide with the one declared here. Keeping the
+    // user's servers is the deliberate choice; the collision is the price.
     strictMcpConfig: false,
   });
 }

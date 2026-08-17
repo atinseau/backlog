@@ -49,6 +49,22 @@ export function mcpHostFor(backlogDir: string, audience: McpAudience): McpToolHo
   };
 }
 
+/**
+ * Everything the command does before it starts serving: parse the audience,
+ * resolve the project, build the matching host. Exported because `.action()` is
+ * the only place `parseAudience` and `mcpHostFor` meet — testing them apart
+ * leaves the wiring between them, which is where a hardcoded audience would
+ * hide, covered by nothing.
+ */
+export function resolveMcpHost(options: { project?: string; audience?: string }): McpToolHost {
+  const audience = parseAudience(options.audience);
+  const project = findProject(options.project ?? process.cwd());
+  if (!project) {
+    throw new Error("No .backlog project found. Pass --project or run from inside one.");
+  }
+  return mcpHostFor(project.backlogDir, audience);
+}
+
 export function registerMcpCommand(program: Command): void {
   program
     .command("mcp-server")
@@ -59,11 +75,6 @@ export function registerMcpCommand(program: Command): void {
       "Which tool set to serve: 'agent' (an execution agent on one ticket) or 'orchestrator' (the chat). Defaults to 'agent'.",
     )
     .action(async (options: { project?: string; audience?: string }) => {
-      const audience = parseAudience(options.audience);
-      const project = findProject(options.project ?? process.cwd());
-      if (!project) {
-        throw new Error("No .backlog project found. Pass --project or run from inside one.");
-      }
-      await serveMcpOnProcessStdio(mcpHostFor(project.backlogDir, audience));
+      await serveMcpOnProcessStdio(resolveMcpHost(options));
     });
 }
