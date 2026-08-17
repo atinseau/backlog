@@ -6,6 +6,7 @@ import {
   fetchConversation,
   fetchConversations,
   patchConversation,
+  truncateConversation,
   type ChatBackendStatus,
   type ChatTranscriptMessage,
   type Conversation,
@@ -23,6 +24,7 @@ let streaming = $state<AssistantTurn | null>(null);
 let status = $state<ChatBackendStatus | null>(null);
 let loading = $state(false);
 let error = $state<string | null>(null);
+let search = $state("");
 let inFlight: AbortController | null = null;
 
 export function chatConversations(): ConversationSummary[] {
@@ -47,6 +49,29 @@ export function chatError(): string | null {
 export function isSending(): boolean {
   return inFlight !== null;
 }
+export function chatSearch(): string {
+  return search;
+}
+
+// A question the board wants to hand to the chat — "ask the co-pilot about
+// task_004". Only the reference travels: the co-pilot has tools to look the
+// object up itself, so there is nothing to embed and nothing to keep in sync.
+let pendingPrompt = $state<string | null>(null);
+
+export function askAbout(prompt: string): void {
+  pendingPrompt = prompt;
+}
+
+/** Read once and clear — the composer consumes it into its own field. */
+export function takePendingPrompt(): string | null {
+  const prompt = pendingPrompt;
+  pendingPrompt = null;
+  return prompt;
+}
+
+export function hasPendingPrompt(): boolean {
+  return pendingPrompt !== null;
+}
 
 /** The transcript plus whatever is streaming, which is what the view renders. */
 export function visibleMessages(): ChatTranscriptMessage[] {
@@ -69,10 +94,20 @@ function fail(err: unknown): void {
   error = err instanceof Error ? err.message : String(err);
 }
 
+/** Re-filter the list. Search runs server-side, over transcripts as well as titles. */
+export async function setChatSearch(query: string): Promise<void> {
+  search = query;
+  try {
+    conversations = await fetchConversations(query);
+  } catch (err) {
+    fail(err);
+  }
+}
+
 export async function loadChat(): Promise<void> {
   loading = true;
   try {
-    [conversations, status] = await Promise.all([fetchConversations(), fetchChatStatus()]);
+    [conversations, status] = await Promise.all([fetchConversations(search), fetchChatStatus()]);
     error = null;
     // Reopen the most recent thread, so returning to the board resumes where
     // the user left off instead of facing an empty drawer.
@@ -140,6 +175,46 @@ export async function resetContext(): Promise<void> {
   } catch (err) {
     fail(err);
   }
+}
+
+/** Pin a model for this conversation. Takes effect on the next turn, since the
+ *  runtime cannot switch model inside a session. */
+export async function setConversationModel(model: string | null): Promise<void> {
+  if (!current) return;
+  try {
+    current = await patchConversation(current.id, { model });
+    conversations = await fetchConversations(search);
+  } catch (err) {
+    fail(err);
+  }
+}
+
+/**
+ * Replace the message at `index` and answer again. Everything after it is
+ * discarded — including the runtime session, which cannot be rewound.
+ */
+export async function editAndResend(index: number, content: string): Promise<void> {
+  if (!current || busySending()) return;
+  try {
+    current = await truncateConversation(current.id, index);
+  } catch (err) {
+    fail(err);
+    return;
+  }
+  await sendMessage(content);
+}
+
+/** Ask the same question again, on a fresh context. */
+export async function regenerate(): Promise<void> {
+  if (!current || busySending()) return;
+  const messages = current.messages;
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
+  if (!lastUser) return;
+  await editAndResend(messages.indexOf(lastUser), lastUser.content);
+}
+
+function busySending(): boolean {
+  return inFlight !== null;
 }
 
 /** Abort the turn in flight. The server still records what arrived. */

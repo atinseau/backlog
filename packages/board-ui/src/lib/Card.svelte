@@ -3,6 +3,7 @@
   import type { MenuItem } from "./card-menu-types.js";
   import { cardMenuStore } from "./card-menu-store.svelte.js";
   import { t } from "./i18n.svelte.js";
+  import { askAbout } from "./chat/chat-state.svelte.js";
   import { formatDuration, formatRemaining, useTimer } from "./timer.svelte.js";
   import type { TaskCard } from "./types.js";
   import { onDestroy } from "svelte";
@@ -310,6 +311,13 @@
     const items: MenuItem[] = [];
     if (onOpen) items.push({ label: t("card_menu.edit"), icon: "✎", onSelect: () => onOpen?.(card) });
     items.push({ label: t("card_menu.copy_id", { id: card.id }), icon: "⧉", onSelect: copyId });
+    // Hands the id to the chat rather than a summary of the card: the co-pilot
+    // has tools to look it up, and they never go stale.
+    items.push({
+      label: t("card_menu.ask_copilot"),
+      icon: "◆",
+      onSelect: () => askAbout(t("card_menu.ask_copilot_prompt", { id: card.id })),
+    });
     if (onSetPriority) {
       items.push({
         label: t("card_menu.set_priority"),

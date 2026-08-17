@@ -6,12 +6,14 @@
   interface Props {
     conversations: ConversationSummary[];
     currentId: string | null;
+    query: string;
+    onsearch: (query: string) => void;
     onopen: (id: string) => void;
     ondelete: (id: string) => void;
     onclose: () => void;
   }
 
-  let { conversations, currentId, onopen, ondelete, onclose }: Props = $props();
+  let { conversations, currentId, query, onsearch, onopen, ondelete, onclose }: Props = $props();
 
   function when(iso: string): string {
     const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -31,8 +33,18 @@
     </button>
   </header>
 
+  <div class="search">
+    <input
+      type="search"
+      value={query}
+      oninput={(event) => onsearch((event.currentTarget as HTMLInputElement).value)}
+      placeholder={t("chat.history_search")}
+      aria-label={t("chat.history_search")}
+    />
+  </div>
+
   {#if conversations.length === 0}
-    <p class="empty">{t("chat.history_empty")}</p>
+    <p class="empty">{query.trim() ? t("chat.history_no_match") : t("chat.history_empty")}</p>
   {:else}
     <ul>
       {#each conversations as conversation (conversation.id)}
@@ -104,6 +116,28 @@
   header button:hover {
     background: var(--bg-hover);
     color: var(--text-body);
+  }
+
+  .search {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .search input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border-field);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 12px;
+  }
+
+  .search input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
   }
 
   .empty {
