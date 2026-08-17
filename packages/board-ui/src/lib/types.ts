@@ -165,6 +165,49 @@ export interface ProviderSummary {
   requires_command: boolean;
 }
 
+/** One tool the assistant invoked during a turn. */
+export interface ChatToolCall {
+  id: string;
+  name: string;
+  status: "running" | "done" | "error" | "awaiting_confirmation";
+  write: boolean;
+  /** Arguments the model passed, so a confirmation card can describe the action. */
+  input?: Record<string, unknown> | undefined;
+  /** Refusal or failure text, shown verbatim. */
+  detail?: string | undefined;
+}
+
+export interface ChatUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  cost_usd?: number;
+  duration_ms?: number;
+}
+
+export interface ChatTranscriptMessage {
+  role: "user" | "assistant";
+  content: string;
+  at: string;
+  tool_calls: ChatToolCall[];
+  usage?: ChatUsage;
+  error?: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  session_id: string | null;
+  backend: string | null;
+  model: string | null;
+  messages: ChatTranscriptMessage[];
+}
+
+export type ConversationSummary = Omit<Conversation, "messages"> & { message_count: number };
+
 export interface AgentSummary {
   id: string;
   // User-set human label, surfaced in the topbar picker and the

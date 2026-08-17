@@ -474,3 +474,4 @@ should be main and up to date with the remote, so:
 - open a pr after work
 - merge pr directly
 - git checkout main && git pull
+- delete old worktree directly

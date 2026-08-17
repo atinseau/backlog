@@ -1,13 +1,26 @@
 import { executableExists } from "@backlog/core";
 import { getSecret, loadConfig } from "@backlog/config";
-import { CHAT_SYSTEM_PROMPT, runAnthropicChat } from "./anthropic-chat.js";
-import { selectChatBackend, type ChatBackend } from "./backend.js";
-import { runClaudeCodeChat } from "./claude-code-chat.js";
+import { CHAT_SYSTEM_PROMPT, runAnthropicChat, type AnthropicChatInput } from "./anthropic-chat.js";
+import { selectChatBackend, type ChatBackend, type ChatBackendInput } from "./backend.js";
+import { runClaudeCodeChat, type ClaudeCodeChatInput } from "./claude-code-chat.js";
 import type { ChatMessage, ChatStreamEvent } from "./types.js";
 
 export { ChatUnavailableError } from "./types.js";
 export type { ChatMessage, ChatStreamEvent } from "./types.js";
 export { selectChatBackend, type ChatBackend } from "./backend.js";
+
+/** Seams for tests; production callers let these default to the real engines. */
+export interface ChatBackends {
+  claudeCode: (input: ClaudeCodeChatInput) => Promise<void>;
+  anthropicApi: (input: AnthropicChatInput) => Promise<void>;
+  select: (input: ChatBackendInput) => ChatBackend;
+}
+
+const REAL_BACKENDS: ChatBackends = {
+  claudeCode: runClaudeCodeChat,
+  anthropicApi: runAnthropicChat,
+  select: selectChatBackend,
+};
 
 export interface OrchestratorChatInput {
   backlogDir: string;
@@ -19,6 +32,7 @@ export interface OrchestratorChatInput {
   model?: string | undefined;
   onEvent: (event: ChatStreamEvent) => Promise<void> | void;
   abortSignal?: AbortSignal | undefined;
+  backends?: ChatBackends | undefined;
 }
 
 /**
@@ -56,15 +70,23 @@ export function resolveChatBackend(backlogDir: string): ChatBackend {
  * one answered.
  */
 export async function runOrchestratorChat(input: OrchestratorChatInput): Promise<void> {
-  const backend = resolveChatBackend(input.backlogDir);
+  const backends = input.backends ?? REAL_BACKENDS;
+  const backend = backends.select({
+    getSecret: (key) => getSecret(input.backlogDir, key),
+    claudeInstalled: executableExists("claude"),
+  });
   const systemPrompt = `${CHAT_SYSTEM_PROMPT}\n\n${projectContext(input.backlogDir)}`;
+  // Only ever the newest turn. The API is stateless and gets the transcript;
+  // the CLI keeps the conversation itself, so replaying it would re-bill the
+  // whole history every turn — the very thing --resume exists to avoid.
+  const prompt = input.messages.at(-1)?.content ?? "";
 
   if (backend.kind === "anthropic-api") {
-    await runAnthropicChat({
+    await backends.anthropicApi({
       backlogDir: input.backlogDir,
       cwd: input.projectRoot,
       systemPrompt,
-      prompt: input.messages.at(-1)?.content ?? "",
+      prompt,
       messages: input.messages,
       apiKey: backend.apiKey,
       ...(input.model ? { model: input.model } : {}),
@@ -74,14 +96,7 @@ export async function runOrchestratorChat(input: OrchestratorChatInput): Promise
     return;
   }
 
-  // The CLI keeps its own conversation, so only the new turn is sent. Without
-  // a session to resume — a first turn, or a client that lost the id — the
-  // whole history goes in as one prompt so context is not silently dropped.
-  const prompt = input.sessionId
-    ? (input.messages.at(-1)?.content ?? "")
-    : input.messages.map((message) => `${message.role}: ${message.content}`).join("\n\n");
-
-  await runClaudeCodeChat({
+  await backends.claudeCode({
     backlogDir: input.backlogDir,
     cwd: input.projectRoot,
     systemPrompt,

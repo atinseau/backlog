@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { Hono } from "hono";
 import { EventBusRegistry } from "./lib/event-bus-registry.js";
 import { agentsRoutes } from "./routes/agents.js";
+import { conversationsRoutes } from "./routes/conversations.js";
 import { boardRoutes } from "./routes/board.js";
 import { claimsRoutes } from "./routes/claims.js";
 import { commitsRoutes } from "./routes/commits.js";
@@ -92,6 +93,7 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
   app.route("/api/v1", boardRoutes());
   app.route("/api/v1", claimsRoutes());
   app.route("/api/v1", agentsRoutes());
+  app.route("/api/v1", conversationsRoutes());
   app.route("/api/v1", tasksRoutes());
   app.route("/api/v1", subtasksRoutes());
   app.route("/api/v1", orchestrateRoutes());

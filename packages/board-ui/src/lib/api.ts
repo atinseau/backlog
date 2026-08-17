@@ -10,6 +10,8 @@ import type {
   ProjectInfo,
   ProviderSummary,
   RunSummary,
+  Conversation,
+  ConversationSummary,
 } from "./types.js";
 import { repositoryDisplayName } from "./repository-display.js";
 
@@ -18,7 +20,18 @@ import { repositoryDisplayName } from "./repository-display.js";
 // from ./types.js. ProjectEntry / CurrentProject are heavily used by the
 // project-switcher views; SettingsView and ProjectsView import them from
 // here, hence the re-export.
-export type { AgentSummary, ProjectEntry, CurrentProject, ProjectInfo, ProviderSummary } from "./types.js";
+export type {
+  AgentSummary,
+  ProjectEntry,
+  CurrentProject,
+  ProjectInfo,
+  ProviderSummary,
+  Conversation,
+  ConversationSummary,
+  ChatTranscriptMessage,
+  ChatToolCall,
+  ChatUsage,
+} from "./types.js";
 
 const BASE = "/api/v1";
 
@@ -173,6 +186,63 @@ export async function touchProjectById(id: string): Promise<void> {
 }
 
 // Permissions / agents / project --------------------------------------------
+
+// Conversations ------------------------------------------------------------
+
+export async function fetchConversations(): Promise<ConversationSummary[]> {
+  const response = await fetch(apiUrl("/conversations"));
+  if (!response.ok) throw new Error(`Conversations fetch failed: ${response.status}`);
+  return ((await response.json()) as { conversations: ConversationSummary[] }).conversations;
+}
+
+export async function fetchConversation(id: string): Promise<Conversation> {
+  const response = await fetch(apiUrl(`/conversations/${encodeURIComponent(id)}`));
+  if (!response.ok) throw new Error(`Conversation fetch failed: ${response.status}`);
+  return ((await response.json()) as { conversation: Conversation }).conversation;
+}
+
+export async function createConversation(title?: string): Promise<Conversation> {
+  const response = await fetch(apiUrl("/conversations"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(title ? { title } : {}),
+  });
+  if (!response.ok) throw new Error(`Create conversation failed: ${response.status}`);
+  return ((await response.json()) as { conversation: Conversation }).conversation;
+}
+
+export async function patchConversation(
+  id: string,
+  patch: { title?: string; session_id?: string | null },
+): Promise<Conversation> {
+  const response = await fetch(apiUrl(`/conversations/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Update conversation failed (${response.status}): ${detail}`);
+  }
+  return ((await response.json()) as { conversation: Conversation }).conversation;
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/conversations/${encodeURIComponent(id)}`), { method: "DELETE" });
+  if (!response.ok) throw new Error(`Delete conversation failed: ${response.status}`);
+}
+
+export interface ChatBackendStatus {
+  available: boolean;
+  backend: string | null;
+  detail?: string;
+}
+
+export async function fetchChatStatus(): Promise<ChatBackendStatus> {
+  const response = await fetch(apiUrl("/orchestrator/chat/status"));
+  if (!response.ok) throw new Error(`Chat status failed: ${response.status}`);
+  return (await response.json()) as ChatBackendStatus;
+}
 
 export async function fetchProviders(): Promise<ProviderSummary[]> {
   const response = await fetch(apiUrl("/providers"));

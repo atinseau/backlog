@@ -1,148 +1,108 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
-  import { apiUrl, fetchOrchestratorState, pauseOrchestrator, stopOrchestrator } from "./api.js";
+  import Composer from "./chat/Composer.svelte";
+  import ConversationList from "./chat/ConversationList.svelte";
+  import Icon from "./chat/Icon.svelte";
+  import Message from "./chat/Message.svelte";
+  import {
+    chatConversations,
+    chatError,
+    chatStatus,
+    currentConversation,
+    isSending,
+    loadChat,
+    openConversation,
+    removeConversation,
+    resetContext,
+    sendMessage,
+    startConversation,
+    stopStreaming,
+    streamingTurn,
+    visibleMessages,
+  } from "./chat/chat-state.svelte.js";
+  import { apiUrl, pauseOrchestrator, stopOrchestrator } from "./api.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
     open: boolean;
     projectId: string | null;
     onClose: () => void;
-    // When embedded into the BottomPanel, the drawer chrome is dropped
-    // (no fixed positioning, no close button — the host's tab bar
-    // handles dismissal). The panel stays mounted so SSE subscriptions
-    // and history persist across tab switches.
+    /** Embedded in the BottomPanel: the host owns the chrome and the height. */
     embedded?: boolean;
   }
 
   let { open, projectId, onClose, embedded = false }: Props = $props();
 
-  // Fetched on mount + refreshed whenever an orchestrator.changed SSE
-  // event lands. Drives the visibility / enabled state of the emergency
-  // pause/stop buttons so we don't show controls that would 4xx.
+  let scrollEl = $state<HTMLDivElement | null>(null);
+  let showHistory = $state(false);
   let orchestratorMode = $state<string | null>(null);
+  let actionBusy = $state<"pause" | "stop" | null>(null);
+  let bus: EventSource | null = null;
+
+  const conversation = $derived(currentConversation());
+  const messages = $derived(visibleMessages());
+  const busy = $derived(isSending());
+  const status = $derived(chatStatus());
+  const error = $derived(chatError());
+  const unavailable = $derived(status !== null && !status.available);
+  const isLive = $derived(orchestratorMode === "running" || orchestratorMode === "stopping");
+
   async function refreshOrchestratorMode() {
     try {
-      const state = await fetchOrchestratorState();
-      orchestratorMode = state.mode;
+      const response = await fetch(apiUrl("/orchestrator/state"));
+      orchestratorMode = response.ok
+        ? (((await response.json()) as { state?: { mode?: string } }).state?.mode ?? null)
+        : null;
     } catch {
       orchestratorMode = null;
     }
   }
 
-  interface ChatTurn {
-    role: "user" | "assistant";
-    content: string;
-    toolCalls?: Array<{
-      id?: string;
-      name: string;
-      status: "running" | "done" | "error" | "awaiting_confirmation";
-      size?: number;
-      error?: string;
-      write?: boolean;
-    }>;
-  }
-  interface UsageBucket {
-    input: number;
-    output: number;
-    cacheRead: number;
-    cacheCreation: number;
-  }
-  let history = $state<ChatTurn[]>([]);
-  let input = $state("");
-  let busy = $state(false);
-  let error = $state<string | null>(null);
-  let scrollEl = $state<HTMLDivElement | null>(null);
-  let usage = $state<UsageBucket>({ input: 0, output: 0, cacheRead: 0, cacheCreation: 0 });
-  // Set by the CLI backend, which keeps the conversation on its side. The API
-  // backend is stateless and never sends one.
-  let sessionId = $state<string | null>(null);
-  let actionBusy = $state<"pause" | "stop" | null>(null);
-
-  // History is persisted per project so switching projects doesn't mix
-  // conversations and a tab refresh keeps the thread you were on. Bounded
-  // to the last 30 turns so localStorage stays small.
-  const HISTORY_KEY_PREFIX = "backlog.chat.history.";
-  const MAX_HISTORY = 30;
-
-  function historyKey(id: string | null): string | null {
-    return id ? HISTORY_KEY_PREFIX + id : null;
+  function attachBus() {
+    bus?.close();
+    bus = new EventSource(apiUrl("/events"));
+    bus.addEventListener("orchestrator.changed", () => void refreshOrchestratorMode());
   }
 
-  function loadHistory(id: string | null) {
-    const key = historyKey(id);
-    if (!key) {
-      history = [];
-      usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
-      sessionId = null;
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(key);
-      const parsed = raw ? JSON.parse(raw) : null;
-      history = Array.isArray(parsed?.history) ? parsed.history : [];
-      usage = parsed?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
-      sessionId = typeof parsed?.sessionId === "string" ? parsed.sessionId : null;
-    } catch {
-      history = [];
-      usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
-      sessionId = null;
-    }
-  }
-
-  function saveHistory() {
-    const key = historyKey(projectId);
-    if (!key) return;
-    try {
-      const trimmed = history.slice(-MAX_HISTORY);
-      localStorage.setItem(key, JSON.stringify({ history: trimmed, usage, sessionId }));
-    } catch {
-      // localStorage full or disabled — silently degrade
-    }
-  }
-
-  // The live agent-activity feed used to live here at the bottom of
-  // the drawer, but it competed for a narrow column with the chat
-  // bubbles and the user couldn't see it. It now lives in the
-  // ActivityBanner component (full-width bottom panel) and the chat
-  // drawer is back to conversation-only. We still subscribe to the
-  // project SSE bus though, just to drive the emergency-button
-  // visibility off `orchestrator.changed`.
-  let busSource: EventSource | null = null;
-
-  function attachEventSource() {
-    busSource?.close();
-    busSource = new EventSource(apiUrl("/events"));
-    busSource.addEventListener("orchestrator.changed", () => {
-      void refreshOrchestratorMode();
-    });
-  }
-
-  onMount(() => {
-    window.addEventListener("keydown", handleGlobalKey);
-  });
-
-  // Single source of truth for project-bound setup: this effect runs
-  // once on mount with the initial projectId, and again every time it
-  // changes (project switch). onMount can't safely do this work
-  // because the prop may still be null at first paint while App resolves
-  // the active project from localStorage.
+  // One effect owns project-bound setup: it runs on mount with the initial id
+  // and again on every switch, because App resolves the project after paint.
   let lastProjectId: string | null | undefined = undefined;
   $effect(() => {
     const id = projectId;
     if (id === lastProjectId) return;
     lastProjectId = id;
-    loadHistory(id);
-    attachEventSource();
+    showHistory = false;
+    void loadChat();
+    attachBus();
     void refreshOrchestratorMode();
   });
 
+  $effect(() => {
+    // Follow the stream as it grows, but only while it is growing.
+    void streamingTurn()?.content;
+    void messages.length;
+    void scrollToBottom();
+  });
+
+  onMount(() => {
+    window.addEventListener("keydown", handleGlobalKey);
+  });
+
   onDestroy(() => {
-    busSource?.close();
+    bus?.close();
     window.removeEventListener("keydown", handleGlobalKey);
   });
 
-  function handleGlobalKey(e: KeyboardEvent) {
-    if (open && e.key === "Escape" && !busy) {
+  function handleGlobalKey(event: KeyboardEvent) {
+    if (!open && !embedded) return;
+    if (event.key !== "Escape") return;
+    // Escape unwinds one layer at a time: the history panel, then the turn in
+    // flight, then the drawer itself.
+    if (showHistory) {
+      showHistory = false;
+    } else if (busy) {
+      stopStreaming();
+    } else if (!embedded) {
       onClose();
     }
   }
@@ -152,40 +112,32 @@
     if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   }
 
-  async function send() {
-    const text = input.trim();
-    if (!text || busy) return;
-    input = "";
-    error = null;
-    history = [...history, { role: "user", content: text }, { role: "assistant", content: "", toolCalls: [] }];
-    busy = true;
-    void scrollToBottom();
+  /** Approving is sent as a message: the two-step gate stays in the transcript
+   *  and both backends behave identically. The button is a shortcut, not a
+   *  bypass of the confirmation protocol. */
+  function confirmPending() {
+    void sendMessage(t("chat.confirm_message"));
+  }
 
-    const messagesForApi = history
-      .slice(0, -1) // drop the empty placeholder we just added
-      .map((turn) => ({ role: turn.role, content: turn.content }));
+  function cancelPending() {
+    void sendMessage(t("chat.cancel_message"));
+  }
 
-    try {
-      const response = await fetch(apiUrl("/orchestrator/chat"), {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ messages: messagesForApi, ...(sessionId ? { session_id: sessionId } : {}) }),
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => ({}));
-        throw new Error(detail?.detail ?? `HTTP ${response.status}`);
-      }
-      if (!response.body) throw new Error("Stream body missing");
-      await consumeSseStream(response.body);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-      // Strip the empty placeholder so the user can retry
-      history = history.slice(0, -1);
-    } finally {
-      busy = false;
-      saveHistory();
-      void scrollToBottom();
+  function runCommand(name: string): boolean {
+    if (name === "clear") {
+      void resetContext();
+      return true;
     }
+    if (name === "new") {
+      void startConversation();
+      return true;
+    }
+    if (name === "help") {
+      showHistory = false;
+      void sendMessage(t("chat.help_message"));
+      return true;
+    }
+    return false;
   }
 
   async function emergency(action: "pause" | "stop") {
@@ -194,239 +146,101 @@
     if (!window.confirm(label)) return;
     actionBusy = action;
     try {
-      const fn = action === "pause" ? pauseOrchestrator : stopOrchestrator;
-      const state = await fn();
-      // Surface the action in the chat history so the user (and the agent
-      // on subsequent turns) sees what just happened.
-      history = [
-        ...history,
-        {
-          role: "assistant",
-          content: t(action === "pause" ? "chat.emergency_paused" : "chat.emergency_stopped", {
-            mode: state.mode,
-          }),
-        },
-      ];
-      saveHistory();
-      void scrollToBottom();
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      await (action === "pause" ? pauseOrchestrator() : stopOrchestrator());
+      await refreshOrchestratorMode();
     } finally {
       actionBusy = null;
     }
   }
-
-  // Minimal SSE parser. The hono streamSSE format we're consuming sends
-  // standard "event:" + "data:" pairs separated by blank lines. We don't
-  // need the full robustness of EventSource (no reconnect logic etc.)
-  // since this is one short-lived stream per turn.
-  async function consumeSseStream(body: ReadableStream<Uint8Array>) {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let idx = buffer.indexOf("\n\n");
-      while (idx >= 0) {
-        const block = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        handleSseBlock(block);
-        idx = buffer.indexOf("\n\n");
-      }
-    }
-  }
-
-  function handleSseBlock(block: string) {
-    let event = "message";
-    let data = "";
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event:")) event = line.slice(6).trim();
-      else if (line.startsWith("data:")) data += line.slice(5).trim();
-    }
-    if (!data) return;
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(data) as Record<string, unknown>;
-    } catch {
-      return;
-    }
-    const last = history[history.length - 1];
-    if (!last || last.role !== "assistant") return;
-    if (event === "text") {
-      last.content += String(payload.delta ?? "");
-      history = [...history];
-      void scrollToBottom();
-    } else if (event === "tool_use") {
-      last.toolCalls = [
-        ...(last.toolCalls ?? []),
-        {
-          id: payload.id ? String(payload.id) : undefined,
-          name: String(payload.name),
-          status: "running",
-          write: Boolean(payload.write),
-        },
-      ];
-      history = [...history];
-    } else if (event === "tool_result") {
-      const list = last.toolCalls ?? [];
-      // Match on the tool-use id, which both backends emit. The name is only a
-      // fallback: the CLI backend learns results from MCP, which reports the id
-      // and not the tool that produced it.
-      const id = payload.id ? String(payload.id) : null;
-      const idx = id
-        ? list.findIndex((c) => c.id === id)
-        : list.findIndex((c) => c.name === String(payload.name) && c.status === "running");
-      if (idx >= 0) {
-        const updated = { ...list[idx]! };
-        if (payload.error) {
-          updated.status = "error";
-          updated.error = String(payload.error);
-        } else if (payload.awaiting_confirmation) {
-          updated.status = "awaiting_confirmation";
-        } else {
-          updated.status = "done";
-        }
-        if (typeof payload.size === "number") updated.size = payload.size;
-        list[idx] = updated;
-        last.toolCalls = list;
-        history = [...history];
-      }
-    } else if (event === "done") {
-      // Accumulate token usage across the whole conversation so the user
-      // can see the running cost. The agent loop emits one done event per
-      // user turn (after all tool roundtrips), so this fires once per
-      // user message.
-      if (typeof payload.session_id === "string" && payload.session_id) {
-        sessionId = payload.session_id;
-      }
-      const u = payload.usage as Record<string, number> | undefined;
-      if (u) {
-        usage = {
-          input: usage.input + (u.input_tokens ?? 0),
-          output: usage.output + (u.output_tokens ?? 0),
-          cacheRead: usage.cacheRead + (u.cache_read_input_tokens ?? 0),
-          cacheCreation: usage.cacheCreation + (u.cache_creation_input_tokens ?? 0),
-        };
-      }
-    } else if (event === "error") {
-      error = String(payload.message ?? "unknown error");
-    }
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  }
-
-  function clearHistory() {
-    history = [];
-    usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
-    error = null;
-    saveHistory();
-  }
-
-  function fmt(n: number): string {
-    if (n < 1000) return String(n);
-    if (n < 1_000_000) return (n / 1000).toFixed(1) + "k";
-    return (n / 1_000_000).toFixed(2) + "M";
-  }
-  const totalUsage = $derived(usage.input + usage.output + usage.cacheRead + usage.cacheCreation);
-  const isLive = $derived(orchestratorMode === "running" || orchestratorMode === "paused");
 </script>
 
 {#if open || embedded}
   <aside class="drawer" class:embedded aria-label={t("chat.title")}>
-    {#if !embedded}
-      <header>
-        <h2>{t("chat.title")}</h2>
-        <div class="actions">
-          {#if isLive}
-            <!-- Emergency pause/stop. The full surface (Play, settings) lives in
-                 the topbar OrchestratorControls — these are just the brakes
-                 for when something looks wrong and the user wants out fast. -->
-            <button
-              class="emergency"
-              onclick={() => emergency("pause")}
-              disabled={actionBusy !== null || orchestratorMode !== "running"}
-              title={t("chat.action_pause")}
-            >{actionBusy === "pause" ? "…" : "⏸"}</button>
-            <button
-              class="emergency stop"
-              onclick={() => emergency("stop")}
-              disabled={actionBusy !== null || orchestratorMode === "idle"}
-              title={t("chat.action_stop")}
-            >{actionBusy === "stop" ? "…" : "⏹"}</button>
-          {/if}
-          <button onclick={clearHistory} title={t("chat.clear")} disabled={history.length === 0 || busy}>↺</button>
-          <button onclick={onClose} aria-label={t("chat.close")} title={t("chat.close_hint")}>✕</button>
-        </div>
-      </header>
-    {/if}
+    <header>
+      <div class="identity">
+        <h2>{conversation?.title ?? t("chat.title")}</h2>
+        {#if status?.backend}
+          <span class="backend" title={t("chat.backend_hint")}>{status.backend}</span>
+        {/if}
+      </div>
 
-    <div class="conversation" bind:this={scrollEl}>
-      {#if history.length === 0}
-        <p class="placeholder">{t("chat.intro")}</p>
+      <div class="actions">
+        {#if isLive}
+          <button
+            class="brake"
+            onclick={() => emergency("pause")}
+            disabled={actionBusy !== null || orchestratorMode !== "running"}
+            title={t("chat.action_pause")}
+          >
+            <Icon name="pause" size={12} />
+          </button>
+          <button
+            class="brake"
+            onclick={() => emergency("stop")}
+            disabled={actionBusy !== null || orchestratorMode === "idle"}
+            title={t("chat.action_stop")}
+          >
+            <Icon name="stop" size={12} />
+          </button>
+        {/if}
+        <button onclick={() => (showHistory = !showHistory)} title={t("chat.history_title")}>
+          <Icon name="history" size={12} />
+        </button>
+        <button onclick={() => void startConversation()} title={t("chat.new")} disabled={busy}>
+          <Icon name="plus" size={12} />
+        </button>
+        {#if !embedded}
+          <button onclick={onClose} title={t("chat.close_hint")} aria-label={t("chat.close")}>
+            <Icon name="close" size={12} />
+          </button>
+        {/if}
+      </div>
+    </header>
+
+    <div class="body">
+      {#if showHistory}
+        <ConversationList
+          conversations={chatConversations()}
+          currentId={conversation?.id ?? null}
+          onopen={(id) => {
+            void openConversation(id);
+            showHistory = false;
+          }}
+          ondelete={(id) => void removeConversation(id)}
+          onclose={() => (showHistory = false)}
+        />
       {/if}
-      {#each history as turn, i (i)}
-        <div class="turn turn-{turn.role}">
-          <div class="bubble">
-            {#if turn.toolCalls && turn.toolCalls.length > 0}
-              <ul class="tools">
-                {#each turn.toolCalls as call (call.name + i)}
-                  <li class="tool tool-{call.status}" class:write={call.write}>
-                    <span class="tool-icon">
-                      {#if call.status === "running"}⋯
-                      {:else if call.status === "error"}⚠
-                      {:else if call.status === "awaiting_confirmation"}🔒
-                      {:else}✓{/if}
-                    </span>
-                    <code>{call.name}</code>
-                    {#if call.write && call.status === "done"}<span class="write-tag">{t("chat.executed")}</span>{/if}
-                    {#if call.error}<span class="tool-err">{call.error}</span>{/if}
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-            <div class="text">{turn.content || (busy && i === history.length - 1 ? "…" : "")}</div>
-          </div>
-        </div>
-      {/each}
-      {#if error}
-        <div class="error">{error}</div>
-      {/if}
+
+      <div class="conversation" bind:this={scrollEl}>
+        {#if unavailable}
+          <p class="notice">{status?.detail ?? t("chat.unavailable")}</p>
+        {:else if messages.length === 0}
+          <p class="notice">{t("chat.intro")}</p>
+        {/if}
+
+        {#each messages as message, index (`${message.at}-${index}`)}
+          <Message
+            {message}
+            streaming={busy && index === messages.length - 1}
+            {busy}
+            onconfirm={confirmPending}
+            oncancel={cancelPending}
+          />
+        {/each}
+
+        {#if error}
+          <p class="failed">{error}</p>
+        {/if}
+      </div>
     </div>
 
-    <form
-      class="composer"
-      onsubmit={(e) => {
-        e.preventDefault();
-        send();
-      }}
-    >
-      <textarea
-        rows="2"
-        bind:value={input}
-        onkeydown={handleKeydown}
-        placeholder={t("chat.placeholder")}
-        disabled={busy}
-      ></textarea>
-      <button type="submit" class="send" disabled={busy || input.trim().length === 0}>
-        {busy ? "…" : "↑"}
-      </button>
-    </form>
-
-    {#if totalUsage > 0}
-      <div class="usage" title={t("chat.usage_hint")}>
-        <span>↑ {fmt(usage.input)}</span>
-        <span>↓ {fmt(usage.output)}</span>
-        {#if usage.cacheRead > 0}<span class="cache">⚡ {fmt(usage.cacheRead)}</span>{/if}
-      </div>
-    {/if}
-
+    <Composer
+      {busy}
+      disabled={unavailable}
+      onsend={(text) => void sendMessage(text)}
+      onstop={stopStreaming}
+      oncommand={runCommand}
+    />
   </aside>
 {/if}
 
@@ -445,8 +259,7 @@
     display: flex;
     flex-direction: column;
   }
-  /* Embedded into the BottomPanel: drop the fixed-position drawer
-     chrome and let the host's flex layout drive height. */
+
   .drawer.embedded {
     position: relative;
     width: 100%;
@@ -455,181 +268,109 @@
     box-shadow: none;
     z-index: auto;
   }
+
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
+    gap: 8px;
+    padding: 8px 10px;
     border-bottom: 1px solid var(--border-default);
-    background: var(--bg-surface);
     flex-shrink: 0;
   }
+
+  .identity {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
   h2 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .actions { display: flex; gap: 4px; }
-  .actions button {
-    background: var(--bg-hover);
-    border: 1px solid var(--border-strong);
-    border-radius: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 13px;
-    color: var(--text-secondary);
-    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  /* Which engine is answering changes the cost and the speed, so it is stated
+     rather than left to be guessed. Machine name, machine voice. */
+  .backend {
+    flex-shrink: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .actions {
+    display: flex;
+    gap: 2px;
+  }
+
+  .actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-width: var(--tap-size);
     min-height: var(--tap-size);
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
   }
-  .actions button:hover:not(:disabled) { background: var(--border-default); }
-  .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .actions button.emergency {
+
+  .actions button:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-body);
+  }
+
+  .actions button:disabled {
+    color: var(--text-subtle);
+    cursor: default;
+  }
+
+  .actions button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .actions .brake:hover:not(:disabled) {
     background: var(--warning-bg);
-    border-color: var(--warning-solid);
     color: var(--warning);
   }
-  .actions button.emergency:hover:not(:disabled) { background: var(--warning); color: var(--warning-on); }
-  .actions button.emergency.stop {
-    background: var(--danger-bg);
-    border-color: var(--danger-solid);
-    color: var(--danger);
-  }
-  /* A --*-solid fill is bright in both themes, so its ink does not
-     flip: --text-on-solid, never --text-on-fill. */
-  .actions button.emergency.stop:hover:not(:disabled) { background: var(--danger-solid); color: var(--text-on-solid); }
 
-  .usage {
-    flex-shrink: 0;
-    display: flex;
-    gap: 10px;
-    padding: 4px 12px;
-    border-top: 1px solid var(--border-default);
-    background: var(--bg-muted);
-    font-size: 11px;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
+  .body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
-  .usage .cache { color: var(--success); }
 
   .conversation {
-    flex: 1;
+    height: 100%;
     overflow-y: auto;
-    padding: 12px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    font-size: 13px;
+    padding: 0 12px;
   }
-  .placeholder { color: var(--text-muted); font-style: italic; margin: 8px 0 0; line-height: 1.45; }
-  .turn { display: flex; }
-  .turn-user { justify-content: flex-end; }
-  .bubble {
-    max-width: 85%;
-    padding: 8px 10px;
-    border-radius: 8px;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-  }
-  /* --accent-solid is bright in both themes, and pure white reads 3.24:1
-     light / 2.54:1 dark on it. --text-on-solid is its fixed ink. */
-  .turn-user .bubble { background: var(--accent-solid); color: var(--text-on-solid); border-top-right-radius: 3px; }
-  .turn-assistant .bubble { background: var(--bg-hover); color: var(--text-primary); border-top-left-radius: 3px; }
-  .text { white-space: pre-wrap; }
 
-  .tools {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 11px;
+  .notice {
+    margin: 16px 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
   }
-  .tool {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    padding: 2px 6px;
-    background: var(--bg-surface);
-    border-radius: 3px;
-  }
-  .tool code {
-    font-family: ui-monospace, monospace;
-    color: var(--text-secondary);
-  }
-  .tool-icon { font-weight: 600; }
-  .tool-running .tool-icon { color: var(--warning-solid); }
-  .tool-done .tool-icon { color: var(--success); }
-  .tool-error .tool-icon { color: var(--danger); }
-  .tool-awaiting_confirmation .tool-icon { color: var(--warning); }
-  /* Was a 2px coloured left rail. DESIGN.md reserves that geometry
-     for the card priority marker, so the "this tool writes" signal
-     moves onto the tinted-surface pair instead — same information,
-     an authorised support. */
-  .tool.write {
-    background: var(--danger-bg);
-  }
-  .tool.write.tool-done {
-    background: var(--success-bg);
-  }
-  .write-tag {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--success);
-    font-weight: 600;
-  }
-  .tool-err { color: var(--danger); font-size: 11px; }
 
-  .error {
+  .failed {
+    margin: 8px 0;
+    padding: 6px 8px;
+    border-radius: 4px;
     background: var(--danger-bg);
     color: var(--danger);
-    padding: 8px 10px;
-    border-radius: 4px;
     font-size: 12px;
-    margin-top: 6px;
   }
-
-  .composer {
-    display: flex;
-    gap: 6px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--border-default);
-    background: var(--bg-muted);
-    flex-shrink: 0;
-  }
-  .composer textarea {
-    flex: 1;
-    /* Input outline owes 3:1 (WCAG 1.4.11); --border-strong gives
-       1.47:1 on a white field. */
-    border: 1px solid var(--border-field);
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-family: inherit;
-    font-size: 13px;
-    resize: none;
-    line-height: 1.4;
-  }
-  .composer textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
-  .composer textarea:disabled { opacity: 0.6; }
-  .send {
-    background: var(--success);
-    color: var(--success-on);
-    border: none;
-    border-radius: 6px;
-    padding: 0 14px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 600;
-    min-width: var(--tap-size);
-    min-height: var(--tap-size);
-  }
-  .send:hover:not(:disabled) { background: var(--success-hover); }
-  /* Neutral fill pair; --text-subtle is never a background. */
-  .send:disabled { background: var(--text-muted); color: var(--text-inverse); cursor: not-allowed; }
-
-  /* The activity feed CSS that used to live here moved to
-     ActivityBanner.svelte when we lifted the feed out of the drawer. */
 </style>
