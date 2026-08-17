@@ -13,10 +13,6 @@ export function isMissingRepositoryPathError(message: string | null | undefined)
 }
 
 export async function pickReplacementRepositoryPath(repositoryId: string, currentPath: string): Promise<string | null> {
-  const title = t("repos_view.relocate_picker", { repository: repositoryId });
-  if (typeof window !== "undefined" && window.backlog?.pickFolder) {
-    return window.backlog.pickFolder({ title, defaultPath: currentPath });
-  }
   if (typeof window === "undefined") return null;
   const picked = window.prompt(t("repos_view.relocate_prompt", { repository: repositoryId }), currentPath);
   return picked?.trim() || null;

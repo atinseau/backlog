@@ -1,0 +1,85 @@
+name: Release
+
+# Publishes a binary for every supported platform to a GitHub Release when a
+# PR lands on the default branch.
+#
+# The version comes from package.json — bump it in the PR you want released.
+# When the tag for that version already exists the run is a no-op, so merges
+# that don't touch the version never produce a release.
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(bun --print "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION already tagged — nothing to release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.version.outputs.exists == 'false'
+        run: bun install --frozen-lockfile
+
+      - name: Test
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          bun run typecheck
+          bun run test
+
+      # bun compiles for other platforms from this one runner, so all four
+      # binaries come out of a single job.
+      - name: Build binaries
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
+            bun run build --target "$target"
+          done
+          ls -lh dist/
+
+      - name: Checksums
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          cd dist
+          rm -f backlog          # the host-native build; not a release asset
+          sha256sum backlog-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create release
+        if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --generate-notes \
+            dist/backlog-linux-x64 \
+            dist/backlog-linux-arm64 \
+            dist/backlog-darwin-x64 \
+            dist/backlog-darwin-arm64 \
+            dist/SHA256SUMS

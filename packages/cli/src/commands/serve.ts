@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import { startServer, type StartServerOptions } from "@backlog/server";
 
@@ -16,22 +15,21 @@ interface ServeOptions {
   openUrl?: string;
 }
 
+/**
+ * Pick the directory to serve the board from.
+ *
+ * The compiled binary carries the board inside itself (see
+ * packages/server/src/ui-assets.ts) and needs nothing here. This only covers
+ * an explicit `--ui-dist` and the monorepo dev run, where serving Vite's
+ * output directly means a UI rebuild shows up without recompiling the binary.
+ */
 function locateUiDist(explicit?: string): string | undefined {
   if (explicit) return explicit;
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    // Monorepo dev: board-ui builds into packages/server/dist/public.
-    resolve(process.cwd(), "packages/server/dist/public"),
-    // Monorepo dev: board-ui builds into packages/server/dist/public.
-    resolve(here, "../../../server/dist/public"),
-    // Dev CLI after a package build: packages/cli/src/commands/serve.ts -> ../../dist/public.
-    resolve(here, "../../dist/public"),
-    // Published/built CLI: packages/cli/dist/commands/serve.js -> ../public.
-    resolve(here, "../public"),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(resolve(candidate, "index.html"))) return candidate;
-  }
+  // A compiled binary always prefers its own embedded copy, even when it
+  // happens to be launched from the monorepo root.
+  if (Bun.embeddedFiles.length > 0) return undefined;
+  const devDist = resolve(process.cwd(), "packages/board-ui/dist");
+  if (existsSync(resolve(devDist, "index.html"))) return devDist;
   return undefined;
 }
 

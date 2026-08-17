@@ -1,72 +1,19 @@
 {
-  "name": "backlog",
-  "version": "1.4.56",
-  "description": "Orchestrator for AI coding agents — claims, isolated worktrees, parallel runs. CLI, Desktop, and SDK in one engine.",
+  "name": "@backlog/cli",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
-  "bin": {
-    "backlog": "dist/bin.js"
-  },
-  "main": "./dist/bin.js",
-  "files": [
-    "dist/",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
-  "scripts": {
-    "build": "pnpm --filter @backlog/board-ui build && tsup",
-    "build:tsc": "tsc -b",
-    "dev": "tsx src/bin.ts",
-    "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "pnpm --filter @backlog/board-ui build && tsup"
-  },
-  "engines": {
-    "node": ">=20"
-  },
+  "main": "./src/bin.ts",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.91.1",
-    "@hono/node-server": "^1.13.7",
-    "@iarna/toml": "^2.2.5",
-    "commander": "^13.1.0",
-    "execa": "^9.6.0",
-    "hono": "^4.6.13",
-    "picomatch": "^4.0.2",
-    "yaml": "^2.8.0",
-    "zod": "^3.24.4"
-  },
-  "devDependencies": {
     "@backlog/claims": "workspace:*",
-    "@backlog/connectors": "workspace:*",
     "@backlog/config": "workspace:*",
+    "@backlog/connectors": "workspace:*",
     "@backlog/core": "workspace:*",
     "@backlog/git": "workspace:*",
     "@backlog/hooks": "workspace:*",
     "@backlog/schemas": "workspace:*",
     "@backlog/server": "workspace:*",
-    "tsup": "^8.4.0",
-    "tsx": "^4.20.3",
-    "typescript": "^5.8.3"
-  },
-  "author": "Jimmy Douieb",
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/osmove/backlog.git"
-  },
-  "bugs": {
-    "url": "https://github.com/osmove/backlog/issues"
-  },
-  "homepage": "https://github.com/osmove/backlog#readme",
-  "keywords": [
-    "backlog",
-    "agents",
-    "ai",
-    "claude",
-    "codex",
-    "claims",
-    "worktree",
-    "orchestration",
-    "scheduler",
-    "cli"
-  ]
+    "commander": "^13.1.0",
+    "execa": "^9.6.0"
+  }
 }

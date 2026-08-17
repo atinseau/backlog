@@ -8,6 +8,7 @@ import {
 } from "@backlog/config";
 import { detectRepoRoot } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
+import { selfExec } from "../self-exec.js";
 
 export const DEFAULT_BOARD_URL = "http://127.0.0.1:7878";
 const HEALTH_PATH = "/api/v1/health";
@@ -160,13 +161,11 @@ async function nextAvailableUrl(baseUrl: string): Promise<string> {
 }
 
 function execServeAndBlock(args: string[]): void {
-  // Re-invoke ourselves as `backlog serve` through the current Node
-  // process. This works both for the built CLI (dist/bin.js) and for
-  // `tsx src/bin.ts` in the monorepo dev script.
-  const entry = process.argv[1];
-  const child = entry
-    ? spawn(process.execPath, [...process.execArgv, entry, "serve", ...args], { stdio: "inherit" })
-    : spawn("backlog", ["serve", ...args], { stdio: "inherit" });
+  // Re-invoke ourselves as `backlog serve`. selfExec() knows whether we're the
+  // compiled binary (re-exec itself) or a dev run (hand the entrypoint back to
+  // the runtime).
+  const { command, prefixArgs } = selfExec();
+  const child = spawn(command, [...prefixArgs, "serve", ...args], { stdio: "inherit" });
   child.on("exit", (code) => process.exit(code ?? 0));
   // Forward signals so Ctrl+C in the parent terminal stops the child
   // serve cleanly.

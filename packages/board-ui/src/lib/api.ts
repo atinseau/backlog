@@ -1849,6 +1849,12 @@ export interface CloudStatus {
   user?: CloudUser;
   expired?: boolean;
   error?: string;
+  /**
+   * False when the server has no hosted account service configured — the
+   * default here. The board then hides sign-in/billing entries instead of
+   * offering actions that cannot complete.
+   */
+  available?: boolean;
 }
 
 export async function fetchCloudStatus(): Promise<CloudStatus> {

@@ -1,6 +1,20 @@
 import os from "node:os";
 import path from "node:path";
 
+/**
+ * The user's home directory, honouring a reassigned `HOME`.
+ *
+ * Node's `os.homedir()` reads `process.env.HOME` first on POSIX; Bun's
+ * resolves from the password database and ignores it. Every Backlog storage
+ * path goes through this helper so pointing `HOME` at a sandbox — which is
+ * how the test-suite keeps out of the real `~/.backlog/` — behaves the same
+ * on both runtimes.
+ */
+export function homeDir(): string {
+  const fromEnv = process.env.HOME ?? process.env.USERPROFILE;
+  return fromEnv && fromEnv.length > 0 ? fromEnv : os.homedir();
+}
+
 // Cross-platform user-config directory for an arbitrary app, no external
 // dep. Kept for completeness — Backlog itself does NOT use it (see
 // getBacklogUserDir below for why).
@@ -8,7 +22,7 @@ import path from "node:path";
 //   Linux:   $XDG_CONFIG_HOME/<appName>/  (defaults to ~/.config/)
 //   Windows: %APPDATA%\<appName>\  (falls back to ~/AppData/Roaming/<appName>/)
 export function getUserConfigDir(appName: string, env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
-  const home = os.homedir();
+  const home = homeDir();
   if (platform === "darwin") {
     return path.join(home, "Library", "Application Support", appName);
   }
@@ -39,7 +53,7 @@ export function getBacklogUserDir(env?: NodeJS.ProcessEnv, platform?: NodeJS.Pla
   // this dir is the same on every platform now.
   void env;
   void platform;
-  return path.join(os.homedir(), ".backlog");
+  return path.join(homeDir(), ".backlog");
 }
 
 // Where Backlog used to keep the registry (and only the registry) before

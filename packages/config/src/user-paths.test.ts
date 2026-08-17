@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { getBacklogUserDir, getLegacyBacklogConfigDir, getUserConfigDir } from "./user-paths.js";
 
 describe("getUserConfigDir", () => {

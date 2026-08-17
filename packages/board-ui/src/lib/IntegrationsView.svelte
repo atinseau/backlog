@@ -254,14 +254,6 @@
   }
 
   function openInNewTab(url: string) {
-    // Prefer the Electron IPC bridge so OAuth flows always land in the
-    // user's actual default browser (with their session cookies). Fall
-    // back to window.open for plain-browser usage of `backlog serve`.
-    const bridge = (window as unknown as { backlog?: { openExternal: (u: string) => Promise<void> } }).backlog;
-    if (bridge?.openExternal) {
-      void bridge.openExternal(url);
-      return;
-    }
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
@@ -761,7 +753,7 @@
               <div class="muted small">
                 {t("integrations.github.oauth.configured_hint", { hint: ghOauthConfig.client_id_hint })}
                 {#if ghOauthConfig.client_id_source === "cloud"}
-                  · via backlog.so
+                  · via proxy
                 {:else if ghOauthConfig.client_id_source === "user"}
                   · custom
                 {:else if ghOauthConfig.client_id_source === "env"}
@@ -920,7 +912,7 @@
           {#if jiraOauthConfig}
             <div class="muted small">
               {#if jiraOauthConfig.mode === "cloud"}
-                via backlog.so · zéro config
+                via proxy · zéro config
               {:else if jiraOauthConfig.client_id_hint}
                 {t("integrations.jira.oauth.configured_hint", { hint: jiraOauthConfig.client_id_hint })}
                 · custom

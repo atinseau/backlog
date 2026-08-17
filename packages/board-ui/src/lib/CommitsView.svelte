@@ -247,30 +247,14 @@
     return `${root.replace(/[\\/]+$/, "")}/${filePath.replace(/^[\\/]+/, "")}`;
   }
 
+  // Served in a browser, so "open" means putting the path on the clipboard.
   function openPath(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.openPath) {
-      void window.backlog.openPath(path).catch(() => undefined);
-    } else {
-      void navigator.clipboard?.writeText(path).catch(() => undefined);
-      info = t("git.path_copied");
-    }
+    void navigator.clipboard?.writeText(path).catch(() => undefined);
+    info = t("git.path_copied");
   }
 
-  function openEditor(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.openEditor) {
-      void window.backlog.openEditor(path).catch(() => openPath(path));
-    } else {
-      openPath(path);
-    }
-  }
-
-  function revealPath(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.showInFolder) {
-      void window.backlog.showInFolder(path).catch(() => undefined);
-    } else {
-      openPath(path);
-    }
-  }
+  const openEditor = openPath;
+  const revealPath = openPath;
 
   function closeContextMenu() {
     contextMenu = null;
@@ -785,12 +769,8 @@
   }
 
   function openWorktree(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.openPath) {
-      void window.backlog.openPath(path).catch(() => undefined);
-    } else {
-      void navigator.clipboard?.writeText(path).catch(() => undefined);
-      info = t("git.worktree.path_copied");
-    }
+    void navigator.clipboard?.writeText(path).catch(() => undefined);
+    info = t("git.worktree.path_copied");
   }
 
   async function addWorktree(repoId: string) {

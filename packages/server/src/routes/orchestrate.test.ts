@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout } from "@backlog/config";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 import { orchestrateRoutes } from "./orchestrate.js";

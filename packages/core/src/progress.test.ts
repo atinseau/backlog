@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { Run, SubTask } from "@backlog/schemas";
 import { computeSubTaskProgress, computeTaskProgress, elapsedSeconds, etaIso } from "./progress.js";
 

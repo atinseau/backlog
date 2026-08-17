@@ -5,7 +5,7 @@ import { ensureProjectId, initLayout, setSecret } from "@backlog/config";
 import { addRepo } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 import { commitsRoutes } from "./commits.js";
@@ -45,7 +45,7 @@ function harness(project: ServerProject) {
 
 describe("git routes", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   it("lists changes and commits selected files", async () => {
@@ -374,7 +374,12 @@ describe("git routes", () => {
       { name: "feature/api", commit: { sha: "1234567890abcdef1234567890abcdef12345678" } },
     ];
 
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    // Cast: `typeof fetch` also carries Bun's `preconnect` property, which a
+    // plain async function can't satisfy and no code under test calls.
+    const fetchMock = spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const rawUrl = typeof input === "string"
         ? input
         : input instanceof URL
@@ -453,7 +458,7 @@ describe("git routes", () => {
         }, { status: 201 });
       }
       return new Response("not found", { status: 404, statusText: "Not Found" });
-    });
+    }) as unknown as typeof fetch);
 
     const app = harness(project);
     const commitsRes = await app.request("/commits?repository=cloud");

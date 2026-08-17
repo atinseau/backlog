@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { createSubTask, reorderSubTask } from "./subtask-service.js";

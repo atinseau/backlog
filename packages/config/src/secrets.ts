@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { homeDir } from "./user-paths.js";
 
 // Local-only credential store. Lives at .backlog/secrets.json. Values are
 // encrypted at rest with AES-256-GCM keyed off a per-machine secret at
@@ -53,7 +53,7 @@ function secretsPath(backlogDir: string): string {
 // one client) without forcing every other project to re-set the
 // same key.
 function accountSecretsDir(): string {
-  return path.join(os.homedir(), ".backlog");
+  return path.join(homeDir(), ".backlog");
 }
 
 function accountSecretsPath(): string {
@@ -65,7 +65,7 @@ function accountSecretsPath(): string {
 // way moving / syncing the workspace doesn't carry the key with the
 // ciphertext, which was the whole point.
 function keyFilePath(): string {
-  return path.join(os.homedir(), ".backlog", KEY_FILE_NAME);
+  return path.join(homeDir(), ".backlog", KEY_FILE_NAME);
 }
 
 function getOrCreateKey(): Buffer {

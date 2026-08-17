@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { initLayout } from "./init-layout.js";
 import {
   getRegistryPath,
@@ -68,7 +68,8 @@ describe("registerProject", () => {
     expect(entry.id).toMatch(/^WS-[0-9a-f]{8}$/);
     expect(entry.name).toBe("alpha");
     expect(entry.path).toBe(project);
-    expect(entry.added_at).toEqual(entry.last_opened_at);
+    expect(entry.last_opened_at).toBeDefined();
+    expect(entry.added_at).toEqual(entry.last_opened_at!);
   });
 
   it("dedupes by project id (re-register updates the entry)", () => {

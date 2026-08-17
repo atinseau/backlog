@@ -1051,7 +1051,7 @@
   "settings.cli.launch_prompt_title": "Backlog terminal CLI",
   "settings.cli.launch_prompt_body": "Your terminal uses backlog {installed}, while the desktop app is on {current}.",
   "settings.cli.launch_prompt_install_body": "The optional terminal CLI is not installed. Install it to use backlog from a terminal.",
-  "settings.cli.npm": "npm",
+  "settings.cli.releases": "Releases",
   "settings.copy": "Copy",
   "settings.reset.title": "Reset",
   "settings.reset.hint": "Wipes all local preferences (theme, locale, panel sizes, chat history, onboarding state). Does not touch the project or your cloud account.",

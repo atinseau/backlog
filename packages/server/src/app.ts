@@ -1,7 +1,4 @@
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { hydrateOrchestrator } from "@backlog/core";
 import { Hono } from "hono";
 import { EventBusRegistry } from "./lib/event-bus-registry.js";
 import { agentsRoutes } from "./routes/agents.js";
@@ -28,7 +25,7 @@ import { usageRoutes } from "./routes/usage.js";
 import { subtasksRoutes } from "./routes/subtasks.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { usersRoutes } from "./routes/users.js";
-import { staticHandler, staticPlaceholderHandler } from "./static.js";
+import { embeddedUiHandler, staticHandler } from "./static.js";
 import type { ServerProject } from "./project-context.js";
 import { type AppEnv, ProjectResolver } from "./project-resolver.js";
 
@@ -61,7 +58,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
 <body>
   <h1>Backlog — API ready, UI bundle missing</h1>
   <p>The API is up. To build the kanban UI:</p>
-  <pre><code>pnpm --filter @backlog/board-ui build</code></pre>
+  <pre><code>bun run build:ui</code></pre>
   <p>Then re-run <code>backlog serve</code>. Try the API directly:</p>
   <ul>
     <li><a href="/api/v1/health">/api/v1/health</a></li>
@@ -71,11 +68,6 @@ const PLACEHOLDER_HTML = `<!doctype html>
   </ul>
 </body>
 </html>`;
-
-function defaultUiDistDir(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  return resolve(here, "public");
-}
 
 export function buildApp(options: BuildAppOptions): BuildAppResult {
   const app = new Hono<AppEnv>();
@@ -155,11 +147,13 @@ export function buildApp(options: BuildAppOptions): BuildAppResult {
     }
   })();
 
-  const uiDir = options.uiDistDir ?? defaultUiDistDir();
-  if (existsSync(uiDir)) {
-    app.use("*", staticHandler({ rootDir: uiDir }));
+  // An explicit --ui-dist wins (live Vite output during development). With no
+  // override we serve the board embedded in the binary, falling back to the
+  // placeholder page when this is a dev run with no UI build on disk.
+  if (options.uiDistDir && existsSync(options.uiDistDir)) {
+    app.use("*", staticHandler({ rootDir: options.uiDistDir }));
   } else {
-    app.get("*", staticPlaceholderHandler(PLACEHOLDER_HTML));
+    app.use("*", embeddedUiHandler(PLACEHOLDER_HTML));
   }
 
   app.notFound((c) => c.json({ error: "not_found", path: c.req.path }, 404));

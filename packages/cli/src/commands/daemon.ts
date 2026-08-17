@@ -1,8 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
-import { findProject } from "@backlog/config";
+import { findProject, homeDir } from "@backlog/config";
+import { isCompiledBinary } from "../self-exec.js";
 
 export interface DaemonPaths {
   unitPath: string;
@@ -99,10 +99,10 @@ function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
-export function getDaemonPaths(platform: NodeJS.Platform = process.platform, homeDir = os.homedir()): DaemonPaths | null {
+export function getDaemonPaths(platform: NodeJS.Platform = process.platform, home = homeDir()): DaemonPaths | null {
   if (platform === "darwin") {
-    const unitPath = path.join(homeDir, "Library", "LaunchAgents", `${LABEL}.plist`);
-    const logsDir = path.join(homeDir, "Library", "Logs", "backlog");
+    const unitPath = path.join(home, "Library", "LaunchAgents", `${LABEL}.plist`);
+    const logsDir = path.join(home, "Library", "Logs", "backlog");
     return {
       unitPath,
       logsDir,
@@ -111,8 +111,8 @@ export function getDaemonPaths(platform: NodeJS.Platform = process.platform, hom
     };
   }
   if (platform === "linux") {
-    const unitPath = path.join(homeDir, ".config", "systemd", "user", SERVICE_NAME);
-    const logsDir = path.join(homeDir, ".local", "state", "backlog");
+    const unitPath = path.join(home, ".config", "systemd", "user", SERVICE_NAME);
+    const logsDir = path.join(home, ".local", "state", "backlog");
     return {
       unitPath,
       logsDir,
@@ -135,9 +135,10 @@ interface UninstallOptions {
 }
 
 function resolveBinary(): string {
-  // process.argv[1] is the entry script (the symlinked `backlog` binary when
-  // launched via the global install), which is exactly what launchd/systemd
-  // should call.
+  // launchd/systemd need an absolute path to a real executable. For the
+  // compiled binary that's the executable itself; process.argv[1] would be a
+  // virtual /$bunfs/ path that no service manager can launch.
+  if (isCompiledBinary()) return process.execPath;
   return process.argv[1] ?? "backlog";
 }
 
@@ -184,7 +185,7 @@ export function registerDaemonCommand(program: Command): void {
         projectRoot,
         port,
         logDir: paths.logsDir,
-        homeDir: os.homedir(),
+        homeDir: homeDir(),
       };
       const content =
         process.platform === "darwin" ? renderLaunchdPlist(renderInput) : renderSystemdUnit(renderInput);

@@ -1,15 +1,21 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./packages/schemas" },
-    { "path": "./packages/config" },
-    { "path": "./packages/git" },
-    { "path": "./packages/claims" },
-    { "path": "./packages/hooks" },
-    { "path": "./packages/core" },
-    { "path": "./packages/connectors" },
-    { "path": "./packages/server" },
-    { "path": "./packages/cli" },
-    { "path": "./packages/desktop" }
-  ]
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["types/**/*.d.ts", "packages/*/src/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "packages/board-ui", "**/dist/**"]
 }

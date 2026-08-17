@@ -46,15 +46,19 @@ function cloudAuthHeaders(backlogDir: string, json = false): Record<string, stri
   return headers;
 }
 
-// Public OAuth proxy hosted by backlog-cloud. Holds the GitHub and Jira
-// OAuth secrets so the CLI doesn't have to ship them. Override with
-// BACKLOG_CLOUD_URL when developing against a local Rails instance.
-const BACKLOG_CLOUD_URL = process.env.BACKLOG_CLOUD_URL ?? "https://backlog.so";
+// Optional hosted OAuth proxy. The upstream project pointed this at its own
+// SaaS so the CLI didn't have to ship GitHub/Jira OAuth secrets; this fork has
+// no such service, so it stays unset and every integration runs in BYO mode
+// (bring your own OAuth app). Set BACKLOG_CLOUD_URL to re-enable proxy mode
+// against a compatible endpoint.
+const BACKLOG_CLOUD_URL = process.env.BACKLOG_CLOUD_URL ?? "";
+const CLOUD_PROXY_ENABLED = BACKLOG_CLOUD_URL.length > 0;
 
 // Cache the official GitHub client_id keyed by JWT presence so we
 // re-fetch after login/logout but don't hammer the proxy otherwise.
 const cloudGithubClientIdCache = new Map<string, string | null>();
 async function fetchCloudGithubClientId(backlogDir: string): Promise<string | null> {
+  if (!CLOUD_PROXY_ENABLED) return null;
   const jwt = getSecret(backlogDir, CLOUD_JWT_KEY) ?? "";
   const cacheKey = `${BACKLOG_CLOUD_URL}::${jwt}`;
   if (cloudGithubClientIdCache.has(cacheKey)) {
@@ -197,6 +201,16 @@ async function importPulledTasks(
 
 export function integrationsRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  // The /cloud/* endpoints proxy a hosted account service that this fork does
+  // not run. With BACKLOG_CLOUD_URL unset they answer 503 instead of firing
+  // requests at an empty origin. `/cloud/me` and `/cloud/logout` stay open:
+  // both are answerable locally and let the board render a signed-out state.
+  app.use("/cloud/*", async (c, next) => {
+    if (CLOUD_PROXY_ENABLED) return next();
+    if (c.req.path.endsWith("/cloud/me") || c.req.path.endsWith("/cloud/logout")) return next();
+    return c.json({ error: "cloud_disabled" }, 503);
+  });
 
   // GitHub --------------------------------------------------------------
 
@@ -542,11 +556,10 @@ export function integrationsRoutes(): Hono<AppEnv> {
     const accessToken = getSecret(project.backlogDir, JIRA_ACCESS_TOKEN_KEY);
     const siteUrl = getSecret(project.backlogDir, JIRA_SITE_URL_KEY);
     return c.json({
-      // We always offer the connect button: the cloud proxy at backlog.so
-      // serves as the default. BYO credentials win if configured locally.
-      oauth_available: true,
+      // Without a proxy configured, connecting requires local credentials.
+      oauth_available: hasLocalCreds || CLOUD_PROXY_ENABLED,
       client_id_hint: id ? `${id.slice(0, 6)}…` : null,
-      mode: hasLocalCreds ? "byo" : "cloud",
+      mode: hasLocalCreds || !CLOUD_PROXY_ENABLED ? "byo" : "cloud",
       cloud_url: BACKLOG_CLOUD_URL,
       register_url: "https://developer.atlassian.com/console/myapps/",
       scopes: "read:jira-work read:jira-user offline_access",
@@ -1032,6 +1045,11 @@ export function integrationsRoutes(): Hono<AppEnv> {
   });
 
   app.get("/cloud/me", async (c) => {
+    if (!CLOUD_PROXY_ENABLED) {
+      // `available: false` tells the board to hide account/billing entries
+      // outright rather than offering a sign-in that cannot succeed.
+      return c.json({ signed_in: false, available: false });
+    }
     const project = c.get("project");
     const jwt = getSecret(project.backlogDir, CLOUD_JWT_KEY);
     if (!jwt) {

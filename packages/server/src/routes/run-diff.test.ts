@@ -5,7 +5,7 @@ import { ensureProjectId, initLayout } from "@backlog/config";
 import { createRun, createSubTask, createTask, getAgent } from "@backlog/core";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 import { runDiffRoutes } from "./run-diff.js";

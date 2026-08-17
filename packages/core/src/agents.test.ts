@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { ensureDefaultModelAgents, getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";

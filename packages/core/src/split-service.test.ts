@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { initLayout, loadConfig } from "@backlog/config";
 import { readSubTasksFile } from "./state-files.js";
 import { resolveSplitRepos, splitTask } from "./split-service.js";

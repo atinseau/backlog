@@ -69,8 +69,15 @@
     onChanged();
   }
 
+  // The server reports available === false when no hosted account service is
+  // configured, which is the default. Offering sign-in then would be a dead
+  // end, so the menu drops to local settings only.
+  const accountsEnabled = $derived(cloudStatus?.available !== false);
+
   function accountLabel(): string {
-    if (!cloudStatus?.signed_in || !cloudStatus.user) return t("profile.menu.signup");
+    if (!cloudStatus?.signed_in || !cloudStatus.user) {
+      return accountsEnabled ? t("profile.menu.signup") : t("topbar.profile");
+    }
     return cloudStatus.user.display_name || cloudStatus.user.email;
   }
 
@@ -132,17 +139,19 @@
           {t("profile.menu.logout")}
         </button>
       {:else}
-        <div class="header-row signed-out">
-          <span>{t("topbar.profile_signed_out")}</span>
-        </div>
-        <div class="separator"></div>
-        <button class="item primary" role="menuitem" onclick={() => { close(); onOpenProfile("signin"); }}>
-          {t("profile.menu.signin")}
-        </button>
-        <button class="item" role="menuitem" onclick={() => { close(); onOpenProfile("signup"); }}>
-          {t("profile.menu.signup")}
-        </button>
-        <div class="separator"></div>
+        {#if accountsEnabled}
+          <div class="header-row signed-out">
+            <span>{t("topbar.profile_signed_out")}</span>
+          </div>
+          <div class="separator"></div>
+          <button class="item primary" role="menuitem" onclick={() => { close(); onOpenProfile("signin"); }}>
+            {t("profile.menu.signin")}
+          </button>
+          <button class="item" role="menuitem" onclick={() => { close(); onOpenProfile("signup"); }}>
+            {t("profile.menu.signup")}
+          </button>
+          <div class="separator"></div>
+        {/if}
         <button class="item" role="menuitem" onclick={() => { close(); onOpenUsage(); }}>
           ▥ {t("nav.usage")}
         </button>
