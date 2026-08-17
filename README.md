@@ -34,7 +34,6 @@ Requires [Bun](https://bun.sh) 1.3+. Nothing else — no Node, no pnpm.
 
 ```sh
 bun install
-bun run build:ui      # build the Svelte board (needed before typecheck)
 bun run typecheck     # tsc + svelte-check
 bun run test          # bun test, 54 files
 bun run build         # → dist/backlog

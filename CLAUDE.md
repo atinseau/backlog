@@ -205,8 +205,14 @@ bundler. No Node, npm, pnpm, tsx, tsup or vitest, and none should come back.
 
 ```sh
 bun install
-bun run build:ui        # required before typecheck: ui-assets.ts imports dist/
 ```
+
+That's the whole setup. Nothing needs the board pre-built: `typecheck` and
+`test` pass without it (the `ui-assets.ts` imports are covered by ambient
+declarations in `types/`, and `static.ts` guards its dynamic import),
+`bun run build` builds the board itself, and `predev` →
+`scripts/ensure-ui.ts` rebuilds it before a dev run only when it is missing
+or stale. `bun run build:ui` exists if you want to force it.
 
 **Two dev loops. Pick by what you're changing.**
 
@@ -219,8 +225,11 @@ bun run dev serve --port 7878 --repository-only .
 ```
 
 The board is served from `packages/board-ui/dist` on disk in a dev run, so a
-`bun run build:ui` shows up on refresh without recompiling. Any CLI command
-works the same way: `bun run dev status`, `bun run dev task list`, …
+rebuild shows up on refresh without recompiling the binary. `predev` keeps
+that directory current: it stats the board sources and only runs Vite when
+something changed, so `bun run dev status` stays instant (~50 ms) while
+`bun run dev serve` always serves a fresh board. Any CLI command works the
+same way: `bun run dev status`, `bun run dev task list`, …
 
 *Board UI* — Vite dev server with HMR, in a second terminal:
 

@@ -46,7 +46,6 @@ jobs:
       - name: Test
         if: steps.version.outputs.exists == 'false'
         run: |
-          bun run build:ui
           bun run typecheck
           bun run test
 

@@ -7,6 +7,7 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "build:ui": "bun run --cwd packages/board-ui build",
+    "predev": "bun run scripts/ensure-ui.ts",
     "dev": "bun run packages/cli/src/bin.ts",
     "dev:ui": "bun run --cwd packages/board-ui dev",
     "test": "bun test ./packages",

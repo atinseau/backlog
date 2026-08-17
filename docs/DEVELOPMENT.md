@@ -104,11 +104,18 @@ From repository root:
 
 ```sh
 bun install
-bun run build:ui      # required before typecheck — ui-assets.ts imports it
 bun run typecheck
 bun run test
 bun run build
 ```
+
+Nothing needs the board pre-built. `typecheck` and `test` pass without
+`packages/board-ui/dist` — the `ui-assets.ts` imports are covered by the
+ambient declarations in `types/`, and `static.ts` guards its dynamic import.
+`bun run build` builds the board itself. And `predev` runs
+`scripts/ensure-ui.ts`, which rebuilds it before a dev run only when it is
+missing or stale, so `bun run dev serve` is always current while
+`bun run dev status` stays instant. `bun run build:ui` forces a rebuild.
 
 Run the board from source, without compiling:
 
@@ -119,8 +126,10 @@ bun run dev serve --port 7878 --repository-only .
 ```
 
 In a dev run the board is served from `packages/board-ui/dist` on disk, so a
-`bun run build:ui` is picked up without recompiling the binary. If the page
-says "API ready, UI bundle missing", that build hasn't happened yet.
+rebuild is picked up on refresh without recompiling the binary — and `predev`
+performs that rebuild for you when the sources have moved. If the page still
+says "API ready, UI bundle missing", the build failed; run `bun run build:ui`
+to see the error.
 
 For UI work, run Vite with HMR in a second terminal instead:
 
@@ -148,7 +157,6 @@ bun test ./packages/core          # a whole package
 Before committing cross-package changes:
 
 ```sh
-bun run build:ui
 bun run typecheck
 bun run test
 bun run build
