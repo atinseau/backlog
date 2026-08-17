@@ -42,7 +42,17 @@ describe("recordTrace", () => {
     }).id;
   });
 
-  function trace(overrides: Partial<Trace> = {}): Trace {
+  // `discovered_deps` proposals accept a partial shape here (e.g. omitting
+  // `scopes`) because the schema defaults it at parse time — the same
+  // leniency `traceSchema.parse` below applies at runtime.
+  type TraceOverrides = Partial<Omit<Trace, "discovered_deps">> & {
+    discovered_deps?: Array<
+      | { kind: "existing"; task_id: string }
+      | { kind: "proposal"; proposal: { title: string; motive: string; scopes?: string[] } }
+    >;
+  };
+
+  function trace(overrides: TraceOverrides = {}): Trace {
     return {
       version: 1,
       run_id: "run_001",
@@ -154,5 +164,74 @@ describe("recordTrace", () => {
     const result = recordTrace({ backlogDir, trace: trace({ subtask_id: undefined }) });
     expect(result.transitions).toEqual([]);
     expect(getTask(backlogDir, taskId)!.status).toBe(before);
+  });
+
+  it("links an existing task as a dependency", () => {
+    const upstream = createTask(backlogDir, { title: "Upstream work" }).id;
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({ discovered_deps: [{ kind: "existing", task_id: upstream }] }),
+    });
+    expect(result.linkedDeps).toEqual([upstream]);
+    expect(getTask(backlogDir, taskId)!.dependencies).toContain(upstream);
+  });
+
+  it("does not duplicate a dependency that is already declared", () => {
+    const upstream = createTask(backlogDir, { title: "Upstream work" }).id;
+    const dep = { kind: "existing" as const, task_id: upstream };
+    recordTrace({ backlogDir, trace: trace({ run_id: "run_001", discovered_deps: [dep] }) });
+    recordTrace({ backlogDir, trace: trace({ run_id: "run_002", discovered_deps: [dep] }) });
+    const dependencies = getTask(backlogDir, taskId)!.dependencies;
+    expect(dependencies.filter((id) => id === upstream)).toHaveLength(1);
+  });
+
+  it("rejects a dependency pointing at an unknown task", () => {
+    expect(() =>
+      recordTrace({
+        backlogDir,
+        trace: trace({ discovered_deps: [{ kind: "existing", task_id: "task_404" }] }),
+      }),
+    ).toThrow(/Unknown dependency/);
+  });
+
+  it("creates a proposal in the proposed status, never runnable", () => {
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        discovered_deps: [
+          {
+            kind: "proposal",
+            proposal: { title: "Make the writer reentrant", motive: "Found while editing." },
+          },
+        ],
+      }),
+    });
+    expect(result.createdProposals).toHaveLength(1);
+    const created = getTask(backlogDir, result.createdProposals[0]!)!;
+    expect(created.status).toBe("proposed");
+    expect(created.proposal?.audit).toBe("pending");
+    expect(created.proposal?.origin_run_id).toBe("run_001");
+    expect(created.proposal?.origin_task_id).toBe(taskId);
+    expect(created.proposal?.motive).toBe("Found while editing.");
+  });
+
+  it("carries the proposal's scopes onto the created task", () => {
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        discovered_deps: [
+          {
+            kind: "proposal",
+            proposal: {
+              title: "Make the writer reentrant",
+              motive: "Found while editing.",
+              scopes: ["packages/core/src/state-files.ts"],
+            },
+          },
+        ],
+      }),
+    });
+    const created = getTask(backlogDir, result.createdProposals[0]!)!;
+    expect(created.description).toContain("packages/core/src/state-files.ts");
   });
 });

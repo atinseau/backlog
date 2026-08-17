@@ -1,6 +1,6 @@
 import { traceSchema, type Trace } from "@backlog/schemas";
 import { blockTask, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { getTask, updateTaskStatus } from "./task-service.js";
+import { createTask, getTask, updateTask, updateTaskStatus } from "./task-service.js";
 import { appendTrace } from "./trace-store.js";
 
 export interface RecordTraceInput {
@@ -13,6 +13,56 @@ export interface RecordTraceResult {
   transitions: string[];
   createdProposals: string[];
   linkedDeps: string[];
+}
+
+// A discovered dependency is either an edge to a ticket that exists, or work
+// that has no ticket yet. The second case creates a task in `proposed` — never
+// `ready`, never `backlog` — so nothing an agent invents can schedule itself.
+// `backlog` already means "to do"; unvetted work does not belong there.
+function applyDiscoveredDeps(
+  backlogDir: string,
+  trace: Trace,
+): { createdProposals: string[]; linkedDeps: string[] } {
+  const createdProposals: string[] = [];
+  const linkedDeps: string[] = [];
+
+  for (const dep of trace.discovered_deps) {
+    if (dep.kind === "existing") {
+      if (!getTask(backlogDir, dep.task_id)) {
+        throw new Error(`Unknown dependency: ${dep.task_id}`);
+      }
+      if (dep.task_id === trace.task_id) continue;
+      const current = getTask(backlogDir, trace.task_id)!;
+      if (!current.dependencies.includes(dep.task_id)) {
+        updateTask(backlogDir, trace.task_id, {
+          dependencies: [...current.dependencies, dep.task_id],
+        });
+      }
+      if (!linkedDeps.includes(dep.task_id)) linkedDeps.push(dep.task_id);
+      continue;
+    }
+
+    const scopeNote =
+      dep.proposal.scopes.length > 0
+        ? `\n\nExpected scope:\n${dep.proposal.scopes.map((s) => `- ${s}`).join("\n")}`
+        : "";
+    const created = createTask(backlogDir, {
+      title: dep.proposal.title,
+      description: `${dep.proposal.motive}${scopeNote}`,
+      status: "proposed",
+    });
+    updateTask(backlogDir, created.id, {
+      proposal: {
+        origin_run_id: trace.run_id,
+        origin_task_id: trace.task_id,
+        motive: dep.proposal.motive,
+        audit: "pending",
+      },
+    });
+    createdProposals.push(created.id);
+  }
+
+  return { createdProposals, linkedDeps };
 }
 
 // One outcome produces at most one transition. `implemented` produces none on
@@ -63,5 +113,6 @@ export function recordTrace(input: RecordTraceInput): RecordTraceResult {
     }
   }
 
-  return { trace, transitions, createdProposals: [], linkedDeps: [] };
+  const { createdProposals, linkedDeps } = applyDiscoveredDeps(backlogDir, trace);
+  return { trace, transitions, createdProposals, linkedDeps };
 }

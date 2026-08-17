@@ -1,4 +1,4 @@
-import type { SourceLink } from "@backlog/schemas";
+import type { SourceLink, TaskProposal } from "@backlog/schemas";
 import { taskStatusSchema, type Task, type TaskStatus } from "@backlog/schemas";
 import { nextId } from "@backlog/config";
 import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
@@ -46,6 +46,7 @@ export interface UpdateTaskInput {
   preferredAgents?: string[];
   worktreeMode?: "isolated_worktree" | "direct";
   maxSubagents?: number;
+  proposal?: TaskProposal;
 }
 
 function clampMaxSubagents(value: number | undefined): number {
@@ -158,6 +159,9 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
       ...item.execution_defaults,
       max_subagents: clampMaxSubagents(input.maxSubagents),
     };
+  }
+  if (input.proposal !== undefined) {
+    item.proposal = input.proposal;
   }
 
   item.updated_at = new Date().toISOString();
