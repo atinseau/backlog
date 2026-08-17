@@ -258,6 +258,20 @@ export async function garbageCollectWorktrees(
       }
       continue;
     }
+    // A run archived under the now-removed "direct" execution mode has
+    // worktree_path pointing at the repository's own checkout, not an
+    // isolated worktree — `git worktree remove` on the main tree fails
+    // ("is a main working tree"), and since this loop has no try/catch,
+    // that exception would abort GC for every run queued after this one.
+    // Recognize the legacy shape by comparing the resolved path against
+    // the repo's configured checkout (the same comparison repo-service.ts
+    // uses to detect an existing repo path), not by resurrecting the
+    // deleted execution_mode field, and leave it alone.
+    const configuredCheckoutPath = repoPaths.get(run.repo);
+    if (configuredCheckoutPath && path.resolve(run.worktree_path) === path.resolve(configuredCheckoutPath)) {
+      result.skipped.push(run.worktree_path);
+      continue;
+    }
     const remoteBase = remoteExecutionBasePath(backlogDir, run.repo, run.id);
     const repoPath = repoPaths.get(run.repo) ?? (fs.existsSync(remoteBase) ? remoteBase : undefined);
     if (!repoPath) {

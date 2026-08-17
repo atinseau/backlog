@@ -23,12 +23,6 @@ export function nextRunId(backlogDir: string): string {
   return nextId(backlogDir, "run");
 }
 
-export function getRunDirectory(backlogDir: string, runId: string): string {
-  const active = runDirectory(activeRunsDir(backlogDir), runId);
-  if (fs.existsSync(active)) return active;
-  return runDirectory(archiveRunsDir(backlogDir), runId);
-}
-
 export function createRun(params: {
   backlogDir: string;
   runId: string;

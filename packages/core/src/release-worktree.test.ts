@@ -140,20 +140,85 @@ describe("release and worktree operators", () => {
     });
     archiveRun(backlogDir, "RUN-terminal");
 
+    // Legacy shape: an archived run whose worktree_path is the repository's
+    // own checkout, exactly what every run created under the removed
+    // "direct" execution mode looks like on disk. Nothing migrates
+    // archived run.json records (schemas/src/run.ts's non-strict parsing
+    // just strips the old execution_mode field on read), so records like
+    // this exist in real installs today. GC must recognize it by path and
+    // leave it alone rather than trying (and failing) to `git worktree
+    // remove` the main working tree.
+    createRun({
+      backlogDir,
+      runId: "RUN-direct",
+      task,
+      workItem,
+      agent,
+      branch: "main",
+      worktreePath: root,
+      claimIds: [],
+    });
+    archiveRun(backlogDir, "RUN-direct");
+
     const worktrees = listKnownWorktrees(backlogDir);
-    expect(worktrees).toEqual([
-      expect.objectContaining({
-        runId: "RUN-terminal",
-        repo: repoId,
-        exists: true,
-        active: false,
-      }),
-    ]);
+    expect(worktrees).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          runId: "RUN-terminal",
+          repo: repoId,
+          exists: true,
+          active: false,
+        }),
+        expect.objectContaining({
+          runId: "RUN-direct",
+          repo: repoId,
+          path: root,
+          exists: true,
+          active: false,
+        }),
+      ]),
+    );
+    expect(worktrees).toHaveLength(2);
 
     const dryRun = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir), { dryRun: true });
     expect(dryRun.removed).toContain(worktreePath);
     expect(dryRun.removed).not.toContain(root);
     expect(fs.existsSync(worktreePath)).toBe(true);
+    expect(fs.existsSync(root)).toBe(true);
+  });
+
+  it("skips a legacy archived run whose worktree_path is the repository's own checkout, without crashing", async () => {
+    const { root, backlogDir, repoId } = await createWorkspace();
+    const workItem = createTask(backlogDir, { title: "legacy direct run", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "task",
+      repo: repoId,
+    });
+    const agent = getAgent(backlogDir, "claude-code");
+    if (!agent) {
+      throw new Error("Expected claude-code agent");
+    }
+
+    // Same legacy shape as above, but this time exercised through a real
+    // (non-dry-run) GC pass — the path where `git worktree remove --force
+    // <mainCheckout>` used to throw ("is a main working tree") and, since
+    // the archived-runs loop has no try/catch, abort GC for every run
+    // queued after it.
+    createRun({
+      backlogDir,
+      runId: "RUN-direct",
+      task,
+      workItem,
+      agent,
+      branch: "main",
+      worktreePath: root,
+      claimIds: [],
+    });
+    archiveRun(backlogDir, "RUN-direct");
+
+    const result = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir));
+    expect(result.removed).not.toContain(root);
     expect(fs.existsSync(root)).toBe(true);
   });
 });
