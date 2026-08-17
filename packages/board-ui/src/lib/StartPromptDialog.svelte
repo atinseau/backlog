@@ -119,7 +119,7 @@
   h2 { margin: 0; font-size: 16px; }
   .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
   p { margin: 0; line-height: 1.5; }
-  .muted { color: var(--text-subtle); font-size: 12px; }
+  .muted { color: var(--text-muted); font-size: 12px; }
   .error {
     background: var(--danger-bg);
     color: var(--danger);
@@ -131,6 +131,7 @@
     padding: 12px 20px;
     border-top: 1px solid var(--border-default);
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -141,14 +142,21 @@
     padding: 6px 14px;
     cursor: pointer;
     font-size: 13px;
+    min-height: var(--tap-size);
   }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* --success lightens in dark mode, so its ink is the paired
+     --success-on, not the always-white --text-on-fill. */
   button.primary {
     background: var(--success);
-    color: white;
+    color: var(--success-on);
     border-color: var(--success);
     font-weight: 500;
   }
-  button.primary:hover:not(:disabled) { background: #036a3e; }
+  button.primary:hover:not(:disabled) { background: var(--success-hover); }
   button:disabled {
     opacity: 0.5;
     cursor: not-allowed;

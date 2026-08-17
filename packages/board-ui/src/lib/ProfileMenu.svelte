@@ -174,7 +174,7 @@
   .avatar {
     width: 30px;
     height: 30px;
-    border-radius: 50%;
+    border-radius: 999px;
     padding: 0;
     margin-left: 4px;
     font-size: 12px;
@@ -192,8 +192,14 @@
     color: var(--success);
     border-color: var(--success);
   }
+  /* No hand-written shadow: the accent rule says the same thing and
+     stays inside the five elevation steps. */
   .avatar:hover {
-    box-shadow: 0 0 0 3px var(--accent-bg);
+    border-color: var(--accent);
+  }
+  .avatar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   .dropdown {
@@ -230,11 +236,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* 10px is only legitimate as spaced caps — this is a plan label. */
   .plan {
     align-self: flex-start;
     font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
     padding: 1px 6px;
-    border-radius: 10px;
+    border-radius: 999px;
     background: var(--bg-elevated);
     color: var(--text-body);
   }
@@ -253,6 +263,7 @@
     color: var(--text-body);
     font-size: 13px;
     border-radius: 4px;
+    min-height: var(--tap-size);
   }
   .item:hover {
     background: var(--bg-hover);

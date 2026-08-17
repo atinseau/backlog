@@ -10,6 +10,7 @@
     deleteSecret as apiDeleteSecret,
     type SecretKey,
   } from "./api.js";
+  import { focusTrap } from "./DialogShell.svelte";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
@@ -80,6 +81,7 @@
 
 <div class="backdrop" onclick={onClose} role="presentation">
   <div
+    use:focusTrap
     class="modal"
     onclick={(e) => e.stopPropagation()}
     role="dialog"
@@ -92,7 +94,7 @@
         <h2>{t("api_keys_dialog.title")}</h2>
         <p class="subtitle">{t("api_keys_dialog.subtitle")}</p>
       </div>
-      <button class="close" onclick={onClose} aria-label="Close">✕</button>
+      <button class="close" onclick={onClose} aria-label={t("common.close")}>✕</button>
     </header>
 
     {#if loading}
@@ -166,6 +168,7 @@
     max-width: 560px;
     width: 92%;
     max-height: 88vh;
+    max-height: 88dvh;
     display: flex; flex-direction: column;
     overflow: hidden;
   }
@@ -183,6 +186,17 @@
     font-size: 18px;
     cursor: pointer;
     color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
+  }
+  button:focus-visible,
+  .link-out:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .loading {
     padding: 32px;
@@ -222,37 +236,44 @@
     text-decoration: none;
   }
   .link-out:hover { text-decoration: underline; }
-  .input-row { display: flex; gap: 6px; align-items: center; }
+  /* Wraps rather than squeezing the key field below readability on a
+     360px-wide viewport. */
+  .input-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .input-row input {
     flex: 1;
+    min-width: 160px;
     padding: 6px 10px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     font: inherit;
     font-size: 13px;
     font-family: ui-monospace, monospace;
   }
+  .input-row input::placeholder { color: var(--text-muted); }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     border: none;
     border-radius: 4px;
     padding: 6px 12px;
     font: inherit;
     font-size: 12px;
     cursor: pointer;
+    min-height: var(--tap-size);
   }
   .primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .ghost {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 4px 8px;
     color: var(--text-muted);
     cursor: pointer;
     font: inherit;
     font-size: 12px;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   .ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {

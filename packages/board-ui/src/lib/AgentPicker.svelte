@@ -156,7 +156,7 @@
           >
             <span class="provider provider-{agent.provider}">{agent.provider}</span>
             <span class="item-name">{label.withContext}</span>
-            {#if agent.needs_api_key}<span class="off">🔑 key</span>{/if}
+            {#if agent.needs_api_key}<span class="off">🔑 {t("agent_picker.needs_api_key_badge")}</span>{/if}
             {#if agent.id === effectiveSelectedId}<span class="check">✓</span>{/if}
           </button>
         {/each}
@@ -179,12 +179,13 @@
     align-items: center;
     gap: 6px;
     background: var(--bg-input);
-    border: 1px solid var(--border-strong);
+    /* Select-shaped control on --bg-input: WCAG 1.4.11 wants 3:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 5px 8px;
     cursor: pointer;
     font: inherit;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--text-primary);
     height: 32px;
     max-width: 210px;
@@ -273,19 +274,20 @@
   .item.dim { opacity: 0.55; }
   .item.action { color: var(--text-secondary); font-size: 12px; }
 
+  /* No shared `color` here: each variant paints a different fill, so
+     each one carries its own paired ink (DESIGN.md, encre appariée). */
   .provider {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 1px 5px;
     border-radius: 3px;
-    color: white;
     font-weight: 600;
     flex-shrink: 0;
   }
-  .provider-claude { background: var(--danger); }
-  .provider-codex { background: var(--success); }
-  .provider-custom { background: #a78bfa; }
+  .provider-claude { background: var(--danger); color: var(--danger-on); }
+  .provider-codex { background: var(--success); color: var(--success-on); }
+  .provider-custom { background: var(--apply); color: var(--apply-on); }
   .item-name {
     flex: 1;
     min-width: 0;
@@ -297,17 +299,18 @@
     gap: 1px;
   }
   .item-model {
-    font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
     color: var(--text-muted);
     flex-shrink: 0;
   }
   .off {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
     background: var(--bg-hover);
-    padding: 1px 5px;
-    border-radius: 8px;
+    /* Deliberately round: it reads as a counter-style pill. */
+    border-radius: 999px;
+    padding: 1px 6px;
   }
   .check {
     color: var(--accent);

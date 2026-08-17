@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { fetchAllClaims } from "./api.js";
   import ClaimCard from "./ClaimCard.svelte";
+  import { t } from "./i18n.svelte.js";
   import { useTimer } from "./timer.svelte.js";
   import type { ClaimRecord } from "./types.js";
 
@@ -71,8 +72,8 @@
 <main class="claims-board">
   <section class="column">
     <header>
-      <h2 title="Claim actif sans agent attribué — le verrou est posé mais aucun agent ne bosse formellement dessus">
-        En attente
+      <h2 title={t("claims_board.pending.hint")}>
+        {t("claims_board.pending")}
       </h2>
       <span class="count">{pending.length}</span>
     </header>
@@ -88,7 +89,7 @@
 
   <section class="column">
     <header>
-      <h2 title="Claim actif avec un agent attribué">En cours</h2>
+      <h2 title={t("claims_board.in_progress.hint")}>{t("claims_board.in_progress")}</h2>
       <span class="count">{inProgress.length}</span>
     </header>
     <div class="cards">
@@ -103,7 +104,7 @@
 
   <section class="column">
     <header>
-      <h2>Expirés</h2>
+      <h2>{t("claims_board.expired")}</h2>
       <span class="count">{expired.length}</span>
     </header>
     <div class="cards">
@@ -118,7 +119,7 @@
 
   <section class="column">
     <header>
-      <h2>Archivés</h2>
+      <h2>{t("claims_board.archived")}</h2>
       <span class="count">{archived.length}</span>
     </header>
     <div class="cards scrollable">
@@ -146,6 +147,10 @@
     padding: 16px;
     align-items: start;
     min-height: calc(100vh - 60px);
+    min-height: calc(100dvh - 60px);
+    /* Four 240px columns have a hard floor; below it the grid scrolls
+       sideways rather than crushing the cards (DESIGN.md, canvas rule). */
+    overflow-x: auto;
   }
   .column {
     background: var(--border-subtle);
@@ -176,7 +181,7 @@
     color: var(--text-body);
     font-size: 11px;
     padding: 1px 7px;
-    border-radius: 10px;
+    border-radius: 999px;
   }
   .cards {
     flex: 1;
@@ -184,12 +189,13 @@
   }
   .cards.scrollable {
     max-height: calc(100vh - 130px);
+    max-height: calc(100dvh - 130px);
     overflow-y: auto;
   }
   .empty {
     padding: 16px 0;
     text-align: center;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 13px;
   }
 </style>

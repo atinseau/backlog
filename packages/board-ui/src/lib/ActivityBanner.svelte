@@ -320,6 +320,17 @@
      (kept dark in both light + dark modes) so it reads as a terminal
      log, distinct from the document chrome. */
   .bar {
+    /* Dimmed console ink. The document greys (--text-muted &co) are
+       tuned for --bg-surface: on --console-bg the light theme's
+       --text-muted only reaches 3.60:1. Deriving the secondary ink from
+       the console's own pair keeps it ~7:1 in BOTH themes without
+       lightening the surface ("la règle du sombre-machine"). */
+    --console-meta: color-mix(in srgb, var(--console-text) 72%, var(--console-bg));
+    /* Same reasoning for the green event label: --success is tuned to
+       carry text on a PALE surface, so on --console-bg the light theme
+       only reaches 3.48:1. Pulling it toward the console's own ink
+       keeps it unmistakably green at 5.57:1 light / 12.08:1 dark. */
+    --console-accent: color-mix(in srgb, var(--success) 65%, var(--console-text));
     position: fixed;
     bottom: 0;
     left: 0;
@@ -352,19 +363,19 @@
     justify-content: flex-start;
   }
   .toggle:hover { background: var(--console-line); }
-  .chevron { font-size: 10px; color: var(--text-subtle); }
+  .chevron { font-size: 11px; color: var(--text-subtle); }
   .label { font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
   .count {
-    color: var(--text-subtle);
+    color: var(--console-meta);
     font-variant-numeric: tabular-nums;
     margin-left: 4px;
   }
   .badge {
-    background: #f04438;
-    color: white;
-    border-radius: 10px;
+    background: var(--danger-solid);
+    color: var(--text-on-solid);
+    border-radius: 999px;
     padding: 0 6px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -382,14 +393,29 @@
     padding: 1px 8px;
     cursor: pointer;
     font-size: 12px;
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
   }
   .actions button:hover:not(:disabled) {
     background: var(--console-line);
-    color: white;
+    color: var(--text-on-fill);
   }
   .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Pointer capability, not width — the bar has to be tall enough to
+     host a 28px target once --tap-size widens. */
+  @media (pointer: coarse) {
+    .bar { height: 32px; }
+  }
 
   .panel {
+    /* See .bar — same derived secondary console ink. */
+    --console-meta: color-mix(in srgb, var(--console-text) 72%, var(--console-bg));
+    /* Same reasoning for the green event label: --success is tuned to
+       carry text on a PALE surface, so on --console-bg the light theme
+       only reaches 3.48:1. Pulling it toward the console's own ink
+       keeps it unmistakably green at 5.57:1 light / 12.08:1 dark. */
+    --console-accent: color-mix(in srgb, var(--success) 65%, var(--console-text));
     position: fixed;
     bottom: 0;
     left: 0;
@@ -402,7 +428,8 @@
     display: flex;
     flex-direction: column;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
+    /* DESIGN.md, "La console" : mono 12px, dark in both themes. */
+    font-size: 12px;
   }
   /* Embedded into the BottomPanel host: drop the fixed positioning,
      fill the parent container, and let the host handle the chrome. */
@@ -420,7 +447,14 @@
     -webkit-user-select: text;
     outline: none;
   }
-  .muted { color: var(--text-muted); font-style: italic; margin: 0; padding: 16px 0; text-align: center; }
+  /* The log is a focusable region (tabindex=0, role=textbox): killing
+     the UA ring is only allowed with a real replacement. Inset offset
+     because the region is flush with the panel edges. */
+  .scroll:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .muted { color: var(--console-meta); font-style: italic; margin: 0; padding: 16px 0; text-align: center; }
   ul {
     list-style: none;
     margin: 0;
@@ -433,31 +467,36 @@
     gap: 8px;
     align-items: baseline;
     padding: 1px 0;
-    border-left: 2px solid transparent;
-    padding-left: 6px;
+    /* No coloured left rail: DESIGN.md reserves the 3px rail for the
+       card priority marker, and since the bus feed was dropped every
+       line here is an "activity" line — a rail on all of them carried
+       no information at all. The green .type already says it. */
+    padding-left: 8px;
     white-space: nowrap;
   }
   .evt-bus { opacity: 0.55; }
-  .evt-bus .type { color: var(--text-muted); }
-  .evt-activity { border-left-color: var(--success); }
-  .evt-activity .type { color: var(--success); font-weight: 600; }
-  .ts { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .evt-bus .type { color: var(--console-meta); }
+  .evt-activity .type { color: var(--console-accent); font-weight: 600; }
+  .ts { color: var(--console-meta); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .run-pill {
     background: var(--accent);
-    color: white;
+    color: var(--accent-on);
     padding: 0 5px;
-    border-radius: 2px;
-    font-size: 10px;
+    border-radius: 3px;
+    font-size: 11px;
     flex-shrink: 0;
     line-height: 1.4;
   }
   .agent-pill {
-    background: var(--bg-hover);
+    /* --bg-hover is a document surface: in light mode it painted
+       a near-white plate behind --console-text (1.16:1, unreadable).
+       The console owns its own step above the background. */
+    background: var(--console-line);
     border: 1px solid var(--console-border);
     color: var(--console-text);
     padding: 0 5px;
-    border-radius: 2px;
-    font-size: 10px;
+    border-radius: 3px;
+    font-size: 11px;
     flex-shrink: 0;
     line-height: 1.4;
     max-width: 150px;
@@ -477,7 +516,10 @@
   .file-link {
     background: transparent;
     border: none;
-    color: var(--accent-text);
+    /* --accent-text is the text grade for PALE backgrounds; on
+       --console-bg it only reaches 3.17:1. The -solid family is the
+       bright mid-tone meant for dark fills (5.81:1 / 7.97:1). */
+    color: var(--accent-solid);
     text-decoration: underline;
     cursor: pointer;
     font: inherit;
@@ -485,9 +527,10 @@
     user-select: text;
     -webkit-user-select: text;
   }
-  .file-link:hover { color: var(--accent-text); }
+  .file-link:hover { color: var(--accent-solid); }
 
-  @media (max-width: 600px) {
+  /* BP_NARROW — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
     .bar.open { bottom: 200px; }
     .panel { height: 200px; }
   }

@@ -77,7 +77,7 @@
     line-height: 1.45;
   }
   .task {
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 12px;
   }
   .choices {
@@ -100,7 +100,7 @@
     font-size: 13px;
   }
   span {
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-size: 12px;
     line-height: 1.4;
   }
@@ -119,15 +119,22 @@
     padding: 6px 12px;
     cursor: pointer;
     font-size: 13px;
+    min-height: var(--tap-size);
   }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* --success lightens in dark mode, so its ink is the paired
+     --success-on, not the always-white --text-on-fill. */
   button.primary {
     background: var(--success);
-    color: white;
+    color: var(--success-on);
     border-color: var(--success);
     font-weight: 600;
   }
   button.primary:hover:not(:disabled) {
-    background: #036a3e;
+    background: var(--success-hover);
   }
   button.danger {
     color: var(--warning);

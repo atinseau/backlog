@@ -71,15 +71,21 @@
     z-index: 9000;
     pointer-events: none;
   }
+  /* The kind used to be carried by a 3px coloured left rail. DESIGN.md
+     allows exactly one such rail in the product — the card priority
+     marker — so the kind moves onto the pale-surface / saturated-rule
+     pair the system already uses for status badges. Same information,
+     an authorised support, and the message text keeps saying it in
+     words so nothing rides on colour alone.
+     Elevation: a toast is *Floating*, not *Modal*. */
   .toast {
     pointer-events: auto;
-    background: var(--bg-surface);
+    background: var(--toast-bg, var(--bg-surface));
     color: var(--text-primary);
-    border: 1px solid var(--border-default);
-    border-left: 3px solid var(--toast-accent, var(--accent));
+    border: 1px solid var(--toast-accent, var(--accent));
     border-radius: 6px;
-    box-shadow: var(--shadow-modal);
-    padding: 8px 10px 8px 12px;
+    box-shadow: var(--elev-floating);
+    padding: 8px 10px;
     min-width: 240px;
     max-width: 360px;
     display: flex;
@@ -88,20 +94,26 @@
     font-size: 13px;
     animation: toast-in 180ms ease-out;
   }
-  .toast-info    { --toast-accent: var(--accent); }
-  .toast-success { --toast-accent: var(--success); }
-  .toast-warning { --toast-accent: var(--warning); }
-  .toast-error   { --toast-accent: var(--danger); }
+  .toast-info    { --toast-accent: var(--accent);  --toast-bg: var(--accent-bg); }
+  .toast-success { --toast-accent: var(--success); --toast-bg: var(--success-bg); }
+  .toast-warning { --toast-accent: var(--warning); --toast-bg: var(--warning-bg); }
+  .toast-error   { --toast-accent: var(--danger);  --toast-bg: var(--danger-bg); }
   .message { flex: 1; min-width: 0; line-height: 1.35; }
   .dismiss {
     background: transparent;
     border: none;
-    color: var(--text-muted);
+    /* --text-muted grazes the floor on --danger-bg in light (4.43:1);
+       --text-secondary clears every one of the four toast fills. */
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 16px;
     line-height: 1;
     padding: 0 4px;
     flex-shrink: 0;
+    /* WCAG 2.5.8 floor — 24px, 28px under a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    border-radius: 4px;
   }
   .dismiss:hover { color: var(--text-primary); }
 

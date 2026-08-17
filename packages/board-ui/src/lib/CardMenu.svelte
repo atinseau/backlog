@@ -200,12 +200,21 @@
     min-width: 220px;
     background: var(--bg-surface);
     color: var(--text-primary);
-    border: 1px solid var(--border);
+    /* --border does not exist in app.css: the declaration was invalid
+       and the popover fell back to currentColor, i.e. a near-black
+       1px frame in light mode and a white one in dark. */
+    border: 1px solid var(--border-default);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--elev-floating);
     padding: 4px;
     outline: none;
     user-select: none;
+  }
+  /* The menu is focused programmatically on open; killing the UA ring
+     is only allowed with a real replacement. */
+  .menu:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .item {
     display: flex;
@@ -215,7 +224,7 @@
     padding: 6px 10px;
     background: transparent;
     border: 0;
-    border-radius: 5px;
+    border-radius: 4px;
     color: inherit;
     cursor: pointer;
     text-align: left;
@@ -225,17 +234,17 @@
   }
   .item:hover:not(.disabled),
   .item.active:not(.disabled) {
-    background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+    background: var(--bg-hover);
   }
   .item.disabled {
     color: var(--text-subtle);
     cursor: not-allowed;
   }
   .item.danger {
-    color: #d92d20;
+    color: var(--danger);
   }
   .item.danger:hover:not(.disabled) {
-    background: rgba(217, 45, 32, 0.08);
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
   }
   .icon {
     width: 16px;
@@ -252,7 +261,7 @@
   }
   .separator {
     height: 1px;
-    background: var(--border);
+    background: var(--border-default);
     margin: 4px 0;
   }
   .submenu {
@@ -261,9 +270,9 @@
     top: 0;
     min-width: 180px;
     background: var(--bg-surface);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-default);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--elev-floating);
     padding: 4px;
     margin-left: 4px;
   }

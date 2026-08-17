@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
   import ClaimsView from "./lib/ClaimsView.svelte";
   import ClaimsPage from "./lib/ClaimsPage.svelte";
   import Column from "./lib/Column.svelte";
@@ -37,6 +37,7 @@
   import RunStatusDisplay from "./lib/RunStatusDisplay.svelte";
   import PanelToggles from "./lib/shell/PanelToggles.svelte";
   import Splitter from "./lib/shell/Splitter.svelte";
+  import { BP_NARROW, BP_COMPACT } from "./lib/shell/breakpoints.js";
   import { t } from "./lib/i18n.svelte.js";
   import { isMissingRepositoryPathError, relocateRepositoryPath } from "./lib/repository-relocate.js";
   import {
@@ -275,6 +276,48 @@
   let leftWidth = $state(readNum(SHELL_LEFT_WIDTH, 240, 180, 480));
   let rightWidth = $state(readNum(SHELL_RIGHT_WIDTH, 360, RIGHT_PANEL_MIN, RIGHT_PANEL_MAX));
   let bottomHeight = $state(readNum(SHELL_BOTTOM_HEIGHT, 240, 120, 600));
+
+  // ---- responsive shell state ----
+  // La largeur du viewport pilote le MODE du shell (expanded / compact /
+  // narrow). Elle ne pilote jamais leftWidth / rightWidth / bottomHeight :
+  // ces trois-là sont la préférence de l'utilisateur en mode large et
+  // doivent survivre intactes à un passage en compact.
+  let viewportW = $state(typeof window === "undefined" ? 1280 : window.innerWidth);
+  // Inclusive, to match the `@media (max-width: …)` rules that carry the
+  // other half of the same layout. With `<`, a viewport of exactly 900px
+  // got the CSS narrow rules without the JS class, and the topbar fell
+  // back to its three-column desktop grid inside a 900px bar.
+  const isCompact = $derived(viewportW <= BP_COMPACT);
+  const isNarrow = $derived(viewportW <= BP_NARROW);
+
+  // Ce qui était ouvert avant de passer sous 900px, pour le restaurer en
+  // remontant. En mémoire uniquement — jamais localStorage.
+  let restoreOnExpand: { left: boolean; right: boolean; bottom: boolean } | null = null;
+  let wasCompact = false; // volontairement PAS $state : écrit depuis l'effet.
+
+  // Repli automatique au franchissement descendant, une seule fois par
+  // franchissement : en continu, l'utilisateur ne pourrait plus rouvrir un
+  // tiroir sous 900. `untrack` garantit qu'un simple toggle ne réveille pas
+  // l'effet. On ne touche JAMAIS aux largeurs ni à localStorage ici.
+  $effect(() => {
+    const compact = isCompact;
+    if (compact === wasCompact) return;
+    wasCompact = compact;
+    untrack(() => {
+      if (compact) {
+        restoreOnExpand = { left: leftOpen, right: rightOpen, bottom: bottomOpen };
+        leftOpen = false;
+        rightOpen = false;
+        bottomOpen = false;
+      } else if (restoreOnExpand) {
+        leftOpen = restoreOnExpand.left;
+        rightOpen = restoreOnExpand.right;
+        bottomOpen = restoreOnExpand.bottom;
+        restoreOnExpand = null;
+      }
+    });
+  });
+
   let leftSection = $state<SectionKey>("board");
   let selectedTaskId = $state<string | null>(null);
   let diffTarget = $state<{ runId: string; file: string } | null>(null);
@@ -1104,18 +1147,30 @@
   }
 
   // ---- shell behaviours ----
+  // La persistance est conditionnée au mode large : ouvrir la console sur un
+  // téléphone ne doit pas la faire réapparaître au prochain démarrage sur
+  // l'écran 27 pouces.
   function toggleLeft() {
     leftOpen = !leftOpen;
-    writeBool(SHELL_LEFT_OPEN, leftOpen);
+    if (!isCompact) writeBool(SHELL_LEFT_OPEN, leftOpen);
   }
   function toggleRight() {
     rightOpen = !rightOpen;
     if (!rightOpen) gitDiffTarget = null;
-    writeBool(SHELL_RIGHT_OPEN, rightOpen);
+    if (!isCompact) writeBool(SHELL_RIGHT_OPEN, rightOpen);
   }
   function toggleBottom() {
     bottomOpen = !bottomOpen;
-    writeBool(SHELL_BOTTOM_OPEN, bottomOpen);
+    if (!isCompact) writeBool(SHELL_BOTTOM_OPEN, bottomOpen);
+  }
+  // Le scrim et Échap ferment les trois tiroirs d'un coup : un seul geste,
+  // comportement prévisible.
+  const anyDrawerOpen = $derived(showLeftPanel || showRightPanel || showBottomPanel);
+  function closeAllDrawers() {
+    leftOpen = false;
+    rightOpen = false;
+    bottomOpen = false;
+    gitDiffTarget = null;
   }
   function commitLeftWidth() { writeNum(SHELL_LEFT_WIDTH, leftWidth); }
   function commitRightWidth() { writeNum(SHELL_RIGHT_WIDTH, rightWidth); }
@@ -1128,6 +1183,13 @@
       writeBool(SHELL_RIGHT_OPEN, false);
     }
     leftSection = key;
+    // On a narrow shell the navigator is a full-width drawer, not a
+    // sidebar: leaving it open after a pick hides the very view the pick
+    // just opened, and the only way out is to hunt the toggle again.
+    if (isNarrow && leftOpen) {
+      leftOpen = false;
+      writeBool(SHELL_LEFT_OPEN, false);
+    }
   }
 
   function openGitDiff(repo: string, file: string, sha?: string | null, base?: string | null, head?: string | null) {
@@ -1307,7 +1369,16 @@
   });
 </script>
 
-<div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
+<svelte:window
+  bind:innerWidth={viewportW}
+  onkeydown={(e) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (!isCompact || !anyDrawerOpen) return;
+    closeAllDrawers();
+  }}
+/>
+
+<div class="shell" class:compact={isCompact} class:narrow={isNarrow} style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
   <header class="topbar">
     <div class="topbar-left">
       <ProjectSelector
@@ -1365,6 +1436,10 @@
           onStopActiveRuns={handleStopActiveRuns}
         />
         <button class="primary" onclick={() => (createTaskOpen = true)}>{t("topbar.new_task")}</button>
+        <!-- Narrow keeps the navigator toggle and drops the other two: all
+             three cost ~140px of a 390px bar, but the navigator one is the
+             only way back to Claims, Git, Agents and settings once the
+             panel has collapsed. -->
         <PanelToggles
           leftOpen={leftOpen}
           bottomOpen={bottomOpen}
@@ -1372,6 +1447,7 @@
           onToggleLeft={toggleLeft}
           onToggleBottom={toggleBottom}
           onToggleRight={toggleRight}
+          onlyNavigator={isNarrow}
         />
       {/if}
       <ProfileMenu
@@ -1406,7 +1482,9 @@
           onSelectSection={applySection}
         />
       </div>
-      <Splitter orientation="vertical" onResize={(d) => (leftWidth = Math.max(180, Math.min(480, leftWidth + d)))} onCommit={commitLeftWidth} />
+      {#if !isCompact}
+        <Splitter orientation="vertical" onResize={(d) => (leftWidth = Math.max(180, Math.min(480, leftWidth + d)))} onCommit={commitLeftWidth} />
+      {/if}
     {/if}
 
     <div class="center">
@@ -1566,11 +1644,13 @@
       </div>
 
       {#if showBottomPanel}
-        <Splitter
-          orientation="horizontal"
-          onResize={(d) => (bottomHeight = Math.max(120, Math.min(600, bottomHeight - d)))}
-          onCommit={commitBottomHeight}
-        />
+        {#if !isCompact}
+          <Splitter
+            orientation="horizontal"
+            onResize={(d) => (bottomHeight = Math.max(120, Math.min(600, bottomHeight - d)))}
+            onCommit={commitBottomHeight}
+          />
+        {/if}
         <div class="bottom-host">
           <BottomPanel
             projectId={selectedProjectId}
@@ -1581,7 +1661,9 @@
     </div>
 
     {#if showRightPanel}
-      <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(RIGHT_PANEL_MIN, Math.min(RIGHT_PANEL_MAX, rightWidth - d)))} onCommit={commitRightWidth} />
+      {#if !isCompact}
+        <Splitter orientation="vertical" onResize={(d) => (rightWidth = Math.max(RIGHT_PANEL_MIN, Math.min(RIGHT_PANEL_MAX, rightWidth - d)))} onCommit={commitRightWidth} />
+      {/if}
       <div class="right-host">
         <RightPanel
           projectId={selectedProjectId}
@@ -1589,6 +1671,18 @@
           onCloseGitDiff={closeGitDiff}
         />
       </div>
+    {/if}
+
+    {#if isCompact && anyDrawerOpen}
+      <!-- Sortie au doigt d'un tiroir en surimpression. Un <button> plutôt
+           qu'un <div onclick> : focusable, activable au clavier, et son
+           aria-label dit ce qu'il fait. -->
+      <button
+        type="button"
+        class="scrim"
+        aria-label={t("shell.close_panel")}
+        onclick={closeAllDrawers}
+      ></button>
     {/if}
   </div>
 
@@ -1655,7 +1749,7 @@
         <button
           onclick={() => {
             leftOpen = true;
-            writeBool(SHELL_LEFT_OPEN, true);
+            if (!isCompact) writeBool(SHELL_LEFT_OPEN, true);
             applySection("commits");
             dirtyGitPrompt = null;
           }}
@@ -1767,7 +1861,11 @@
   :global(html), :global(body), :global(#app) { height: 100%; }
 
   .shell {
+    /* Avec body { overflow: hidden }, 100vh place le bas de la console sous
+       la barre d'URL mobile : hors d'atteinte, sans défilement possible.
+       La première ligne est le repli des moteurs anciens. */
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1778,7 +1876,13 @@
 
   .topbar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* Track 3 floors at min-content: the right cluster ends in the primary
+       action and must never be clipped or spill leftward over the run
+       screen. Track 1 stays a plain 1fr and absorbs the shortfall by
+       clipping its pickers — losing the tail of a model name is cheap,
+       losing "+ Task" is not. Both stay 1fr while there is room, so the
+       run screen still reads as centred on a wide window. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(min-content, 1fr);
     align-items: center;
     padding: 8px 14px;
     background: var(--bg-surface);
@@ -1792,7 +1896,13 @@
     gap: 16px;
     flex: 0 1 auto;
     min-width: 0;
-    justify-self: start;
+    /* `justify-self: start` would size this item to its content and let it
+       spill out of its grid track, sliding under the centred run screen —
+       the pickers inside carry their own min-width, so the item never
+       shrinks on its own. Filling the track and clipping makes the overlap
+       impossible at every width, not just below a breakpoint. */
+    justify-self: stretch;
+    overflow: hidden;
   }
   .topbar-center {
     display: flex;
@@ -1804,7 +1914,11 @@
   }
   .agent-run-screen {
     width: min(460px, 36vw);
-    min-width: 360px;
+    /* No min-width floor. A 360px floor made the three topbar tracks add
+       up to ~1155px, so the bar overlapped itself on the whole
+       900–1155px band — the half-screen scene. RunStatusDisplay degrades
+       on its own below that. */
+    min-width: 0;
     height: 34px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1943,7 +2057,8 @@
   }
   .project-prompt h2 {
     margin: 0;
-    font-size: 20px;
+    /* Display = 18px, le plus grand corps du système. */
+    font-size: 18px;
     color: var(--text-primary);
   }
   .project-prompt p {
@@ -2020,7 +2135,122 @@
     gap: 12px;
     padding: 16px;
     align-items: stretch;
-    overflow: hidden;
+    /* .board est étiré à la largeur exacte de .center-main (min-width:auto
+       vaut 0 dans l'axe transversal d'un flex column) : les pistes
+       débordaient et `overflow: hidden` les découpait silencieusement. `auto`
+       les rend atteignables sans rien changer quand elles tiennent.
+       `overscroll-behavior-x: contain` empêche le défilement horizontal du
+       board de déclencher le retour arrière du navigateur. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 16px;
   }
+
+  /* ---- Mode compact (< 900px) : les panneaux cèdent, le canvas ne cède
+     pas. Le seuil vit en JS (src/lib/shell/breakpoints.ts) et arrive ici par
+     la classe .compact, pas par un @media — une seule source. ---- */
+  .shell.compact .grid {
+    /* Restreint au compact : en mode large .grid reste non positionné, donc
+       aucun descendant absolu d'une vue feuille ne change d'ancrage. */
+    position: relative;
+  }
+  .shell.compact .left-host,
+  .shell.compact .right-host,
+  .shell.compact .bottom-host {
+    position: absolute;
+    z-index: 60;
+  }
+  .shell.compact .left-host {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(var(--left-w), 86vw);
+    box-shadow: var(--elev-floating);
+  }
+  .shell.compact .right-host {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: min(var(--right-w), 86vw);
+    box-shadow: var(--elev-panel-left);
+  }
+  .shell.compact .bottom-host {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: min(var(--bottom-h), 60dvh);
+    box-shadow: var(--elev-panel-top);
+  }
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 55;
+    border: 0;
+    padding: 0;
+    background: var(--backdrop);
+    cursor: pointer;
+  }
+  .scrim:focus-visible {
+    outline: 2px solid var(--accent);
+    /* Négatif : le scrim est en inset 0, un offset positif sortirait de
+       .grid et serait rogné. */
+    outline-offset: -2px;
+  }
+
+  /* ---- Mode narrow (< 640px) : tiroirs pleine largeur, une colonne par
+     écran ---- */
+  .shell.narrow .left-host,
+  .shell.narrow .right-host {
+    width: 100%;
+  }
+  .shell.narrow .bottom-host {
+    height: min(var(--bottom-h), 70dvh);
+  }
+  .shell.narrow .board {
+    padding: 12px;
+    gap: 8px;
+    /* Une colonne pleine largeur + 24px de la suivante qui dépassent :
+       l'affordance de balayage. 100vw est correct ici parce que les
+       tiroirs surimpriment au lieu de pousser le canvas. Si un jour les
+       tiroirs repassent dans le flux sous 640, cette piste devient plus
+       large que le canvas et le board déborde en permanence. */
+    grid-template-columns: repeat(var(--columns-count, 4), minmax(240px, calc(100vw - 44px)));
+    scroll-padding-inline: 12px;
+  }
+
+  /* Snap réservé au pointeur grossier : en pointeur fin, svelte-dnd-action
+     fait de l'auto-scroll de conteneur pendant un glisser, et un conteneur
+     qui re-snappe rend ce glisser saccadé. `proximity`, jamais `mandatory`.
+     Requête de capacité : ne compte pas dans les trois seuils de largeur. */
+  @media (pointer: coarse) {
+    .shell.compact .board {
+      scroll-snap-type: x proximity;
+    }
+  }
+
+  /* ---- Topbar en compact ---- */
+  .shell.compact .topbar {
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  .shell.compact .topbar-left {
+    gap: 8px;
+  }
+
+  /* ---- Topbar en narrow : deux rangées ---- */
+  .shell.narrow .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "left right"
+      "center center";
+    row-gap: 6px;
+  }
+  /* stretch, not start — see the base rule: `start` sizes the item to its
+     content and lets it spill under the right cluster. */
+  .shell.narrow .topbar-left { grid-area: left; justify-self: stretch; }
+  .shell.narrow .topbar-right { grid-area: right; justify-self: end; }
+  .shell.narrow .topbar-center { grid-area: center; justify-self: stretch; }
+  .shell.narrow .agent-run-screen { width: 100%; }
 
 </style>

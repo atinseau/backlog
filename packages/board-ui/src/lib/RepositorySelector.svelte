@@ -174,7 +174,7 @@
             onclick={() => pick(repo.id)}
           >
             <span class="item-name">{repositoryDisplayName(repo)}</span>
-            {#if !repo.enabled}<span class="off">disabled</span>{/if}
+            {#if !repo.enabled}<span class="off">{t("selector.repo_disabled")}</span>{/if}
             {#if repo.path_exists === false || gitStatuses[repo.id]?.error}
               <span class="dirty-badge" title={repoStatusTitle(repo, gitStatuses[repo.id])} aria-label={repoStatusTitle(repo, gitStatuses[repo.id])}>
                 !
@@ -211,7 +211,8 @@
     align-items: center;
     gap: 6px;
     background: var(--bg-input);
-    border: 1px solid var(--border-strong);
+    /* Select-shaped control on --bg-input: WCAG 1.4.11 wants 3:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 4px 8px;
     cursor: pointer;
@@ -219,6 +220,7 @@
     font-size: 13px;
     color: var(--text-primary);
     width: 100%;
+    min-height: var(--tap-size);
   }
   .trigger:hover:not(:disabled) {
     border-color: var(--accent);
@@ -305,16 +307,20 @@
     font-size: 12px;
     flex-shrink: 0;
   }
+  /* 10px is only legitimate as spaced caps — this is a state label. */
   .off {
     font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
     color: var(--text-muted);
     background: var(--bg-hover);
-    padding: 1px 5px;
-    border-radius: 8px;
+    padding: 1px 6px;
+    border-radius: 999px;
   }
   .item.action {
     color: var(--text-secondary);
-    font-size: 12.5px;
+    font-size: 12px;
   }
   .separator {
     height: 1px;

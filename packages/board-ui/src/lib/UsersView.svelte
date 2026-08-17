@@ -126,7 +126,7 @@
         type="button"
       >+ {t("users_view.invite_button")}</button>
       {#if !embedded}
-        <button class="close" onclick={onClose} aria-label="Close">✕</button>
+        <button class="close" onclick={onClose} aria-label={t("common.close")}>✕</button>
       {/if}
     </div>
   </header>
@@ -204,7 +204,7 @@
                 value={user.role}
                 disabled={busyId === user.id || user.status === "removed"}
                 onchange={(e) => changeRole(user, (e.currentTarget as HTMLSelectElement).value as UserRole)}
-                aria-label="Role"
+                aria-label={t("users_view.invite_role")}
               >
                 <option value="owner">{t("users_view.role_owner")}</option>
                 <option value="admin">{t("users_view.role_admin")}</option>
@@ -286,13 +286,21 @@
   h2 { margin: 0; font-size: 16px; }
   .subtitle { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
   .header-actions { display: inline-flex; align-items: center; gap: 8px; }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     background: transparent;
     border: none;
     font-size: 18px;
     cursor: pointer;
     color: var(--text-secondary);
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error {
     background: var(--danger-bg);
     color: var(--danger);
@@ -334,11 +342,19 @@
   .field input,
   .field select {
     padding: 5px 8px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font: inherit;
     font-size: 13px;
     background: var(--bg-surface);
+    color: var(--text-primary);
+    min-height: var(--tap-size);
+  }
+  .field input:focus-visible,
+  .field select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
   ul.users {
@@ -368,7 +384,7 @@
     flex: 1; min-width: 200px;
   }
   .ident strong { font-size: 14px; }
-  .email { font-size: 12px; color: var(--text-muted); font-family: ui-monospace, monospace; }
+  .email { font-size: 12px; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   a.email {
     text-decoration: none;
   }
@@ -397,10 +413,12 @@
   }
   .controls select {
     padding: 4px 6px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 12px;
     background: var(--bg-surface);
+    color: var(--text-primary);
+    min-height: var(--tap-size);
   }
 
   .meta {
@@ -413,7 +431,8 @@
 
   .btn-primary {
     background: var(--accent);
-    color: white;
+    /* Paired ink: --accent lightens in dark, so the ink must flip. */
+    color: var(--accent-on);
     border: none;
     border-radius: 4px;
     padding: 6px 12px;
@@ -436,7 +455,8 @@
   .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-danger {
     background: var(--danger);
-    color: white;
+    /* Paired ink: --danger lightens in dark, so the ink must flip. */
+    color: var(--danger-on);
     border: none;
     border-radius: 4px;
     padding: 5px 10px;
@@ -458,4 +478,18 @@
     background: var(--danger-bg);
   }
   .btn-danger-outline:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .invite-grid {
+      grid-template-columns: 1fr;
+    }
+    .field.narrow { max-width: none; }
+    header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .header-actions { justify-content: space-between; }
+    .row-main { align-items: flex-start; }
+  }
 </style>

@@ -1641,6 +1641,7 @@
     max-width: 860px;
     width: 92%;
     max-height: 84vh;
+    max-height: 84dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1664,7 +1665,16 @@
   }
   .title-block { display: flex; align-items: center; gap: 14px; min-width: 0; }
   h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
-  .tabs { display: flex; gap: 4px; }
+  /* The row is wider than a 390px viewport, and the page itself does not
+     scroll sideways — without a scroller of its own the last tab is
+     simply unreachable on a phone. */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .tabs > :global(*) { flex: 0 0 auto; }
   .tab {
     position: relative;
     display: inline-flex;
@@ -1677,7 +1687,7 @@
     padding: 4px 8px;
     cursor: pointer;
     font: inherit;
-    font-size: 12.5px;
+    font-size: 13px;
   }
   .tab:focus-visible {
     outline: 2px solid var(--accent);
@@ -1701,9 +1711,12 @@
   .header-actions { display: flex; gap: 4px; }
   .refresh, .close {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 2px 8px;
+    /* WCAG 2.5.8 floor; widens to 28px on a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
     cursor: pointer;
     font-size: 13px;
     color: var(--text-secondary);
@@ -1829,7 +1842,7 @@
   .inline-create input {
     min-width: 0;
     width: 100%;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
@@ -1849,7 +1862,7 @@
   .branch-field input {
     min-width: 0;
     width: 100%;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
@@ -1922,7 +1935,7 @@
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: 11px;
   }
   .line-badge.warn {
     color: var(--warning);
@@ -1970,7 +1983,7 @@
   .preview-commit code,
   .worktree-line code {
     font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     background: var(--bg-hover);
     border-radius: 3px;
@@ -2061,7 +2074,8 @@
   }
   .sync:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
   .sync:disabled { opacity: 0.5; cursor: not-allowed; }
-  @media (max-width: 980px) {
+  /* Width thresholds: 640 / 900 / 1280 only — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 1280px) {
     .git-repo-head,
     .git-repo-actions,
     .branch-detail-actions {
@@ -2132,7 +2146,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  @media (max-width: 980px) {
+  /* Width thresholds: 640 / 900 / 1280 only — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 1280px) {
     .worktree-add {
       grid-template-columns: 1fr;
     }
@@ -2181,6 +2196,9 @@
     font: inherit;
     font-size: 11px;
     cursor: pointer;
+    /* 11px type over 4px padding lands at 23px — one pixel under the
+       WCAG 2.5.8 floor. */
+    min-height: var(--tap-size);
   }
   .repo-commit:hover:not(:disabled) {
     background: var(--bg-hover);
@@ -2232,7 +2250,7 @@
     width: 13px;
     height: 13px;
     flex: 0 0 13px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 3px;
     background: var(--bg-input);
     position: relative;
@@ -2300,7 +2318,7 @@
     resize: vertical;
     background: var(--bg-input);
     color: var(--text-primary);
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 8px;
     font: inherit;
@@ -2325,7 +2343,8 @@
   .commit-actions .primary {
     min-width: 0;
   }
-  @media (max-width: 760px) {
+  /* Width thresholds: 640 / 900 / 1280 only — see src/lib/shell/breakpoints.ts */
+  @media (max-width: 900px) {
     .commit-actions {
       grid-template-columns: 1fr;
     }
@@ -2407,7 +2426,7 @@
     padding: 1px 6px;
     border-radius: 3px;
     font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-size: 11px;
   }
   .link-task { background: var(--success-bg); color: var(--success); }
   .link-subtask { background: var(--warning-bg); color: var(--warning); }
@@ -2437,7 +2456,7 @@
     gap: 8px;
     padding: 0 20px 0 54px;
     font: inherit;
-    font-size: 12.5px;
+    font-size: 12px;
     text-align: left;
     cursor: pointer;
   }

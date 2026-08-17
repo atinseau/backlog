@@ -200,10 +200,15 @@
     top: 0;
     right: 0;
     height: 100vh;
-    /* width applied inline via style:width — driven by panelWidth. */
+    height: 100dvh;
+    /* width applied inline via style:width — driven by panelWidth.
+       Capped at the viewport so a width restored from localStorage can
+       never push the header (and its close button) off screen on a
+       narrow window. */
+    max-width: 100vw;
     background: var(--bg-surface);
     border-left: 1px solid var(--border-default);
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--elev-panel-left);
     z-index: 60;
     display: flex;
     flex-direction: column;
@@ -241,7 +246,7 @@
   }
   .meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .rev {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 2px 6px;
@@ -249,15 +254,25 @@
   }
   .close {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     padding: 2px 8px;
+    /* WCAG 2.5.8 floor; widens to 28px on a coarse pointer. */
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     color: var(--text-secondary);
     font-family: inherit;
     font-size: 13px;
   }
   .close:hover { background: var(--bg-hover); }
+  .close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 
   .body {
     flex: 1;
@@ -266,7 +281,7 @@
   }
   .muted {
     padding: 24px;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     font-style: italic;
     text-align: center;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -312,7 +327,7 @@
   }
   .primary {
     background: var(--success);
-    color: white;
+    color: var(--success-on);
     border: none;
     border-radius: 4px;
     padding: 7px 14px;
@@ -336,7 +351,7 @@
   }
   .danger:hover:not(:disabled) {
     background: var(--danger);
-    color: var(--text-inverse);
+    color: var(--danger-on);
   }
   .danger:disabled { opacity: 0.6; cursor: wait; }
 </style>

@@ -171,7 +171,7 @@
       input.access_mode = newAccessMode;
 
       if (createMode === "clone") {
-        if (!newGitUrl.trim()) throw new Error("URL Git requise");
+        if (!newGitUrl.trim()) throw new Error(t("repos_view.error.git_url_required"));
         const gitUrl = newGitUrl.trim();
         const remoteProvider = detectRemoteProvider(gitUrl);
         input.location = "remote";
@@ -183,8 +183,8 @@
         input.checkout = cloneCheckout;
         if (cloneCheckout && newCloneInto.trim()) input.clone_into = newCloneInto.trim();
       } else {
-        if (!newPath.trim()) throw new Error("Chemin local requis");
-        if (!newBranch.trim()) throw new Error("Branche par défaut requise");
+        if (!newPath.trim()) throw new Error(t("repos_view.error.path_required"));
+        if (!newBranch.trim()) throw new Error(t("repos_view.error.branch_required"));
         input.location = "local";
         input.path = newPath.trim();
       }
@@ -494,9 +494,9 @@
                   <span class="path-text">{checkoutPath}</span>
                 </button>
               {:else}
-                <span class="git-url">Aucun checkout local</span>
+                <span class="git-url">{t("repos_view.no_checkout")}</span>
               {/if}
-              <span class="branch">branche par défaut : {repo.default_branch}</span>
+              <span class="branch">{t("repos_view.default_branch_value", { branch: repo.default_branch })}</span>
               {#if remoteUrl}
                 <span class="git-url">{remoteUrl}</span>
               {/if}
@@ -528,7 +528,7 @@
           </li>
         {/each}
         {#if repos.length === 0}
-          <li class="empty">aucun repository configuré</li>
+          <li class="empty">{t("repos_view.empty")}</li>
         {/if}
       </ul>
 
@@ -541,7 +541,7 @@
               class:active={createMode === "local"}
               onclick={() => (createMode = "local")}
             >
-              📁 Local
+              📁 {t("repos_view.tab.local")}
             </button>
             <button
               type="button"
@@ -549,7 +549,7 @@
               class:active={createMode === "clone"}
               onclick={() => (createMode = "clone")}
             >
-              ⬇ Cloner Git
+              ⬇ {t("repos_view.tab.clone")}
             </button>
             <button
               type="button"
@@ -575,7 +575,7 @@
             </section>
           {:else if createMode === "clone"}
             <label class="full">
-              URL Git
+              {t("repos_view.field.git_url")}
               <input
                 bind:value={newGitUrl}
                 placeholder="https://github.com/user/repository.git"
@@ -583,24 +583,24 @@
               />
             </label>
             <div class="row">
-              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="repository" pattern="[a-zA-Z0-9_-]*" /></label>
-              <label>Branche<input bind:value={newBranch} placeholder="main" /></label>
+              <label>{t("repos_view.field.id")} <span class="hint">{t("repos_view.field.id_hint")}</span><input bind:value={newId} placeholder="repository" pattern="[a-zA-Z0-9_-]*" /></label>
+              <label>{t("repos_view.field.branch")}<input bind:value={newBranch} placeholder="main" /></label>
             </div>
             <label class="check-row">
               <input type="checkbox" bind:checked={cloneCheckout} />
-              <span>Créer un checkout local maintenant</span>
+              <span>{t("repos_view.field.clone_checkout")}</span>
             </label>
             <label class="full">
-              Cloner dans <span class="hint">(défaut : project/repositories/&lt;id&gt;)</span>
+              {t("repos_view.field.clone_into")} <span class="hint">{t("repos_view.field.clone_into_hint")}</span>
               <input bind:value={newCloneInto} placeholder="repositories/frontend" disabled={!cloneCheckout} />
             </label>
           {:else}
             <div class="row">
-              <label>Id <span class="hint">(auto si vide)</span><input bind:value={newId} placeholder="frontend" pattern="[a-zA-Z0-9_-]*" /></label>
-              <label>Branche par défaut<input bind:value={newBranch} placeholder="main" /></label>
+              <label>{t("repos_view.field.id")} <span class="hint">{t("repos_view.field.id_hint")}</span><input bind:value={newId} placeholder="frontend" pattern="[a-zA-Z0-9_-]*" /></label>
+              <label>{t("repos_view.field.default_branch")}<input bind:value={newBranch} placeholder="main" /></label>
             </div>
             <div class="full">
-              <span class="hint-label">Dossier du repository</span>
+              <span class="hint-label">{t("repos_view.field.folder")}</span>
               <input bind:value={newPath} placeholder="/Users/moi/Dev/mon-projet" required />
             </div>
           {/if}
@@ -616,18 +616,22 @@
                 </select>
                 <span class="hint">{t(`repos_view.access_hint_${newAccessMode.replace("-", "_")}`)}</span>
               </label>
-              <label>Rôle (optionnel)<input bind:value={newRole} placeholder="api / web / firmware" /></label>
+              <label>{t("repos_view.field.role")}<input bind:value={newRole} placeholder="api / web / firmware" /></label>
             </div>
           {/if}
           <div class="form-actions">
-            <button type="button" onclick={() => (showCreate = false)}>annuler</button>
+            <button type="button" onclick={() => (showCreate = false)}>{t("repos_view.button.cancel")}</button>
             <button class="primary" type="submit" disabled={creating || createMode === "remote-github"}>
-              {createMode === "remote-github" ? t("repos_view.remote.button_disabled") : creating ? (createMode === "clone" ? "clonage…" : "ajout…") : (createMode === "clone" ? "cloner" : "ajouter")}
+              {createMode === "remote-github"
+                ? t("repos_view.remote.button_disabled")
+                : creating
+                  ? (createMode === "clone" ? t("repos_view.button.cloning") : t("repos_view.button.adding"))
+                  : (createMode === "clone" ? t("repos_view.button.clone") : t("repos_view.button.add"))}
             </button>
           </div>
         </form>
       {:else}
-        <button class="add" onclick={() => (showCreate = true)}>+ ajouter un repository</button>
+        <button class="add" onclick={() => (showCreate = true)}>+ {t("repos_view.add_button")}</button>
       {/if}
     {/if}
 {/snippet}
@@ -698,7 +702,15 @@
     justify-content: space-between;
   }
   h2 { margin: 0; font-size: 16px; }
-  .close { background: transparent; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary); }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
+  .close {
+    background: transparent; border: none; font-size: 18px; cursor: pointer;
+    color: var(--text-secondary);
+    min-width: var(--tap-size); min-height: var(--tap-size);
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error { background: var(--warning-bg); color: var(--warning); padding: 8px 20px; font-size: 12px; }
   .context-menu {
     position: fixed;
@@ -810,7 +822,7 @@
     color: var(--text-body);
     padding: 1px 6px;
     border-radius: 3px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
   }
   .hook-badge {
@@ -837,7 +849,8 @@
     flex-shrink: 0;
     background: var(--warning);
     border-color: var(--warning);
-    color: white;
+    /* Paired ink: --warning lightens in dark, so the ink must flip. */
+    color: var(--warning-on);
   }
   .hook-update.danger-action {
     flex-shrink: 0;
@@ -860,7 +873,7 @@
   }
   .hook-update.primary-action:hover:not(:disabled) {
     background: var(--warning);
-    color: white;
+    color: var(--warning-on);
     filter: brightness(0.96);
   }
   .hook-update:disabled {
@@ -872,7 +885,8 @@
     display: flex; align-items: center; gap: 8px;
     width: 100%;
     padding: 8px 10px;
-    border: 1px dashed var(--border-strong);
+    /* Control outline: WCAG 1.4.11 asks 3:1. */
+    border: 1px dashed var(--border-field);
     border-radius: 4px;
     background: var(--bg-input);
     cursor: pointer; text-align: left;
@@ -887,11 +901,11 @@
   .picker-value {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex: 1; min-width: 0;
-    font-family: ui-monospace, monospace; font-size: 11.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px;
   }
   button.ghost {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--border-field);
     color: var(--text-secondary);
     border-radius: 4px;
     cursor: pointer;
@@ -920,7 +934,8 @@
   .repos li.empty {
     padding: 24px 20px;
     text-align: center;
-    color: var(--text-subtle);
+    /* Readable copy bottoms out at --text-muted. */
+    color: var(--text-muted);
     border: none;
   }
   .info {
@@ -943,8 +958,8 @@
     border-radius: 3px;
   }
   .repo-id {
-    font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
     color: var(--text-muted);
     background: var(--bg-hover);
     padding: 1px 6px;
@@ -970,7 +985,8 @@
     color: var(--accent-text);
   }
   .provider-local {
-    background: var(--bg-soft);
+    /* --bg-soft is not a token: it resolved to nothing. */
+    background: var(--bg-hover);
     color: var(--text-muted);
   }
   .off {
@@ -1001,7 +1017,7 @@
     color: var(--text-muted);
   }
   .path {
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     color: var(--text-secondary);
     word-break: break-all;
@@ -1011,7 +1027,7 @@
     border: none;
     padding: 0;
     cursor: pointer;
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     color: var(--text-secondary);
     text-align: left;
@@ -1030,7 +1046,7 @@
     margin: 4px 0 3px;
     padding: 8px 10px;
     border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--warning-bg);
     color: var(--warning);
     display: flex;
@@ -1048,7 +1064,7 @@
     font-size: 12px;
   }
   .missing-repo span {
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1067,7 +1083,7 @@
     color: var(--text-muted);
   }
   .git-url {
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     color: var(--text-muted);
     overflow: hidden;
@@ -1087,6 +1103,8 @@
     padding: 4px 8px;
     cursor: pointer;
     font-size: 12px;
+    /* WCAG 2.5.8 floor, 28px under a coarse pointer. */
+    min-height: var(--tap-size);
   }
   button:not(.path-link):not(.picker):not(.close) {
     text-transform: uppercase;
@@ -1123,7 +1141,8 @@
   }
   .tab.active {
     background: var(--accent);
-    color: white;
+    /* Paired ink: --accent lightens in dark, so the ink must flip. */
+    color: var(--accent-on);
     border-color: var(--accent);
   }
   .remote-panel {
@@ -1161,7 +1180,7 @@
   .remote-dot {
     width: 7px;
     height: 7px;
-    border-radius: 50%;
+    border-radius: 999px;
     background: currentColor;
   }
   .remote-note {
@@ -1169,7 +1188,8 @@
     padding-top: 10px;
   }
   .hint {
-    color: var(--text-subtle);
+    /* Readable copy bottoms out at --text-muted. */
+    color: var(--text-muted);
     font-weight: 400;
   }
   .row {
@@ -1196,9 +1216,19 @@
   }
   .create input {
     padding: 6px 8px;
-    border: 1px solid var(--border-strong);
+    /* Input outline: WCAG 1.4.11 asks 3:1, --border-strong gives 1.47:1. */
+    border: 1px solid var(--border-field);
     border-radius: 4px;
     font-size: 13px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: inherit;
+    min-height: var(--tap-size);
+  }
+  .create input:focus-visible,
+  .create select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .form-actions {
     display: flex;
@@ -1207,8 +1237,26 @@
   }
   button.primary {
     background: var(--accent);
-    color: white;
+    /* Paired ink: --accent lightens in dark, so the ink must flip. */
+    color: var(--accent-on);
     border-color: var(--accent);
   }
   button.primary:hover { background: var(--accent-hover); }
+
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .row {
+      grid-template-columns: 1fr;
+    }
+    .repos li {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .actions {
+      flex-wrap: wrap;
+    }
+    .tabs {
+      flex-wrap: wrap;
+    }
+  }
 </style>

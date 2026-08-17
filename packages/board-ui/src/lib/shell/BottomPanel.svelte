@@ -19,7 +19,7 @@
   let { projectId, onOpenDiff }: Props = $props();
 </script>
 
-<section class="bottom-panel" aria-label="Console">
+<section class="bottom-panel" aria-label={t("shell.console")}>
   <div class="tabs" role="tablist">
     <button class="tab active" role="tab" aria-selected="true">{t("bottom.activity")}</button>
   </div>
@@ -49,6 +49,10 @@
     background: transparent;
     border: none;
     padding: 6px 14px;
+    /* 6+15+6 ≈ 27px, sous le plancher. En mode compact la console est un
+       tiroir convoqué au doigt : son unique onglet doit être une cible
+       franche (WCAG 2.5.8). */
+    min-height: 28px;
     cursor: default;
     color: var(--accent);
     font-size: 12px;

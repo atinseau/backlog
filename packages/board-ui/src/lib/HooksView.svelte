@@ -258,7 +258,8 @@
   }
   .view-header h2 {
     margin: 0;
-    font-size: 20px;
+    /* Display step — 18px is the top of the type ramp. */
+    font-size: 18px;
   }
   .view-header p {
     margin: 4px 0 0;
@@ -274,7 +275,7 @@
   }
   button {
     border: 1px solid var(--border-strong);
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--bg-input);
     color: var(--text-primary);
     font: inherit;
@@ -288,18 +289,27 @@
   .primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: white;
+    /* Paired ink: --accent lightens in dark, so the ink must flip. */
+    color: var(--accent-on);
   }
   .danger {
     color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 40%, var(--border-default));
   }
+  /* WCAG 2.5.8: the glyph is 18px but the target floors at --tap-size. */
   .close {
     border: none;
     background: transparent;
     color: var(--text-secondary);
     font-size: 18px;
+    min-width: var(--tap-size);
+    min-height: var(--tap-size);
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
+  .close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .error,
   .pause {
     margin: 12px 20px 0;
@@ -331,13 +341,14 @@
   }
   .stat {
     border: 1px solid var(--border-default);
-    border-radius: 7px;
+    /* Card radius — 7px is not a step of the scale. */
+    border-radius: 6px;
     background: var(--bg-elevated);
     padding: 12px;
   }
   .stat strong {
     display: block;
-    font-size: 24px;
+    font-size: 18px;
   }
   .stat span {
     color: var(--text-muted);
@@ -350,7 +361,7 @@
     gap: 16px;
     align-items: start;
     border: 1px solid var(--border-default);
-    border-radius: 7px;
+    border-radius: 6px;
     background: var(--bg-muted);
     padding: 12px;
   }
@@ -394,7 +405,7 @@
     gap: 14px;
     align-items: center;
     border: 1px solid var(--border-default);
-    border-radius: 7px;
+    border-radius: 6px;
     background: var(--bg-elevated);
     padding: 10px 12px;
   }
@@ -424,7 +435,7 @@
     display: grid;
     gap: 3px;
     color: var(--text-muted);
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
   }
   .details span {
@@ -445,14 +456,27 @@
   .versions strong {
     color: var(--text-primary);
   }
+  /* BP_COMPACT — src/lib/shell/breakpoints.ts */
   @media (max-width: 900px) {
-    .summary,
+    .summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .explain,
     .row {
       grid-template-columns: 1fr;
     }
     .actions {
       justify-content: flex-end;
+    }
+  }
+  /* BP_NARROW — src/lib/shell/breakpoints.ts */
+  @media (max-width: 640px) {
+    .summary {
+      grid-template-columns: 1fr;
+    }
+    .commands code {
+      white-space: normal;
+      word-break: break-all;
     }
   }
 </style>

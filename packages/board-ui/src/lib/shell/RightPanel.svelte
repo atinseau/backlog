@@ -4,6 +4,7 @@
   // when reviewing a card.
   import GitDiffPanel from "../GitDiffPanel.svelte";
   import OrchestratorChat from "../OrchestratorChat.svelte";
+  import { t } from "../i18n.svelte.js";
 
   interface Props {
     projectId: string | null;
@@ -14,7 +15,7 @@
   let { projectId, gitDiffTarget = null, onCloseGitDiff }: Props = $props();
 </script>
 
-<aside class="right-panel" aria-label={gitDiffTarget ? "Git diff" : "Chat"}>
+<aside class="right-panel" aria-label={gitDiffTarget ? t("shell.git_diff") : t("shell.chat")}>
   {#if gitDiffTarget}
     <GitDiffPanel
       repo={gitDiffTarget.repo}
