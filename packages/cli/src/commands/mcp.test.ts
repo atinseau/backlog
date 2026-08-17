@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
-import { contextFor, orchestratorToolNames } from "@backlog/core";
+import { contextFor, createTask, orchestratorToolNames } from "@backlog/core";
 import { mcpHostFor, parseAudience, resolveMcpHost } from "./mcp.js";
 
 const executionToolNames = [...contextFor("execution").mcpTools];
@@ -16,6 +16,14 @@ function projectRoot(): string {
     repos: [{ id: path.basename(root), path: root, default_branch: "main", enabled: true }],
   });
   return root;
+}
+
+/** A project with one ticket in it, for the tests that call a tool for real. */
+function projectWithTask(): { backlogDir: string; taskId: string } {
+  const root = projectRoot();
+  const backlogDir = path.join(root, ".backlog");
+  const task = createTask(backlogDir, { title: "Ship it", repoTargets: [path.basename(root)] });
+  return { backlogDir, taskId: task.id };
 }
 
 describe("mcpHostFor", () => {
@@ -50,6 +58,34 @@ describe("mcpHostFor", () => {
 
     expect(outcome.ok).toBe(false);
     expect(String((outcome.result as { error?: unknown }).error)).toContain("start_subtask");
+  });
+
+  // The refusal test above short-circuits at the name guard and never reaches
+  // the dispatcher. `callCatalogTool` is now the only dispatch path in the
+  // product — both audiences route through it — and it matches first-wins
+  // across three tool lists, so a reordering or name-matching bug there would
+  // break the chat and every coding run at once. These two exercise the
+  // branches that matter: a read tool, and an orchestrator tool.
+  it("routes an execution agent's read to the tool that owns it", async () => {
+    const { backlogDir, taskId } = projectWithTask();
+    const host = mcpHostFor(backlogDir, "execution");
+
+    const outcome = await host.callTool("task_show", { task_id: taskId });
+
+    expect(outcome.ok).toBe(true);
+    expect((outcome.result as { task: { id: string } }).task.id).toBe(taskId);
+  });
+
+  it("routes the chat's read to the orchestrator dispatcher", async () => {
+    const { backlogDir, taskId } = projectWithTask();
+    const host = mcpHostFor(backlogDir, "orchestrator");
+
+    const outcome = await host.callTool("list_tasks", { status: "all" });
+
+    expect(outcome.ok).toBe(true);
+    const result = outcome.result as { count: number; tasks: Array<{ id: string }> };
+    expect(result.count).toBe(1);
+    expect(result.tasks[0]?.id).toBe(taskId);
   });
 });
 

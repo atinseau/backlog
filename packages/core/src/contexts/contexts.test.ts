@@ -12,6 +12,14 @@ test("every tool a context grants exists in the catalogue", () => {
   }
 });
 
+// `callCatalogTool` matches first-wins, so a duplicate name is a silent
+// hijack rather than an error: a read tool named `list_tasks` would steal the
+// orchestrator's call and route it to `callReadTool`.
+test("no two catalogue tools share a name", () => {
+  const names = catalogToolNames();
+  expect(new Set(names).size).toBe(names.length);
+});
+
 test("the execution context grants no orchestration tool", () => {
   const orchestration = new Set(orchestratorToolNames());
   for (const name of contextFor("execution").mcpTools) {

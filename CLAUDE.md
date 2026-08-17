@@ -235,13 +235,16 @@ Two constraints learned from the CLI, both load-bearing:
   than calling `list_tasks`.
 
 **Two MCP audiences, one transport.** `backlog mcp-server` serves whichever
-tool set `--audience` asks for, and defaults to `agent` — the less privileged
-one — so a caller that forgets the flag loses tools rather than gaining the
-ability to start runs. The chat asks for `orchestrator` explicitly
-(`ORCHESTRATOR_TOOLS`, nine tools, confirmation-gated). A coding run gets
-`AGENT_TOOLS`: exactly one tool, `trace_write`, attached by
-`providers/claude-code/provider.ts` via `--mcp-config`. The two sets are
-separate files and separate dispatchers, and
+tool set `--audience` asks for, and defaults to `execution` — the less
+privileged one — so a caller that forgets the flag loses tools rather than
+gaining the ability to start runs. The chat asks for `orchestrator` explicitly
+(`ORCHESTRATOR_TOOLS`, nine tools, confirmation-gated). A coding run gets the
+`execution` set: five tools — the four reads about its own ticket
+(`task_show`, `subtask_show`, `trace_show`, `claim_list`) plus `trace_write` —
+attached by `providers/claude-code/provider.ts` via `--mcp-config`. Which
+audience resolves to which names is decided by the context table in
+`packages/core/src/contexts/contexts.ts`, not by the MCP layer. The write sets
+are separate files and separate dispatchers, and
 `packages/core/src/agent-tools.test.ts` asserts they never intersect — an
 execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.

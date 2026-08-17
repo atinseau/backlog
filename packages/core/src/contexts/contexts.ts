@@ -34,12 +34,29 @@ const NO_BUILT_IN_TOOLS = [
   "Skill",
 ] as const;
 
-const readToolNames = READ_TOOLS.map((tool) => tool.name);
+// The tool-name lists are read through getters rather than captured while this
+// module's body runs. `orchestrator-tools.ts` sits in an import cycle with the
+// run pipeline — orchestrator-tools → run-launcher → run-executor → providers →
+// claude-code/provider → this file → orchestrator-tools — so calling
+// `orchestratorToolNames()` at module scope hits the TDZ on `ORCHESTRATOR_TOOLS`
+// whenever the process enters the cycle from the provider side. Which module
+// the process enters through is not something this table can know, so it reads
+// its sources on first use, when every module body has finished.
+//
+// Memoised so the arrays keep a stable identity across calls.
+function once<T>(build: () => T): () => T {
+  let value: T | undefined;
+  return () => (value ??= build());
+}
+
+const executionTools = once(() => [...READ_TOOLS.map((tool) => tool.name), ...agentToolNames()]);
+const orchestratorTools = once(() => orchestratorToolNames());
 
 export const CONTEXTS: Record<AgentContextId, AgentContext> = {
   // One coding run, unattended, in a worktree. It keeps every built-in tool:
   // it is here to write code, and taking Bash from it would take its job. The
-  // closure targets the Backlog CLI, which Task 5 refuses outright.
+  // closure targets the Backlog CLI, which refuses an execution role outright
+  // on its own account — see the role guard in the CLI entrypoint.
   //
   // `Bash(backlog:*)` is Claude Code's own specifier syntax: the `:*` suffix is
   // an equivalent spelling of a trailing wildcard, so this reads as
@@ -50,7 +67,9 @@ export const CONTEXTS: Record<AgentContextId, AgentContext> = {
   // actually binds lives in the CLI itself.
   execution: {
     mcpAudience: "execution",
-    mcpTools: [...readToolNames, ...agentToolNames()],
+    get mcpTools() {
+      return executionTools();
+    },
     deniedBuiltins: ["Bash(backlog:*)"],
     userMcpServers: "visible",
     cliRole: "execution",
@@ -60,7 +79,9 @@ export const CONTEXTS: Record<AgentContextId, AgentContext> = {
   // checkout.
   orchestrator: {
     mcpAudience: "orchestrator",
-    mcpTools: orchestratorToolNames(),
+    get mcpTools() {
+      return orchestratorTools();
+    },
     deniedBuiltins: [...NO_BUILT_IN_TOOLS],
     userMcpServers: "hidden",
     cliRole: null,
