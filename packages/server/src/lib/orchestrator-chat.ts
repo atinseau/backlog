@@ -375,13 +375,18 @@ export class ChatUnavailableError extends Error {
 }
 
 export function resolveChatCredentials(backlogDir: string): ChatCredentials | null {
-  // This is the one feature that cannot run on a Claude subscription. It needs
-  // server-side tool definitions the CLI has no equivalent for, so it talks to
-  // the HTTP API directly and therefore needs a key — resolved through the
-  // anthropic-api provider so there is a single answer to "where does the key
-  // come from?". OAuth tokens are deliberately not accepted: the public API
-  // rejects them with 401, which would only surface as a confusing failure
-  // after the first message.
+  // This is the last feature that still requires an API key, and the only
+  // reason is that it has not been ported yet. Its eight tools are declared as
+  // Anthropic.Tool literals and driven by the hand-rolled agentic loop below;
+  // the equivalent on the CLI is an MCP server (`--mcp-config` +
+  // `--strict-mcp-config`), which means exposing these handlers over stdio and
+  // rebuilding the SSE bridge on `--output-format stream-json`. Real work, not
+  // a missing capability.
+  //
+  // The key is resolved through the anthropic-api provider so there is a
+  // single answer to "where does the key come from?". OAuth tokens are
+  // deliberately not accepted: the public API rejects them with 401, which
+  // would only surface as a confusing failure after the first message.
   const key = getSecret(backlogDir, ANTHROPIC_API_KEY) ?? process.env[ANTHROPIC_API_KEY];
   return key ? { apiKey: key } : null;
 }

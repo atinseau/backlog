@@ -396,9 +396,15 @@ scope, not scope creep.
   A subtask learns nothing from the subtask it `depends_on`.
 - Permission modes are coarse: `read-only` maps to `plan`, everything else to
   `bypassPermissions`. There is no per-tool or per-path story.
-- The orchestrator chat is the one feature that cannot run on a subscription:
-  it needs server-side tool definitions, so it talks to the HTTP API and
-  requires `ANTHROPIC_API_KEY`.
+- The orchestrator chat is the last feature still requiring
+  `ANTHROPIC_API_KEY`, and only because it has not been ported. Its eight
+  tools are `Anthropic.Tool` literals driven by a hand-rolled agentic loop;
+  the CLI equivalent is an MCP server (`--mcp-config`), so porting means
+  serving those handlers over stdio and rebuilding the SSE bridge on
+  `--output-format stream-json`. Nothing about it is impossible.
+- `ClaudeCodeProvider.completeStructured` asks for JSON in the system prompt
+  and parses what comes back. The CLI has a `--json-schema` flag that would
+  enforce it properly — worth switching to.
 - The scheduler is a single-tick loop with idle backoff. Dependencies
   (`depends_on`) and claims exist, but there is no real planning or
   parallelism strategy beyond `max_agents`.
