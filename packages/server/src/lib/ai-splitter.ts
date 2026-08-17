@@ -1,5 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { completeJsonForProject, completeTextForProject, CompletionUnavailableError } from "@backlog/core";
 import type { Task } from "@backlog/schemas";
+
+// Task naming, refinement and split planning. All three are one-shot prompts,
+// so they go through the project's completion provider rather than talking to
+// any vendor SDK directly — which is what lets them work on a Claude
+// subscription, an API key, or whatever runtime is configured next.
 
 export interface ProposedTask {
   title: string;
@@ -21,8 +26,6 @@ export interface RefinedTaskText {
   model: string;
 }
 
-export type AiProvider = "anthropic" | "openai" | "codex";
-
 export class AiSplitterUnavailableError extends Error {
   constructor(message: string) {
     super(message);
@@ -30,143 +33,21 @@ export class AiSplitterUnavailableError extends Error {
   }
 }
 
+export interface AiRequestOptions {
+  /** Agent ids to prefer, most-preferred first. */
+  preferredAgentIds?: string[] | undefined;
+  /** Working directory for runtimes that need one. */
+  cwd?: string | undefined;
+  maxSubagents?: number | undefined;
+  /** Extra, user-editable planning instructions appended to the split prompt. */
+  plannerPrompt?: string | undefined;
+}
+
 const DEFAULT_MAX_SUBAGENTS = 5;
+const MAX_TITLE_LENGTH = 80;
+const MAX_DESCRIPTION_LENGTH = 4000;
 
-const SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog task down into concrete sub-tasks designed for parallel execution.
-
-For each task you receive, propose the smallest useful set of sub-tasks up to the provided max_subagents cap. Each sub-task must:
-- have a short imperative title (≤ 80 chars)
-- target one of the provided repositories (use the exact repository id)
-- include 1 to 6 file scopes (paths or globs, repository-relative) that the task will touch
-- declare a risk level: 'low' (small, isolated, reversible), 'medium' (touches public APIs or shared modules), 'high' (data migrations, security-sensitive, hard to revert)
-- list depends_on_indices: a JSON array of 0-based indices of OTHER tasks in your output that must complete first. Use [] for independent tasks.
-
-Hard rules:
-- Tasks with non-overlapping scopes can run in parallel — prefer parallel decomposition when possible
-- A task that must read another task's output goes serial via depends_on_indices
-- Never propose more sub-tasks than max_subagents; condense or group work evenly when needed
-- For repetitive work, group items into balanced chunks. Example: 10 independent files with max_subagents=5 should become 5 sub-tasks with 2 files each
-- Scopes should be specific files when known; use globs ('src/foo/**') only when many files are touched
-- Risk reflects blast radius, not difficulty: a tedious-but-safe task is 'low'
-
-Also include a one-paragraph 'rationale' (≤ 200 chars) explaining the parallel/serial structure of your proposal.`;
-
-function proposalSchema() {
-  return {
-  type: "object",
-  properties: {
-    tasks: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          repo: { type: "string" },
-          scopes: {
-            type: "array",
-            items: { type: "string" },
-            minItems: 1,
-          },
-          risk: { type: "string", enum: ["low", "medium", "high"] },
-          depends_on_indices: {
-            type: "array",
-            items: { type: "integer", minimum: 0 },
-          },
-        },
-        required: ["title", "repo", "scopes", "risk", "depends_on_indices"],
-        additionalProperties: false,
-      },
-    },
-    rationale: { type: "string" },
-  },
-  required: ["tasks", "rationale"],
-  additionalProperties: false,
-  } as const;
-}
-
-const REFINE_SYSTEM_PROMPT = `You refine rough backlog ideas into actionable software tasks.
-
-Return ONLY a JSON object with:
-- title: a concise imperative software task title, max 70 characters
-- description: a polished task description in the same language as the input, 1-4 short paragraphs
-
-Rules:
-- Keep the user's intent intact; do not invent scope, deadlines, or technical decisions
-- Make unclear wording more concrete and actionable
-- If the input is already clear, improve wording lightly
-- Do not create sub-tasks or acceptance criteria unless they are already implied`;
-
-const REFINE_SCHEMA = {
-  type: "object",
-  properties: {
-    title: { type: "string" },
-    description: { type: "string" },
-  },
-  required: ["title", "description"],
-  additionalProperties: false,
-} as const;
-
-function clampMaxSubagents(value: number | undefined): number {
-  if (value === undefined || !Number.isFinite(value)) return DEFAULT_MAX_SUBAGENTS;
-  return Math.max(1, Math.min(99, Math.round(value)));
-}
-
-function buildSplitSystemPrompt(customPrompt: string | undefined): string {
-  const custom = customPrompt?.trim();
-  if (!custom) return SYSTEM_PROMPT;
-  return `${SYSTEM_PROMPT}\n\nAdditional user-editable planning instructions:\n${custom}`;
-}
-
-function buildUserPrompt(task: Task, repositories: string[], maxSubagents: number): string {
-  const lines: string[] = [];
-  lines.push(`Task id: ${task.id}`);
-  lines.push(`Title: ${task.title}`);
-  lines.push(`Priority: ${task.priority}`);
-  if (task.description) lines.push(`Description: ${task.description}`);
-  if (task.acceptance_criteria.length > 0) {
-    lines.push("Acceptance criteria:");
-    for (const ac of task.acceptance_criteria) lines.push(`- ${ac}`);
-  }
-  if (task.labels.length > 0) lines.push(`Labels: ${task.labels.join(", ")}`);
-  lines.push(`Risk hint: ${task.planning.risk}`);
-  lines.push("");
-  lines.push(`Available repositories for this project: ${repositories.join(", ")}`);
-  lines.push(`max_subagents: ${maxSubagents}`);
-  if (task.repo_targets.length > 0) {
-    lines.push(`Preferred repository targets on this task: ${task.repo_targets.join(", ")}`);
-  }
-  lines.push("");
-  lines.push("Propose up to max_subagents sub-tasks following the schema. Maximize safe parallelism and keep independent chunks dependency-free.");
-  return lines.join("\n");
-}
-
-function buildRefinePrompt(task: Task): string {
-  const lines: string[] = [];
-  lines.push(`Task id: ${task.id}`);
-  lines.push(`Current title: ${task.title}`);
-  if (task.description) lines.push(`Current description: ${task.description}`);
-  if (task.labels.length > 0) lines.push(`Labels: ${task.labels.join(", ")}`);
-  if (task.repo_targets.length > 0) lines.push(`Target repositories: ${task.repo_targets.join(", ")}`);
-  lines.push("");
-  lines.push("Refine this backlog idea into a clearer task, preserving the language and intent.");
-  return lines.join("\n");
-}
-
-interface SuggestOptions {
-  provider?: AiProvider;
-  apiKey?: string;
-  model?: string;
-  maxSubagents?: number;
-  plannerPrompt?: string;
-}
-
-// ---- Title suggestion ----------------------------------------------------
-//
-// Given a free-form description, ask the LLM for a short imperative-mood
-// title. The user types only the description in CreateTaskDialog; the
-// title is generated server-side at task creation. Falls back to a
-// trimmed first sentence of the description when the AI provider is
-// unavailable so task creation never blocks on credentials.
+// ---------------------------------------------------------------- prompts --
 
 const TITLE_SYSTEM_PROMPT = `You generate concise, action-oriented titles for software backlog tasks.
 
@@ -187,195 +68,138 @@ title: Add hello.html with h1 and homepage link at repository root
 description: "configure GitHub Actions to run tests on every push to main"
 title: Wire GitHub Actions to run tests on every push to main`;
 
-export async function suggestTitle(
-  description: string,
-  options: SuggestOptions = {},
-): Promise<{ title: string; model: string }> {
-  const text = description.trim();
-  if (!text) {
-    throw new Error("Description is empty — cannot suggest a title.");
-  }
-  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
-  if (provider === "anthropic") return suggestTitleAnthropic(text, options);
-  if (provider === "openai" || provider === "codex") return suggestTitleOpenAi(text, options);
-  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
-}
+const REFINE_SYSTEM_PROMPT = `You refine rough backlog ideas into actionable software tasks.
 
-async function suggestTitleAnthropic(
-  description: string,
-  options: SuggestOptions,
-): Promise<{ title: string; model: string }> {
-  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
-  }
-  const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
-  const response = await client.messages.create({
-    model,
-    max_tokens: 60,
-    system: TITLE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: `Description: ${description}` }],
-  });
-  const textBlock = response.content.find(
-    (block): block is Anthropic.TextBlock => block.type === "text",
-  );
-  if (!textBlock) {
-    throw new Error("Anthropic response had no text block.");
-  }
-  return { title: cleanupTitle(textBlock.text), model };
-}
+Return ONLY a JSON object with:
+- title: a concise imperative software task title, max 70 characters
+- description: a polished task description in the same language as the input, 1-4 short paragraphs
 
-async function suggestTitleOpenAi(
-  description: string,
-  options: SuggestOptions & { isCodex?: boolean } = {},
-): Promise<{ title: string; model: string }> {
-  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError("OPENAI_API_KEY is not set.");
-  }
-  const model = options.model ?? "gpt-5-mini";
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+Rules:
+- Keep the user's intent intact; do not invent scope, deadlines, or technical decisions
+- Make unclear wording more concrete and actionable
+- If the input is already clear, improve wording lightly
+- Do not create sub-tasks or acceptance criteria unless they are already implied`;
+
+const SPLIT_SYSTEM_PROMPT = `You are a software-engineering planner that breaks a backlog task down into concrete sub-tasks designed for parallel execution.
+
+For each task you receive, propose the smallest useful set of sub-tasks up to the provided max_subagents cap. Each sub-task must:
+- have a short imperative title (≤ 80 chars)
+- target one of the provided repositories (use the exact repository id)
+- include 1 to 6 file scopes (paths or globs, repository-relative) that the task will touch
+- declare a risk level: 'low' (small, isolated, reversible), 'medium' (touches public APIs or shared modules), 'high' (data migrations, security-sensitive, hard to revert)
+- list depends_on_indices: a JSON array of 0-based indices of OTHER tasks in your output that must complete first. Use [] for independent tasks.
+
+Hard rules:
+- Tasks with non-overlapping scopes can run in parallel — prefer parallel decomposition when possible
+- A task that must read another task's output goes serial via depends_on_indices
+- Never propose more sub-tasks than max_subagents; condense or group work evenly when needed
+- For repetitive work, group items into balanced chunks. Example: 10 independent files with max_subagents=5 should become 5 sub-tasks with 2 files each
+- Scopes should be specific files when known; use globs ('src/foo/**') only when many files are touched
+- Risk reflects blast radius, not difficulty: a tedious-but-safe task is 'low'
+
+Also include a one-paragraph 'rationale' (≤ 200 chars) explaining the parallel/serial structure of your proposal.`;
+
+const REFINE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    description: { type: "string" },
+  },
+  required: ["title", "description"],
+  additionalProperties: false,
+} as const;
+
+const PROPOSAL_SCHEMA = {
+  type: "object",
+  properties: {
+    tasks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          repo: { type: "string" },
+          scopes: { type: "array", items: { type: "string" }, minItems: 1 },
+          risk: { type: "string", enum: ["low", "medium", "high"] },
+          depends_on_indices: { type: "array", items: { type: "integer", minimum: 0 } },
+        },
+        required: ["title", "repo", "scopes", "risk", "depends_on_indices"],
+        additionalProperties: false,
+      },
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 60,
-      messages: [
-        { role: "system", content: TITLE_SYSTEM_PROMPT },
-        { role: "user", content: `Description: ${description}` },
-      ],
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`OpenAI title call failed (${response.status}): ${detail}`);
-  }
-  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const text = json.choices?.[0]?.message?.content ?? "";
-  if (!text.trim()) {
-    throw new Error("OpenAI returned an empty title.");
-  }
-  return { title: cleanupTitle(text), model };
+    rationale: { type: "string" },
+  },
+  required: ["tasks", "rationale"],
+  additionalProperties: false,
+} as const;
+
+function clampMaxSubagents(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_MAX_SUBAGENTS;
+  return Math.max(1, Math.min(99, Math.round(value)));
 }
 
-function cleanupTitle(raw: string): string {
-  // Strip surrounding quotes / trailing period the model sometimes
-  // adds despite the system prompt. Cap at 80 chars as a hard
-  // safeguard against unexpected verbosity.
+function buildSplitSystemPrompt(customPrompt: string | undefined): string {
+  const custom = customPrompt?.trim();
+  if (!custom) return SPLIT_SYSTEM_PROMPT;
+  return `${SPLIT_SYSTEM_PROMPT}\n\nAdditional user-editable planning instructions:\n${custom}`;
+}
+
+function buildSplitPrompt(task: Task, repositories: string[], maxSubagents: number): string {
+  const lines = [
+    `Task id: ${task.id}`,
+    `Title: ${task.title}`,
+    `Priority: ${task.priority}`,
+    ...(task.description ? [`Description: ${task.description}`] : []),
+    ...(task.acceptance_criteria.length > 0
+      ? ["Acceptance criteria:", ...task.acceptance_criteria.map((item) => `- ${item}`)]
+      : []),
+    ...(task.labels.length > 0 ? [`Labels: ${task.labels.join(", ")}`] : []),
+    `Risk hint: ${task.planning.risk}`,
+    "",
+    `Available repositories for this project: ${repositories.join(", ")}`,
+    `max_subagents: ${maxSubagents}`,
+    ...(task.repo_targets.length > 0
+      ? [`Preferred repository targets on this task: ${task.repo_targets.join(", ")}`]
+      : []),
+    "",
+    "Propose up to max_subagents sub-tasks following the schema. Maximize safe parallelism and keep independent chunks dependency-free.",
+  ];
+  return lines.join("\n");
+}
+
+function buildRefinePrompt(task: Task): string {
+  const lines = [
+    `Task id: ${task.id}`,
+    `Current title: ${task.title}`,
+    ...(task.description ? [`Current description: ${task.description}`] : []),
+    ...(task.labels.length > 0 ? [`Labels: ${task.labels.join(", ")}`] : []),
+    ...(task.repo_targets.length > 0 ? [`Target repositories: ${task.repo_targets.join(", ")}`] : []),
+    "",
+    "Refine this backlog idea into a clearer task, preserving the language and intent.",
+  ];
+  return lines.join("\n");
+}
+
+// ------------------------------------------------------------- validation --
+
+export function cleanupTitle(raw: string): string {
+  // Models sometimes wrap the title or end it with a period despite the
+  // instruction; the length cap guards against unexpected verbosity.
   let out = raw.trim();
   if ((out.startsWith('"') && out.endsWith('"')) || (out.startsWith("«") && out.endsWith("»"))) {
     out = out.slice(1, -1).trim();
   }
   if (out.endsWith(".")) out = out.slice(0, -1).trim();
-  if (out.length > 80) out = out.slice(0, 77).trimEnd() + "…";
-  return out;
+  return out.length > MAX_TITLE_LENGTH ? `${out.slice(0, MAX_TITLE_LENGTH - 3).trimEnd()}…` : out;
 }
 
-// Last-resort title when the AI provider is unavailable or fails.
-// Takes the first sentence of the description, capitalises it, caps
-// it at 70 chars. Not as good as the LLM output but never empty.
+/** Last resort when no AI runtime is configured: the first sentence, capitalised. */
 export function fallbackTitle(description: string): string {
   const trimmed = description.trim();
   if (!trimmed) return "New task";
   const firstSentence = trimmed.split(/[.\n!?]/)[0]!.trim();
   const capitalised = firstSentence.charAt(0).toUpperCase() + firstSentence.slice(1);
-  return capitalised.length > 70 ? capitalised.slice(0, 67).trimEnd() + "…" : capitalised;
-}
-
-export async function refineTaskText(
-  task: Task,
-  options: SuggestOptions = {},
-): Promise<RefinedTaskText> {
-  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
-  if (provider === "anthropic") return refineTaskTextAnthropic(task, options);
-  if (provider === "openai" || provider === "codex") return refineTaskTextOpenAi(task, { ...options, isCodex: provider === "codex" });
-  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
-}
-
-async function refineTaskTextAnthropic(
-  task: Task,
-  options: SuggestOptions,
-): Promise<RefinedTaskText> {
-  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError("ANTHROPIC_API_KEY is not set.");
-  }
-  const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
-  const response = await client.messages.create({
-    model,
-    max_tokens: 900,
-    system: REFINE_SYSTEM_PROMPT,
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: REFINE_SCHEMA as unknown as Record<string, unknown>,
-      },
-    },
-    messages: [{ role: "user", content: buildRefinePrompt(task) }],
-  });
-  const textBlock = response.content.find(
-    (block): block is Anthropic.TextBlock => block.type === "text",
-  );
-  if (!textBlock) {
-    throw new Error("Anthropic response had no text block.");
-  }
-  return validateRefinedText(parseJsonObject(textBlock.text, "Anthropic"), model);
-}
-
-async function refineTaskTextOpenAi(
-  task: Task,
-  options: SuggestOptions & { isCodex?: boolean },
-): Promise<RefinedTaskText> {
-  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError("OPENAI_API_KEY is not set.");
-  }
-  const model = options.model ?? (options.isCodex ? "gpt-5.5" : "gpt-5.4-mini");
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: REFINE_SYSTEM_PROMPT },
-        { role: "user", content: buildRefinePrompt(task) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "refined_task",
-          strict: true,
-          schema: REFINE_SCHEMA,
-        },
-      },
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`OpenAI returned ${response.status}: ${detail.slice(0, 500)}`);
-  }
-  const json = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const text = json.choices?.[0]?.message?.content ?? "";
-  if (!text.trim()) throw new Error("OpenAI returned an empty refinement.");
-  return validateRefinedText(parseJsonObject(text, "OpenAI"), model);
-}
-
-function parseJsonObject(text: string, provider: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(
-      `${provider} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
-    );
-  }
+  return capitalised.length > 70 ? `${capitalised.slice(0, 67).trimEnd()}…` : capitalised;
 }
 
 function validateRefinedText(parsed: unknown, model: string): RefinedTaskText {
@@ -389,132 +213,20 @@ function validateRefinedText(parsed: unknown, model: string): RefinedTaskText {
   if (!description) throw new Error("Refinement did not include a description.");
   return {
     title,
-    description: description.length > 4000 ? `${description.slice(0, 3997).trimEnd()}...` : description,
+    description:
+      description.length > MAX_DESCRIPTION_LENGTH
+        ? `${description.slice(0, MAX_DESCRIPTION_LENGTH - 3).trimEnd()}...`
+        : description,
     model,
   };
 }
 
-export async function suggestSplit(
-  task: Task,
+export function validateProposal(
+  parsed: unknown,
   repositories: string[],
-  options: SuggestOptions = {},
-): Promise<SplitProposal> {
-  if (repositories.length === 0) {
-    throw new Error("No repositories available — configure at least one repository in the project before splitting.");
-  }
-  const provider = options.provider ?? (process.env.BACKLOG_AI_PROVIDER as AiProvider) ?? "anthropic";
-  if (provider === "anthropic") return suggestSplitAnthropic(task, repositories, options);
-  if (provider === "openai" || provider === "codex") {
-    return suggestSplitOpenAi(task, repositories, { ...options, isCodex: provider === "codex" });
-  }
-  throw new AiSplitterUnavailableError(`Unknown AI provider: ${provider}`);
-}
-
-async function suggestSplitAnthropic(
-  task: Task,
-  repositories: string[],
-  options: SuggestOptions,
-): Promise<SplitProposal> {
-  const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError(
-      "ANTHROPIC_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
-    );
-  }
-  const client = new Anthropic({ apiKey });
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? "claude-sonnet-4-6";
-  const maxSubagents = clampMaxSubagents(options.maxSubagents);
-  const response = await client.messages.create({
-    model,
-    max_tokens: 4096,
-    thinking: { type: "adaptive" },
-    system: buildSplitSystemPrompt(options.plannerPrompt),
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: proposalSchema() as unknown as Record<string, unknown>,
-      },
-    },
-    messages: [
-      {
-        role: "user",
-        content: buildUserPrompt(task, repositories, maxSubagents),
-      },
-    ],
-  });
-  const textBlock = response.content.find(
-    (block): block is Anthropic.TextBlock => block.type === "text",
-  );
-  if (!textBlock) {
-    throw new Error("Anthropic response had no text block; cannot parse proposal.");
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(textBlock.text);
-  } catch (error) {
-    throw new Error(
-      `Anthropic returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${textBlock.text.slice(0, 500)}`,
-    );
-  }
-  return validateProposal(parsed, repositories, model, maxSubagents);
-}
-
-async function suggestSplitOpenAi(
-  task: Task,
-  repositories: string[],
-  options: SuggestOptions & { isCodex?: boolean },
-): Promise<SplitProposal> {
-  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new AiSplitterUnavailableError(
-      "OPENAI_API_KEY is not set. Export the variable or switch the AI provider in .backlog/config.toml.",
-    );
-  }
-  const model = options.model ?? process.env.BACKLOG_AI_MODEL ?? (options.isCodex ? "gpt-5.5" : "gpt-5.5");
-  const maxSubagents = clampMaxSubagents(options.maxSubagents);
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: buildSplitSystemPrompt(options.plannerPrompt) },
-        { role: "user", content: buildUserPrompt(task, repositories, maxSubagents) },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "split_proposal",
-          strict: true,
-          schema: proposalSchema(),
-        },
-      },
-    }),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`OpenAI returned ${response.status}: ${detail.slice(0, 500)}`);
-  }
-  const json = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const text = json.choices?.[0]?.message?.content ?? "";
-  if (!text) throw new Error("OpenAI response had no message content; cannot parse proposal.");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new Error(
-      `OpenAI returned invalid JSON: ${error instanceof Error ? error.message : String(error)}\nRaw text: ${text.slice(0, 500)}`,
-    );
-  }
-  return validateProposal(parsed, repositories, model, maxSubagents);
-}
-
-function validateProposal(parsed: unknown, repositories: string[], model: string, maxSubagents: number): SplitProposal {
+  model: string,
+  maxSubagents: number,
+): SplitProposal {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Proposal is not an object");
   }
@@ -523,6 +235,7 @@ function validateProposal(parsed: unknown, repositories: string[], model: string
   if (!Array.isArray(obj.tasks) || obj.tasks.length < 1 || obj.tasks.length > max) {
     throw new Error(`Proposal must contain 1 to ${max} tasks`);
   }
+
   const tasks: ProposedTask[] = obj.tasks.map((raw, index) => {
     if (!raw || typeof raw !== "object") throw new Error(`tasks[${index}] is not an object`);
     const t = raw as Record<string, unknown>;
@@ -531,8 +244,9 @@ function validateProposal(parsed: unknown, repositories: string[], model: string
     const risk = t.risk;
     const scopes = Array.isArray(t.scopes) ? t.scopes.map(String).filter((s) => s.length > 0) : [];
     const depends = Array.isArray(t.depends_on_indices)
-      ? t.depends_on_indices.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n >= 0)
+      ? t.depends_on_indices.map(Number).filter((n) => Number.isInteger(n) && n >= 0)
       : [];
+
     if (!title) throw new Error(`tasks[${index}].title is required`);
     if (!repo) throw new Error(`tasks[${index}].repo is required`);
     if (!repositories.includes(repo)) {
@@ -546,6 +260,7 @@ function validateProposal(parsed: unknown, repositories: string[], model: string
     if (scopes.length === 0) throw new Error(`tasks[${index}].scopes must not be empty`);
     return { title, repo, scopes, risk, depends_on_indices: depends };
   });
+
   for (let i = 0; i < tasks.length; i++) {
     for (const dep of tasks[i]!.depends_on_indices) {
       if (dep === i) throw new Error(`tasks[${i}] cannot depend on itself`);
@@ -554,9 +269,85 @@ function validateProposal(parsed: unknown, repositories: string[], model: string
       }
     }
   }
-  return {
-    tasks,
-    rationale: String(obj.rationale ?? "").slice(0, 1000),
-    model,
-  };
+
+  return { tasks, rationale: String(obj.rationale ?? "").slice(0, 1000), model };
+}
+
+// ----------------------------------------------------------------- public --
+
+/** Translate "nothing is configured" into the error shape the routes answer 503 on. */
+function rethrowUnavailable(error: unknown): never {
+  if (error instanceof CompletionUnavailableError) {
+    throw new AiSplitterUnavailableError(error.message);
+  }
+  throw error;
+}
+
+export async function suggestTitle(
+  backlogDir: string,
+  description: string,
+  options: AiRequestOptions = {},
+): Promise<{ title: string; model: string }> {
+  const text = description.trim();
+  if (!text) {
+    throw new Error("Description is empty — cannot suggest a title.");
+  }
+  try {
+    const completion = await completeTextForProject(backlogDir, {
+      prompt: `Description: ${text}`,
+      systemPrompt: TITLE_SYSTEM_PROMPT,
+      preferredAgentIds: options.preferredAgentIds,
+      cwd: options.cwd,
+    });
+    return { title: cleanupTitle(completion.text), model: completion.model };
+  } catch (error) {
+    return rethrowUnavailable(error);
+  }
+}
+
+export async function refineTaskText(
+  backlogDir: string,
+  task: Task,
+  options: AiRequestOptions = {},
+): Promise<RefinedTaskText> {
+  try {
+    const result = await completeJsonForProject(backlogDir, {
+      prompt: buildRefinePrompt(task),
+      systemPrompt: REFINE_SYSTEM_PROMPT,
+      schema: REFINE_SCHEMA as unknown as Record<string, unknown>,
+      schemaName: "refined_task",
+      preferredAgentIds: options.preferredAgentIds,
+      cwd: options.cwd,
+    });
+    return validateRefinedText(result.value, result.model);
+  } catch (error) {
+    return rethrowUnavailable(error);
+  }
+}
+
+export async function suggestSplit(
+  backlogDir: string,
+  task: Task,
+  repositories: string[],
+  options: AiRequestOptions = {},
+): Promise<SplitProposal> {
+  if (repositories.length === 0) {
+    throw new Error(
+      "No repositories available — configure at least one repository in the project before splitting.",
+    );
+  }
+  const maxSubagents = clampMaxSubagents(options.maxSubagents);
+  try {
+    const result = await completeJsonForProject(backlogDir, {
+      prompt: buildSplitPrompt(task, repositories, maxSubagents),
+      systemPrompt: buildSplitSystemPrompt(options.plannerPrompt),
+      schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
+      schemaName: "split_proposal",
+      preferredAgentIds: options.preferredAgentIds,
+      cwd: options.cwd,
+    });
+    return validateProposal(result.value, repositories, result.model, maxSubagents);
+  } catch (error) {
+    return rethrowUnavailable(error);
+  }
 }
