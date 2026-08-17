@@ -130,11 +130,11 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
   fs.writeFileSync(path.join(backlogDir, "subtasks.yaml"), "version: 1\ntasks: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sources.yaml"), "version: 1\nsources: []\n", "utf8");
   fs.writeFileSync(path.join(backlogDir, "sync-conflicts.json"), JSON.stringify({ version: 1, conflicts: [] }, null, 2) + "\n", "utf8");
-  // Default agents: Claude Sonnet, Opus, Haiku and Codex. Model strings
-  // here are the family aliases — `sonnet`, `opus`, `haiku` for Claude
-  // Code and `gpt-5.5` for Codex — which both CLIs accept and
-  // resolve to the latest version automatically. The Agents view exposes
-  // a model dropdown with curated alternatives + a free-text override.
+  // Default agents: Claude Sonnet, Opus and Haiku. Model strings here are
+  // the family aliases — `sonnet`, `opus`, `haiku` — which the Claude Code
+  // CLI accepts and resolves to the latest version automatically. The
+  // Agents view exposes a model dropdown with curated alternatives + a
+  // free-text override.
   fs.writeFileSync(
     path.join(backlogDir, "agents.yaml"),
     [
@@ -167,17 +167,6 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "    model: haiku",
       "    success_mode: complete",
       "    enabled: true",
-      "    max_concurrent_runs: 1",
-      "    allowed_repos: []",
-      "    allowed_risk: [low, medium]",
-      "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
-      "    sandbox_mode: workspace-write",
-      "    environment: {}",
-      "  - id: codex",
-      "    provider: codex",
-      "    model: gpt-5.5",
-      "    success_mode: complete",
-      "    enabled: false",
       "    max_concurrent_runs: 1",
       "    allowed_repos: []",
       "    allowed_risk: [low, medium]",

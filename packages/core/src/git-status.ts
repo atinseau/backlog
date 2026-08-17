@@ -24,8 +24,3 @@ export function parsePorcelainPaths(status: string): string[] {
   }
   return paths;
 }
-
-/** True for paths Backlog owns, which never count as the user's local dirt. */
-export function isBacklogInternalPath(path: string): boolean {
-  return path === ".backlog" || path.startsWith(".backlog/");
-}

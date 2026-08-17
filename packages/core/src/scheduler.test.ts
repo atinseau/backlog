@@ -21,9 +21,9 @@ function writeAgentsFile(backlogDir: string, contents: string): void {
   fs.writeFileSync(path.join(backlogDir, "agents.yaml"), contents, "utf8");
 }
 
-// initLayout seeds real Claude/Codex providers, but CI does not have
-// those CLIs or their API keys. Tests that need a runnable plan use
-// this helper to drop in an executable stand-in.
+// initLayout seeds real Claude providers, but CI does not have that
+// CLI or its API keys. Tests that need a runnable plan use this helper
+// to drop in an executable stand-in.
 function writeExecutableAgent(backlogDir: string, capabilities: string[] = ["plan", "edit_code", "run_tests", "review"]): void {
   writeAgentsFile(
     backlogDir,

@@ -122,7 +122,7 @@
   // capability by hand.
   const CAPABILITY_PRESETS: Array<{ label: string; caps: string[] }> = $derived([
     { label: t("agents_view.preset.claude_default"), caps: ["plan", "edit_code", "review"] },
-    { label: t("agents_view.preset.codex_default"), caps: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"] },
+    { label: t("agents_view.preset.full_access"), caps: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"] },
     { label: t("agents_view.preset.read_only"), caps: ["plan", "review"] },
   ]);
 

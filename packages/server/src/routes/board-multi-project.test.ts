@@ -152,7 +152,6 @@ describe("board route under multi-project resolver", () => {
       branch: "main",
       worktreePath: project.root,
       claimIds: [],
-      executionMode: "direct",
     });
     await completeRun(project.backlogDir, "RUN-direct", "done");
 

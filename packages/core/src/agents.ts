@@ -16,8 +16,8 @@ import type { ProviderReadiness } from "./providers/types.js";
 
 // Whether an agent could run right now, as judged by its own runtime. The
 // answer differs per provider — Claude Code carries a logged-in session and
-// needs no key, Codex needs one, a custom command needs neither — so the
-// question belongs to the provider, not to a chain of ifs here.
+// needs no key, a custom command needs neither — so the question belongs
+// to the provider, not to a chain of ifs here.
 export function agentReadiness(backlogDir: string, agent: Agent): ProviderReadiness {
   const provider = providerFor(agent.provider);
   if (!provider) {
@@ -78,6 +78,16 @@ function migrateKnownAgentModels(file: AgentsFile): boolean {
 // model picker exposed Claude variants as first-class choices. This
 // intentionally only touches the exact old seed set (`claude-code` +
 // `codex`) so deleting a default agent remains respected afterwards.
+//
+// `codex` stays in this check even though the Codex runtime itself is
+// gone (see providers/index.ts): this reads a historical on-disk shape,
+// not a current capability. Removing the runtime doesn't rewrite anyone's
+// agents.yaml — a project seeded before Codex was removed still has
+// `claude-code` + `codex` on disk, and that's the exact pair this backfill
+// exists to recognise. Loosening it to "any 2 agents with claude-code"
+// force-inserts Opus/Haiku into projects that deliberately deleted the
+// seeded Codex agent and added one agent of their own — don't "clean up"
+// the `codex` term without re-reading this comment.
 export function ensureDefaultModelAgents(backlogDir: string): AgentsFile {
   const file = readAgentsFile(backlogDir);
   const ids = new Set(file.agents.map((agent) => agent.id));

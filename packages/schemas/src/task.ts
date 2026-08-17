@@ -75,20 +75,9 @@ export const taskSchema = z.object({
     // is also true; off by default so the human reviews before the
     // merge button is clicked.
     merge_pr: z.boolean().default(false),
-    // Where the agent does its work:
-    //   direct (default)            — work directly in the user's
-    //                                 main checkout. Matches what
-    //                                 most users expect for a single
-    //                                 quick task.
-    //   isolated_worktree           — safe, parallel-friendly. Use
-    //                                 when running multiple agents
-    //                                 simultaneously or when you
-    //                                 don't want the agent touching
-    //                                 your working copy at all.
-    worktree_mode: z.enum(["isolated_worktree", "direct"]).default("direct"),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a
-    // specific agent (claude-code, codex, etc.) or a user. The
+    // specific agent (claude-code, a custom one, etc.) or a user. The
     // sub-task can still override per-row.
     preferred_agents: z.array(z.string()).default([]),
     // Per-task cap for parallel split execution. The planner may
@@ -101,7 +90,6 @@ export const taskSchema = z.object({
     push_when_done: true,
     create_pr: false,
     merge_pr: false,
-    worktree_mode: "direct",
     preferred_agents: [],
     max_subagents: 5,
   }),

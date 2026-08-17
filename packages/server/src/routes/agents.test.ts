@@ -85,6 +85,13 @@ describe("GET /providers", () => {
     expect(body.providers.find((provider) => provider.id === "claude-code")?.capabilities.execute_run).toBe(true);
     expect(body.providers.find((provider) => provider.id === "anthropic-api")?.capabilities.execute_run).toBe(false);
   });
+
+  it("does not offer codex as a creatable runtime — the board's Add Agent picker reads straight off this list", async () => {
+    const res = await buildApp().request("/providers");
+    const body = (await res.json()) as { providers: ProviderSummary[] };
+
+    expect(body.providers.map((provider) => provider.id)).not.toContain("codex");
+  });
 });
 
 describe("POST /agents", () => {
@@ -113,6 +120,12 @@ describe("POST /agents", () => {
 
   it("rejects a runtime nothing backs", async () => {
     const res = await postAgent(buildApp(), { id: "nope", provider: "telepathy" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects codex — the runtime was removed, not renamed", async () => {
+    const res = await postAgent(buildApp(), { id: "my-codex", provider: "codex" });
 
     expect(res.status).toBe(400);
   });
@@ -151,15 +164,6 @@ describe("GET /agents", () => {
     const res = await app.request("/agents");
     const body = (await res.json()) as { agents: AgentSummary[] };
     expect(body.agents.find((agent) => agent.id === "on-plan")?.needs_api_key).toBe(false);
-  });
-
-  it("still flags a Codex agent with no key", async () => {
-    const app = buildApp();
-    await postAgent(app, { id: "my-codex", provider: "codex" });
-
-    const res = await app.request("/agents");
-    const body = (await res.json()) as { agents: AgentSummary[] };
-    expect(body.agents.find((agent) => agent.id === "my-codex")?.needs_api_key).toBe(true);
   });
 });
 

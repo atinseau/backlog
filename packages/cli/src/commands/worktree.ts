@@ -18,7 +18,7 @@ export function registerWorktreeCommand(program: Command): void {
       if (!workspace) {
         throw new Error("No .backlog project found. Run `backlog init` first.");
       }
-      const worktrees = listKnownWorktrees(workspace.backlogDir).filter((entry) => {
+      const worktrees = listKnownWorktrees(workspace.backlogDir, loadConfig(workspace.backlogDir)).filter((entry) => {
         if (options.repo && entry.repo !== options.repo) {
           return false;
         }

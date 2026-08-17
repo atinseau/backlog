@@ -6,6 +6,18 @@ import { detectGitDir, repoCurrentBranch, repoIsDirty } from "@backlog/git";
 import { inspectPreCommitHook } from "@backlog/hooks";
 import { repoCheckoutPath } from "@backlog/schemas";
 
+/**
+ * `outdated` is its own state, not a flavour of `managed`: the hook carries a
+ * version, and a stale one is installed, pointing at the right binary, and
+ * still wrong — a version-2 hook refuses an execution agent's commit with a
+ * message it cannot recognise. The fix is `backlog hooks install`.
+ */
+function hookLabel(hook: { exists: boolean; managed: boolean; pointsToBacklogBin: boolean; upToDate: boolean }): string {
+  if (!hook.exists) return "missing";
+  if (!hook.managed || !hook.pointsToBacklogBin) return "needs_attention";
+  return hook.upToDate ? "managed" : "outdated";
+}
+
 export function registerDoctorCommand(program: Command): void {
   program
     .command("doctor")
@@ -54,6 +66,8 @@ export function registerDoctorCommand(program: Command): void {
           exists: boolean;
           managed: boolean;
           pointsToBacklogBin: boolean;
+          upToDate: boolean;
+          installedVersion?: string;
         };
       }> = [];
       for (const repo of config.repos.filter((candidate) => !options.repo || candidate.id === options.repo)) {
@@ -87,17 +101,31 @@ export function registerDoctorCommand(program: Command): void {
           dirty = undefined;
           warnings.push(`cannot_read_dirty_state:${repo.id}`);
         }
-        let hook: { exists: boolean; managed: boolean; pointsToBacklogBin: boolean } | undefined;
+        let hook:
+          | { exists: boolean; managed: boolean; pointsToBacklogBin: boolean; upToDate: boolean; installedVersion?: string }
+          | undefined;
         try {
           const gitDir = await detectGitDir(checkoutPath);
-          const hookStatus = inspectPreCommitHook(gitDir, backlogBin);
+          // `expected` is what makes `upToDate` computable at all — without it
+          // `inspectPreCommitHook` cannot re-render the script to compare
+          // against, and every managed hook reads as healthy however old it is.
+          // Doctor is what a user runs after upgrading, and a pre-version-3
+          // hook is precisely what blocks that user's agent commits.
+          const hookStatus = inspectPreCommitHook(gitDir, backlogBin, {
+            projectRoot: workspace.root,
+            backlogDir: workspace.backlogDir,
+          });
           hook = {
             exists: hookStatus.exists,
             managed: hookStatus.managed,
             pointsToBacklogBin: hookStatus.pointsToBacklogBin,
+            upToDate: hookStatus.upToDate,
+            ...(hookStatus.installedVersion ? { installedVersion: hookStatus.installedVersion } : {}),
           };
           if (hookStatus.exists && (!hookStatus.managed || !hookStatus.pointsToBacklogBin)) {
             warnings.push(`hook_needs_attention:${repo.id}`);
+          } else if (hookStatus.exists && !hookStatus.upToDate) {
+            warnings.push(`hook_outdated:${repo.id}`);
           }
         } catch {
           warnings.push(`cannot_read_hook:${repo.id}`);
@@ -142,9 +170,7 @@ export function registerDoctorCommand(program: Command): void {
       console.log(`- repositories: ${config.repos.length}`);
       console.log(`- shim: ${path.join(workspace.backlogDir, "bin", "backlog")}`);
       for (const repo of repos) {
-        const hookText = repo.hook
-          ? ` hook=${repo.hook.exists ? (repo.hook.managed && repo.hook.pointsToBacklogBin ? "managed" : "needs_attention") : "missing"}`
-          : "";
+        const hookText = repo.hook ? ` hook=${hookLabel(repo.hook)}` : "";
         const branchText = repo.branch ? ` branch=${repo.branch}` : "";
         const defaultText = ` default=${repo.defaultBranch}`;
         const dirtyText = repo.dirty !== undefined ? ` dirty=${repo.dirty}` : "";

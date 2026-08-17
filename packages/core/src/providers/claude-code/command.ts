@@ -54,6 +54,18 @@ function permissionModeFor(sandboxMode: SandboxMode | undefined): string {
   return sandboxMode === "read-only" ? "plan" : "bypassPermissions";
 }
 
+/**
+ * Whether a session under this sandbox mode can reach an MCP tool at all.
+ *
+ * Plan mode refuses MCP calls — a measured property of this CLI, and the same
+ * one that makes the chat run under `bypassPermissions` (CLAUDE.md §3). So a
+ * read-only run gets no Backlog façade however many servers we declare, and
+ * anything that trades the CLI away for that façade has to ask first.
+ */
+export function permitsMcpTools(sandboxMode: SandboxMode | undefined): boolean {
+  return permissionModeFor(sandboxMode) !== "plan";
+}
+
 function isBlank(value: string | undefined): value is undefined {
   return value === undefined || value.trim().length === 0;
 }
@@ -86,13 +98,18 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
   }
   if (input.mcpServers) {
     args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }));
-    // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
-    // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
-    // declare is exactly what the model gets. It is on by default here, and
-    // waived only by a coding run, which passes strictMcpConfig: false.
-    if (input.strictMcpConfig !== false) {
-      args.push("--strict-mcp-config");
-    }
+  }
+  // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
+  // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
+  // declare is exactly what the model gets. It is on by default here, and
+  // waived only by a coding run, which passes strictMcpConfig: false.
+  //
+  // Emitted independently of `--mcp-config`: declaring no server of our own is
+  // not a reason to inherit the user's. A one-shot completion declares none,
+  // and used to silently load every server the user configured — paying their
+  // tool schemas in context for a call whose only job is to name a ticket.
+  if (input.strictMcpConfig !== false) {
+    args.push("--strict-mcp-config");
   }
   // Both tool flags are variadic (`<tools...>`), so each takes a single
   // comma-separated value. Passing names as separate argv entries would make

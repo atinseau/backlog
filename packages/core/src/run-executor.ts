@@ -10,7 +10,7 @@ import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.j
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
 import { getRepo } from "./repo-service.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { addRunArtifact, appendRunEvent, getRunDirectory, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { recordUsage } from "./usage.js";
 
 // One pipeline for every runtime. The provider owns the conversation with the
@@ -50,22 +50,11 @@ function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunPa
 }
 
 function promptFor(params: ExecuteAgentRunParams): string {
-  const base = buildProviderPrompt(params.task, params.workItem, { executionMode: params.run.execution_mode });
+  const base = buildProviderPrompt(params.task, params.workItem);
   const attempt = params.attemptNumber ?? 1;
   return params.priorFailureFeedback && attempt > 1
     ? buildRetryPrompt(base, attempt, params.priorFailureFeedback)
     : base;
-}
-
-/**
- * Where a runtime may leave prompt, log and patch files. In worktree mode
- * that is the worktree itself (they are stripped before the agent's commit);
- * in direct mode it is the run directory, so the user's checkout stays clean.
- */
-function scratchDirFor(params: ExecuteAgentRunParams): string {
-  return params.run.execution_mode === "direct"
-    ? getRunDirectory(params.backlogDir, params.run.id)
-    : params.run.worktree_path;
 }
 
 function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
@@ -97,11 +86,23 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_WORKTREE: run.worktree_path,
     ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
   };
-  // `...process.env` is spread in above, so an inherited value has to be
-  // removed rather than merely not written.
+  // Two inherited values have to be removed rather than merely not written,
+  // because `...process.env` is spread in above.
+  //
+  // BACKLOG_SUBTASK_ID: a task-level run has no subtask, and an inherited value
+  // would make every consumer look one up that cannot exist.
+  //
+  // BACKLOG_AGENT_ROLE: the role is what closes the Backlog CLI to this agent,
+  // and it is only justified where the MCP façade replaces the CLI. This
+  // pipeline is runtime-agnostic and cannot know whether that happened, so it
+  // stamps nothing and lets the runtime that hands the façade out stamp it —
+  // `executionCliRole` in providers/claude-code/provider.ts. Clearing it here
+  // keeps that the only source: a role inherited from the shell Backlog was
+  // started in must not stand in for a façade nobody handed out.
   if (targetType !== "subtask") {
     delete env.BACKLOG_SUBTASK_ID;
   }
+  delete env.BACKLOG_AGENT_ROLE;
   return env;
 }
 
@@ -109,7 +110,7 @@ function recordProviderUsage(params: ExecuteAgentRunParams, result: ProviderRunR
   if (!result.usage) return;
   try {
     recordUsage(params.backlogDir, params.run.id, {
-      provider: params.agent.provider === "codex" ? "codex" : "anthropic",
+      provider: "anthropic",
       model: result.usage.model,
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,
@@ -125,16 +126,12 @@ function recordProviderUsage(params: ExecuteAgentRunParams, result: ProviderRunR
   }
 }
 
-async function collectArtifacts(params: ExecuteAgentRunParams, scratchDir: string, logPath: string): Promise<void> {
-  const isDirect = params.run.execution_mode === "direct";
+async function collectArtifacts(params: ExecuteAgentRunParams): Promise<void> {
   addRunArtifact(params.backlogDir, params.run.id, {
     kind: "log",
-    value: isDirect ? logPath : LOG_FILE,
+    value: LOG_FILE,
   });
-  for (const artifact of await collectWorktreeArtifacts(
-    params.run.worktree_path,
-    isDirect ? { scratchDir } : undefined,
-  )) {
+  for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
     addRunArtifact(params.backlogDir, params.run.id, artifact);
   }
 }
@@ -156,9 +153,7 @@ async function handleFailure(
       "",
       `Exit: ${failure}`,
       "",
-      params.run.execution_mode === "direct"
-        ? `Inspect \`${LOG_FILE}\` in the run directory.`
-        : `Inspect \`${LOG_FILE}\` in the execution workspace.`,
+      `Inspect \`${LOG_FILE}\` in the execution workspace.`,
     ].join("\n"),
   );
   await failRun(
@@ -184,7 +179,7 @@ export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise
   if (!provider?.executeRun) return false;
 
   const { backlogDir, run } = params;
-  const scratchDir = scratchDirFor(params);
+  const scratchDir = run.worktree_path;
   const logPath = path.join(scratchDir, LOG_FILE);
   const prompt = promptFor(params);
   fs.writeFileSync(path.join(scratchDir, PROMPT_FILE), prompt, "utf8");
@@ -215,7 +210,7 @@ export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise
     if (result.summary) {
       addRunArtifact(backlogDir, run.id, { kind: "summary", value: result.summary });
     }
-    await collectArtifacts(params, scratchDir, logPath);
+    await collectArtifacts(params);
 
     if (!result.ok) {
       await handleFailure(params, provider, result);

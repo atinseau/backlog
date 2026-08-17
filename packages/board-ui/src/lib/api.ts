@@ -658,7 +658,6 @@ export interface CreateTaskInput {
   push_when_done?: boolean;
   create_pr?: boolean;
   merge_pr?: boolean;
-  worktree_mode?: "isolated_worktree" | "direct";
   preferred_agents?: string[];
   planner_agent_id?: string;
   max_subagents?: number;
@@ -761,8 +760,7 @@ export async function deleteSubTask(id: string): Promise<void> {
 
 // Partial update for tasks (priority, title, description, labels,
 // repo_targets, execution defaults). Used by small UI actions such as
-// priority, assignment, and switching a blocked direct task to a
-// worktree.
+// priority and assignment.
 export interface PatchTaskInput {
   title?: string;
   description?: string;
@@ -772,7 +770,6 @@ export interface PatchTaskInput {
   // Default assignee for new sub-tasks. The card menu's Assign ▸
   // submenu writes a single id here (use [] to unassign).
   preferred_agents?: string[];
-  worktree_mode?: "isolated_worktree" | "direct";
 }
 export async function patchTask(id: string, input: PatchTaskInput): Promise<void> {
   const response = await fetch(apiUrl(`/tasks/${encodeURIComponent(id)}`), {
@@ -1017,7 +1014,6 @@ export interface StartRunInput {
   agent_id?: string;
   reasoning_effort?: string;
   approve?: boolean;
-  allow_dirty_direct?: boolean;
 }
 
 export interface StartedRun {
@@ -1084,7 +1080,6 @@ export interface EnrichedRun {
   reasoning_effort?: string;
   status: string;
   claim_ids: string[];
-  execution_mode: "isolated_worktree" | "direct";
   worktree_path: string;
   artifacts: Array<{ kind: string; value: string }>;
   result: string | null;

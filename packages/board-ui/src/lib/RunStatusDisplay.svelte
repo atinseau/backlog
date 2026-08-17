@@ -42,10 +42,7 @@
 
   function runLabel(run: RunSummary | null | undefined): string {
     if (!run) return "";
-    const mode = run.execution_mode === "direct"
-      ? t("run_status.mode.direct")
-      : t("run_status.mode.worktree");
-    return `${run.id} · ${run.agent_id} · ${mode}`;
+    return `${run.id} · ${run.agent_id}`;
   }
 
   function activeRunLabel(run: RunSummary): string {

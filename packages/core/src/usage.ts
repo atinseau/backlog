@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Usage tracking for agent runs. Each provider (Anthropic, OpenAI/Codex,
-// custom) emits per-call token counts in its API response — the executor
+// Usage tracking for agent runs. Each provider (Anthropic, custom) emits
+// per-call token counts in its API response — the executor
 // is responsible for forwarding those into the run's events.ndjson via
 // recordUsage(), and `backlog runs cost` aggregates them.
 //
@@ -11,14 +11,14 @@ import path from "node:path";
 // the raw token counts forever, and apply the pricing table at report
 // time. Update the table when pricing moves.
 
-export type UsageProvider = "anthropic" | "openai" | "codex" | "custom";
+export type UsageProvider = "anthropic" | "custom";
 
 export interface UsageEvent {
   ts: string; // ISO timestamp
   type: "usage"; // discriminator inside events.ndjson
   message?: string;
   provider: UsageProvider;
-  model: string; // e.g. "claude-sonnet-4-20250514", "gpt-5"
+  model: string; // e.g. "claude-sonnet-4-20250514", "opus"
   // Counts in tokens. Cache_read = served from prompt cache (cheap).
   // cache_creation = the first call that populates the cache (premium).
   input_tokens: number;
@@ -66,13 +66,6 @@ const PRICING_PER_MILLION: Record<string, ModelPricing> = {
   "claude-sonnet-4-5": { input: 3, output: 15 },
   "claude-sonnet-4": { input: 3, output: 15 },
   "claude-3-5-haiku": { input: 0.8, output: 4 },
-  // OpenAI / Codex
-  "gpt-5.5": { input: 5, output: 30 },
-  "gpt-5.4-mini": { input: 0.75, output: 4.5 },
-  "gpt-5.4": { input: 2.5, output: 15 },
-  "gpt-5-codex": { input: 1.25, output: 10 },
-  "gpt-5": { input: 1.25, output: 10 },
-  "gpt-5-mini": { input: 0.15, output: 0.6 },
 };
 
 const PRICING_MODEL_ALIASES: Record<string, string> = {

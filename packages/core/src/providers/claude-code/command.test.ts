@@ -129,6 +129,16 @@ describe("buildClaudeCodeCommand", () => {
     expect(command.args).toContain("--strict-mcp-config");
   });
 
+  // A completion declares no MCP server of its own. Before this, that meant
+  // neither flag was emitted and the CLI loaded every server the user had
+  // configured into a call whose only job is to name a ticket.
+  it("hides the user's MCP servers from a call that declares none of its own", () => {
+    const command = buildClaudeCodeCommand({ executable: "claude", prompt: "name this", outputFormat: "json" });
+
+    expect(command.args).toContain("--strict-mcp-config");
+    expect(command.args).not.toContain("--mcp-config");
+  });
+
   it("leaves a run's own MCP servers in place when strictness is waived", () => {
     const command = buildClaudeCodeCommand({
       executable: "claude",

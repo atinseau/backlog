@@ -1,7 +1,7 @@
 import {
   buildClaudeCodeCommand,
+  contextFor,
   isWriteTool,
-  orchestratorToolNames,
   resolveExecutable,
   selfExec,
   spawnStreaming,
@@ -18,31 +18,12 @@ const MCP_SERVER_NAME = "backlog";
 const MCP_TOOL_PREFIX = `mcp__${MCP_SERVER_NAME}__`;
 
 // The chat drives the orchestrator; it has no business reading or writing the
-// checkout. Two facts learned from the CLI shape this list:
+// checkout. Which tools that means is decided by the `orchestrator` context in
+// `@backlog/core`, not here. Two facts learned from the CLI are why the table
+// has to deny built-ins explicitly:
 //   * plan mode refuses MCP calls, so it cannot be the guard rail;
 //   * `--allowedTools` only auto-approves, it does not exclude — left alone,
 //     the model reaches for Bash the moment MCP is unhandy.
-// So: permissions bypassed for the MCP tools, everything built in denied.
-const DENIED_BUILT_IN_TOOLS = [
-  "Bash",
-  "BashOutput",
-  "KillBash",
-  "Read",
-  "Write",
-  "Edit",
-  "MultiEdit",
-  "NotebookEdit",
-  "Glob",
-  "Grep",
-  "Task",
-  "WebFetch",
-  "WebSearch",
-  "TodoWrite",
-  "ExitPlanMode",
-  "ToolSearch",
-  "SlashCommand",
-  "Skill",
-] as const;
 
 export interface ChatCommandInput {
   executable: string;
@@ -57,28 +38,33 @@ export interface ChatCommandInput {
   resumeSessionId?: string | undefined;
 }
 
-/** MCP tools are namespaced by their server; the CLI needs the full name to allow them. */
-function namespacedToolNames(): string[] {
-  return orchestratorToolNames().map((name) => `${MCP_TOOL_PREFIX}${name}`);
-}
-
 export function buildChatCommand(input: ChatCommandInput): ProviderCommand {
+  const context = contextFor("orchestrator");
   const command = buildClaudeCodeCommand({
     executable: input.executable,
     prompt: input.prompt,
     model: input.model,
     outputFormat: "stream-json",
     appendSystemPrompt: input.systemPrompt,
-    allowedTools: namespacedToolNames(),
-    disallowedTools: DENIED_BUILT_IN_TOOLS,
+    // MCP tools are namespaced by their server; the CLI needs the full name.
+    allowedTools: context.mcpTools.map((name) => `${MCP_TOOL_PREFIX}${name}`),
+    disallowedTools: context.deniedBuiltins,
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: input.selfCommand,
-        // Explicit: `mcp-server` defaults to the agent tool set, which has no
-        // orchestration tools. The chat is the one caller that needs them.
-        args: [...input.selfPrefixArgs, "mcp-server", "--audience", "orchestrator", "--project", input.backlogDir],
+        // Explicit: `mcp-server` defaults to the execution tool set, which has
+        // no orchestration tools. The chat is the one caller that needs them.
+        args: [
+          ...input.selfPrefixArgs,
+          "mcp-server",
+          "--audience",
+          context.mcpAudience!,
+          "--project",
+          input.backlogDir,
+        ],
       },
     },
+    strictMcpConfig: context.userMcpServers === "hidden",
     ...(input.resumeSessionId ? { resumeSessionId: input.resumeSessionId } : {}),
   });
   command.args.push("--include-partial-messages");

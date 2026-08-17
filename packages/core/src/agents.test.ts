@@ -4,7 +4,16 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { ensureDefaultModelAgents, getAgent, selectionForAgentTask, setAgentEnabled, updateAgent, validateAgents } from "./agents.js";
+import {
+  ensureDefaultModelAgents,
+  getAgent,
+  readAgentsFile,
+  selectionForAgentTask,
+  setAgentEnabled,
+  updateAgent,
+  validateAgents,
+  writeAgentsFile,
+} from "./agents.js";
 import { createSubTask } from "./subtask-service.js";
 import { createTask } from "./task-service.js";
 
@@ -38,10 +47,10 @@ describe("agents", () => {
   });
 
   it("updates mutable agent fields", () => {
-    const updated = updateAgent(backlogDir, "codex", {
-      model: "gpt-5-mini",
+    const updated = updateAgent(backlogDir, "claude-opus", {
+      model: "opus-mini",
       profile: "default",
-      command: "/tmp/fake-codex",
+      command: "/tmp/fake-claude",
       sandboxMode: "danger-full-access",
       successMode: "complete",
       maxConcurrentRuns: 2,
@@ -49,32 +58,33 @@ describe("agents", () => {
       allowedRisk: ["low", "medium", "high"],
       capabilities: ["plan", "edit_code"],
       environment: {
-        OPENAI_API_KEY: "test",
+        ANTHROPIC_API_KEY: "test",
       },
       enabled: true,
     });
 
     expect(updated.enabled).toBe(true);
-    expect(updated.model).toBe("gpt-5-mini");
+    expect(updated.model).toBe("opus-mini");
     expect(updated.profile).toBe("default");
-    expect(updated.command).toBe("/tmp/fake-codex");
+    expect(updated.command).toBe("/tmp/fake-claude");
     expect(updated.sandbox_mode).toBe("danger-full-access");
     expect(updated.success_mode).toBe("complete");
     expect(updated.max_concurrent_runs).toBe(2);
     expect(updated.allowed_repos).toEqual(["backlog"]);
     expect(updated.allowed_risk).toEqual(["low", "medium", "high"]);
     expect(updated.capabilities).toEqual(["plan", "edit_code"]);
-    expect(updated.environment).toEqual({ OPENAI_API_KEY: "test" });
+    expect(updated.environment).toEqual({ ANTHROPIC_API_KEY: "test" });
   });
 
   it("can enable and disable seeded agents", () => {
-    // codex is seeded disabled (so the user picks claude by default).
-    // Toggle it on then off to exercise both transitions cleanly.
-    expect(getAgent(backlogDir, "codex")?.enabled).toBe(false);
-    setAgentEnabled(backlogDir, "codex", true);
-    expect(getAgent(backlogDir, "codex")?.enabled).toBe(true);
-    setAgentEnabled(backlogDir, "codex", false);
-    expect(getAgent(backlogDir, "codex")?.enabled).toBe(false);
+    // All default agents are seeded enabled now that Codex (the one
+    // seeded disabled, so the user picked claude by default) is gone.
+    // Toggle one off then on to exercise both transitions cleanly.
+    expect(getAgent(backlogDir, "claude-haiku")?.enabled).toBe(true);
+    setAgentEnabled(backlogDir, "claude-haiku", false);
+    expect(getAgent(backlogDir, "claude-haiku")?.enabled).toBe(false);
+    setAgentEnabled(backlogDir, "claude-haiku", true);
+    expect(getAgent(backlogDir, "claude-haiku")?.enabled).toBe(true);
   });
 
   it("backfills default model variants for projects with the old seed set", () => {
@@ -106,6 +116,10 @@ describe("agents", () => {
       "utf8",
     );
 
+    // This fixture is old on-disk state from before Codex was removed as a
+    // runtime — the migration still recognises this exact pair by id (see
+    // the comment on ensureDefaultModelAgents) and inserts the new variants
+    // ahead of the old codex position, same as it always has.
     const upgraded = ensureDefaultModelAgents(backlogDir);
     expect(upgraded.agents.map((agent) => agent.id)).toEqual([
       "claude-code",
@@ -115,6 +129,44 @@ describe("agents", () => {
     ]);
     expect(upgraded.agents.find((agent) => agent.id === "codex")?.model).toBe("gpt-5.5");
     expect(ensureDefaultModelAgents(backlogDir).agents).toHaveLength(4);
+  });
+
+  it("does not backfill Opus/Haiku for a two-agent project that isn't the old codex-shaped default", () => {
+    // Regression guard: a user who deleted the seeded Codex agent and added
+    // one custom agent of their own ends up with exactly 2 agents, one of
+    // them claude-code — but it is NOT the legacy `claude-code` + `codex`
+    // shape, so ensureDefaultModelAgents must leave it alone. This fails if
+    // the `ids.has("codex")` term is ever dropped from the check again.
+    fs.writeFileSync(
+      path.join(backlogDir, "agents.yaml"),
+      [
+        "version: 1",
+        "agents:",
+        "  - id: claude-code",
+        "    provider: claude",
+        "    model: sonnet",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "  - id: my-custom-agent",
+        "    provider: custom",
+        "    command: /usr/local/bin/my-agent",
+        "    enabled: true",
+        "    max_concurrent_runs: 1",
+        "    allowed_repos: []",
+        "    allowed_risk: [low, medium]",
+        "    capabilities: [plan, edit_code, run_tests, review, shell, git_read, git_write]",
+        "    environment: {}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const upgraded = ensureDefaultModelAgents(backlogDir);
+    expect(upgraded.agents.map((agent) => agent.id)).toEqual(["claude-code", "my-custom-agent"]);
   });
 
   it("migrates legacy Codex default ids to the current bundled model", () => {
@@ -218,20 +270,36 @@ describe("agents", () => {
   });
 
   it("explains why a forced agent is unavailable for one task", () => {
+    // Simulate a project whose agents.yaml still carries a pre-removal
+    // Codex agent on disk (addAgent itself refuses "codex" now — see
+    // registry.test.ts — so this writes the legacy shape directly).
+    const file = readAgentsFile(backlogDir);
+    file.agents.push({
+      id: "legacy-codex",
+      provider: "codex",
+      enabled: true,
+      max_concurrent_runs: 1,
+      allowed_repos: [],
+      allowed_risk: ["low", "medium"],
+      capabilities: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"],
+      environment: {},
+      retry_policy: { mode: "none", max_attempts: 2, reuse_worktree: true },
+    });
+    writeAgentsFile(backlogDir, file);
+
     const workItem = createTask(backlogDir, { title: "Agent targeting", repoTargets: ["backlog"] });
     const task = createSubTask(backlogDir, {
       workItemId: workItem.id,
-      title: "Run with codex",
+      title: "Run with a removed provider",
       repo: "backlog",
       risk: "low",
       requiredCapabilities: ["edit_code"],
     });
 
-    const selection = selectionForAgentTask(backlogDir, task, "codex");
-    // codex is seeded without an OPENAI_API_KEY in the workspace
-    // secrets store, so the planner refuses to schedule it. The
-    // "disabled" reason was retired alongside the enabled toggle.
+    const selection = selectionForAgentTask(backlogDir, task, "legacy-codex");
+    // The provider no longer resolves, so the agent is unavailable —
+    // same fallback a made-up provider id would get.
     expect(selection?.available).toBe(false);
-    expect(selection?.reasons).toContain("missing_api_key:OPENAI_API_KEY");
+    expect(selection?.reasons).toContain("unsupported_provider:codex");
   });
 });

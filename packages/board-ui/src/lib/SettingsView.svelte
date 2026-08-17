@@ -94,7 +94,6 @@
 
   const API_KEY_PROVIDERS: { name: string; envVar: SecretKey; doc: string; hint: string }[] = [
     { name: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY", doc: "https://console.anthropic.com/settings/keys", hint: "sk-ant-…" },
-    { name: "OpenAI (Codex)", envVar: "OPENAI_API_KEY", doc: "https://platform.openai.com/api-keys", hint: "sk-…" },
   ];
 
   load();

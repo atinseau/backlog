@@ -202,30 +202,41 @@ export interface KnownWorktree {
   active: boolean;
 }
 
-export function listKnownWorktrees(backlogDir: string): KnownWorktree[] {
-  const active = listActiveRuns(backlogDir)
-    .filter((run) => run.execution_mode !== "direct")
-    .map((run) => ({
-      runId: run.id,
-      repo: run.repo,
-      branch: run.branch,
-      status: run.status,
-      path: run.worktree_path,
-      exists: fs.existsSync(run.worktree_path),
-      active: true,
-    }));
-  const archived = listArchivedRuns(backlogDir)
-    .filter((run) => run.execution_mode !== "direct")
-    .map((run) => ({
-      runId: run.id,
-      repo: run.repo,
-      branch: run.branch,
-      status: run.status,
-      path: run.worktree_path,
-      exists: fs.existsSync(run.worktree_path),
-      active: false,
-    }));
-  return [...active, ...archived];
+/**
+ * A run record from the removed `direct` execution mode: its `worktree_path`
+ * is the repository's own checkout, not an isolated worktree. Nothing migrates
+ * archived records — `schemas/src/run.ts` just strips the old `execution_mode`
+ * field on read — so these exist in real installs and have to be recognised by
+ * path. Both readers below owe them the same answer: GC must not try to remove
+ * the user's main working tree, and `worktree list` must not present it as a
+ * Backlog worktree.
+ */
+function isRepositoryCheckout(worktreePath: string, configuredCheckoutPath: string | null | undefined): boolean {
+  if (!configuredCheckoutPath) return false;
+  return path.resolve(worktreePath) === path.resolve(configuredCheckoutPath);
+}
+
+function repoCheckoutPaths(config: ProjectConfig): Map<string, string | undefined> {
+  return new Map(config.repos.map((repo) => [repo.id, repoCheckoutPath(repo) ?? undefined]));
+}
+
+export function listKnownWorktrees(backlogDir: string, config: ProjectConfig): KnownWorktree[] {
+  const repoPaths = repoCheckoutPaths(config);
+  const describe = (active: boolean) => (run: { id: string; repo: string; branch: string; status: string; worktree_path: string }) => ({
+    runId: run.id,
+    repo: run.repo,
+    branch: run.branch,
+    status: run.status,
+    path: run.worktree_path,
+    exists: fs.existsSync(run.worktree_path),
+    active,
+  });
+  const isWorktree = (run: { repo: string; worktree_path: string }): boolean =>
+    !isRepositoryCheckout(run.worktree_path, repoPaths.get(run.repo));
+  return [
+    ...listActiveRuns(backlogDir).filter(isWorktree).map(describe(true)),
+    ...listArchivedRuns(backlogDir).filter(isWorktree).map(describe(false)),
+  ];
 }
 
 export async function garbageCollectWorktrees(
@@ -237,14 +248,11 @@ export async function garbageCollectWorktrees(
     removed: [],
     skipped: [],
   };
-  const repoPaths = new Map(config.repos.map((repo) => [repo.id, repoCheckoutPath(repo)]));
+  const repoPaths = repoCheckoutPaths(config);
   const archivedRuns = listArchivedRuns(backlogDir);
   const activeRuns = listActiveRuns(backlogDir);
 
   for (const run of activeRuns) {
-    if (run.execution_mode === "direct") {
-      continue;
-    }
     if (run.status === "running" || run.status === "preparing" || run.status === "awaiting_review") {
       result.skipped.push(run.worktree_path);
       continue;
@@ -252,9 +260,6 @@ export async function garbageCollectWorktrees(
   }
 
   for (const run of archivedRuns) {
-    if (run.execution_mode === "direct") {
-      continue;
-    }
     const remoteRoot = remoteExecutionCheckoutRoot(backlogDir, run.repo, run.id);
     const hadRemoteRoot = fs.existsSync(remoteRoot);
     if (!fs.existsSync(run.worktree_path)) {
@@ -266,6 +271,14 @@ export async function garbageCollectWorktrees(
       }
       continue;
     }
+    // A legacy direct-mode record points at the repository's own checkout.
+    // `git worktree remove` on a main working tree fails, and this loop has no
+    // try/catch of its own, so that exception would abort GC for every run
+    // queued after it.
+    if (isRepositoryCheckout(run.worktree_path, repoPaths.get(run.repo))) {
+      result.skipped.push(run.worktree_path);
+      continue;
+    }
     const remoteBase = remoteExecutionBasePath(backlogDir, run.repo, run.id);
     const repoPath = repoPaths.get(run.repo) ?? (fs.existsSync(remoteBase) ? remoteBase : undefined);
     if (!repoPath) {
@@ -273,7 +286,18 @@ export async function garbageCollectWorktrees(
       continue;
     }
     if (!options?.dryRun) {
-      await git(["worktree", "remove", "--force", run.worktree_path], repoPath);
+      // The guard above keys on the checkout path *as configured today*. Move
+      // a repository in config.toml and a legacy record stops matching it, so
+      // `git worktree remove --force` runs against a path that is not a
+      // worktree and throws — taking every archived run after it down with it,
+      // which is the exact failure the guard exists to prevent. One pass, one
+      // bad record: skip it and keep going.
+      try {
+        await git(["worktree", "remove", "--force", run.worktree_path], repoPath);
+      } catch {
+        result.skipped.push(run.worktree_path);
+        continue;
+      }
       cleanupRemoteExecutionCheckout(backlogDir, run.repo, run.id);
     }
     result.removed.push(run.worktree_path);

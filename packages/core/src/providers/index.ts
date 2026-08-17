@@ -1,6 +1,5 @@
 import { AnthropicApiProvider } from "./anthropic-api/provider.js";
 import { ClaudeCodeProvider } from "./claude-code/provider.js";
-import { CodexProvider } from "./codex/provider.js";
 import { CustomProvider } from "./custom/provider.js";
 import { executableExists } from "./process.js";
 import { createProviderRegistry, type ProviderRegistry } from "./registry.js";
@@ -16,7 +15,6 @@ export {
 } from "./completion-provider.js";
 export { ClaudeCodeProvider, CLAUDE_CODE_PROVIDER_ID } from "./claude-code/provider.js";
 export { buildClaudeCodeCommand, type ProviderCommand, type ClaudeCodeCommandInput } from "./claude-code/command.js";
-export { CodexProvider, CODEX_PROVIDER_ID } from "./codex/provider.js";
 export { CustomProvider, CUSTOM_PROVIDER_ID } from "./custom/provider.js";
 export {
   AnthropicApiProvider,
@@ -24,7 +22,6 @@ export {
   ANTHROPIC_API_KEY,
   resolveAnthropicModel,
 } from "./anthropic-api/provider.js";
-export { OPENAI_API_KEY } from "./codex/provider.js";
 
 // The registry every caller shares. Adding a runtime means adding one entry
 // here — nothing else in the codebase branches on provider id. Order is the
@@ -34,7 +31,6 @@ let defaultRegistry: ProviderRegistry | null = null;
 export function providerRegistry(): ProviderRegistry {
   defaultRegistry ??= createProviderRegistry([
     new ClaudeCodeProvider({ executableExists }),
-    new CodexProvider({ executableExists }),
     new CustomProvider(),
     new AnthropicApiProvider(),
   ]);

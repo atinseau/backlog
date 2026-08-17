@@ -45,7 +45,6 @@ describe("task-service", () => {
       planningRisk: "high",
       preferredLane: "backlog",
       splitStatus: "done",
-      worktreeMode: "isolated_worktree",
     });
 
     expect(updated.title).toBe("Updated task");
@@ -58,7 +57,6 @@ describe("task-service", () => {
     expect(updated.planning.risk).toBe("high");
     expect(updated.planning.preferred_lane).toBe("backlog");
     expect(updated.planning.split_status).toBe("done");
-    expect(updated.execution_defaults.worktree_mode).toBe("isolated_worktree");
   });
 
   it("removes a task and cascades linked subtasks when requested", () => {

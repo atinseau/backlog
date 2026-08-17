@@ -24,7 +24,7 @@ import { garbageCollectWorktrees } from "./worktrees.js";
 // AND the run is still marked running/preparing, the executor is dead
 // (server crashed mid-run, kill -9, or — common during dev — the
 // server was restarted with a child still in flight). 90s is the
-// threshold: long enough to cover slow Claude/Codex turns that don't
+// threshold: long enough to cover a slow Claude Code turn that doesn't
 // emit interim events, short enough that a real orphan doesn't sit
 // for hours blocking the orchestrator.
 const ORPHAN_RUN_THRESHOLD_MS = 90_000;
@@ -329,7 +329,7 @@ export async function hydrateOrchestrator(backlogDir: string, options?: { now?: 
   //      (server crashed mid-finalisation, sigkill during a tick…).
   // The user-reported bug ("Ton agent est déjà en train de tourner")
   // was exactly this — a 2-day-old `interrupted` run was pinning
-  // codex-default at full capacity. Doing this on every hydrate
+  // claude-opus at full capacity. Doing this on every hydrate
   // keeps the directory honest from now on.
   try {
     const activeDir = path.join(backlogDir, "runs", "active");

@@ -1,8 +1,8 @@
 import type { AgentProvider, ProviderDescriptor, ProviderId } from "./types.js";
 
 // Single lookup table from the `provider` string in agents.yaml to the
-// runtime that serves it. Aliases keep historical ids (`claude`, `codex`)
-// working while the canonical ids describe what actually runs.
+// runtime that serves it. Aliases keep historical ids (`claude`) working
+// while the canonical ids describe what actually runs.
 
 export interface ProviderRegistry {
   /** Resolve by canonical id or alias. Null when nothing matches. */

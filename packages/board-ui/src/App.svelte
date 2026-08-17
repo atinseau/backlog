@@ -23,7 +23,6 @@
   import CardMenu from "./lib/CardMenu.svelte";
   import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn, setShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
-  import DirectDirtyDialog from "./lib/DirectDirtyDialog.svelte";
   import CreateProjectDialog from "./lib/CreateProjectDialog.svelte";
   import LeftPanel, { type SectionKey } from "./lib/shell/LeftPanel.svelte";
   import RightPanel from "./lib/shell/RightPanel.svelte";
@@ -264,7 +263,6 @@
   let createTaskOpen = $state(false);
   let createSubTaskTarget = $state<TaskCard | null>(null);
   let splitTarget = $state<TaskCard | null>(null);
-  let directDirtyPrompt = $state<{ taskId: string; title: string } | null>(null);
   let dirtyGitPrompt = $state<TaskCard | null>(null);
   let dirtyGitBypassTaskId = $state<string | null>(null);
   let integrationsTab = $state<"github" | "jira" | "sources">("github");
@@ -1116,7 +1114,7 @@
       const result = await startRun(runInput);
       if (result.started.length === 0) {
         const explanation = explainStartRunResult(result);
-        surfaceStartRunBlock(explanation?.message ?? t("card.play_skipped_empty"), explanation?.action ?? null, card);
+        surfaceStartRunBlock(explanation?.message ?? t("card.play_skipped_empty"), explanation?.action ?? null);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -1234,91 +1232,12 @@
     return null;
   }
 
-  function surfaceStartRunBlock(message: string, action: StartRunAction, card: Pick<TaskCard, "id" | "title"> | null) {
-    if (action === "direct_dirty" && card) {
-      error = null;
-      directDirtyPrompt = { taskId: card.id, title: card.title };
-      return;
-    }
+  function surfaceStartRunBlock(message: string, action: StartRunAction) {
     error = message;
     if (action === "api_keys") apiKeysOpen = true;
     if (action === "agents") applySection("agents");
     if (action === "repositories") applySection("repos");
     if (action === "git") applySection("commits");
-  }
-
-  async function startTaskOrThrow(card: Pick<TaskCard, "id" | "title">, options: { allowDirtyDirect?: boolean } = {}) {
-    const input: Parameters<typeof startRun>[0] = { task_id: card.id, approve: true };
-    if (options.allowDirtyDirect) input.allow_dirty_direct = true;
-    const fullCard = "preferred_agents" in card ? (card as TaskCard) : findCardById(card.id);
-    if (selectedRunAgentId && (!fullCard || fullCard.preferred_agents.length === 0)) input.agent_id = selectedRunAgentId;
-    if (selectedRunReasoningEffort) input.reasoning_effort = selectedRunReasoningEffort;
-    const result = await startRun(input);
-    if (result.started.length > 0) {
-      directDirtyPrompt = null;
-      return;
-    }
-    const explanation = explainStartRunResult(result) ?? {
-      message: t("card.play_skipped_empty"),
-      action: null,
-    };
-    surfaceStartRunBlock(explanation.message, explanation.action, card);
-    throw new Error(explanation.message);
-  }
-
-  async function retryDirtyDirectRun(taskId: string) {
-    directDirtyPrompt = null;
-    error = null;
-    openActivityPanel();
-    const card = findCardById(taskId);
-    if (!card) {
-      error = t("direct_dirty.task_missing");
-      return;
-    }
-    try {
-      await startTaskOrThrow(card);
-    } catch (err) {
-      if (!directDirtyPrompt) error = err instanceof Error ? err.message : String(err);
-    } finally {
-      if (!connected) await refresh();
-    }
-  }
-
-  async function runDirtyTaskInWorktree(taskId: string) {
-    directDirtyPrompt = null;
-    error = null;
-    openActivityPanel();
-    const card = findCardById(taskId);
-    if (!card) {
-      error = t("direct_dirty.task_missing");
-      return;
-    }
-    try {
-      await patchTask(taskId, { worktree_mode: "isolated_worktree" });
-      await startTaskOrThrow(card);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      if (!connected) await refresh();
-    }
-  }
-
-  async function continueDirtyDirectRun(taskId: string) {
-    directDirtyPrompt = null;
-    error = null;
-    openActivityPanel();
-    const card = findCardById(taskId);
-    if (!card) {
-      error = t("direct_dirty.task_missing");
-      return;
-    }
-    try {
-      await startTaskOrThrow(card, { allowDirtyDirect: true });
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    } finally {
-      if (!connected) await refresh();
-    }
   }
 
   // Re-pull project + board state when the window comes back into focus
@@ -1722,16 +1641,6 @@
       void refresh();
       toasts?.push("success", t("create_task.applied.success"));
     }}
-  />
-{/if}
-
-{#if directDirtyPrompt}
-  <DirectDirtyDialog
-    taskTitle={directDirtyPrompt.title}
-    onClose={() => (directDirtyPrompt = null)}
-    onRetryDirect={() => directDirtyPrompt ? retryDirtyDirectRun(directDirtyPrompt.taskId) : undefined}
-    onRunInWorktree={() => directDirtyPrompt ? runDirtyTaskInWorktree(directDirtyPrompt.taskId) : undefined}
-    onContinueAnyway={() => directDirtyPrompt ? continueDirtyDirectRun(directDirtyPrompt.taskId) : undefined}
   />
 {/if}
 

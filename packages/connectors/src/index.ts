@@ -95,7 +95,6 @@ function baseImportedTask(
       push_when_done: true,
       create_pr: false,
       merge_pr: false,
-      worktree_mode: "isolated_worktree",
       preferred_agents: [],
       max_subagents: 5,
     },

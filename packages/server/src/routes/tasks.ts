@@ -69,7 +69,6 @@ const createBodySchema = z.object({
   push_when_done: z.boolean().optional(),
   create_pr: z.boolean().optional(),
   merge_pr: z.boolean().optional(),
-  worktree_mode: z.enum(["isolated_worktree", "direct"]).optional(),
   preferred_agents: z.array(z.string().min(1)).optional(),
   planner_agent_id: z.string().min(1).optional(),
   max_subagents: z.number().int().min(1).max(99).optional(),
@@ -160,7 +159,6 @@ export function tasksRoutes(): Hono<AppEnv> {
                 agent_id: run.agent_id,
                 started_at: run.started_at,
                 finished_at: run.finished_at,
-                execution_mode: run.execution_mode,
                 result: run.result,
               }
             : null,
@@ -228,7 +226,6 @@ export function tasksRoutes(): Hono<AppEnv> {
       if (parsed.data.push_when_done !== undefined) input.pushWhenDone = parsed.data.push_when_done;
       if (parsed.data.create_pr !== undefined) input.createPr = parsed.data.create_pr;
       if (parsed.data.merge_pr !== undefined) input.mergePr = parsed.data.merge_pr;
-      if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
       if (parsed.data.max_subagents !== undefined) input.maxSubagents = parsed.data.max_subagents;
       if (parsed.data.status !== undefined) input.status = parsed.data.status;
@@ -453,8 +450,7 @@ export function tasksRoutes(): Hono<AppEnv> {
 
   // PATCH a small set of task fields (priority, title, description,
   // labels, repo_targets, execution defaults). Used by focused UI
-  // actions such as priority changes, assignee changes, and switching
-  // a blocked direct-mode task to an isolated worktree. Validation
+  // actions such as priority changes and assignee changes. Validation
   // mirrors the create body — only the fields listed here are touched,
   // others are left as-is.
   const patchBodySchema = z.object({
@@ -468,7 +464,6 @@ export function tasksRoutes(): Hono<AppEnv> {
     // "let the scheduler pick" (auto). Existing sub-tasks aren't
     // retroactively reassigned — open them individually for that.
     preferred_agents: z.array(z.string().min(1)).optional(),
-    worktree_mode: z.enum(["isolated_worktree", "direct"]).optional(),
   });
   app.patch("/tasks/:id", async (c) => {
     const project = c.get("project");
@@ -486,7 +481,6 @@ export function tasksRoutes(): Hono<AppEnv> {
       if (parsed.data.labels !== undefined) input.labels = parsed.data.labels;
       if (parsed.data.repo_targets !== undefined) input.repoTargets = parsed.data.repo_targets;
       if (parsed.data.preferred_agents !== undefined) input.preferredAgents = parsed.data.preferred_agents;
-      if (parsed.data.worktree_mode !== undefined) input.worktreeMode = parsed.data.worktree_mode;
       const task = updateTask(project.backlogDir, id, input);
       return c.json({ task });
     } catch (error) {

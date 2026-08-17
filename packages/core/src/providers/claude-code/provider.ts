@@ -1,5 +1,5 @@
 import type { Agent } from "@backlog/schemas";
-import { agentToolNames } from "../../agent-tools.js";
+import { contextFor } from "../../contexts/contexts.js";
 import { MCP_SERVER_NAME } from "../../mcp/server.js";
 import { parseClaudeJsonStdout, type UsageBlock } from "../../provider-usage.js";
 import { selfExec } from "../../self-exec.js";
@@ -19,27 +19,11 @@ import type {
 } from "../types.js";
 import { ANTHROPIC_API_KEY, resolveClaudeCodeAuth } from "./auth.js";
 import { CLAUDE_CODE_MODELS, CLAUDE_CODE_REASONING } from "./catalogue.js";
-import { buildClaudeCodeCommand, type ProviderCommand } from "./command.js";
+import { buildClaudeCodeCommand, permitsMcpTools, type ProviderCommand } from "./command.js";
 import { isClaudeCodeResultLine, parseClaudeCodeStreamLine } from "./stream.js";
 
 export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
 export const DEFAULT_CLAUDE_EXECUTABLE = "claude";
-
-// A one-shot completion is a question, not a mission: no file access, no
-// shell, no web. Keeps these calls fast, cheap and side-effect free.
-const COMPLETION_DISALLOWED_TOOLS = [
-  "Bash",
-  "Read",
-  "Write",
-  "Edit",
-  "Glob",
-  "Grep",
-  "Task",
-  "WebFetch",
-  "WebSearch",
-  "TodoWrite",
-] as const;
-
 
 export interface ClaudeCodeProviderDeps {
   /** Injected so readiness can be unit-tested without touching the filesystem. */
@@ -49,11 +33,6 @@ export interface ClaudeCodeProviderDeps {
 export function claudeExecutableFor(agent: Pick<Agent, "command">): string {
   const command = agent.command?.trim();
   return command && command.length > 0 ? command : DEFAULT_CLAUDE_EXECUTABLE;
-}
-
-/** MCP tools are namespaced by their server; the CLI needs the full name to allow them. */
-function namespacedAgentTools(): string[] {
-  return agentToolNames().map((name) => `mcp__${MCP_SERVER_NAME}__${name}`);
 }
 
 /**
@@ -83,6 +62,65 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 /**
+ * The environment variable the CLI's role guard reads
+ * (`AGENT_ROLE_ENV` in `packages/cli/src/role-guard.ts`). Spelled out here
+ * rather than imported: core must not depend on cli, and the guard has to run
+ * at the entrypoint before anything else is loaded.
+ */
+const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
+
+/**
+ * Whether this run actually gets the Backlog façade — the MCP tool set the CLI
+ * closure is traded against.
+ *
+ * `--mcp-config` is attached to every coding run, but attaching a server is not
+ * the same as reaching it: `read-only` (which a `read-only` repository coerces
+ * an agent into, whatever its own sandbox mode) maps to `--permission-mode
+ * plan`, and plan mode refuses MCP calls. So this is the one question both
+ * halves of the trade have to agree on, and it is asked once.
+ */
+function facadeReachable(agent: Pick<Agent, "sandbox_mode">): boolean {
+  return permitsMcpTools(agent.sandbox_mode);
+}
+
+/**
+ * The CLI role this run's agent carries, or null to carry none.
+ *
+ * The role is not a label on a run, it is one half of a trade: the CLI is
+ * closed *because* the façade replaces it. So it is stamped by the runtime
+ * that hands the façade out, and only when that façade is reachable.
+ */
+export function executionCliRole(agent: Pick<Agent, "sandbox_mode">): string | null {
+  const { cliRole } = contextFor("execution");
+  if (!cliRole) return null;
+  return facadeReachable(agent) ? cliRole : null;
+}
+
+/**
+ * The other half of the same trade, and it has to move with it.
+ *
+ * The `execution` row's `deniedBuiltins` is *only* the CLI closure — today the
+ * single entry `Bash(backlog:*)`, which denies any shell command whose first
+ * word is `backlog`. Emitting it unconditionally meant dropping the role stamp
+ * merely changed *which component* refused a read-only run: no `trace_write`
+ * (plan mode refuses MCP) and no `backlog trace write` (this deny rule, which
+ * fires under `plan` exactly as it does under `bypassPermissions`). The run
+ * still had no channel at all, and finished silently with no trace.
+ *
+ * Measured on `claude` 2.1.234 with the real run prompt: with the rule, a
+ * read-only run recorded a trace 0 times in 4; without it, 2 times in 10. Plan
+ * mode does not block a mutating `Bash` call — the model usually declines one
+ * on its own, which is a reliability problem, not a permission one. An
+ * unreliable channel still beats none.
+ *
+ * If a denial that is *not* the CLI closure is ever added to that row, this
+ * function has to start distinguishing them instead of returning the row whole.
+ */
+export function executionDeniedBuiltins(agent: Pick<Agent, "sandbox_mode">): readonly string[] {
+  return facadeReachable(agent) ? contextFor("execution").deniedBuiltins : [];
+}
+
+/**
  * The `claude` invocation for one coding run. Extracted from executeRun so the
  * flag matrix — which tool set the agent gets, and which it does not — is
  * asserted by a unit test rather than by spawning a real CLI.
@@ -90,6 +128,9 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
   const { agent } = request;
   const self = selfExec();
+  // Every permission decision here comes from the table, not from literals in
+  // this file — that is the point of contexts/contexts.ts.
+  const context = contextFor("execution");
   return buildClaudeCodeCommand({
     executable: resolveExecutable(claudeExecutableFor(agent)),
     prompt: request.prompt,
@@ -100,23 +141,33 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: self.command,
-        // --audience agent is what keeps `start_subtask` and friends out of an
+        // The audience is what keeps `start_subtask` and friends out of an
         // execution agent's reach. --project is mandatory: the run's cwd is a
         // worktree carrying a shadow .backlog/, so resolution from cwd is wrong.
-        args: [...self.prefixArgs, "mcp-server", "--audience", "agent", "--project", request.backlogDir],
+        args: [
+          ...self.prefixArgs,
+          "mcp-server",
+          "--audience",
+          context.mcpAudience!,
+          "--project",
+          request.backlogDir,
+        ],
         env: mcpServerEnv(request.env),
       },
     },
-    // `--allowedTools` only auto-approves; it excludes nothing. The agent keeps
-    // every built-in tool it needs to do the work.
-    allowedTools: namespacedAgentTools(),
+    // `--allowedTools` only auto-approves; it excludes nothing.
+    allowedTools: context.mcpTools.map((name) => `mcp__${MCP_SERVER_NAME}__${name}`),
+    // The agent keeps every built-in tool it needs to do the work; the table
+    // closes only the route back into Backlog's own CLI — and only for a run
+    // that got the façade to use instead.
+    disallowedTools: executionDeniedBuiltins(agent),
     // The user's own MCP servers stay available to a coding agent — see the
     // note on strictMcpConfig in command.ts. The other edge of that trade-off:
     // without `--strict-mcp-config` the CLI also loads project-scoped
     // `.mcp.json` from the worktree, so a server named `backlog` committed to
     // the repository would collide with the one declared here. Keeping the
     // user's servers is the deliberate choice; the collision is the price.
-    strictMcpConfig: false,
+    strictMcpConfig: context.userMcpServers === "hidden",
   });
 }
 
@@ -176,7 +227,7 @@ export class ClaudeCodeProvider implements AgentProvider {
       executable: command.executable,
       args: command.args,
       cwd: request.cwd,
-      env: this.environmentFor(request),
+      env: this.runEnvironmentFor(request),
       input: command.stdin,
       onLine: (line) => {
         if (isClaudeCodeResultLine(line)) resultLine = line;
@@ -230,12 +281,17 @@ export class ClaudeCodeProvider implements AgentProvider {
     options: { systemPrompt?: string | undefined; jsonSchema?: Record<string, unknown> | undefined },
   ): Promise<{ text: string; structured: unknown; model: string; usage: UsageBlock | null }> {
     const model = request.model ?? request.agent?.model;
+    const context = contextFor("completion");
     const command = buildClaudeCodeCommand({
       executable: resolveExecutable(request.command ?? claudeExecutableFor(request.agent ?? {})),
       prompt: request.prompt,
       model,
       outputFormat: "json",
-      disallowedTools: COMPLETION_DISALLOWED_TOOLS,
+      disallowedTools: context.deniedBuiltins,
+      // No servers of our own, and none of the user's either: a question about
+      // a ticket's title has no use for them and would pay their tool schemas
+      // in context.
+      strictMcpConfig: context.userMcpServers === "hidden",
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       ...(options.jsonSchema ? { jsonSchema: options.jsonSchema } : {}),
     });
@@ -264,6 +320,18 @@ export class ClaudeCodeProvider implements AgentProvider {
       model: parsed.usage?.model ?? model ?? this.id,
       usage: parsed.usage,
     };
+  }
+
+  /**
+   * A coding run's environment: the auth overlay, plus the CLI role when this
+   * run is one the façade actually covers. `run-executor.ts` deliberately
+   * stamps no role — it is runtime-agnostic, and whether the Backlog CLI is
+   * replaced by anything is a fact about the runtime, not about the pipeline.
+   */
+  private runEnvironmentFor(request: ProviderRunRequest): NodeJS.ProcessEnv {
+    const env = this.environmentFor(request);
+    const role = executionCliRole(request.agent);
+    return role ? { ...env, [AGENT_ROLE_ENV]: role } : env;
   }
 
   /** Base environment plus the auth overlay, which may deliberately unset a key. */

@@ -24,6 +24,7 @@ import { registerTaskCommand } from "./commands/task.js";
 import { registerTraceCommand } from "./commands/trace.js";
 import { registerProjectCommand } from "./commands/project.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
+import { refuseWhenExecutionRole } from "./role-guard.js";
 import { maybeNotifyCliUpdate, runCliUpdate } from "./update-check.js";
 
 declare const __BACKLOG_VERSION__: string;
@@ -95,6 +96,15 @@ registerWorktreeCommand(program);
 program.action(async () => {
   await runBoardCommand();
 });
+
+// Before anything is dispatched: an execution agent has no CLI. stdout stays
+// untouched — the same fail-closed shape `parseAudience` uses, and the MCP
+// transport depends on it.
+const refusal = refuseWhenExecutionRole(process.env, process.argv);
+if (refusal) {
+  console.error(refusal);
+  process.exit(1);
+}
 
 program.parseAsync(normalizeCompatibilityArgv(process.argv)).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

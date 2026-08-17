@@ -34,9 +34,6 @@ const INTERNAL_RUN_FILES = [
   // Pre-provider names, still present in worktrees created by older versions.
   ".backlog-claude-prompt.md",
   ".backlog-claude.log",
-  ".backlog-codex-prompt.md",
-  ".backlog-codex-last-message.md",
-  ".backlog-codex.log",
   ".backlog-executor.log",
   ".backlog-run.patch",
   ".backlog",

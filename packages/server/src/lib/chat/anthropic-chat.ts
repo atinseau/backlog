@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ORCHESTRATOR_TOOLS, callOrchestratorTool, isWriteTool } from "@backlog/core";
 import { loadConfig } from "@backlog/config";
-import type { ChatMessage, ChatStreamEvent, RunChatInput } from "./types.js";
+import type { ChatMessage, RunChatInput } from "./types.js";
 
 /** The shared tool set, in the shape the Anthropic API expects. */
 const TOOLS: Anthropic.Tool[] = ORCHESTRATOR_TOOLS.map((tool) => ({
@@ -10,13 +10,13 @@ const TOOLS: Anthropic.Tool[] = ORCHESTRATOR_TOOLS.map((tool) => ({
   input_schema: tool.inputSchema as Anthropic.Tool["input_schema"],
 }));
 
-const SYSTEM_PROMPT = `You are the Backlog orchestrator co-pilot. The user is watching a kanban board where autonomous coding agents (Claude, Codex) pick up subtasks and run them in isolated git worktrees. Your job is to help the user understand what's running, why it's stuck, what's queued, to explain agent activity in real time, and — when explicitly asked — to dispatch actions on their behalf.
+const SYSTEM_PROMPT = `You are the Backlog orchestrator co-pilot. The user is watching a kanban board where autonomous Claude Code agents pick up subtasks and run them in isolated git worktrees. Your job is to help the user understand what's running, why it's stuck, what's queued, to explain agent activity in real time, and — when explicitly asked — to dispatch actions on their behalf.
 
 ## Read tools (use freely)
 list_runs, get_run_events, list_tasks, get_orchestrator_state. Call these whenever the user asks a concrete question — never make up run ids, subtask titles, or statuses. Prefer one or two well-targeted tool calls over a broad sweep.
 
 ## Write tools (gated by explicit user approval)
-start_orchestrator, pause_orchestrator, stop_orchestrator, start_subtask. These mutate state and can cost real money (start_subtask launches a billable codex/claude run). The protocol is **always two steps**:
+start_orchestrator, pause_orchestrator, stop_orchestrator, start_subtask. These mutate state and can cost real money (start_subtask launches a billable Claude run). The protocol is **always two steps**:
 
   1. **Propose, don't execute.** Even if the user's message looks like a command ("lance la tâche X", "arrête tout"), your first response is a plain-language description of what you would do, which subtask/run/state it affects, and an explicit ask: "Tu confirmes ?" (or the English equivalent). Do NOT call the write tool yet.
   2. **Wait for confirmation.** Only after the user replies with explicit approval ("oui", "go", "confirme", "yes", "approve") do you call the write tool again with confirmed:true.

@@ -136,10 +136,10 @@ packages/core/src/contexts/
 export interface AgentContext {
   /** Which Backlog tool set the MCP server should serve, or none. */
   mcpAudience: McpAudience | null;
+  /** The tool names that audience resolves to. */
+  mcpTools: readonly string[];
   /** Built-in tools the session may not use. */
   deniedBuiltins: readonly string[];
-  /** Tool names auto-approved in -p mode. */
-  allowedTools: readonly string[];
   /** Whether the user's own MCP servers stay reachable. */
   userMcpServers: "visible" | "hidden";
   /** Value exported as BACKLOG_AGENT_ROLE, or none. */
@@ -157,8 +157,8 @@ duplicating it here would create a second source of truth for the same question.
 | --- | --- | --- | --- |
 | `mcpAudience` | `execution` | `orchestrator` | `null` |
 | Backlog tools | `task_show`, `subtask_show`, `trace_show`, `claim_list`, `trace_write` | the nine orchestration tools | none |
+| `mcpTools` | the five | the nine | none |
 | `deniedBuiltins` | `Bash(backlog:*)` only | the full list | the full list |
-| `allowedTools` | the five, namespaced | the nine, namespaced | none |
 | `userMcpServers` | `visible` | `hidden` | `hidden` |
 | `cliRole` | `execution` | `null` | `null` |
 
@@ -177,6 +177,10 @@ Three changes to current behaviour are folded in:
    `--disallowedTools` is verified against the installed CLI during
    implementation; if it does not support a command pattern, this entry is
    dropped rather than approximated, and nothing else in the design changes.
+   **Verified** against `claude` 2.1.234: `--disallowedTools "Bash(backlog:*)"`
+   is accepted, the session starts, and a `Bash` call of `backlog --help` under
+   `--permission-mode bypassPermissions` comes back in `permission_denials`
+   rather than running. The entry stays.
 
 ### Who reads the table
 
@@ -191,24 +195,44 @@ context instead:
 
 `DENIED_BUILT_IN_TOOLS` and `COMPLETION_DISALLOWED_TOOLS` are deleted.
 
-### The seam, and why it stays
+### The seam — inverted during implementation, and why that is safe
 
-The `audience → tool names` mapping remains inside the MCP layer
-(`mcpHostFor`), not in the context. The server runs in another process and must
-not trust its caller: given a list of tool names on the command line, any caller
-could ask for more. Given a closed audience name, the server owns the mapping
-and an unknown name fails closed — the behaviour `parseAudience` already has.
+This section originally kept the `audience → tool names` mapping inside the MCP
+layer (`mcpHostFor`), with the context declaring only *which* set. **What was
+built is the other way round**, and deliberately: the table owns the names
+(`mcpTools`), and `mcpHostFor` filters the shared `CATALOG` by them.
 
-So the context declares **which** set; the MCP server owns **what is in** it.
-Each layer enforces what it is in a position to enforce.
+The reason is that the caller needs the names anyway. `buildRunCommand` has to
+emit `--allowedTools`, which is a list of tool names, before any server exists —
+`--allowedTools` only auto-approves, so getting it wrong silently costs the
+agent its tools. Deriving that list from a mapping locked inside another
+process meant either spawning the server to ask it, or restating the set in the
+provider — a second source of truth for exactly the question this table exists
+to answer once.
+
+The safety property the original seam was protecting is untouched, because it
+never rested on where the *names* live:
+
+- The command line still carries an **audience**, never a tool list.
+  `parseAudience` still fails closed on an unknown one, and still defaults to
+  the less privileged `execution`.
+- `mcpHostFor` still refuses to *call* a name outside its set, not merely to
+  advertise it — a caller that speaks JSON-RPC by hand gains nothing.
+- `resolveMcpHost` still refuses to serve a wider audience than the role the
+  process runs under.
+
+A caller could always ask for a set it should not have; what it cannot do is
+name tools. That is what makes the audience the trust boundary, and it stayed
+one. `packages/core/src/agent-tools.test.ts` asserts the two write sets never
+intersect, so widening the table cannot quietly hand an execution agent
+`start_subtask`.
 
 ---
 
 ## 5. Closing the CLI
 
-`run-executor.ts` exports `BACKLOG_AGENT_ROLE=execution` from `environmentFor`,
-alongside the identifiers it already exports. `packages/cli/src/bin.ts` refuses
-before dispatch when it is set:
+`packages/cli/src/bin.ts` refuses before dispatch when
+`BACKLOG_AGENT_ROLE=execution` is set:
 
 ```
 backlog: this command is unavailable to an execution agent.
@@ -217,6 +241,60 @@ Use the tools on the `backlog` MCP server instead.
 
 Exit code non-zero, message on stderr, stdout untouched — the same fail-closed
 shape `--audience` already uses for an unknown value.
+
+### Who stamps the role — corrected during the final review
+
+This section first had `run-executor.ts` export the role from `environmentFor`,
+for every run whatever the runtime. That was wrong, and it cost a run its only
+channel twice over. The CLI is closed *because* the façade replaces it, so the
+closure has to follow the façade and not the pipeline:
+
+- `CustomProvider` attaches no MCP server at all. Its runs got the role and no
+  façade — and the prompt telling them "every interaction is a tool on the
+  `backlog` MCP server" was false in both halves.
+- A `read-only` repository coerces its agent's `sandbox_mode`, which maps to
+  `--permission-mode plan`, and plan mode refuses MCP calls. Such a run could
+  reach neither `trace_write` nor `backlog trace write`: it finished with no
+  trace, the ticket did not move, and nothing said why.
+
+So `run-executor.ts` stamps nothing — it is runtime-agnostic and cannot know
+whether anything replaced the CLI — and clears an inherited role so none can
+arrive by accident. The claude-code provider decides, where it attaches
+`--mcp-config`, and only when the permission mode lets the model call an MCP
+tool. The table still owns the *value*; the runtime owns *whether this run
+earned it*.
+
+**Both halves of the closure move together.** A first pass gated only the role
+and left `--disallowedTools Bash(backlog:*)` on every execution run. That deny
+rule fires under `plan` exactly as it does under `bypassPermissions`, so gating
+the role alone only changed *which component* refused a read-only run — it still
+had no `trace_write` and no `backlog trace write`. One predicate,
+`facadeReachable`, now feeds both `executionCliRole` and
+`executionDeniedBuiltins`; when the façade is unreachable, neither applies.
+Note this was a regression the branch introduced, not a pre-existing gap: at the
+merge base a run emitted no `--disallowedTools` at all.
+
+### What a read-only run's channel is actually worth
+
+Probed on `claude` 2.1.234 with the prompt `buildProviderPrompt` really emits,
+a fake `backlog` on PATH, and no MCP server:
+
+| condition | trace recorded |
+| --- | --- |
+| `--permission-mode plan`, no deny rule | 2 / 10 |
+| `--permission-mode plan`, `--disallowedTools "Bash(backlog:*)"` | 0 / 4 |
+
+Plan mode does **not** hard-block a mutating `Bash` call: the write lands and
+`permission_denials` stays empty. What suppresses it is the model's own reading
+of plan mode — it usually answers that it may only take read-only actions and
+asks for approval, which `-p` has no channel to give. So the deny rule was the
+difference between *never* and *sometimes*, which is why removing it is right;
+but the honest claim is that a read-only run's trace is best-effort, not
+guaranteed. The prompt now tells such a run that recording is required even in a
+read-only session. Detecting a run that produced no trace and failing it loudly
+is the real fix, and it is deliberately **out of scope** here: a legitimately
+blocked run has nothing to record either, so the check needs a design of its
+own.
 
 ### The hook exemption
 

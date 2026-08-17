@@ -33,8 +33,9 @@ when a change could go several ways:
    implementation of it: it is the only one that both runs coding tasks and
    answers one-shot prompts, and the only one that works on a subscription.
    Claude Code still has surface we do not use — skills, MCP servers, hooks,
-   subagents, session resumption. Lean into it. Keep the other providers
-   working, but stop designing for parity with them.
+   subagents, session resumption. Lean into it. Keep the other runtimes
+   (`anthropic-api`, `custom`) working, but stop designing for parity with
+   them.
 2. **The tool should be powerful and legible, not merely feature-complete.**
    There are 152 API routes and 21 top-level CLI commands already. The gap is
    not features; it's that the sharp ones are buried and the flows are
@@ -79,16 +80,18 @@ Project ──┬── Repository (a git checkout the project tracks)
   completed`, plus `blocked` / `canceled`.
 - **Run** — one agent execution against one subtask. Statuses: `queued →
   preparing → running → awaiting_review → succeeded`, plus `failed` /
-  `blocked` / `interrupted` / `canceled`. Two `execution_mode`s:
-  `isolated_worktree` (default) or `direct` (in the working checkout).
+  `blocked` / `interrupted` / `canceled`. Every run executes in its own
+  isolated git worktree — there is no mode that edits the user's working
+  checkout directly. A repository whose checkout has no git metadata cannot
+  be run; the launcher skips it with `repository_not_a_git_repository`.
   Produces `artifacts` (branch, commit, patch, PR URL, logs…).
 - **Claim** — a lock on a set of paths in a repository, `exclusive` or
   `shared`, with a heartbeat and an expiry. This is what stops two agents from
   editing the same file. Enforced at commit time by the git pre-commit hook.
-- **Agent** — a configured executor: provider (`claude` / `codex` / custom),
-  model, sandbox mode, concurrency, allowed repos, allowed risk levels,
-  capabilities, and a `retry_policy` (`none` or `feedback`, which re-prompts
-  with the previous attempt's failure).
+- **Agent** — a configured executor: provider (`claude` / `anthropic-api` /
+  `custom`), model, sandbox mode, concurrency, allowed repos, allowed risk
+  levels, capabilities, and a `retry_policy` (`none` or `feedback`, which
+  re-prompts with the previous attempt's failure).
 - **Orchestrator** — the dispatcher loop. Modes `idle / running / paused /
   stopping`, with `max_agents`, a tick interval, and idle backoff. It builds
   an execution plan (`scheduler.ts`), starts runs (`run-launcher.ts`), reaps
@@ -177,7 +180,6 @@ providers/
   registry.ts     provider id + alias → implementation
   process.ts      executable resolution, line-streaming spawn
   claude-code/    the reference runtime — command, auth, stream, catalogue
-  codex/          OpenAI Codex
   custom/         any shell command the user brings
   anthropic-api/  the HTTP API: no checkout, prompts only
 ```
@@ -233,25 +235,87 @@ Two constraints learned from the CLI, both load-bearing:
   than calling `list_tasks`.
 
 **Two MCP audiences, one transport.** `backlog mcp-server` serves whichever
-tool set `--audience` asks for, and defaults to `agent` — the less privileged
-one — so a caller that forgets the flag loses tools rather than gaining the
-ability to start runs. The chat asks for `orchestrator` explicitly
-(`ORCHESTRATOR_TOOLS`, nine tools, confirmation-gated). A coding run gets
-`AGENT_TOOLS`: exactly one tool, `trace_write`, attached by
-`providers/claude-code/provider.ts` via `--mcp-config`. The two sets are
-separate files and separate dispatchers, and
+tool set `--audience` asks for, and defaults to `execution` — the less
+privileged one — so a caller that forgets the flag loses tools rather than
+gaining the ability to start runs. The chat asks for `orchestrator` explicitly
+(`ORCHESTRATOR_TOOLS`, nine tools, confirmation-gated). A coding run gets the
+`execution` set: five tools — the four reads about its own ticket
+(`task_show`, `subtask_show`, `trace_show`, `claim_list`) plus `trace_write` —
+attached by `providers/claude-code/provider.ts` via `--mcp-config`. Which
+audience resolves to which names is decided by the context table in
+`packages/core/src/contexts/contexts.ts`, not by the MCP layer. The write sets
+are separate files and separate dispatchers, and
 `packages/core/src/agent-tools.test.ts` asserts they never intersect — an
 execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.
 
-**That disjointness holds on the MCP channel only, and the gap is known.** An
-execution agent also has `Bash`, a `backlog` binary on its PATH, and
-`BACKLOG_PROJECT_DIR` pointing at the real project, so `backlog task move <id>
-done` or `backlog orchestrator start` is reachable from a shell — contradicting
-`trace_write`'s own "you cannot mark your own work done". Nothing gates the CLI
-by audience today. Closing that is a feature with its own design, not a patch:
-until it lands, read the least-privilege property as being about which tools the
-model is *handed*, not about what it can *reach*.
+**The CLI is closed exactly where the façade replaces it.** A coding run's
+environment carries `BACKLOG_AGENT_ROLE=execution`, and the CLI entrypoint
+refuses every command under it — `backlog task move <id> done` included —
+pointing the agent at the MCP server instead. The closure is not a property of
+being a run: it is one half of a trade, and **both halves move together**. A run
+that gets the façade gets `BACKLOG_AGENT_ROLE=execution` *and*
+`--disallowedTools Bash(backlog:*)`; a run that cannot reach the façade gets
+neither. `facadeReachable` in `providers/claude-code/provider.ts` is the single
+predicate, and `executionCliRole` / `executionDeniedBuiltins` are its two
+consumers. Claude Code attaches `--mcp-config`, so it closes; a `read-only`
+agent gets `--permission-mode plan`, plan mode refuses MCP calls, so it does
+not. Gating only the role was a bug caught in review — the deny rule fires under
+`plan` exactly as it does under `bypassPermissions`, so it merely changed which
+component refused the run, and left it with no channel at all.
+`run-executor.ts` stamps nothing and actively clears an inherited role: it is
+runtime-agnostic and cannot know whether anything replaced the CLI, and a
+`custom` run — which attaches no server at all — must keep the command line as
+its only channel. Two exemptions from the refusal, neither a convenience:
+
+- **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
+  so the server a run spawns starts under the same role as the agent it serves.
+  Refusing it would leave that agent with neither the CLI nor the façade the
+  refusal points it at. Narrowed in turn: under this role the server may only
+  serve the `execution` set, so `--audience orchestrator` cannot buy
+  `start_subtask` for the price of hand-writing JSON-RPC.
+- **`BACKLOG_HOOK_INVOCATION`**, exported by the generated pre-commit hook
+  immediately before the claim check — not by the shim, which is a generic
+  launcher. The hook's failure path *allows* the commit when Backlog is
+  unavailable, so a refusal here would not block a violating commit; it would
+  silently disable claim enforcement. That is why the hook carries a version:
+  a pre-3 hook execs the current binary, gets the refusal, and blocks every
+  agent commit. `hooks status`, the board's hook panel and `backlog doctor`
+  report such a hook as outdated; `hooks install` does not report it — it
+  overwrites it, which is the fix.
+
+Which answer applies where comes from **one table**,
+`packages/core/src/contexts/contexts.ts`. For each context Backlog launches a
+model in — `execution`, `orchestrator`, `completion` — it names the MCP
+audience, the tool names, the built-ins to deny, whether the user's own MCP
+servers stay visible, and the CLI role to stamp. Three files read it and none
+decides any of this locally:
+
+- `providers/claude-code/provider.ts`, four times — `buildRunCommand`,
+  `executionCliRole` and `executionDeniedBuiltins` for `execution`, and
+  `runCompletion` for `completion`.
+- `server/src/lib/chat/claude-code-chat.ts`, the only reader of the
+  `orchestrator` row.
+- `cli/src/commands/mcp.ts`, which turns an audience into the tool set the MCP
+  server serves.
+
+**The table is where the decision is written, not what enforces it**, and three
+limits belong next to it — a containment claim that overstates is worse than
+none:
+
+- `env -u BACKLOG_AGENT_ROLE backlog …` drops the role, and the CLI answers
+  normally.
+- So does `BACKLOG_HOOK_INVOCATION=1 backlog …`, and the generated hook names
+  that variable in a file the agent can read from its own checkout.
+- The execution context keeps the user's own MCP servers **visible** on purpose
+  — a coding run waives `--strict-mcp-config`, because those servers are
+  capability the user configured and removing them silently is a regression.
+  The cost is that the runtime also loads the worktree's project-scoped
+  `.mcp.json`: a repository can hand a run an MCP server of its own.
+
+`deniedBuiltins: ["Bash(backlog:*)"]` closes the obvious shell path, not every
+one — an absolute path or a `sh -c` wrapper still reaches the binary. The
+refusal in the CLI is what binds.
 
 ---
 
@@ -427,20 +491,20 @@ scope, not scope creep.
   `App.svelte` 2026, `api.ts` 2273, `IntegrationsView.svelte` 1400. These are
   not components, they're screens with everything inlined. Split as you touch
   them.
-- **i18n is complete but bypassed.** 1119 keys, EN/FR perfectly aligned — and
+- **i18n is complete but bypassed.** 1352 keys, EN/FR perfectly aligned — and
   then ~13 components hardcode French strings anyway (`"Branche par défaut"`,
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 763 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 785 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
 
 - Claude Code's real surface is still only partly used: skills, hooks and
   subagents have no representation in the provider contract. MCP does — a
-  coding run is spawned with `--mcp-config` and Backlog's own `trace_write`
-  tool — but the emitted flags (`command.ts`) are chiefly `--model`,
+  coding run is spawned with `--mcp-config` and Backlog's own five-tool
+  `execution` set — but the emitted flags (`command.ts`) are chiefly `--model`,
   `--effort`, `--permission-mode`, `--append-system-prompt` / `--system-prompt`,
   `--mcp-config` / `--strict-mcp-config`, `--allowedTools` /
   `--disallowedTools`, `--json-schema`, `--settings` and `--resume`. Session
@@ -451,9 +515,20 @@ scope, not scope creep.
   (and only when `retry_policy.mode = feedback`, which is off by default).
   A subtask learns nothing from the subtask it `depends_on`.
 - Permission modes are coarse: `read-only` maps to `plan`, everything else to
-  `bypassPermissions`. There is no per-tool or per-path story — and because
-  plan mode refuses MCP calls, a `read-only` agent cannot reach `trace_write`
-  at all; it has to fall back to `backlog trace write`.
+  `bypassPermissions`. The per-tool story is one entry deep —
+  `deniedBuiltins: ["Bash(backlog:*)"]` scopes one built-in to one command
+  pattern — and there is no per-path story at all. Because plan mode refuses
+  MCP calls, a `read-only` agent reaches no Backlog tool, so it keeps the CLI
+  and is asked to record its trace with `backlog trace write`.
+- **A `read-only` run's trace is best-effort, and that is the weakest link in
+  the trace contract.** Plan mode does not *block* a mutating `Bash` call —
+  probed on `claude` 2.1.234, the command runs and `permission_denials` stays
+  empty — but the model usually declines one on its own reading of plan mode.
+  Measured with the real run prompt: 2 traces recorded in 10 runs. Nothing
+  detects the miss, so such a run finishes `succeeded` with no outcome
+  recorded. Failing a run that produced no trace is the obvious fix and is not
+  written yet; it needs care, because a legitimately blocked run has nothing to
+  say either.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

@@ -139,6 +139,15 @@ describe("release and worktree operators", () => {
       claimIds: [],
     });
     archiveRun(backlogDir, "RUN-terminal");
+
+    // Legacy shape: an archived run whose worktree_path is the repository's
+    // own checkout, exactly what every run created under the removed
+    // "direct" execution mode looks like on disk. Nothing migrates
+    // archived run.json records (schemas/src/run.ts's non-strict parsing
+    // just strips the old execution_mode field on read), so records like
+    // this exist in real installs today. GC must recognize it by path and
+    // leave it alone rather than trying (and failing) to `git worktree
+    // remove` the main working tree.
     createRun({
       backlogDir,
       runId: "RUN-direct",
@@ -148,11 +157,13 @@ describe("release and worktree operators", () => {
       branch: "main",
       worktreePath: root,
       claimIds: [],
-      executionMode: "direct",
     });
     archiveRun(backlogDir, "RUN-direct");
 
-    const worktrees = listKnownWorktrees(backlogDir);
+    // The legacy record is left out entirely: `worktree list` answers "which
+    // worktrees does Backlog own", and presenting the user's own checkout as
+    // one of them invites the removal that GC refuses two lines below.
+    const worktrees = listKnownWorktrees(backlogDir, loadConfig(backlogDir));
     expect(worktrees).toEqual([
       expect.objectContaining({
         runId: "RUN-terminal",
@@ -161,11 +172,86 @@ describe("release and worktree operators", () => {
         active: false,
       }),
     ]);
+    expect(worktrees.map((entry) => entry.path)).not.toContain(root);
 
     const dryRun = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir), { dryRun: true });
     expect(dryRun.removed).toContain(worktreePath);
     expect(dryRun.removed).not.toContain(root);
     expect(fs.existsSync(worktreePath)).toBe(true);
     expect(fs.existsSync(root)).toBe(true);
+  });
+
+  it("skips a legacy archived run whose worktree_path is the repository's own checkout, without crashing", async () => {
+    const { root, backlogDir, repoId } = await createWorkspace();
+    const workItem = createTask(backlogDir, { title: "legacy direct run", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "task",
+      repo: repoId,
+    });
+    const agent = getAgent(backlogDir, "claude-code");
+    if (!agent) {
+      throw new Error("Expected claude-code agent");
+    }
+
+    // Same legacy shape as above, but this time exercised through a real
+    // (non-dry-run) GC pass — the path where `git worktree remove --force
+    // <mainCheckout>` used to throw ("is a main working tree") and, since
+    // the archived-runs loop has no try/catch, abort GC for every run
+    // queued after it.
+    createRun({
+      backlogDir,
+      runId: "RUN-direct",
+      task,
+      workItem,
+      agent,
+      branch: "main",
+      worktreePath: root,
+      claimIds: [],
+    });
+    archiveRun(backlogDir, "RUN-direct");
+
+    const result = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir));
+    expect(result.removed).not.toContain(root);
+    expect(fs.existsSync(root)).toBe(true);
+  });
+
+  it("keeps cleaning after a record git refuses to remove", async () => {
+    // The path guard keys on the checkout path *as configured today*. Move the
+    // repository in config.toml and a legacy record stops matching it, so
+    // `git worktree remove --force` runs against something that is not a
+    // worktree and throws — which used to leave every archived run behind it
+    // uncleaned, the exact failure the guard was written to prevent.
+    const { root, backlogDir, repoId } = await createWorkspace();
+    const workItem = createTask(backlogDir, { title: "moved repository", repoTargets: [repoId] });
+    const task = createSubTask(backlogDir, { workItemId: workItem.id, title: "task", repo: repoId });
+    const agent = getAgent(backlogDir, "claude-code");
+    if (!agent) {
+      throw new Error("Expected claude-code agent");
+    }
+
+    const stalePath = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-moved-checkout-"));
+    const worktreePath = path.join(backlogDir, "worktrees", repoId, "RUN-after");
+    await git(["worktree", "add", "-b", "backlog/after", worktreePath], root);
+
+    for (const [runId, worktree] of [["RUN-unremovable", stalePath], ["RUN-after", worktreePath]] as const) {
+      createRun({
+        backlogDir,
+        runId,
+        task,
+        workItem,
+        agent,
+        branch: "main",
+        worktreePath: worktree,
+        claimIds: [],
+      });
+      archiveRun(backlogDir, runId);
+    }
+
+    const result = await garbageCollectWorktrees(backlogDir, loadConfig(backlogDir));
+
+    expect(result.skipped).toContain(stalePath);
+    expect(result.removed).toContain(worktreePath);
+    expect(fs.existsSync(stalePath)).toBe(true);
   });
 });

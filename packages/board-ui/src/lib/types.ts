@@ -44,7 +44,6 @@ export interface RunSummary {
   agent_id: string;
   started_at?: string;
   finished_at?: string;
-  execution_mode?: "isolated_worktree" | "direct";
   result?: string | null;
 }
 

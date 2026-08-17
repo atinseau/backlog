@@ -62,7 +62,6 @@ function makeRun(overrides: Partial<Run> = {}): Run {
     provider: "claude",
     status: "succeeded",
     claim_ids: [],
-    execution_mode: "isolated_worktree",
     worktree_path: "/tmp/wt",
     artifacts: [],
     result: null,

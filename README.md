@@ -43,8 +43,8 @@ backlog agents rm my-claude
 `claude-code` runs the locally installed Claude Code CLI, so it uses whatever
 that CLI is logged in as — **an Anthropic subscription needs no API key**. Pin
 that with `--auth-mode subscription` if you want to be sure a key is never
-sent; use `--auth-mode api_key` to require one instead. `codex` and the
-`anthropic-api` runtime do need a key, stored with `backlog secrets set`.
+sent; use `--auth-mode api_key` to require one instead. The `anthropic-api`
+runtime does need a key, stored with `backlog secrets set`.
 
 Models and effort levels are forwarded to the runtime as typed, so a model
 released tomorrow works today: `--model claude-opus-4-9` is passed straight
