@@ -670,7 +670,7 @@ Expected: FAIL — `Cannot find module './trace-service.js'`
 // packages/core/src/trace-service.ts
 import { traceSchema, type Trace } from "@backlog/schemas";
 import { blockTask, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { getTask } from "./task-service.js";
+import { getTask, updateTaskStatus } from "./task-service.js";
 import { appendTrace } from "./trace-store.js";
 
 export interface RecordTraceInput {
@@ -712,13 +712,20 @@ export function recordTrace(input: RecordTraceInput): RecordTraceResult {
 
   appendTrace(backlogDir, trace);
 
+  // A trace without a subtask_id targets the parent task directly. That is not
+  // an edge case: `worktree_mode: "direct"` is the default and produces exactly
+  // these targets, so the transition must be applied here too — otherwise an
+  // agent declaring itself blocked on a default-mode run blocks nothing, and
+  // unblock-and-resume never fires for the common path. The if/else stays a
+  // strict either/or: a trace never writes status through both channels.
   const transitions: string[] = [];
   if (trace.outcome === "rejected") {
     if (trace.subtask_id) {
       updateSubTaskStatus(backlogDir, trace.subtask_id, "review");
       transitions.push(`${trace.subtask_id} → review`);
     } else {
-      transitions.push(`${trace.task_id} → review (task-level, applied by the run)`);
+      updateTaskStatus(backlogDir, trace.task_id, "review");
+      transitions.push(`${trace.task_id} → review`);
     }
   } else if (trace.outcome === "blocked") {
     // open_question is guaranteed present by traceSchema for this outcome.
@@ -727,7 +734,8 @@ export function recordTrace(input: RecordTraceInput): RecordTraceResult {
       blockTask(backlogDir, trace.subtask_id, [question]);
       transitions.push(`${trace.subtask_id} → blocked`);
     } else {
-      transitions.push(`${trace.task_id} → blocked (task-level, applied by the run)`);
+      updateTaskStatus(backlogDir, trace.task_id, "blocked");
+      transitions.push(`${trace.task_id} → blocked`);
     }
   }
 
@@ -744,7 +752,12 @@ export * from "./trace-service.js";
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `bun test packages/core/src/trace-service.test.ts`
-Expected: PASS, 6 tests
+Expected: PASS, 10 tests
+
+Three of those cover the task-level branch (no `subtask_id`), which the
+subtask-scoped tests never reach: rejected → the parent task in `review` with
+exactly one transition, blocked → the parent task in `blocked`, and implemented →
+the parent task untouched with no transitions.
 
 - [ ] **Step 5: Typecheck and commit**
 
@@ -956,6 +969,10 @@ git commit -m "feat(core): link discovered dependencies and create proposals fro
 
 **Files:**
 - Modify: `packages/core/src/scheduler.ts:215-216`
+- Modify: `packages/core/src/scheduler.ts` — the funnel every candidate passes
+  through, where the load-bearing guard belongs (see below)
+- Modify: `packages/core/src/subtask-service.ts` — `createSubTask` bypasses the
+  guard entirely (see below)
 - Test: `packages/core/src/scheduler-proposed.test.ts`
 
 **Interfaces:**
@@ -966,6 +983,22 @@ Today `scheduler.ts:216` lets an explicitly targeted task through when its statu
 is `ready` **or** `backlog`. A `proposed` task falls outside that pair and is
 already excluded — but only incidentally. The spec asks for an assertion, so a
 later edit to that condition cannot silently make agent-invented work runnable.
+
+**Two corrections, both found during execution, that this task's original text got
+wrong.** They are the substance of the task, not footnotes:
+
+1. **`createSubTask` bypasses any scheduler-side guard.** It ends with an
+   unconditional `updateTaskStatus(backlogDir, input.workItemId, "ready")`, so
+   attaching a subtask to a `proposed` task promotes it out of `proposed` before
+   the scheduler ever sees it. Gate that call on `workItem.status !== "proposed"`,
+   preserving the promotion for every other status. Without this, the invariant is
+   false no matter what the scheduler does.
+2. **The guard must sit in the funnel, not only in the direct-task loop.** The
+   edit at lines 215-216 turns out to be functionally redundant, since line 221
+   already excludes `proposed`. The guard that actually holds belongs where every
+   candidate is evaluated, returning a blocked decision before any dependency,
+   claim or agent-compatibility reasoning runs. Keep the loop guard as
+   future-proofing, but the funnel guard is the one that makes the invariant true.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1039,11 +1072,12 @@ describe("scheduler and the proposed status", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun test packages/core/src/scheduler-proposed.test.ts`
-Expected: the first two tests may already PASS (incidental exclusion), the third
-FAILS or the file fails to typecheck if `updateTaskStatus` is not exported. Run
-it and record the actual result before changing code — if all three pass, the
-change in Step 3 is still required as a regression guard, and Step 4 proves it
-holds.
+Expected, as actually observed during execution: **1 pass / 2 fail.** The two
+"never returns a proposed task" tests FAIL, because `createSubTask` has already
+promoted the task to `ready` by the time the plan is built — see correction 1
+above. The third test passes, since promoting to `backlog` is what it asserts
+anyway. Record the actual result before changing code; if your run disagrees with
+this, stop and report it rather than adapting the tests.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1395,8 +1429,10 @@ bun run test         # bun test ./packages
 bun run build        # the real single binary
 ```
 
-Then update the README command list, which enumerates the top-level CLI
-commands — a new `trace` command belongs there.
+Then record the new namespace in the CLI command list. Note, corrected during
+execution: the README has **no** top-level command enumeration — its `## Use`
+section is a short curated example block. The list that genuinely enumerates the
+namespaces is `CLAUDE.md` §6, so `trace` is added there.
 
 ## What this plan does not build
 
