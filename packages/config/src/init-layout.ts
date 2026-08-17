@@ -77,6 +77,9 @@ export function initLayout(options: InitLayoutOptions): InitLayoutResult {
       "# Ephemeral operational state — never commit.",
       "claims/",
       "runs/",
+      // Agent trace journals. Local by design (trace-store.ts) — in an in_repo
+      // project they would otherwise land in the user's commits.
+      "traces/",
       "worktrees/",
       "remote-checkouts/",
       "orchestrator.json",

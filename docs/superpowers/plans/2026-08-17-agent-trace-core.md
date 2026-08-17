@@ -1120,7 +1120,7 @@ git commit -m "feat(core): never schedule a proposed task, by any path"
 
 ---
 
-### Task 7: CLI — `backlog trace write` and `backlog ticket trace`
+### Task 7: CLI — `backlog trace write` and `backlog trace show`
 
 **Files:**
 - Create: `packages/cli/src/commands/trace.ts`

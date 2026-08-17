@@ -67,8 +67,11 @@ Project ──┬── Repository (a git checkout the project tracks)
 - **Repository** — a git checkout the project tracks, with an `access_mode`
   (`read-write` / `read-only` / `no-access`). This policy lives with the
   resource and **overrides** the agent's own `sandbox_mode`.
-- **Task** — high-level intent. Statuses: `backlog → ready → in_progress →
-  review → test → released → done`, plus `blocked`. Priorities `P0`–`P3`.
+- **Task** — high-level intent. Statuses: `proposed → backlog → ready →
+  in_progress → review → test → released → done`, plus `blocked`. Priorities
+  `P0`–`P3`. `proposed` is agent-invented work: written only by the system when
+  it reads a proposal in a trace, never runnable, and it leaves only by human
+  review, only for `backlog` — enforced in `updateTaskStatus`.
 - **SubTask** — an executable unit scoped to exactly one repository. Carries
   `scopes` (path globs), `claim_mode`, `depends_on`, `risk`, and an
   `execution` block (preferred agents, required capabilities, manual
@@ -103,6 +106,7 @@ Project ──┬── Repository (a git checkout the project tracks)
   sources.yaml           external source connectors
   sync-conflicts.json
   claims/{active,archive}/<claim-id>.json
+  traces/<task-id>.ndjson   append-only agent trace journal, one file per task
   runs/{active,archive}/<run-id>/
       run.json           the Run record
       events.ndjson      live executor event stream (drives the UI)
