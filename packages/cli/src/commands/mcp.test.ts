@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
-import { agentToolNames, orchestratorToolNames } from "@backlog/core";
+import { contextFor, orchestratorToolNames } from "@backlog/core";
 import { mcpHostFor, parseAudience, resolveMcpHost } from "./mcp.js";
+
+const executionToolNames = [...contextFor("execution").mcpTools];
 
 function projectRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-mcp-cmd-"));
@@ -17,10 +19,10 @@ function projectRoot(): string {
 }
 
 describe("mcpHostFor", () => {
-  it("serves only the agent tool set to an execution agent", () => {
-    const host = mcpHostFor("/tmp/project/.backlog", "agent");
+  it("serves only the execution tool set to an execution agent", () => {
+    const host = mcpHostFor("/tmp/project/.backlog", "execution");
 
-    expect(host.tools.map((tool) => tool.name)).toEqual(agentToolNames());
+    expect(host.tools.map((tool) => tool.name)).toEqual(executionToolNames);
   });
 
   it("serves the orchestrator tool set to the chat", () => {
@@ -30,26 +32,39 @@ describe("mcpHostFor", () => {
   });
 
   it("never advertises an orchestration tool to an execution agent", () => {
-    const advertised = new Set(mcpHostFor("/tmp/project/.backlog", "agent").tools.map((tool) => tool.name));
+    const advertised = new Set(mcpHostFor("/tmp/project/.backlog", "execution").tools.map((tool) => tool.name));
 
     for (const name of orchestratorToolNames()) {
       expect(advertised.has(name)).toBe(false);
     }
   });
+
+  // Omitting a tool from `tools` is a claim about what the host advertises; it
+  // says nothing about what it will run. The whole security property of this
+  // layer is the second one, so assert the call itself — with `confirmed: true`,
+  // which is the one input that would let `start_subtask` act if it ever ran.
+  it("refuses an orchestration call from an execution agent, not merely omits it", async () => {
+    const host = mcpHostFor("/tmp/project/.backlog", "execution");
+
+    const outcome = await host.callTool("start_subtask", { subtask_id: "sub_001", confirmed: true });
+
+    expect(outcome.ok).toBe(false);
+    expect(String((outcome.result as { error?: unknown }).error)).toContain("start_subtask");
+  });
 });
 
 describe("parseAudience", () => {
   it("defaults to the least privileged set", () => {
-    expect(parseAudience(undefined)).toBe("agent");
+    expect(parseAudience(undefined)).toBe("execution");
   });
 
   it("accepts both audiences", () => {
-    expect(parseAudience("agent")).toBe("agent");
+    expect(parseAudience("execution")).toBe("execution");
     expect(parseAudience("orchestrator")).toBe("orchestrator");
   });
 
   it("rejects anything else rather than falling back to a privileged default", () => {
-    expect(() => parseAudience("admin")).toThrow(/agent|orchestrator/);
+    expect(() => parseAudience("admin")).toThrow(/execution|orchestrator/);
   });
 });
 
@@ -68,12 +83,12 @@ describe("resolveMcpHost", () => {
     else process.env.BACKLOG_PROJECT_DIR = savedProjectDir;
   });
 
-  it("serves the agent set when no audience is asked for", () => {
+  it("serves the execution set when no audience is asked for", () => {
     const root = projectRoot();
 
     const host = resolveMcpHost({ project: root });
 
-    expect(host.tools.map((tool) => tool.name)).toEqual(agentToolNames());
+    expect(host.tools.map((tool) => tool.name)).toEqual(executionToolNames);
   });
 
   it("serves the orchestrator set when the chat asks for it", () => {
@@ -102,7 +117,7 @@ describe("resolveMcpHost", () => {
   it("refuses an unknown audience rather than defaulting to a privileged one", () => {
     const root = projectRoot();
 
-    expect(() => resolveMcpHost({ project: root, audience: "admin" })).toThrow(/agent|orchestrator/);
+    expect(() => resolveMcpHost({ project: root, audience: "admin" })).toThrow(/execution|orchestrator/);
   });
 
   it("says so when the path is not a project, instead of serving an empty one", () => {

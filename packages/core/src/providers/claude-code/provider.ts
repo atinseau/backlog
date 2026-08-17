@@ -1,5 +1,5 @@
 import type { Agent } from "@backlog/schemas";
-import { agentToolNames } from "../../agent-tools.js";
+import { contextFor } from "../../contexts/contexts.js";
 import { MCP_SERVER_NAME } from "../../mcp/server.js";
 import { parseClaudeJsonStdout, type UsageBlock } from "../../provider-usage.js";
 import { selfExec } from "../../self-exec.js";
@@ -25,22 +25,6 @@ import { isClaudeCodeResultLine, parseClaudeCodeStreamLine } from "./stream.js";
 export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
 export const DEFAULT_CLAUDE_EXECUTABLE = "claude";
 
-// A one-shot completion is a question, not a mission: no file access, no
-// shell, no web. Keeps these calls fast, cheap and side-effect free.
-const COMPLETION_DISALLOWED_TOOLS = [
-  "Bash",
-  "Read",
-  "Write",
-  "Edit",
-  "Glob",
-  "Grep",
-  "Task",
-  "WebFetch",
-  "WebSearch",
-  "TodoWrite",
-] as const;
-
-
 export interface ClaudeCodeProviderDeps {
   /** Injected so readiness can be unit-tested without touching the filesystem. */
   executableExists: (command: string) => boolean;
@@ -49,11 +33,6 @@ export interface ClaudeCodeProviderDeps {
 export function claudeExecutableFor(agent: Pick<Agent, "command">): string {
   const command = agent.command?.trim();
   return command && command.length > 0 ? command : DEFAULT_CLAUDE_EXECUTABLE;
-}
-
-/** MCP tools are namespaced by their server; the CLI needs the full name to allow them. */
-function namespacedAgentTools(): string[] {
-  return agentToolNames().map((name) => `mcp__${MCP_SERVER_NAME}__${name}`);
 }
 
 /**
@@ -90,6 +69,9 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
   const { agent } = request;
   const self = selfExec();
+  // Every permission decision here comes from the table, not from literals in
+  // this file — that is the point of contexts/contexts.ts.
+  const context = contextFor("execution");
   return buildClaudeCodeCommand({
     executable: resolveExecutable(claudeExecutableFor(agent)),
     prompt: request.prompt,
@@ -100,23 +82,32 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: self.command,
-        // --audience agent is what keeps `start_subtask` and friends out of an
+        // The audience is what keeps `start_subtask` and friends out of an
         // execution agent's reach. --project is mandatory: the run's cwd is a
         // worktree carrying a shadow .backlog/, so resolution from cwd is wrong.
-        args: [...self.prefixArgs, "mcp-server", "--audience", "agent", "--project", request.backlogDir],
+        args: [
+          ...self.prefixArgs,
+          "mcp-server",
+          "--audience",
+          context.mcpAudience!,
+          "--project",
+          request.backlogDir,
+        ],
         env: mcpServerEnv(request.env),
       },
     },
-    // `--allowedTools` only auto-approves; it excludes nothing. The agent keeps
-    // every built-in tool it needs to do the work.
-    allowedTools: namespacedAgentTools(),
+    // `--allowedTools` only auto-approves; it excludes nothing.
+    allowedTools: context.mcpTools.map((name) => `mcp__${MCP_SERVER_NAME}__${name}`),
+    // The agent keeps every built-in tool it needs to do the work; the table
+    // closes only the route back into Backlog's own CLI.
+    disallowedTools: context.deniedBuiltins,
     // The user's own MCP servers stay available to a coding agent — see the
     // note on strictMcpConfig in command.ts. The other edge of that trade-off:
     // without `--strict-mcp-config` the CLI also loads project-scoped
     // `.mcp.json` from the worktree, so a server named `backlog` committed to
     // the repository would collide with the one declared here. Keeping the
     // user's servers is the deliberate choice; the collision is the price.
-    strictMcpConfig: false,
+    strictMcpConfig: context.userMcpServers === "hidden",
   });
 }
 
@@ -230,12 +221,17 @@ export class ClaudeCodeProvider implements AgentProvider {
     options: { systemPrompt?: string | undefined; jsonSchema?: Record<string, unknown> | undefined },
   ): Promise<{ text: string; structured: unknown; model: string; usage: UsageBlock | null }> {
     const model = request.model ?? request.agent?.model;
+    const context = contextFor("completion");
     const command = buildClaudeCodeCommand({
       executable: resolveExecutable(request.command ?? claudeExecutableFor(request.agent ?? {})),
       prompt: request.prompt,
       model,
       outputFormat: "json",
-      disallowedTools: COMPLETION_DISALLOWED_TOOLS,
+      disallowedTools: context.deniedBuiltins,
+      // No servers of our own, and none of the user's either: a question about
+      // a ticket's title has no use for them and would pay their tool schemas
+      // in context.
+      strictMcpConfig: context.userMcpServers === "hidden",
       ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
       ...(options.jsonSchema ? { jsonSchema: options.jsonSchema } : {}),
     });

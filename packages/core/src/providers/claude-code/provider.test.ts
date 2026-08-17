@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { Agent } from "@backlog/schemas";
+import { contextFor } from "../../contexts/contexts.js";
+import { orchestratorToolNames } from "../../orchestrator-tools.js";
 import { buildRunCommand, ClaudeCodeProvider } from "./provider.js";
 
 function agentFixture(overrides: Partial<Agent> = {}): Agent {
@@ -120,7 +122,7 @@ describe("ClaudeCodeProvider.checkReadiness", () => {
 });
 
 describe("buildRunCommand", () => {
-  it("attaches the agent tool set to a coding run, and nothing else", () => {
+  it("attaches the execution tool set to a coding run, and nothing else", () => {
     const command = buildRunCommand({
       agent: agentFixture({ sandbox_mode: "workspace-write" }),
       prompt: "do the work",
@@ -134,18 +136,39 @@ describe("buildRunCommand", () => {
     const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
       mcpServers: Record<string, { args: string[] }>;
     };
-    // The *pair*, not the two strings independently: `--project
-    // /…/agent-mcp-tools/.backlog` supplies the word "agent" all by itself, so
-    // a `toContain` pair would still pass against `--audience orchestrator`.
-    // This is the one assertion standing between a refactor and a privilege
-    // escalation.
+    // The *pair*, not the two strings independently: a `--project` path can
+    // supply the word "execution" all by itself, so a `toContain` pair would
+    // still pass against `--audience orchestrator`. This is the one assertion
+    // standing between a refactor and a privilege escalation.
     const args = config.mcpServers.backlog!.args;
-    expect(args[args.indexOf("--audience") + 1]).toBe("agent");
+    expect(args[args.indexOf("--audience") + 1]).toBe("execution");
     expect(args.slice(-2)).toEqual(["--project", "/tmp/project/.backlog"]);
 
     const allowed = command.args[command.args.indexOf("--allowedTools") + 1]!.split(",");
-    expect(allowed).toEqual(["mcp__backlog__trace_write"]);
+    expect(allowed).toEqual([...contextFor("execution").mcpTools].map((name) => `mcp__backlog__${name}`));
+    expect(allowed).toContain("mcp__backlog__trace_write");
+    for (const name of orchestratorToolNames()) {
+      expect(allowed).not.toContain(`mcp__backlog__${name}`);
+    }
     expect(command.args).not.toContain("--strict-mcp-config");
+  });
+
+  // A coding run keeps every built-in tool — it is here to write code. The one
+  // thing the table closes is the route back into Backlog's own CLI.
+  it("closes the Backlog CLI to a coding run without taking its other tools", () => {
+    const command = buildRunCommand({
+      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      prompt: "do the work",
+      cwd: "/tmp/worktree",
+      backlogDir: "/tmp/project/.backlog",
+      env: {},
+      getSecret: noSecrets,
+      onActivity: () => {},
+    });
+
+    const denied = command.args[command.args.indexOf("--disallowedTools") + 1]!.split(",");
+    expect(denied).toEqual(["Bash(backlog:*)"]);
+    expect(denied).not.toContain("Bash");
   });
 
   it("declares the run context on the MCP server rather than trusting inheritance", () => {

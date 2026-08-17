@@ -1,30 +1,31 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
 import {
-  AGENT_TOOLS,
-  ORCHESTRATOR_TOOLS,
-  callAgentTool,
-  callOrchestratorTool,
+  CATALOG,
+  callCatalogTool,
+  contextFor,
   serveMcpOnProcessStdio,
+  type McpAudience,
   type McpToolHost,
 } from "@backlog/core";
 
 // Serves Backlog's tools over MCP so `claude -p --mcp-config` can drive them.
 // Not a command users run by hand: the chat spawns it for the orchestrator set,
-// and a coding run spawns it for the agent set. stdout is the protocol channel,
-// so nothing may ever be printed there.
+// and a coding run spawns it for the execution set. stdout is the protocol
+// channel, so nothing may ever be printed there.
 //
 // Two audiences over one transport, and the default is the *less* privileged
 // one on purpose. A caller that forgets --audience should lose tools, not gain
 // the ability to start runs: an execution agent holding `start_subtask` could
 // launch further runs and duplicate itself (spec §2).
+//
+// What each audience resolves to is decided by the context table in
+// `@backlog/core` — the audience name is the only thing this command owns.
 
-export type McpAudience = "agent" | "orchestrator";
-
-const AUDIENCES: McpAudience[] = ["agent", "orchestrator"];
+const AUDIENCES: McpAudience[] = ["execution", "orchestrator"];
 
 export function parseAudience(value: string | undefined): McpAudience {
-  if (value === undefined) return "agent";
+  if (value === undefined) return "execution";
   const candidate = value.trim() as McpAudience;
   if (!AUDIENCES.includes(candidate)) {
     throw new Error(`Unknown --audience '${value}'. Expected one of: ${AUDIENCES.join(", ")}.`);
@@ -33,19 +34,16 @@ export function parseAudience(value: string | undefined): McpAudience {
 }
 
 export function mcpHostFor(backlogDir: string, audience: McpAudience): McpToolHost {
-  if (audience === "orchestrator") {
-    return {
-      tools: ORCHESTRATOR_TOOLS.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-      })),
-      callTool: (name, input) => callOrchestratorTool({ backlogDir, name, input }),
-    };
-  }
+  const names = new Set(contextFor(audience).mcpTools);
   return {
-    tools: AGENT_TOOLS.map((tool) => ({ ...tool })),
-    callTool: (name, input) => callAgentTool({ backlogDir, name, input }),
+    tools: CATALOG.filter((tool) => names.has(tool.name)).map((tool) => ({ ...tool })),
+    // The server refusing on its own account: it must not depend on its caller
+    // having advertised honestly. Omitting an orchestration tool from `tools`
+    // is not the same as refusing the call.
+    callTool: (name, input) =>
+      names.has(name)
+        ? callCatalogTool({ backlogDir, name, input })
+        : Promise.resolve({ ok: false, result: { error: `Unknown tool: ${name}.` } }),
   };
 }
 
@@ -72,7 +70,7 @@ export function registerMcpCommand(program: Command): void {
     .option("--project <path>", "Project to operate on. Defaults to the one resolved from the working directory.")
     .option(
       "--audience <who>",
-      "Which tool set to serve: 'agent' (an execution agent on one ticket) or 'orchestrator' (the chat). Defaults to 'agent'.",
+      "Which tool set to serve: 'execution' (an agent on one ticket) or 'orchestrator' (the chat). Defaults to 'execution'.",
     )
     .action(async (options: { project?: string; audience?: string }) => {
       await serveMcpOnProcessStdio(resolveMcpHost(options));

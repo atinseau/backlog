@@ -86,13 +86,18 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
   }
   if (input.mcpServers) {
     args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }));
-    // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
-    // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
-    // declare is exactly what the model gets. It is on by default here, and
-    // waived only by a coding run, which passes strictMcpConfig: false.
-    if (input.strictMcpConfig !== false) {
-      args.push("--strict-mcp-config");
-    }
+  }
+  // `--strict-mcp-config` keeps the user's own MCP servers — global, and the
+  // worktree's project-scoped `.mcp.json` — out of a Backlog session: what we
+  // declare is exactly what the model gets. It is on by default here, and
+  // waived only by a coding run, which passes strictMcpConfig: false.
+  //
+  // Emitted independently of `--mcp-config`: declaring no server of our own is
+  // not a reason to inherit the user's. A one-shot completion declares none,
+  // and used to silently load every server the user configured — paying their
+  // tool schemas in context for a call whose only job is to name a ticket.
+  if (input.strictMcpConfig !== false) {
+    args.push("--strict-mcp-config");
   }
   // Both tool flags are variadic (`<tools...>`), so each takes a single
   // comma-separated value. Passing names as separate argv entries would make
