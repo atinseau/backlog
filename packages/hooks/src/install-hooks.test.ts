@@ -160,10 +160,15 @@ describe("rendered hook template — escape hatches", () => {
 
   it("marks its own invocation so the CLI's execution-role refusal spares it", () => {
     const hook = rendered();
-    expect(hook).toContain("export BACKLOG_HOOK_INVOCATION=1");
     // Before the claim check, or the CLI refuses under BACKLOG_AGENT_ROLE and
-    // the commit is blocked for the wrong reason.
-    expect(hook.indexOf("BACKLOG_HOOK_INVOCATION")).toBeLessThan(hook.indexOf("claim check"));
+    // the commit is blocked for the wrong reason. Both needles name a whole
+    // line of the script: the comment above the export talks about the marker
+    // and about the claim check too, and only a line break falling between
+    // "claim" and "check" kept a looser `indexOf` from matching it first.
+    const marker = hook.indexOf("export BACKLOG_HOOK_INVOCATION=1");
+    const claimCheck = hook.indexOf('"$BACKLOG_BIN" claim check');
+    expect(marker).toBeGreaterThanOrEqual(0);
+    expect(claimCheck).toBeGreaterThan(marker);
   });
 
   it("allows commits when the local Backlog runtime is unavailable", () => {

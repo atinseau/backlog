@@ -273,15 +273,22 @@ refusal, neither a convenience:
   immediately before the claim check — not by the shim, which is a generic
   launcher. The hook's failure path *allows* the commit when Backlog is
   unavailable, so a refusal here would not block a violating commit; it would
-  silently disable claim enforcement. That is why the hook carries a version
-  and `hooks install` reports a pre-3 hook as stale.
+  silently disable claim enforcement. That is why the hook carries a version:
+  a pre-3 hook execs the current binary, gets the refusal, and blocks every
+  agent commit. `hooks status`, the board's hook panel and `backlog doctor`
+  report such a hook as outdated; `hooks install` does not report it — it
+  overwrites it, which is the fix.
 
 Which answer applies where comes from **one table**,
 `packages/core/src/contexts/contexts.ts`. For each context Backlog launches a
 model in — `execution`, `orchestrator`, `completion` — it names the MCP
 audience, the tool names, the built-ins to deny, whether the user's own MCP
-servers stay visible, and the CLI role to stamp. The provider, the run executor
-and the `mcp-server` command all read it; nothing decides any of this locally.
+servers stay visible, and the CLI role to stamp. Four sites read it and none
+decides any of this locally: `providers/claude-code/provider.ts` twice
+(`buildRunCommand` for `execution`, `runCompletion` for `completion`),
+`server/src/lib/chat/claude-code-chat.ts` for `orchestrator` — the only reader
+of that row — and the `mcp-server` command, which turns an audience into the
+tool set it serves.
 
 **The table is where the decision is written, not what enforces it**, and three
 limits belong next to it — a containment claim that overstates is worse than
@@ -475,12 +482,12 @@ scope, not scope creep.
   `App.svelte` 2026, `api.ts` 2273, `IntegrationsView.svelte` 1400. These are
   not components, they're screens with everything inlined. Split as you touch
   them.
-- **i18n is complete but bypassed.** 1119 keys, EN/FR perfectly aligned — and
+- **i18n is complete but bypassed.** 1352 keys, EN/FR perfectly aligned — and
   then ~13 components hardcode French strings anyway (`"Branche par défaut"`,
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 776 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 783 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**

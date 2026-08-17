@@ -18,7 +18,7 @@ export interface UsageEvent {
   type: "usage"; // discriminator inside events.ndjson
   message?: string;
   provider: UsageProvider;
-  model: string; // e.g. "claude-sonnet-4-20250514", "gpt-5"
+  model: string; // e.g. "claude-sonnet-4-20250514", "opus"
   // Counts in tokens. Cache_read = served from prompt cache (cheap).
   // cache_creation = the first call that populates the cache (premium).
   input_tokens: number;

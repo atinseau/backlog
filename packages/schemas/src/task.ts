@@ -77,7 +77,7 @@ export const taskSchema = z.object({
     merge_pr: z.boolean().default(false),
     // Default assignee for sub-tasks generated from this task. Empty
     // means "let the orchestrator pick" (auto). A single id picks a
-    // specific agent (claude-code, codex, etc.) or a user. The
+    // specific agent (claude-code, a custom one, etc.) or a user. The
     // sub-task can still override per-row.
     preferred_agents: z.array(z.string()).default([]),
     // Per-task cap for parallel split execution. The planner may
