@@ -26,8 +26,8 @@ const INSTRUCTIONS = [
 // runtime-specific prompt flags do not (spec §9).
 const BACKLOG_CONTEXT = [
   "Backlog context:",
-  "- Your environment carries BACKLOG_TASK_ID, BACKLOG_SUBTASK_ID, BACKLOG_RUN_ID, BACKLOG_REPO, BACKLOG_BRANCH and BACKLOG_WORKTREE.",
-  "- A `backlog` CLI is on your PATH and already resolves this project. You do not need --project.",
+  "- Your environment carries BACKLOG_TASK_ID, BACKLOG_RUN_ID, BACKLOG_REPO, BACKLOG_BRANCH and BACKLOG_WORKTREE, plus BACKLOG_SUBTASK_ID when this run is scoped to a subtask.",
+  "- A `backlog` CLI is usually on your PATH; where it is, it already resolves this project and you do not need --project.",
   "- `backlog task show <task-id>` — the ticket, its status, its dependencies.",
   "- `backlog subtask show <subtask-id>` — this unit of work.",
   "- `backlog trace show <task-id>` — what earlier runs on this ticket decided, and why. Read it before you start.",

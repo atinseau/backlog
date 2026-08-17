@@ -70,7 +70,8 @@ function scratchDirFor(params: ExecuteAgentRunParams): string {
 
 function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
   const { run, task, workItem, agent } = params;
-  return {
+  const targetType = task.target_type ?? "subtask";
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: expandedPath(),
     ...agent.environment,
@@ -82,14 +83,26 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_PROJECT_DIR: params.backlogDir,
     BACKLOG_RUN_ID: run.id,
     BACKLOG_TASK_ID: workItem.id,
-    BACKLOG_SUBTASK_ID: task.id,
-    BACKLOG_TARGET_TYPE: task.target_type ?? "subtask",
+    // Only a subtask-scoped run has a subtask. A task dispatched directly (no
+    // split) carries a *task* id in ExecutionTarget.id, and exporting that as
+    // BACKLOG_SUBTASK_ID made every consumer look up a subtask that cannot
+    // exist: `trace_write` and `backlog trace write` both died on
+    // "Unknown subtask: task_xxx" for that whole class of runs. The target's
+    // identity is not lost — BACKLOG_TARGET_TYPE / BACKLOG_TARGET_ID carry it.
+    ...(targetType === "subtask" ? { BACKLOG_SUBTASK_ID: task.id } : {}),
+    BACKLOG_TARGET_TYPE: targetType,
     BACKLOG_TARGET_ID: task.id,
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
     ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
   };
+  // `...process.env` is spread in above, so an inherited value has to be
+  // removed rather than merely not written.
+  if (targetType !== "subtask") {
+    delete env.BACKLOG_SUBTASK_ID;
+  }
+  return env;
 }
 
 function recordProviderUsage(params: ExecuteAgentRunParams, result: ProviderRunResult): void {

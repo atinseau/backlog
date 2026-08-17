@@ -136,9 +136,24 @@ export async function callAgentTool(call: AgentToolCall): Promise<McpToolOutcome
       throw new Error(`Unknown tool: ${call.name}. An execution agent may only call: ${agentToolNames().join(", ")}.`);
     }
     const payload = (call.input ?? {}) as Record<string, unknown>;
+    const trace = withTraceContextDefaults(payload, process.env);
+    // `run_id` and `task_id` are filled from the run's environment and are
+    // deliberately absent from inputSchema, so an agent has no sanctioned way to
+    // supply them. When the environment did not reach this process, the raw Zod
+    // error names two fields the model cannot see — an unrecoverable refusal.
+    // Say what happened and grant the exception instead.
+    if (trace.run_id === undefined || trace.task_id === undefined) {
+      return {
+        ok: false,
+        result: {
+          error:
+            "The run context was not available to this tool, so `run_id` and `task_id` could not be filled in for you. Call trace_write again with both included explicitly: `run_id` is $BACKLOG_RUN_ID and `task_id` is $BACKLOG_TASK_ID in your environment.",
+        },
+      };
+    }
     const result = recordTrace({
       backlogDir: call.backlogDir,
-      trace: withTraceContextDefaults(payload, process.env),
+      trace,
     });
     return {
       ok: true,
