@@ -37,16 +37,6 @@ const COMPLETION_DISALLOWED_TOOLS = [
   "TodoWrite",
 ] as const;
 
-function structuredSystemPrompt(request: ProviderStructuredRequest): string {
-  return [
-    request.systemPrompt?.trim(),
-    `Reply with a single JSON object named '${request.schemaName}' that validates against this JSON Schema:`,
-    JSON.stringify(request.schema),
-    "Output the JSON object and nothing else — no prose, no code fences, no explanation.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
 
 export interface ClaudeCodeProviderDeps {
   /** Injected so readiness can be unit-tested without touching the filesystem. */
@@ -122,6 +112,7 @@ export class ClaudeCodeProvider implements AgentProvider {
       args: command.args,
       cwd: request.cwd,
       env: this.environmentFor(request),
+      input: command.stdin,
       onLine: (line) => {
         if (isClaudeCodeResultLine(line)) resultLine = line;
         for (const event of parseClaudeCodeStreamLine(line)) {
@@ -145,7 +136,7 @@ export class ClaudeCodeProvider implements AgentProvider {
   }
 
   async complete(request: ProviderCompletionRequest): Promise<ProviderCompletionResult> {
-    const { text, model, usage } = await this.runCompletion(request, request.systemPrompt);
+    const { text, model, usage } = await this.runCompletion(request, { systemPrompt: request.systemPrompt });
     if (text.trim().length === 0) {
       throw new Error("Claude Code returned an empty answer.");
     }
@@ -153,8 +144,15 @@ export class ClaudeCodeProvider implements AgentProvider {
   }
 
   async completeStructured<T>(request: ProviderStructuredRequest): Promise<ProviderStructuredResult<T>> {
-    const { text, model, usage } = await this.runCompletion(request, structuredSystemPrompt(request));
-    return { value: parseJsonObject(text, "Claude Code") as T, model, usage };
+    // `--json-schema` makes the CLI enforce the shape and hand back an already
+    // parsed object in `structured_output`. The text fallback covers a CLI old
+    // enough not to have the flag.
+    const { text, structured, model, usage } = await this.runCompletion(request, {
+      systemPrompt: request.systemPrompt,
+      jsonSchema: request.schema,
+    });
+    const value = structured ?? parseJsonObject(text, "Claude Code");
+    return { value: value as T, model, usage };
   }
 
   /**
@@ -164,8 +162,8 @@ export class ClaudeCodeProvider implements AgentProvider {
    */
   private async runCompletion(
     request: ProviderCompletionRequest,
-    systemPrompt: string | undefined,
-  ): Promise<{ text: string; model: string; usage: UsageBlock | null }> {
+    options: { systemPrompt?: string | undefined; jsonSchema?: Record<string, unknown> | undefined },
+  ): Promise<{ text: string; structured: unknown; model: string; usage: UsageBlock | null }> {
     const model = request.model ?? request.agent?.model;
     const command = buildClaudeCodeCommand({
       executable: resolveExecutable(request.command ?? claudeExecutableFor(request.agent ?? {})),
@@ -173,7 +171,8 @@ export class ClaudeCodeProvider implements AgentProvider {
       model,
       outputFormat: "json",
       disallowedTools: COMPLETION_DISALLOWED_TOOLS,
-      ...(systemPrompt ? { systemPrompt } : {}),
+      ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
+      ...(options.jsonSchema ? { jsonSchema: options.jsonSchema } : {}),
     });
 
     const spawned = await spawnStreaming({
@@ -185,6 +184,7 @@ export class ClaudeCodeProvider implements AgentProvider {
         env: process.env,
         getSecret: request.getSecret,
       }),
+      input: command.stdin,
     });
 
     if (spawned.exitCode !== 0) {
@@ -195,6 +195,7 @@ export class ClaudeCodeProvider implements AgentProvider {
     const parsed = parseClaudeJsonStdout(spawned.stdout, model ?? this.id);
     return {
       text: parsed.summary ?? spawned.stdout,
+      structured: parsed.structured,
       model: parsed.usage?.model ?? model ?? this.id,
       usage: parsed.usage,
     };

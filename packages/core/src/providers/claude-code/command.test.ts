@@ -2,12 +2,22 @@ import { describe, expect, it } from "bun:test";
 import { buildClaudeCodeCommand } from "./command.js";
 
 describe("buildClaudeCodeCommand", () => {
-  it("streams NDJSON and puts the prompt last", () => {
+  it("streams NDJSON", () => {
     const command = buildClaudeCodeCommand({ executable: "claude", prompt: "do the thing" });
 
     expect(command.executable).toBe("claude");
     expect(command.args.slice(0, 4)).toEqual(["-p", "--output-format", "stream-json", "--verbose"]);
-    expect(command.args.at(-1)).toBe("do the thing");
+  });
+
+  it("feeds the prompt on stdin, never as an argument", () => {
+    // Two reasons. `--disallowedTools <tools...>` is variadic and swallows any
+    // following positional, so a prompt in argv is eaten and the CLI exits
+    // with "Input must be provided…". And an argv prompt leaks the whole task
+    // description into `ps` output.
+    const command = buildClaudeCodeCommand({ executable: "claude", prompt: "do the thing" });
+
+    expect(command.stdin).toBe("do the thing");
+    expect(command.args).not.toContain("do the thing");
   });
 
   it("bypasses permissions by default", () => {
@@ -89,8 +99,18 @@ describe("buildClaudeCodeCommand", () => {
       disallowedTools: ["Bash", "Read"],
     });
 
-    expect(command.args[command.args.indexOf("--disallowedTools") + 1]).toBe("Bash");
-    expect(command.args[command.args.indexOf("--disallowedTools") + 2]).toBe("Read");
+    expect(command.args[command.args.indexOf("--disallowedTools") + 1]).toBe("Bash,Read");
+  });
+
+  it("collapses the tool list into one comma-separated argument", () => {
+    const command = buildClaudeCodeCommand({
+      executable: "claude",
+      prompt: "the prompt",
+      disallowedTools: ["Bash", "Read", "Write"],
+    });
+
+    expect(command.args[command.args.indexOf("--disallowedTools") + 1]).toBe("Bash,Read,Write");
+    expect(command.args.filter((arg) => arg === "Bash")).toEqual([]);
   });
 
   it("omits the tool denial list when it is empty", () => {

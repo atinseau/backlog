@@ -33,6 +33,7 @@
     role: "user" | "assistant";
     content: string;
     toolCalls?: Array<{
+      id?: string;
       name: string;
       status: "running" | "done" | "error" | "awaiting_confirmation";
       size?: number;
@@ -52,6 +53,9 @@
   let error = $state<string | null>(null);
   let scrollEl = $state<HTMLDivElement | null>(null);
   let usage = $state<UsageBucket>({ input: 0, output: 0, cacheRead: 0, cacheCreation: 0 });
+  // Set by the CLI backend, which keeps the conversation on its side. The API
+  // backend is stateless and never sends one.
+  let sessionId = $state<string | null>(null);
   let actionBusy = $state<"pause" | "stop" | null>(null);
 
   // History is persisted per project so switching projects doesn't mix
@@ -69,6 +73,7 @@
     if (!key) {
       history = [];
       usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      sessionId = null;
       return;
     }
     try {
@@ -76,9 +81,11 @@
       const parsed = raw ? JSON.parse(raw) : null;
       history = Array.isArray(parsed?.history) ? parsed.history : [];
       usage = parsed?.usage ?? { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      sessionId = typeof parsed?.sessionId === "string" ? parsed.sessionId : null;
     } catch {
       history = [];
       usage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+      sessionId = null;
     }
   }
 
@@ -87,7 +94,7 @@
     if (!key) return;
     try {
       const trimmed = history.slice(-MAX_HISTORY);
-      localStorage.setItem(key, JSON.stringify({ history: trimmed, usage }));
+      localStorage.setItem(key, JSON.stringify({ history: trimmed, usage, sessionId }));
     } catch {
       // localStorage full or disabled — silently degrade
     }
@@ -162,7 +169,7 @@
       const response = await fetch(apiUrl("/orchestrator/chat"), {
         method: "POST",
         headers: { "content-type": "application/json", accept: "text/event-stream" },
-        body: JSON.stringify({ messages: messagesForApi }),
+        body: JSON.stringify({ messages: messagesForApi, ...(sessionId ? { session_id: sessionId } : {}) }),
       });
       if (!response.ok) {
         const detail = await response.json().catch(() => ({}));
@@ -254,15 +261,23 @@
     } else if (event === "tool_use") {
       last.toolCalls = [
         ...(last.toolCalls ?? []),
-        { name: String(payload.name), status: "running", write: Boolean(payload.write) },
+        {
+          id: payload.id ? String(payload.id) : undefined,
+          name: String(payload.name),
+          status: "running",
+          write: Boolean(payload.write),
+        },
       ];
       history = [...history];
     } else if (event === "tool_result") {
       const list = last.toolCalls ?? [];
-      // Match by name + first matching "running" entry (we don't expose ids
-      // to the UI to keep it simple — there's never more than a couple in
-      // flight at once).
-      const idx = list.findIndex((c) => c.name === String(payload.name) && c.status === "running");
+      // Match on the tool-use id, which both backends emit. The name is only a
+      // fallback: the CLI backend learns results from MCP, which reports the id
+      // and not the tool that produced it.
+      const id = payload.id ? String(payload.id) : null;
+      const idx = id
+        ? list.findIndex((c) => c.id === id)
+        : list.findIndex((c) => c.name === String(payload.name) && c.status === "running");
       if (idx >= 0) {
         const updated = { ...list[idx]! };
         if (payload.error) {
@@ -283,6 +298,9 @@
       // can see the running cost. The agent loop emits one done event per
       // user turn (after all tool roundtrips), so this fires once per
       // user message.
+      if (typeof payload.session_id === "string" && payload.session_id) {
+        sessionId = payload.session_id;
+      }
       const u = payload.usage as Record<string, number> | undefined;
       if (u) {
         usage = {

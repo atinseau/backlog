@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { findProject, homeDir } from "@backlog/config";
-import { isCompiledBinary } from "../self-exec.js";
+import { isCompiledBinary } from "@backlog/core";
 
 export interface DaemonPaths {
   unitPath: string;

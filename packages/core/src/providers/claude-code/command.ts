@@ -1,6 +1,6 @@
 import type { SandboxMode } from "@backlog/schemas";
 
-// Pure construction of the `claude` argv. Kept free of I/O so the flag
+// Pure construction of the `claude` invocation. Kept free of I/O so the flag
 // matrix is unit-testable without spawning anything.
 
 export type ClaudeCodeOutputFormat = "stream-json" | "json";
@@ -22,11 +22,21 @@ export interface ClaudeCodeCommandInput {
   systemPrompt?: string | undefined;
   /** Tool names the session may not use. Empty means no restriction. */
   disallowedTools?: readonly string[] | undefined;
+  /** JSON Schema the answer must satisfy. The CLI enforces it and returns the parsed object. */
+  jsonSchema?: Record<string, unknown> | undefined;
+  /** MCP servers to expose, as the `--mcp-config` payload expects. */
+  mcpServers?: Record<string, unknown> | undefined;
+  /** Tool names the session may use. Needed to allow MCP tools in -p mode. */
+  allowedTools?: readonly string[] | undefined;
+  /** Continue an earlier conversation instead of starting one. */
+  resumeSessionId?: string | undefined;
 }
 
 export interface ProviderCommand {
   executable: string;
   args: string[];
+  /** Written to the child's stdin, then closed. */
+  stdin: string;
 }
 
 // Repository access policy is enforced upstream by coercing the agent's
@@ -64,13 +74,31 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
   } else if (!isBlank(input.appendSystemPrompt)) {
     args.push("--append-system-prompt", input.appendSystemPrompt);
   }
+  if (input.jsonSchema) {
+    args.push("--json-schema", JSON.stringify(input.jsonSchema));
+  }
+  if (input.mcpServers) {
+    // `--strict-mcp-config` keeps the user's own global MCP servers out of a
+    // Backlog session: what we declare is exactly what the model gets.
+    args.push("--mcp-config", JSON.stringify({ mcpServers: input.mcpServers }), "--strict-mcp-config");
+  }
+  // Both tool flags are variadic (`<tools...>`), so each takes a single
+  // comma-separated value. Passing names as separate argv entries would make
+  // the flag swallow everything after it.
+  if (input.allowedTools && input.allowedTools.length > 0) {
+    args.push("--allowedTools", input.allowedTools.join(","));
+  }
   if (input.disallowedTools && input.disallowedTools.length > 0) {
-    args.push("--disallowedTools", ...input.disallowedTools);
+    args.push("--disallowedTools", input.disallowedTools.join(","));
+  }
+  if (!isBlank(input.resumeSessionId)) {
+    args.push("--resume", input.resumeSessionId.trim());
   }
   if (!isBlank(input.profile)) {
     args.push("--settings", JSON.stringify({ env: { CLAUDE_CODE_PROFILE: input.profile.trim() } }));
   }
 
-  args.push(input.prompt);
-  return { executable: input.executable, args };
+  // The prompt goes on stdin, never in argv: the variadic tool flags would eat
+  // it, and argv is world-readable through `ps`.
+  return { executable: input.executable, args, stdin: input.prompt };
 }

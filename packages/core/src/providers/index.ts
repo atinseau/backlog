@@ -7,7 +7,7 @@ import { createProviderRegistry, type ProviderRegistry } from "./registry.js";
 
 export * from "./types.js";
 export { createProviderRegistry, type ProviderRegistry } from "./registry.js";
-export { executableExists, expandedPath, resolveExecutable } from "./process.js";
+export { executableExists, expandedPath, resolveExecutable, spawnStreaming, describeProcessFailure } from "./process.js";
 export { parseJsonObject } from "./json.js";
 export {
   resolveCompletionProvider,
@@ -15,6 +15,7 @@ export {
   type ResolvedCompletionProvider,
 } from "./completion-provider.js";
 export { ClaudeCodeProvider, CLAUDE_CODE_PROVIDER_ID } from "./claude-code/provider.js";
+export { buildClaudeCodeCommand, type ProviderCommand, type ClaudeCodeCommandInput } from "./claude-code/command.js";
 export { CodexProvider, CODEX_PROVIDER_ID } from "./codex/provider.js";
 export { CustomProvider, CUSTOM_PROVIDER_ID } from "./custom/provider.js";
 export {

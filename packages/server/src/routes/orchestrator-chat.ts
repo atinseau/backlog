@@ -3,10 +3,10 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import {
   ChatUnavailableError,
-  resolveChatCredentials,
+  resolveChatBackend,
   runOrchestratorChat,
   type ChatMessage,
-} from "../lib/orchestrator-chat.js";
+} from "../lib/chat/index.js";
 import type { AppEnv } from "../project-resolver.js";
 
 const messageSchema = z.object({
@@ -17,24 +17,41 @@ const messageSchema = z.object({
 const bodySchema = z.object({
   messages: z.array(messageSchema).min(1).max(50),
   model: z.string().optional(),
+  // Returned by a previous turn's `done` event. Lets the CLI backend continue
+  // its own conversation instead of replaying the transcript.
+  session_id: z.string().min(1).optional(),
 });
 
 export function orchestratorChatRoutes(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 
+  app.get("/orchestrator/chat/status", (c) => {
+    const project = c.get("project");
+    try {
+      return c.json({ available: true, backend: resolveChatBackend(project.backlogDir).kind });
+    } catch (error) {
+      return c.json({
+        available: false,
+        backend: null,
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   app.post("/orchestrator/chat", async (c) => {
     const project = c.get("project");
-    const credentials = resolveChatCredentials(project.backlogDir);
-    if (!credentials) {
+    try {
+      resolveChatBackend(project.backlogDir);
+    } catch (error) {
       return c.json(
         {
-          error: "anthropic_credentials_missing",
-          detail:
-            "Set ANTHROPIC_API_KEY in the shell that runs `backlog serve` (and restart) or store it with `backlog secrets set ANTHROPIC_API_KEY`.",
+          error: "chat_unavailable",
+          detail: error instanceof Error ? error.message : String(error),
         },
         503,
       );
     }
+
     const raw = await c.req.json().catch(() => null);
     const parsed = bodySchema.safeParse(raw);
     if (!parsed.success) {
@@ -46,11 +63,7 @@ export function orchestratorChatRoutes(): Hono<AppEnv> {
       let id = 0;
       const send = async (event: string, payload: Record<string, unknown>) => {
         try {
-          await stream.writeSSE({
-            event,
-            id: String(id++),
-            data: JSON.stringify(payload),
-          });
+          await stream.writeSSE({ event, id: String(id++), data: JSON.stringify(payload) });
         } catch {
           // client disconnected mid-write — onAbort will clean up
         }
@@ -62,9 +75,10 @@ export function orchestratorChatRoutes(): Hono<AppEnv> {
       try {
         await runOrchestratorChat({
           backlogDir: project.backlogDir,
+          projectRoot: project.root,
           messages,
-          credentials,
           ...(parsed.data.model ? { model: parsed.data.model } : {}),
+          ...(parsed.data.session_id ? { sessionId: parsed.data.session_id } : {}),
           abortSignal: controller.signal,
           onEvent: (event) => send(event.type, event.data),
         });
