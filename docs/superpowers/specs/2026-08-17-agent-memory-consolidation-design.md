@@ -246,9 +246,19 @@ claim it carried. This step is free and removes most of the noise before the
 first paid token.
 
 **Step 2 — antecedent search via `graphify query --budget`.** For each
-survivor, find neighbouring canon notes. This is what decides between promote,
-merge and supersede; without it the consolidator emits duplicates because it
-cannot know what already exists.
+survivor, find neighbouring canon notes **and matching quarantine entries**.
+This is what decides between promote, merge and supersede; without it the
+consolidator emits duplicates because it cannot know what already exists.
+
+Searching quarantine alongside the canon is not optional — it is what makes D9
+work at all. A quarantined claim is by definition *not* in the canon, so a
+canon-only search would re-quarantine it on every batch and it would never
+graduate. A claim matching a quarantine entry **is** the second observation:
+promote it and clear the entry.
+
+`graphify query` is a BFS over the local `graph.json`, not a model call, so
+this step costs zero LLM tokens. `--budget` bounds the *output*, i.e. what
+step 3 will be charged for as input.
 
 This step is also the decisive technical argument for D6: a consolidator
 without a graph would have to re-read the entire canon on every pass — cost
@@ -351,15 +361,35 @@ Consequences to handle explicitly:
 
 ## 9. Impact on existing code
 
+**Targets the `AgentProvider` refactor**, which unifies every LLM call behind
+one contract in `packages/core/src/providers/`. At the time of writing it lives
+in the working checkout and is not yet on `main`; the mapping below assumes it
+lands first. It makes this spec *easier* to implement, not harder — see the note
+after the table.
+
 | Area | Change |
 | --- | --- |
 | `packages/schemas` | new `trace.ts` and `memory.ts`; `config.ts` gains a `[memory]` block (canon zone, form convention, prose language, batch thresholds) |
-| `packages/core` | new `trace-store.ts` and `consolidator.ts`; `provider-utils.ts` prompt gains the trace contract and the minimal push |
-| `packages/core/src/claude-executor.ts` | extend the existing `--settings` payload with `SessionStart` / `PreToolUse` / `Stop` hooks |
+| `packages/core` | new `trace-store.ts` and `consolidator.ts` |
+| `packages/core/src/run-prompt.ts` | `buildProviderPrompt` gains the trace contract and the minimal push — one place, every runtime |
+| `packages/core/src/providers/claude-code/command.ts` | extend the `--settings` payload with `SessionStart` and `Stop` hooks. It is already built there for `CLAUDE_CODE_PROFILE` (line 71) but only when a profile is set, so it must become unconditional |
+| `packages/core/src/providers/types.ts` | `ProviderRunRequest` carries no hook channel today; either add one or let the claude-code provider derive hooks from agent + config |
+| `packages/core/src/run-executor.ts` | recognise the trace as a run outcome alongside artifacts and usage |
 | `packages/server` | routes for trace write, memory search, consolidation trigger and journal |
 | `packages/cli` | `backlog memory` (search/show), `backlog consolidate`; `doctor` gains the graphify check |
 | `packages/board-ui` | a consolidations section; trace rendering on the ticket; strings in **both** `i18n/en.json` and `i18n/fr.json` |
-| `packages/core/src/split-service.ts` + `server/src/lib/ai-splitter.ts` | scopes become graph-derived instead of invented (see §10) |
+| `packages/core/src/ai-service.ts` + `split-service.ts` | scopes become graph-derived instead of invented (see §10) |
+
+Two consequences of the refactor worth knowing before planning:
+
+- **The common half and the Claude-specific half now have exactly one home
+  each.** The trace contract goes in `run-prompt.ts` and reaches every runtime;
+  the hooks go in `providers/claude-code/command.ts` and pollute none of the
+  others. Before the refactor this meant touching three parallel executors.
+- **`--append-system-prompt` is already wired** (`command.ts:65`, used by
+  structured completions). It is a second channel for the trace contract, and
+  possibly a better one than growing the main prompt, whose instruction list is
+  already long enough that trailing lines get dropped.
 
 ## 10. Out of scope here
 
