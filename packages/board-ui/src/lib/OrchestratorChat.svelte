@@ -7,20 +7,26 @@
   import {
     chatConversations,
     chatError,
+    chatSearch,
     chatStatus,
     currentConversation,
+    editAndResend,
     isSending,
     loadChat,
     openConversation,
+    regenerate,
     removeConversation,
     resetContext,
     sendMessage,
+    setChatSearch,
+    setConversationModel,
     startConversation,
     stopStreaming,
     streamingTurn,
     visibleMessages,
   } from "./chat/chat-state.svelte.js";
   import { apiUrl, pauseOrchestrator, stopOrchestrator } from "./api.js";
+  import { loadProviders, modelsForProvider } from "./providers.svelte.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {
@@ -46,6 +52,8 @@
   const error = $derived(chatError());
   const unavailable = $derived(status !== null && !status.available);
   const isLive = $derived(orchestratorMode === "running" || orchestratorMode === "stopping");
+  // Only Claude Code exposes a model choice here; the API backend picks its own.
+  const models = $derived(status?.backend === "claude-code" ? modelsForProvider("claude-code") : []);
 
   async function refreshOrchestratorMode() {
     try {
@@ -73,6 +81,7 @@
     lastProjectId = id;
     showHistory = false;
     void loadChat();
+    void loadProviders();
     attachBus();
     void refreshOrchestratorMode();
   });
@@ -95,6 +104,20 @@
 
   function handleGlobalKey(event: KeyboardEvent) {
     if (!open && !embedded) return;
+
+    // Cmd/Ctrl+K opens a fresh thread from anywhere, the way a command palette
+    // would; Cmd/Ctrl+F reaches the conversation search.
+    if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      event.preventDefault();
+      void startConversation();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key === "f") {
+      event.preventDefault();
+      showHistory = true;
+      return;
+    }
+
     if (event.key !== "Escape") return;
     // Escape unwinds one layer at a time: the history panel, then the turn in
     // flight, then the drawer itself.
@@ -159,7 +182,22 @@
     <header>
       <div class="identity">
         <h2>{conversation?.title ?? t("chat.title")}</h2>
-        {#if status?.backend}
+        {#if models.length > 0}
+          <select
+            class="model"
+            value={conversation?.model ?? ""}
+            onchange={(event) =>
+              void setConversationModel((event.currentTarget as HTMLSelectElement).value || null)}
+            title={t("chat.model_hint")}
+            aria-label={t("chat.model_label")}
+            disabled={busy || !conversation}
+          >
+            <option value="">{t("chat.model_default")}</option>
+            {#each models as model (model.value)}
+              <option value={model.value}>{model.value}</option>
+            {/each}
+          </select>
+        {:else if status?.backend}
           <span class="backend" title={t("chat.backend_hint")}>{status.backend}</span>
         {/if}
       </div>
@@ -202,6 +240,8 @@
         <ConversationList
           conversations={chatConversations()}
           currentId={conversation?.id ?? null}
+          query={chatSearch()}
+          onsearch={(query) => void setChatSearch(query)}
           onopen={(id) => {
             void openConversation(id);
             showHistory = false;
@@ -223,6 +263,10 @@
             {message}
             streaming={busy && index === messages.length - 1}
             {busy}
+            onedit={message.role === "user" && !busy ? (text) => void editAndResend(index, text) : undefined}
+            onregenerate={message.role === "assistant" && index === messages.length - 1 && !busy
+              ? () => void regenerate()
+              : undefined}
             onconfirm={confirmPending}
             oncancel={cancelPending}
           />
@@ -303,6 +347,35 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 10px;
     color: var(--text-muted);
+  }
+
+  /* The model reads as metadata, not as a form control: no chrome until you
+     reach for it. */
+  .model {
+    flex-shrink: 0;
+    max-width: 120px;
+    padding: 1px 2px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .model:hover:not(:disabled) {
+    border-color: var(--border-field);
+    color: var(--text-body);
+  }
+
+  .model:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .model:disabled {
+    cursor: default;
   }
 
   .actions {

@@ -189,8 +189,9 @@ export async function touchProjectById(id: string): Promise<void> {
 
 // Conversations ------------------------------------------------------------
 
-export async function fetchConversations(): Promise<ConversationSummary[]> {
-  const response = await fetch(apiUrl("/conversations"));
+export async function fetchConversations(query?: string): Promise<ConversationSummary[]> {
+  const path = query?.trim() ? `/conversations?q=${encodeURIComponent(query.trim())}` : "/conversations";
+  const response = await fetch(apiUrl(path));
   if (!response.ok) throw new Error(`Conversations fetch failed: ${response.status}`);
   return ((await response.json()) as { conversations: ConversationSummary[] }).conversations;
 }
@@ -211,9 +212,22 @@ export async function createConversation(title?: string): Promise<Conversation> 
   return ((await response.json()) as { conversation: Conversation }).conversation;
 }
 
+export async function truncateConversation(id: string, keep: number): Promise<Conversation> {
+  const response = await fetch(apiUrl(`/conversations/${encodeURIComponent(id)}/truncate`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keep }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Rewind failed (${response.status}): ${detail}`);
+  }
+  return ((await response.json()) as { conversation: Conversation }).conversation;
+}
+
 export async function patchConversation(
   id: string,
-  patch: { title?: string; session_id?: string | null },
+  patch: { title?: string; session_id?: string | null; model?: string | null },
 ): Promise<Conversation> {
   const response = await fetch(apiUrl(`/conversations/${encodeURIComponent(id)}`), {
     method: "PATCH",

@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import { t } from "../i18n.svelte.js";
+  import { hasPendingPrompt, takePendingPrompt } from "./chat-state.svelte.js";
 
   interface Props {
     busy: boolean;
@@ -68,6 +69,17 @@
   // parent layout does to an unsized textarea.
   $effect(() => {
     if (field) void grow();
+  });
+
+  // A question handed over from the board lands in the field rather than being
+  // sent: the user gets to add to it, or think better of it.
+  $effect(() => {
+    if (!hasPendingPrompt()) return;
+    const prompt = takePendingPrompt();
+    if (!prompt) return;
+    value = value.trim() ? `${value.trim()} ${prompt}` : prompt;
+    void grow();
+    field?.focus();
   });
 
   export function focus() {

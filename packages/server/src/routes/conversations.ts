@@ -5,6 +5,9 @@ import {
   getConversation,
   listConversations,
   renameConversation,
+  searchConversations,
+  setConversationModel,
+  truncateConversation,
   setConversationBackend,
   setConversationSession,
 } from "@backlog/core";
@@ -33,8 +36,12 @@ const patchBodySchema = z
     title: z.string().optional(),
     // Explicit null resets the thread: same transcript, fresh runtime session.
     session_id: z.string().min(1).nullable().optional(),
+    // Explicit null falls back to the project default.
+    model: z.string().min(1).nullable().optional(),
   })
   .strict();
+
+const truncateBodySchema = z.object({ keep: z.number().int() }).strict();
 
 const messageBodySchema = z
   .object({
@@ -106,7 +113,12 @@ export function conversationsRoutes(): Hono<AppEnv> {
 
   app.get("/conversations", (c) => {
     const project = c.get("project");
-    return c.json({ conversations: listConversations(project.backlogDir) });
+    const query = c.req.query("q");
+    return c.json({
+      conversations: query
+        ? searchConversations(project.backlogDir, query)
+        : listConversations(project.backlogDir),
+    });
   });
 
   app.post("/conversations", async (c) => {
@@ -146,10 +158,35 @@ export function conversationsRoutes(): Hono<AppEnv> {
       if (parsed.data.session_id !== undefined) {
         conversation = setConversationSession(project.backlogDir, id, parsed.data.session_id);
       }
+      if (parsed.data.model !== undefined) {
+        conversation = setConversationModel(project.backlogDir, id, parsed.data.model);
+      }
       return c.json({ conversation });
     } catch (error) {
       return c.json(
         { error: "update_failed", detail: error instanceof Error ? error.message : String(error) },
+        400,
+      );
+    }
+  });
+
+  // Rewinding, for an edit or a regeneration. The runtime session goes with the
+  // discarded turns — see truncateConversation for why it cannot be kept.
+  app.post("/conversations/:id/truncate", async (c) => {
+    const project = c.get("project");
+    const id = c.req.param("id");
+    if (!getConversation(project.backlogDir, id)) {
+      return c.json({ error: "unknown_conversation", id }, 404);
+    }
+    const parsed = truncateBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
+    }
+    try {
+      return c.json({ conversation: truncateConversation(project.backlogDir, id, parsed.data.keep) });
+    } catch (error) {
+      return c.json(
+        { error: "truncate_failed", detail: error instanceof Error ? error.message : String(error) },
         400,
       );
     }

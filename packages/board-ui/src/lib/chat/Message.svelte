@@ -10,13 +10,47 @@
     message: ChatTranscriptMessage;
     streaming?: boolean;
     busy?: boolean;
+    /** Absent when the message cannot be rewound to — a streaming turn. */
+    onedit?: ((content: string) => void) | undefined;
+    onregenerate?: (() => void) | undefined;
     onconfirm: () => void;
     oncancel: () => void;
   }
 
-  let { message, streaming = false, busy = false, onconfirm, oncancel }: Props = $props();
+  let {
+    message,
+    streaming = false,
+    busy = false,
+    onedit,
+    onregenerate,
+    onconfirm,
+    oncancel,
+  }: Props = $props();
 
   let copied = $state(false);
+  let editing = $state(false);
+  let draft = $state("");
+
+  function startEditing() {
+    draft = message.content;
+    editing = true;
+  }
+
+  function commitEdit() {
+    const text = draft.trim();
+    editing = false;
+    if (text && text !== message.content) onedit?.(text);
+  }
+
+  function editKeydown(event: KeyboardEvent) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      commitEdit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      editing = false;
+    }
+  }
   const pending = $derived(
     message.tool_calls.find((call) => call.status === "awaiting_confirmation") ?? null,
   );
@@ -43,7 +77,30 @@
 
 <article class="message" class:user={message.role === "user"}>
   {#if message.role === "user"}
-    <p class="said">{message.content}</p>
+    {#if editing}
+      <div class="editor">
+        <textarea
+          bind:value={draft}
+          onkeydown={editKeydown}
+          rows="3"
+          aria-label={t("chat.edit")}
+        ></textarea>
+        <div class="editor-actions">
+          <button type="button" class="primary" onclick={commitEdit}>{t("chat.edit_resend")}</button>
+          <button type="button" onclick={() => (editing = false)}>{t("chat.edit_cancel")}</button>
+        </div>
+      </div>
+    {:else}
+      <p class="said">{message.content}</p>
+      {#if onedit}
+        <footer>
+          <button type="button" onclick={startEditing} disabled={busy} title={t("chat.edit")}>
+            <Icon name="edit" size={11} />
+            <span>{t("chat.edit")}</span>
+          </button>
+        </footer>
+      {/if}
+    {/if}
   {:else}
     <ToolTrace calls={message.tool_calls} />
 
@@ -67,6 +124,12 @@
           <Icon name={copied ? "check" : "copy"} size={11} />
           <span>{copied ? t("chat.copied") : t("chat.copy")}</span>
         </button>
+        {#if onregenerate}
+          <button type="button" onclick={onregenerate} disabled={busy} title={t("chat.regenerate")}>
+            <Icon name="history" size={11} />
+            <span>{t("chat.regenerate")}</span>
+          </button>
+        {/if}
         {#if message.usage}
           <span class="cost" title={t("chat.usage_hint")}>
             {tokens()}
@@ -234,5 +297,57 @@
   .prose :global(strong) {
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  /* Editing keeps the message where it is rather than opening a dialog: the
+     surrounding turns are the context you are editing against. */
+  .editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .editor textarea {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+    resize: vertical;
+  }
+
+  .editor textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+
+  .editor-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .editor-actions button {
+    padding: 4px 10px;
+    border: 1px solid var(--border-field);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-body);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .editor-actions .primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-on);
+    font-weight: 600;
+  }
+
+  .editor-actions button:hover {
+    filter: brightness(0.96);
   }
 </style>

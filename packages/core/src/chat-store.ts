@@ -144,6 +144,50 @@ export function setConversationBackend(
   return write(backlogDir, { ...requireConversation(backlogDir, id), backend, model });
 }
 
+/**
+ * Cut the transcript back to its first `keep` messages — what an edit or a
+ * regeneration needs.
+ *
+ * The runtime session goes with it. A Claude Code session cannot be rewound:
+ * keeping it would leave the discarded turns alive in the model's context
+ * behind a transcript that no longer shows them, which is the worst of both.
+ * The next turn therefore starts fresh and pays for a new context.
+ */
+export function truncateConversation(backlogDir: string, id: string, keep: number): Conversation {
+  if (!Number.isInteger(keep) || keep < 0) {
+    throw new Error(`Invalid message count: ${keep}`);
+  }
+  const conversation = requireConversation(backlogDir, id);
+  return write(backlogDir, {
+    ...conversation,
+    messages: conversation.messages.slice(0, keep),
+    session_id: null,
+  });
+}
+
+/**
+ * Pin a model for this conversation, or clear it back to the project default.
+ * Also resets the session: a runtime cannot swap model mid-thread, so the
+ * choice only takes effect on a fresh context.
+ */
+export function setConversationModel(backlogDir: string, id: string, model: string | null): Conversation {
+  return write(backlogDir, { ...requireConversation(backlogDir, id), model, session_id: null });
+}
+
+/** Title and transcript search. A blank query returns everything. */
+export function searchConversations(backlogDir: string, query: string): ConversationSummary[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return listConversations(backlogDir);
+
+  return listConversations(backlogDir).filter((summary) => {
+    if ((summary.title ?? "").toLowerCase().includes(needle)) return true;
+    const conversation = getConversation(backlogDir, summary.id);
+    return (conversation?.messages ?? []).some((message) =>
+      message.content.toLowerCase().includes(needle),
+    );
+  });
+}
+
 export function renameConversation(backlogDir: string, id: string, title: string): Conversation {
   const trimmed = title.trim();
   if (!trimmed) {
