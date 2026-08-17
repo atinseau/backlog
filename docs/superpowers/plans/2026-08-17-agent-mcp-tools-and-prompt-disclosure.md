@@ -44,10 +44,12 @@ include this section.
   No "repo"/"repos" in new user-facing copy.
 - **Tests share one process.** Keep fixtures in temp dirs
   (`fs.mkdtempSync(path.join(os.tmpdir(), "backlog-<name>-"))`).
-- **A fresh worktree has no `node_modules`.** The LSP will report
-  `Cannot find module 'zod'`; `bun test` and `bun run typecheck` resolve
-  correctly by walking up to the parent repo. Ignore that diagnostic class —
-  do not "fix" it with an install.
+- **A fresh worktree has no `node_modules`, and nothing resolves without one.**
+  Measured for the `.claude/worktrees/<name>/` layout: there is no upward walk
+  that reaches the parent repository's `node_modules`, so `bun test` and
+  `bun run typecheck` both fail on `Cannot find module 'zod'` until
+  `bun install` has been run once in the worktree. Run it; do not treat the
+  diagnostic as noise. (An earlier version of this bullet claimed the opposite.)
 - **A `.default()` Zod field is optional on the input type but required on the
   inferred output type.** Widen a test fixture's type narrowly; never the schema.
 

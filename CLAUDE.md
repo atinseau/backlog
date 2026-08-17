@@ -244,6 +244,15 @@ separate files and separate dispatchers, and
 execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.
 
+**That disjointness holds on the MCP channel only, and the gap is known.** An
+execution agent also has `Bash`, a `backlog` binary on its PATH, and
+`BACKLOG_PROJECT_DIR` pointing at the real project, so `backlog task move <id>
+done` or `backlog orchestrator start` is reachable from a shell — contradicting
+`trace_write`'s own "you cannot mark your own work done". Nothing gates the CLI
+by audience today. Closing that is a feature with its own design, not a patch:
+until it lands, read the least-privilege property as being about which tools the
+model is *handed*, not about what it can *reach*.
+
 ---
 
 ## 4. The single binary — and the constraints it imposes
@@ -423,17 +432,20 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 333 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 763 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
 
-- Claude Code's real surface is still only partly used: skills, hooks,
-  subagents and session resumption have no representation in the provider
-  contract. MCP does — a coding run is spawned with `--mcp-config` and
-  Backlog's own `trace_write` tool — but `--model`, `--effort`,
-  `--permission-mode`, `--append-system-prompt` and `--mcp-config` are still
-  the whole integration.
+- Claude Code's real surface is still only partly used: skills, hooks and
+  subagents have no representation in the provider contract. MCP does — a
+  coding run is spawned with `--mcp-config` and Backlog's own `trace_write`
+  tool — but the emitted flags (`command.ts`) are chiefly `--model`,
+  `--effort`, `--permission-mode`, `--append-system-prompt` / `--system-prompt`,
+  `--mcp-config` / `--strict-mcp-config`, `--allowedTools` /
+  `--disallowedTools`, `--json-schema`, `--settings` and `--resume`. Session
+  resumption is the chat's, not a run's: `--resume` is emitted only from
+  `server/src/lib/chat/`, and nothing in the run pipeline supplies a session id.
 - **Runs have no memory.** Each one is a fresh `claude -p`; nothing carries
   across attempts except a 4 KB tail of the previous failure's event summaries
   (and only when `retry_policy.mode = feedback`, which is off by default).
