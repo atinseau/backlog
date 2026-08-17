@@ -1,0 +1,74 @@
+import { describe, expect, it } from "bun:test";
+import type { Task } from "@backlog/schemas";
+import { buildProviderPrompt } from "./run-prompt.js";
+import type { ExecutionTarget } from "./execution-target.js";
+
+const workItem = {
+  id: "task_001",
+  title: "Rename the widget",
+  description: "",
+  status: "in_progress",
+  acceptance_criteria: [],
+} as unknown as Task;
+
+const target = {
+  id: "subtask_001",
+  title: "Rename it in the board",
+  target_type: "subtask",
+  repo: "backlog",
+  risk: "low",
+  scopes: ["packages/board-ui/**"],
+  depends_on: [],
+  completion: { done_when: [] },
+  planner: { origin: "explicit" },
+} as unknown as ExecutionTarget;
+
+describe("buildProviderPrompt", () => {
+  it("discloses the ids the agent's environment carries", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    expect(prompt).toContain("BACKLOG_TASK_ID");
+    expect(prompt).toContain("BACKLOG_SUBTASK_ID");
+    expect(prompt).toContain("BACKLOG_RUN_ID");
+  });
+
+  it("names the read commands that exist, and only those", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    expect(prompt).toContain("backlog task show");
+    expect(prompt).toContain("backlog subtask show");
+    expect(prompt).toContain("backlog trace show");
+    expect(prompt).toContain("backlog claim list");
+    // `backlog ticket trace` is the spec's name for a command that shipped as
+    // `trace show`. Advertising a command that does not exist costs the agent a
+    // wasted turn and teaches it the CLI lies.
+    expect(prompt).not.toContain("ticket trace");
+  });
+
+  it("states the trace contract, with both channels", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    expect(prompt).toContain("trace_write");
+    expect(prompt).toContain("backlog trace write");
+    expect(prompt).toContain("rejection_reason");
+    expect(prompt).toContain("open_question");
+  });
+
+  it("tells the agent that blocking is how it asks for help", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    expect(prompt.toLowerCase()).toContain("blocked");
+  });
+
+  it("keeps the trace contract reachable from the instruction list too", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+    // Bounded on both sides: sliced only from "Instructions:" onwards, this
+    // would swallow the trace section itself and pass no matter what.
+    const instructions = prompt.slice(
+      prompt.indexOf("Instructions:"),
+      prompt.indexOf("Recording your work"),
+    );
+
+    expect(instructions).toContain("trace");
+  });
+});
