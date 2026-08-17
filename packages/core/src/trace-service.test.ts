@@ -122,4 +122,37 @@ describe("recordTrace", () => {
       /does not belong/,
     );
   });
+
+  it("sends a task-level rejected outcome (no subtask_id) to review on the parent task", () => {
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        subtask_id: undefined,
+        outcome: "rejected",
+        rejection_reason: "Overkill for now.",
+      }),
+    });
+    expect(getTask(backlogDir, taskId)!.status).toBe("review");
+    expect(result.transitions).toEqual([`${taskId} → review`]);
+  });
+
+  it("blocks the parent task on a task-level blocked outcome (no subtask_id)", () => {
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        subtask_id: undefined,
+        outcome: "blocked",
+        open_question: "Which credential should it use?",
+      }),
+    });
+    expect(getTask(backlogDir, taskId)!.status).toBe("blocked");
+    expect(result.transitions).toEqual([`${taskId} → blocked`]);
+  });
+
+  it("leaves the parent task alone for a task-level implemented outcome (no subtask_id)", () => {
+    const before = getTask(backlogDir, taskId)!.status;
+    const result = recordTrace({ backlogDir, trace: trace({ subtask_id: undefined }) });
+    expect(result.transitions).toEqual([]);
+    expect(getTask(backlogDir, taskId)!.status).toBe(before);
+  });
 });

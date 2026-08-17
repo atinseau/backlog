@@ -1,6 +1,6 @@
 import { traceSchema, type Trace } from "@backlog/schemas";
 import { blockTask, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
-import { getTask } from "./task-service.js";
+import { getTask, updateTaskStatus } from "./task-service.js";
 import { appendTrace } from "./trace-store.js";
 
 export interface RecordTraceInput {
@@ -48,7 +48,8 @@ export function recordTrace(input: RecordTraceInput): RecordTraceResult {
       updateSubTaskStatus(backlogDir, trace.subtask_id, "review");
       transitions.push(`${trace.subtask_id} → review`);
     } else {
-      transitions.push(`${trace.task_id} → review (task-level, applied by the run)`);
+      updateTaskStatus(backlogDir, trace.task_id, "review");
+      transitions.push(`${trace.task_id} → review`);
     }
   } else if (trace.outcome === "blocked") {
     // open_question is guaranteed present by traceSchema for this outcome.
@@ -57,7 +58,8 @@ export function recordTrace(input: RecordTraceInput): RecordTraceResult {
       blockTask(backlogDir, trace.subtask_id, [question]);
       transitions.push(`${trace.subtask_id} → blocked`);
     } else {
-      transitions.push(`${trace.task_id} → blocked (task-level, applied by the run)`);
+      updateTaskStatus(backlogDir, trace.task_id, "blocked");
+      transitions.push(`${trace.task_id} → blocked`);
     }
   }
 
