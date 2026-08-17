@@ -324,17 +324,45 @@ Behavioural leverage, weakest to strongest:
   with it. It is structurally stronger than any instruction.
 - `SessionStart` injects the minimal push automatically. **Backlog's**, since
   graphify knows nothing about tickets.
-- A **`Stop` hook** refuses to end the session until the trace is deposited.
-  Backlog's as well.
-  It does not make the agent virtuous; it makes forgetting impossible. It needs
-  no state: the server knows whether the ticket's trace exists, so the hook is
-  an HTTP call to the local server.
+- A **`Stop` hook** refuses to end the session until the trace is deposited —
+  Backlog's as well. It does not make the agent virtuous; it makes forgetting
+  impossible. It needs no state: the server knows whether the ticket's trace
+  exists, so the hook is an HTTP call to the local server.
 
-The plumbing already exists: `claude-executor.ts:138` already passes
-`--settings` to inject `CLAUDE_CODE_PROFILE`. We extend that call rather than
-invent a channel. Trade-off accepted: hooks are Claude Code-specific, so Codex
-falls back to the prompt alone — consistent with the project's stated direction
-("stop designing for parity").
+The plumbing already exists: `providers/claude-code/command.ts:71` already
+builds a `--settings` payload to inject `CLAUDE_CODE_PROFILE`. We extend it
+rather than invent a channel (see §9 — it must become unconditional). Trade-off
+accepted: hooks are Claude Code-specific, so Codex falls back to the prompt
+alone — consistent with the project's stated direction ("stop designing for
+parity").
+
+### Verified empirically, 2026-08-17
+
+The documentation does not state which hooks fire in print mode, so it was
+measured against `claude -p` directly rather than assumed.
+
+- `SessionStart`, `PreToolUse` and `Stop` **all fire under `claude -p`**. This
+  is what makes graphify's `PreToolUse` interception work inside Backlog runs
+  and not only in interactive sessions — the open question behind D6.
+- **`Stop` can block in print mode.** `exit 2` prevents the stop, the hook's
+  stderr reaches the agent as an instruction, and the agent resumes work to
+  comply. In the test the prompt never mentioned the required file; the hook
+  alone obtained it, and allowed the session to end on its second call.
+
+Three consequences for this design:
+
+1. **"Blocked without an explanation" becomes mechanically impossible.** An
+   agent trying to end without a trace is sent back to write one. That is why
+   the trace is the *only* status channel: the single channel is enforced by the
+   runtime, not by convention.
+2. **A blocked stop costs one full extra turn.** The trace contract must
+   therefore live in the prompt from the start, with the hook as a net and never
+   the normal path — otherwise every run pays that turn. A high `Stop`-block
+   rate is a signal that the prompt is failing, not that the hook is working.
+3. **A loop ceiling is mandatory.** An agent that refuses to write its trace
+   would otherwise be blocked forever, paying a turn each time. Cap the blocks
+   at 3, then let the session end, mark the run `trace_missing` and surface it
+   on the board. A guardrail that hangs an agent is worse than no guardrail.
 
 ## 8. graphify as a hard dependency
 
