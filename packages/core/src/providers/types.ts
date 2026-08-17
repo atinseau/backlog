@@ -74,6 +74,8 @@ export interface ProviderRunRequest {
   agent: Agent;
   prompt: string;
   cwd: string;
+  /** Where a runtime may drop its own scratch files. Defaults to `cwd`. */
+  scratchDir?: string | undefined;
   /** Base environment; the provider overlays its own auth on top. */
   env: NodeJS.ProcessEnv;
   reasoningEffort?: string | undefined;

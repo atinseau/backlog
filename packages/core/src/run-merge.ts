@@ -29,6 +29,9 @@ interface SpawnResult {
 }
 
 const INTERNAL_RUN_FILES = [
+  ".backlog-agent-prompt.md",
+  ".backlog-agent.log",
+  // Pre-provider names, still present in worktrees created by older versions.
   ".backlog-claude-prompt.md",
   ".backlog-claude.log",
   ".backlog-codex-prompt.md",
