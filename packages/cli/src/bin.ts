@@ -21,6 +21,7 @@ import { registerSourceCommand } from "./commands/source.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerSubTaskCommand } from "./commands/subtask.js";
 import { registerTaskCommand } from "./commands/task.js";
+import { registerTraceCommand } from "./commands/trace.js";
 import { registerProjectCommand } from "./commands/project.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
 import { maybeNotifyCliUpdate, runCliUpdate } from "./update-check.js";
@@ -87,6 +88,7 @@ registerRunCommand(program);
 registerRunAlias(program);
 registerSourceCommand(program);
 registerTaskCommand(program);
+registerTraceCommand(program);
 registerProjectCommand(program);
 registerWorktreeCommand(program);
 

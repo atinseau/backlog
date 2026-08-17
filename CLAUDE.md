@@ -344,7 +344,7 @@ project · repository · task · subtask · run · claim · agent.
 **CLI** — canonical top-level: `init`, `doctor`, `update`. Everything else is
 namespaced (`task`, `subtask`, `claim`, `repositories`, `run`, `agents`,
 `hooks`, `schedule`, `orchestrator`, `worktree`, `source`, `release`,
-`secrets`, `daemon`, `project`). Version flag is `-v, --version`.
+`secrets`, `daemon`, `project`, `trace`). Version flag is `-v, --version`.
 
 **UI** — Svelte 5 (runes: `$state`, `$derived`, `$props`). Operational screens
 stay dense and tool-like; no marketing layouts inside the app. Visible copy
