@@ -74,6 +74,12 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     ...process.env,
     PATH: expandedPath(),
     ...agent.environment,
+    // An in_repo project tracks .backlog/config.toml, so the run's worktree
+    // carries a shadow copy of it. Without this, findProject() walking up from
+    // the worktree resolves to that shadow: the agent would read an empty
+    // project and write its trace into a directory the worktree GC deletes.
+    // BACKLOG_PROJECT_DIR is checked before the upward walk (find-project.ts).
+    BACKLOG_PROJECT_DIR: params.backlogDir,
     BACKLOG_RUN_ID: run.id,
     BACKLOG_TASK_ID: workItem.id,
     BACKLOG_SUBTASK_ID: task.id,
