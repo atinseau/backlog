@@ -1,7 +1,11 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 
-const apiTarget = process.env.BACKLOG_API_URL ?? "http://127.0.0.1:7878";
+// BACKLOG_API_URL wins when set. Otherwise follow BACKLOG_DEV_PORT, so that
+// `BACKLOG_DEV_PORT=7993 bun run dev:all` moves both halves of the stack at
+// once instead of leaving the proxy pointing at the old port.
+const apiTarget =
+  process.env.BACKLOG_API_URL ?? `http://127.0.0.1:${process.env.BACKLOG_DEV_PORT ?? 7878}`;
 
 export default defineConfig({
   plugins: [svelte()],

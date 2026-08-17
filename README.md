@@ -34,13 +34,40 @@ Requires [Bun](https://bun.sh) 1.3+. Nothing else — no Node, no pnpm.
 
 ```sh
 bun install
+bun run dev:all       # server + board with HMR, one command → :5173
+
 bun run typecheck     # tsc + svelte-check
 bun run test          # bun test, 54 files
 bun run build         # → dist/backlog
-
-bun run dev serve --port 7878 --repository-only .   # CLI from source
-bun run dev:ui                                      # board with HMR → :5173
 ```
+
+`dev:all` runs both halves under `bun run --parallel` with prefixed output, and
+Ctrl-C stops the pair. With no setup it opens the checkout it lives in. Three
+variables tune it:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `BACKLOG_DEV_PORT` | `7878` | API port. The Vite proxy follows it. |
+| `BACKLOG_DEV_UI_PORT` | `5173` | Board port. |
+| `BACKLOG_DEV_PROJECT` | this checkout | Directory to work on. |
+
+**Point it at any other repository** — that is the normal way to dogfood it:
+
+```sh
+BACKLOG_DEV_PROJECT=~/code/my-app bun run dev:all
+```
+
+No `backlog init` required there. A directory without `.backlog/` opens against
+an ephemeral board under `~/.backlog/.repo-boards/`; run `bun run dev init` in
+it once if you want tasks, claims and runs to survive. The launcher picks the
+mode from what it finds and says which one it used.
+
+Run a second stack beside the first with
+`BACKLOG_DEV_PORT=7993 BACKLOG_DEV_UI_PORT=5199 bun run dev:all`.
+
+Each half still runs alone — `bun run dev:server`, `bun run dev:ui` — and any
+CLI command works from source: `bun run dev status`, `bun run dev task list`.
+Use `localhost:5173`, not `127.0.0.1:5173`: Vite binds IPv6.
 
 `bun run build --target bun-linux-x64` cross-compiles; supported targets are
 `bun-{linux,darwin}-{x64,arm64}`.

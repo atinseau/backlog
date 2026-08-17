@@ -9,7 +9,9 @@
     "build:ui": "bun run --cwd packages/board-ui build",
     "predev": "bun run scripts/ensure-ui.ts",
     "dev": "bun run packages/cli/src/bin.ts",
-    "dev:ui": "bun run --cwd packages/board-ui dev",
+    "dev:all": "bun run --parallel dev:server dev:ui",
+    "dev:server": "bun run scripts/dev-server.ts",
+    "dev:ui": "bun run --cwd packages/board-ui dev --port ${BACKLOG_DEV_UI_PORT:-5173}",
     "test": "bun test ./packages",
     "typecheck": "tsc --noEmit && bun run --cwd packages/board-ui typecheck",
     "clean": "rm -rf dist packages/board-ui/dist packages/server/src/ui-assets.generated.ts"
