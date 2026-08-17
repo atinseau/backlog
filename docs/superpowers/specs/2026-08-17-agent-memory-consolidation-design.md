@@ -35,7 +35,8 @@ another writer's zone.**
 | Writer | Zone | Regime | Location | Loss means |
 | --- | --- | --- | --- | --- |
 | Execution agent | ticket trace | append-only, immutable | `.backlog/` (outside git) | permanent |
-| Consolidator | canon | rewritable, supersedable | project docs dir (in git) | permanent |
+| Consolidator | canon | rewritable, supersedable | declared canon zone, in git (§5) | permanent |
+| Human | everything else in docs | theirs | project docs (in git) | permanent |
 | graphify | index | reconstructible | `graphify-out/` (derived) | rerun `graphify update` |
 
 ```
@@ -183,6 +184,46 @@ whole point: an adapting consolidator repays discovery on every pass, forever.
 
 Projects with no docs directory get the defaults created for them at adoption.
 
+### What the canon note replaces, and what it does not
+
+**It does not replace the ADR — it decomposes it.** The classic Nygard shape
+(Context / Decision / Consequences) mixes two tenses in one file: a dated
+account in the past ("we considered X, then Y") and a rule in force in the
+present ("we use Z"). That mixture is precisely why old ADRs rot — the account
+stays true forever, the rule may have changed, and nothing in the file
+separates them.
+
+The two halves split along the journal/canon line already established in §4:
+
+- the account — context, alternatives weighed, what was tried — is *journal*,
+  and lives in the ticket trace, which is already dated and immutable;
+- the rule in force is *canon*, and lives in the atomic note.
+
+Nothing is lost: `sources` leads back to the account, and graphify makes it an
+edge. What is gained is that the rule becomes independently supersedable — the
+day the project leaves Zod, `mem-003` gets `superseded_by: mem-088` without
+touching March's account, which remains true.
+
+For a human reader it can still *look* like an ADR: on a project with a
+numbered `docs/adr/`, D4 makes notes adopt that placement and naming
+(`docs/adr/0042-state-file-writers-must-be-reentrant.md`). Only the frontmatter
+is imposed.
+
+### Scope: what the consolidator owns
+
+**Not all documentation is decision memory.** Install guides, tutorials, API
+references do not come from a consolidation and the consolidator has no
+business there. Two guardrails:
+
+1. **A declared zone** in `[memory]` — the consolidator writes nowhere else.
+2. **A mark of ownership** — it never modifies a file it did not create. It may
+   read one, cite one, detect that it contradicts one; but when it contradicts
+   a human-written ADR it creates a note that cites the conflict and flags it,
+   it does not rewrite the file.
+
+This is the §2 rule extended to a fourth writer: **the human has a zone too,
+and nobody writes into another writer's zone.**
+
 
 ## 6. The consolidator
 
@@ -312,7 +353,7 @@ Consequences to handle explicitly:
 
 | Area | Change |
 | --- | --- |
-| `packages/schemas` | new `trace.ts` and `memory.ts`; `config.ts` gains a `[memory]` block (docs dir, adr dir, form convention, batch threshold) |
+| `packages/schemas` | new `trace.ts` and `memory.ts`; `config.ts` gains a `[memory]` block (canon zone, form convention, prose language, batch thresholds) |
 | `packages/core` | new `trace-store.ts` and `consolidator.ts`; `provider-utils.ts` prompt gains the trace contract and the minimal push |
 | `packages/core/src/claude-executor.ts` | extend the existing `--settings` payload with `SessionStart` / `PreToolUse` / `Stop` hooks |
 | `packages/server` | routes for trace write, memory search, consolidation trigger and journal |
@@ -364,6 +405,9 @@ pointed at a sandbox (use `homeDir()` from `@backlog/config`, never
 - Journal: an empty pass still advances the cursor and records reasons; a
   previously discarded claim is not re-judged.
 - Canon writes: `superseded_by` never deletes; `sources` accumulates.
+- Ownership: a file inside the canon zone without the consolidator's mark is
+  never modified, even when a claim contradicts it — the pass emits a
+  conflict-flagging note instead. Writes outside the declared zone are refused.
 - Non-duplication linter: a present-tense trace field and a past-tense canon
   body are both flagged.
 - graphify is stubbed at the command boundary so tests do not need a real
