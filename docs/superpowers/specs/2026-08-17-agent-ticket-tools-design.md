@@ -1,6 +1,7 @@
 # Agent ticket tools — design
 
-Status: **approved design, not yet planned**
+Status: **approved** · §5 §6 §9 implemented (traces, MCP tool set, prompt
+disclosure) · §7 `proposed` implemented · §8 audit pass not started
 Date: 2026-08-17
 Prerequisite for: [agent memory and consolidation](./2026-08-17-agent-memory-consolidation-design.md)
 See also: [prompt registry](./2026-08-17-prompt-registry-design.md) — the tool

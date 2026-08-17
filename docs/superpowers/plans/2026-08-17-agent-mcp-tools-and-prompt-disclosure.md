@@ -133,7 +133,7 @@ cleanly enough to be worth the coordination.
   Task 5's prompt tells the agent to run `backlog` commands, and they are wrong
   without it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to the `describe("executeAgentRun", …)` block in
 `packages/core/src/run-executor.test.ts`. The `custom` provider runs a shell
@@ -154,13 +154,13 @@ variable is enough to observe the environment.
   });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts`
 Expected: FAIL — the summary artifact is `""` (the variable is unset), not the
 backlog directory.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `packages/core/src/run-executor.ts`, add one entry to the object returned by
 `environmentFor`, and take `backlogDir` off the params it already receives:
@@ -195,12 +195,12 @@ Note the placement: **before** `agent.environment` would let a user's agent
 config silently override it; **after** is deliberate — this one is not
 negotiable. (`...agent.environment` stays where it is, above.)
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts`
 Expected: PASS, and every pre-existing case in the file still passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/src/run-executor.ts packages/core/src/run-executor.test.ts
@@ -237,7 +237,7 @@ property on this side is not consent, it is *scope* — the set contains exactly
 one tool, and that tool cannot reach `done` (see `recordTrace`: `implemented`
 derives no transition).
 
-- [ ] **Step 1: Write the failing tests for the context helper**
+- [x] **Step 1: Write the failing tests for the context helper**
 
 Create `packages/core/src/trace-context.test.ts`:
 
@@ -278,12 +278,12 @@ describe("withTraceContextDefaults", () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `bun test ./packages/core/src/trace-context.test.ts`
 Expected: FAIL — `Cannot find module './trace-context.js'`.
 
-- [ ] **Step 3: Write the context helper**
+- [x] **Step 3: Write the context helper**
 
 Create `packages/core/src/trace-context.ts`. This is the body currently sitting
 in `packages/cli/src/commands/trace.ts`, moved into `core` and given an explicit
@@ -322,12 +322,12 @@ export function withTraceContextDefaults(
 }
 ```
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run: `bun test ./packages/core/src/trace-context.test.ts`
 Expected: PASS (3 tests).
 
-- [ ] **Step 5: Write the failing tests for the agent tool set**
+- [x] **Step 5: Write the failing tests for the agent tool set**
 
 Create `packages/core/src/agent-tools.test.ts`. The first three cases are the
 security boundary — spec §12's last bullet — asserted at three different depths
@@ -423,12 +423,12 @@ describe("trace_write", () => {
 });
 ```
 
-- [ ] **Step 6: Run them to verify they fail**
+- [x] **Step 6: Run them to verify they fail**
 
 Run: `bun test ./packages/core/src/agent-tools.test.ts`
 Expected: FAIL — `Cannot find module './agent-tools.js'`.
 
-- [ ] **Step 7: Write the agent tool set**
+- [x] **Step 7: Write the agent tool set**
 
 Create `packages/core/src/agent-tools.ts`:
 
@@ -596,7 +596,7 @@ export async function callAgentTool(call: AgentToolCall): Promise<McpToolOutcome
 `McpToolHost.callTool`, whose signature returns a promise because the
 orchestrator side genuinely does I/O.
 
-- [ ] **Step 8: Export both modules from `core`**
+- [x] **Step 8: Export both modules from `core`**
 
 In `packages/core/src/index.ts`, beside the existing
 `export * from "./orchestrator-tools.js";` (line 9) and
@@ -607,7 +607,7 @@ export * from "./agent-tools.js";
 export * from "./trace-context.js";
 ```
 
-- [ ] **Step 9: Delete the CLI's duplicate of the context helper**
+- [x] **Step 9: Delete the CLI's duplicate of the context helper**
 
 In `packages/cli/src/commands/trace.ts`: delete the `withContextDefaults`
 function (lines 42-63 as shipped) and its comment block, add
@@ -630,7 +630,7 @@ export function runTraceWrite(
 }
 ```
 
-- [ ] **Step 10: Run the tests to verify they pass**
+- [x] **Step 10: Run the tests to verify they pass**
 
 Run: `bun run test`
 Expected: PASS. `agent-tools.test.ts` (6 cases) and `trace-context.test.ts`
@@ -638,7 +638,7 @@ Expected: PASS. `agent-tools.test.ts` (6 cases) and `trace-context.test.ts`
 still pass unchanged — they exercise `runTraceWrite`, whose behaviour is
 identical.
 
-- [ ] **Step 11: Typecheck and commit**
+- [x] **Step 11: Typecheck and commit**
 
 ```bash
 bun run typecheck
@@ -676,7 +676,7 @@ the same mistake makes the *chat* lose its tools, which fails loudly and harms
 nothing. The chat is the one caller today, and it is updated here to say what
 it wants.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/cli/src/commands/mcp.test.ts`:
 
@@ -723,12 +723,12 @@ describe("parseAudience", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test ./packages/cli/src/commands/mcp.test.ts`
 Expected: FAIL — `mcpHostFor` and `parseAudience` are not exported.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Replace the body of `packages/cli/src/commands/mcp.ts`:
 
@@ -804,12 +804,12 @@ export function registerMcpCommand(program: Command): void {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `bun test ./packages/cli/src/commands/mcp.test.ts`
 Expected: PASS (6 cases).
 
-- [ ] **Step 5: Make the chat ask for its set explicitly**
+- [x] **Step 5: Make the chat ask for its set explicitly**
 
 In `packages/server/src/lib/chat/claude-code-chat.ts`, inside
 `buildChatCommand`:
@@ -825,7 +825,7 @@ In `packages/server/src/lib/chat/claude-code-chat.ts`, inside
     },
 ```
 
-- [ ] **Step 6: Update the chat's test to the new argv**
+- [x] **Step 6: Update the chat's test to the new argv**
 
 In `packages/server/src/lib/chat/claude-code-chat.test.ts`, the case
 `"declares Backlog's own MCP server and nothing else"`:
@@ -845,12 +845,12 @@ needs"` asserts `args.slice(0, 2)` equals `["/repo/bin.ts", "mcp-server"]` — t
 new flag lands after `mcp-server`, so that case needs no change. Verify it, do
 not assume it.
 
-- [ ] **Step 7: Run the full suite**
+- [x] **Step 7: Run the full suite**
 
 Run: `bun run test`
 Expected: PASS across all packages.
 
-- [ ] **Step 8: Typecheck and commit**
+- [x] **Step 8: Typecheck and commit**
 
 ```bash
 bun run typecheck
@@ -895,7 +895,7 @@ such an agent falls back to `backlog trace write`, which Task 5's prompt names.
 Making the trace reachable under plan mode is a permissions problem, not an MCP
 one, and is out of scope here.
 
-- [ ] **Step 1: Write the failing tests for the command builder**
+- [x] **Step 1: Write the failing tests for the command builder**
 
 Append to `packages/core/src/providers/claude-code/command.test.ts`:
 
@@ -923,13 +923,13 @@ Append to `packages/core/src/providers/claude-code/command.test.ts`:
   });
 ```
 
-- [ ] **Step 2: Run them to verify the second fails**
+- [x] **Step 2: Run them to verify the second fails**
 
 Run: `bun test ./packages/core/src/providers/claude-code/command.test.ts`
 Expected: the first PASSES (current behaviour), the second FAILS — TypeScript
 rejects `strictMcpConfig`, and the flag is present regardless.
 
-- [ ] **Step 3: Add the opt-out to the command builder**
+- [x] **Step 3: Add the opt-out to the command builder**
 
 In `packages/core/src/providers/claude-code/command.ts`, add to
 `ClaudeCodeCommandInput` beside `mcpServers`:
@@ -955,12 +955,12 @@ and change the block at line 80:
   }
 ```
 
-- [ ] **Step 4: Run to verify both pass**
+- [x] **Step 4: Run to verify both pass**
 
 Run: `bun test ./packages/core/src/providers/claude-code/command.test.ts`
 Expected: PASS, including every pre-existing case.
 
-- [ ] **Step 5: Write the failing test for the provider**
+- [x] **Step 5: Write the failing test for the provider**
 
 Append to `packages/core/src/providers/claude-code/provider.test.ts`. That file
 already has an `agentFixture(overrides)` helper (line 5) and a `noSecrets`
@@ -996,13 +996,13 @@ the file's existing import.
   });
 ```
 
-- [ ] **Step 6: Run it to verify it fails**
+- [x] **Step 6: Run it to verify it fails**
 
 Run: `bun test ./packages/core/src/providers/claude-code/provider.test.ts`
 Expected: FAIL — `backlogDir` is not on `ProviderRunRequest`, and no
 `--mcp-config` is produced.
 
-- [ ] **Step 7: Add `backlogDir` to the provider contract**
+- [x] **Step 7: Add `backlogDir` to the provider contract**
 
 In `packages/core/src/providers/types.ts`, inside `ProviderRunRequest`:
 
@@ -1024,7 +1024,7 @@ export interface ProviderRunRequest {
 }
 ```
 
-- [ ] **Step 8: Attach the server in the Claude Code provider**
+- [x] **Step 8: Attach the server in the Claude Code provider**
 
 In `packages/core/src/providers/claude-code/provider.ts`, add the imports and
 build the command through a named helper so it stays testable without spawning:
@@ -1084,7 +1084,7 @@ and replace the first statements of `executeRun`:
     const command = buildRunCommand(request);
 ```
 
-- [ ] **Step 9: Pass `backlogDir` from the run executor**
+- [x] **Step 9: Pass `backlogDir` from the run executor**
 
 In `packages/core/src/run-executor.ts:180`, add `backlogDir: params.backlogDir,`
 to the `provider.executeRun({ … })` call. That is the only call site in the
@@ -1096,13 +1096,13 @@ one line. Confirm with:
 grep -rn "executeRun(" packages --include="*.ts" | grep -v "\.test\."
 ```
 
-- [ ] **Step 10: Run the tests to verify they pass**
+- [x] **Step 10: Run the tests to verify they pass**
 
 Run: `bun run test`
 Expected: PASS. `run-executor.test.ts` must still pass unchanged — it drives a
 `custom` agent, which ignores the new field.
 
-- [ ] **Step 11: Typecheck and commit**
+- [x] **Step 11: Typecheck and commit**
 
 ```bash
 bun run typecheck
@@ -1134,7 +1134,7 @@ do not (spec §9). The trace contract is a section of its own at the end, and is
 also referenced from the instruction list, because a contract that gets dropped
 with the tail of a long list is a contract that does not exist.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/core/src/run-prompt.test.ts`:
 
@@ -1215,12 +1215,12 @@ describe("buildProviderPrompt", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test ./packages/core/src/run-prompt.test.ts`
 Expected: FAIL on the first case — the prompt mentions none of this today.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `packages/core/src/run-prompt.ts`, add the two blocks and one instruction
 line:
@@ -1288,19 +1288,19 @@ acceptance criteria:
   return lines.join("\n");
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `bun test ./packages/core/src/run-prompt.test.ts`
 Expected: PASS (6 cases).
 
-- [ ] **Step 5: Check what else asserts on the prompt**
+- [x] **Step 5: Check what else asserts on the prompt**
 
 Run: `bun run test`
 Expected: PASS. `run-executor.test.ts` has a case reading the written prompt
 file and asserting it contains `"Allowed scopes:"` — that still holds. If any
 snapshot-style assertion breaks, update it rather than trimming the prompt.
 
-- [ ] **Step 6: Read the whole prompt once, as a human**
+- [x] **Step 6: Read the whole prompt once, as a human**
 
 A test proves the words are present. It cannot tell you the paragraph reads as
 an instruction rather than as boilerplate an agent will skim. Print one and read
@@ -1324,7 +1324,7 @@ rather than optional, that no command named in it is one you have not verified
 exists, and that the whole prompt still fits on roughly two screens. If it has
 grown past that, cut from `INSTRUCTIONS`, not from the trace contract.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 bun run typecheck
@@ -1347,7 +1347,7 @@ Three statements in the repository become false the moment Task 5 lands. A
 future agent will trust them; the standing rule in `CLAUDE.md` §1 is that a
 change nobody can discover is not finished.
 
-- [ ] **Step 1: Correct `CLAUDE.md` §3**
+- [x] **Step 1: Correct `CLAUDE.md` §3**
 
 The "How the AI is wired" section describes MCP as the orchestrator chat's
 transport only. Add, under the orchestrator-chat subsection or as its own
@@ -1367,7 +1367,7 @@ execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.
 ```
 
-- [ ] **Step 2: Correct `CLAUDE.md` §8**
+- [x] **Step 2: Correct `CLAUDE.md` §8**
 
 The bullet reading *"Claude Code's real surface is still mostly unused: skills,
 MCP servers, hooks, subagents and session resumption have no representation in
@@ -1394,7 +1394,7 @@ Also revise the bullet *"Permission modes are coarse: `read-only` maps to
   at all; it has to fall back to `backlog trace write`.
 ```
 
-- [ ] **Step 3: Update the spec's status line**
+- [x] **Step 3: Update the spec's status line**
 
 `docs/superpowers/specs/2026-08-17-agent-ticket-tools-design.md` line 3 reads
 `Status: **approved design, not yet planned**`, which PR #11 already made
@@ -1405,7 +1405,7 @@ Status: **approved** · §5 §6 §9 implemented (traces, MCP tool set, prompt
 disclosure) · §7 `proposed` implemented · §8 audit pass not started
 ```
 
-- [ ] **Step 4: Verify the whole thing, for real**
+- [x] **Step 4: Verify the whole thing, for real**
 
 ```bash
 bun run typecheck
@@ -1430,7 +1430,7 @@ diverged from a dev run before:
 Expected: the `--audience` option is listed and its description names both
 audiences.
 
-- [ ] **Step 5: Prove the tool set is really disjoint at runtime**
+- [x] **Step 5: Prove the tool set is really disjoint at runtime**
 
 A unit test asserts the lists do not intersect. This asserts the *server* obeys
 it, which is what an agent actually talks to:
@@ -1447,7 +1447,7 @@ Re-run it with `--audience orchestrator` and confirm the nine orchestrator
 tools come back instead. If this project has no `.backlog/`, run it against any
 project that does.
 
-- [ ] **Step 6: Commit and open the PR**
+- [x] **Step 6: Commit and open the PR**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-08-17-agent-ticket-tools-design.md \
