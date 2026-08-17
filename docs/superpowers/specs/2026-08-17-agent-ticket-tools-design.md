@@ -3,6 +3,9 @@
 Status: **approved design, not yet planned**
 Date: 2026-08-17
 Prerequisite for: [agent memory and consolidation](./2026-08-17-agent-memory-consolidation-design.md)
+See also: [prompt registry](./2026-08-17-prompt-registry-design.md) — the tool
+descriptions and returned texts specified here are registry blocks, and the
+prompt disclosure section of §9 is authored there
 
 ---
 

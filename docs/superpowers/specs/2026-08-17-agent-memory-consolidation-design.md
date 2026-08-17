@@ -4,6 +4,9 @@ Status: **approved design, not yet planned**
 Date: 2026-08-17
 Depends on: [agent ticket tools](./2026-08-17-agent-ticket-tools-design.md) —
 the trace-writing tool this spec assumes lives there
+See also: [prompt registry](./2026-08-17-prompt-registry-design.md) — the trace
+contract, the hook messages and the consolidator's arbitration prompt are all
+registry blocks, and the contract ones are locked there
 
 ---
 
