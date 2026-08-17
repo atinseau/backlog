@@ -249,14 +249,49 @@ are separate files and separate dispatchers, and
 execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.
 
-**That disjointness holds on the MCP channel only, and the gap is known.** An
-execution agent also has `Bash`, a `backlog` binary on its PATH, and
-`BACKLOG_PROJECT_DIR` pointing at the real project, so `backlog task move <id>
-done` or `backlog orchestrator start` is reachable from a shell — contradicting
-`trace_write`'s own "you cannot mark your own work done". Nothing gates the CLI
-by audience today. Closing that is a feature with its own design, not a patch:
-until it lands, read the least-privilege property as being about which tools the
-model is *handed*, not about what it can *reach*.
+**The CLI is closed to an execution agent.** A coding run's environment carries
+`BACKLOG_AGENT_ROLE=execution` (`environmentFor` in `run-executor.ts`), and the
+CLI entrypoint refuses every command under it — `backlog task move <id> done`
+included — pointing the agent at the MCP server instead. Two exemptions,
+neither a convenience:
+
+- **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
+  so the server a run spawns starts under the same role as the agent it serves.
+  Refusing it would leave that agent with neither the CLI nor the façade the
+  refusal points it at. Narrowed in turn: under this role the server may only
+  serve the `execution` set, so `--audience orchestrator` cannot buy
+  `start_subtask` for the price of hand-writing JSON-RPC.
+- **`BACKLOG_HOOK_INVOCATION`**, exported by the generated pre-commit hook
+  immediately before the claim check — not by the shim, which is a generic
+  launcher. The hook's failure path *allows* the commit when Backlog is
+  unavailable, so a refusal here would not block a violating commit; it would
+  silently disable claim enforcement. That is why the hook carries a version
+  and `hooks install` reports a pre-3 hook as stale.
+
+Which answer applies where comes from **one table**,
+`packages/core/src/contexts/contexts.ts`. For each context Backlog launches a
+model in — `execution`, `orchestrator`, `completion` — it names the MCP
+audience, the tool names, the built-ins to deny, whether the user's own MCP
+servers stay visible, and the CLI role to stamp. The provider, the run executor
+and the `mcp-server` command all read it; nothing decides any of this locally.
+
+**The table is where the decision is written, not what enforces it**, and three
+limits belong next to it — a containment claim that overstates is worse than
+none:
+
+- `env -u BACKLOG_AGENT_ROLE backlog …` drops the role, and the CLI answers
+  normally.
+- So does `BACKLOG_HOOK_INVOCATION=1 backlog …`, and the generated hook names
+  that variable in a file the agent can read from its own checkout.
+- The execution context keeps the user's own MCP servers **visible** on purpose
+  — a coding run waives `--strict-mcp-config`, because those servers are
+  capability the user configured and removing them silently is a regression.
+  The cost is that the runtime also loads the worktree's project-scoped
+  `.mcp.json`: a repository can hand a run an MCP server of its own.
+
+`deniedBuiltins: ["Bash(backlog:*)"]` closes the obvious shell path, not every
+one — an absolute path or a `sh -c` wrapper still reaches the binary. The
+refusal in the CLI is what binds.
 
 ---
 
@@ -437,7 +472,7 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 763 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 776 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**

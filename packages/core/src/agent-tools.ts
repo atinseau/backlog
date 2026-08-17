@@ -9,9 +9,10 @@ import { recordTrace } from "./trace-service.js";
 // runs or duplicate itself — the runaway cycle the `proposed` status was built
 // to close, re-entering through the MCP window (spec §2).
 //
-// One tool, deliberately. Reading stays on the CLI (`task show`, `trace show`,
-// `claim list`), which works on every runtime; re-exposing it here would be
-// work that only serves Claude Code (spec T1, §11).
+// One tool, because this file is the *write* half. Reading used to stay on the
+// CLI — but the CLI now refuses an execution agent outright, so the reads moved
+// onto the façade as their own set (`mcp/read-tools.ts`). The execution
+// audience is the two together; the split is by direction, not by audience.
 
 const CONSTRAINT_SCHEMA = {
   type: "object",

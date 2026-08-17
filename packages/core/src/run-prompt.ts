@@ -21,9 +21,11 @@ const INSTRUCTIONS = [
 
 // What the agent can see and do beyond editing files. The whole action surface
 // below has been shipped for a long time; until this section existed, no agent
-// was ever told about any of it (spec §2). It lives here rather than behind
-// --append-system-prompt so every runtime gets it: the CLI works everywhere,
-// runtime-specific prompt flags do not (spec §9).
+// was ever told about any of it (spec §2). It lives in the prompt body rather
+// than behind --append-system-prompt because the prompt body is what every
+// runtime receives; a system-prompt flag is one runtime's spelling and the
+// others would drop this section entirely (spec §9). Nothing to do with the
+// `backlog` binary, which the line below rightly says the agent cannot run.
 const BACKLOG_CONTEXT = [
   "Backlog context:",
   "- Your environment carries BACKLOG_TASK_ID, BACKLOG_RUN_ID, BACKLOG_REPO, BACKLOG_BRANCH and BACKLOG_WORKTREE, plus BACKLOG_SUBTASK_ID when this run is scoped to a subtask.",
