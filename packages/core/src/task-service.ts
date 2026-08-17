@@ -170,11 +170,21 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
 }
 
 // `proposed` is a one-way door (design spec §7): work an agent invented for
-// itself leaves it by human review only, and only for `backlog`. Task status has
-// exactly one writer — this function — so the invariant lives here rather than in
-// each of its callers. Guarding the callers instead is whack-a-mole: four of them
+// itself leaves it by human review only, and only for `backlog`. The invariant
+// lives here because this function is the writer every status *cascade* goes
+// through, and guarding those callers instead is whack-a-mole: four of them
 // (createSubTask, updateSubTaskStatus's cascade, removeSubTask, applySplitPlan)
 // promoted to `ready` unconditionally, and any fifth added later would too.
+//
+// It is not the only writer, and the door is not sealed. Three call sites
+// assign `task.status` directly and bypass this guard today: `repo-service.ts`
+// (a `--force` repository detach re-derives the status of every affected task),
+// `sync-conflicts.ts` (resolving a conflict in favour of the external value)
+// and `source-state.ts` (importing an external status onto a known task). They
+// are left unguarded because each needs its own answer rather than this one —
+// an external resolution is a human decision and may legitimately win, whereas
+// the detach re-derivation almost certainly should not. Treat a `proposed` task
+// reached through those paths as unprotected.
 //
 // A refusal is a no-op plus a warning, not a throw, on purpose. Most callers are
 // cascades — deriveTaskStatusFromSubTasks, the run lifecycle — where throwing
