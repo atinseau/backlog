@@ -6,6 +6,8 @@ import { traceSchema, type Trace } from "@backlog/schemas";
 // load-bearing: a trace is a journal entry, so it is never edited or replaced —
 // a retried run adds a line, it does not correct its predecessor.
 
+const warnedUnreadableTraceFiles = new Set<string>();
+
 export function tracesDir(backlogDir: string): string {
   return path.join(backlogDir, "traces");
 }
@@ -40,8 +42,13 @@ export function listTraces(backlogDir: string, taskId: string): Trace[] {
     if (!trimmed) continue;
     try {
       traces.push(traceSchema.parse(JSON.parse(trimmed)));
-    } catch {
+    } catch (error) {
       // A hand-corrupted line must not make the whole history unreadable.
+      if (!warnedUnreadableTraceFiles.has(filePath)) {
+        warnedUnreadableTraceFiles.add(filePath);
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`backlog: ignoring unreadable trace in ${filePath}: ${message}`);
+      }
     }
   }
   return traces;

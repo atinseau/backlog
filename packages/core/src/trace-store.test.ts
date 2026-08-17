@@ -54,12 +54,57 @@ describe("trace-store", () => {
   it("skips an unparseable line instead of throwing", () => {
     appendTrace(backlogDir, trace());
     fs.appendFileSync(traceFilePath(backlogDir, "task_001"), "{ not json\n", "utf8");
-    expect(listTraces(backlogDir, "task_001")).toHaveLength(1);
+    const originalWarn = console.warn;
+    console.warn = () => {}; // Suppress warning for this test
+    try {
+      expect(listTraces(backlogDir, "task_001")).toHaveLength(1);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 
   it("rejects a task id that would escape the traces directory", () => {
     expect(() => appendTrace(backlogDir, trace({ task_id: "../escape" }))).toThrow(
       /invalid task id/,
     );
+  });
+
+  it("skips valid JSON that fails schema validation", () => {
+    appendTrace(backlogDir, trace());
+    // Valid JSON but missing required fields
+    fs.appendFileSync(traceFilePath(backlogDir, "task_001"), '{"version": 1}\n', "utf8");
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (msg: string) => warnings.push(msg);
+    try {
+      expect(listTraces(backlogDir, "task_001")).toHaveLength(1);
+      expect(warnings.some((w) => w.includes("ignoring unreadable trace"))).toBe(true);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it("warns once per file, not per line, on corrupt entries", () => {
+    const filePath = traceFilePath(backlogDir, "task_001");
+    appendTrace(backlogDir, trace());
+    // Add two unparseable lines
+    fs.appendFileSync(filePath, "{ not json\n", "utf8");
+    fs.appendFileSync(filePath, "{ also not json\n", "utf8");
+
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (msg: string) => warnings.push(msg);
+    try {
+      // First read should warn once
+      listTraces(backlogDir, "task_001");
+      expect(warnings).toHaveLength(1);
+
+      // Second read should not warn again
+      warnings.length = 0;
+      listTraces(backlogDir, "task_001");
+      expect(warnings).toHaveLength(0);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 });
