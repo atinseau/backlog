@@ -1,41 +1,77 @@
 # Development Guide
 
-This is the day-to-day engineering guide for the open-source Backlog monorepo.
-`AGENTS.md` is the short agent boot card; this file is the durable reference.
+This is the day-to-day engineering guide for the Backlog monorepo.
+`CLAUDE.md` carries the architecture, the project's direction and the agent
+rules; this file is the day-to-day engineering reference.
 
 ## Source Of Truth
 
-- Product README: `packages/cli/README.md` (root `README.md` is a symlink)
-- Changelog: `packages/cli/CHANGELOG.md` (root `CHANGELOG.md` is a symlink)
-- Agent rules: `AGENTS.md`
-- Release/deploy runbook: `RELEASING.md`
+- Install, usage, release flow: `README.md`
+- Architecture, direction, agent rules: `CLAUDE.md`
 - Known operational failures: `docs/TROUBLESHOOTING.md`
-- Roadmap and strategy: `docs/ROADMAP.md`
 
 Do not create parallel release notes or hidden runbooks. Link to these files
 instead.
 
+## Toolchain
+
+Bun 1.3+ is the only requirement — runtime, package manager, test runner, and
+bundler. There is no Node, npm, pnpm, tsx, tsup, or vitest in this repo, and
+none should come back.
+
 ## Package Map
 
-| Package | Role | Published? |
-| --- | --- | --- |
-| `packages/cli` | `backlog` CLI, bundles the board UI and internal packages | yes, npm `backlog` |
-| `packages/desktop` | Electron shell around the local server + board UI | no npm publish, GitHub Releases |
-| `packages/board-ui` | Svelte app shared by CLI `serve` and Desktop | no |
-| `packages/server` | Local Hono API server | no |
-| `packages/core` | Scheduler, run lifecycle, task/subtask services | no |
-| `packages/config` | Project config, registry, project resolution | no |
-| `packages/schemas` | Zod schemas and cross-boundary types | no |
-| `packages/git` | Git status, clone, branches, worktrees, diffs | no |
-| `packages/hooks` | Git hook install/status/runtime behavior | no |
-| `packages/claims` | Claim store and claim context files | no |
-| `packages/connectors` | Source/integration connector plumbing | no |
-| `packages/sdk` | Legacy/current generated SDK package | yes, when changed |
+| Package | Role |
+| --- | --- |
+| `packages/cli` | Command surface; `src/bin.ts` is the binary's entrypoint |
+| `packages/board-ui` | Svelte 5 app, built by Vite, embedded in the binary |
+| `packages/server` | Local Hono API server on `Bun.serve` |
+| `packages/core` | Scheduler, run lifecycle, task/subtask services |
+| `packages/config` | Project config, registry, project resolution |
+| `packages/schemas` | Zod schemas and cross-boundary types |
+| `packages/git` | Git status, clone, branches, worktrees, diffs |
+| `packages/hooks` | Git hook install/status/runtime behavior |
+| `packages/claims` | Claim store and claim context files |
+| `packages/connectors` | Source/integration connector plumbing |
 
-Internal packages are consumed through `workspace:*` and bundled into the CLI
-tarball by `tsup`. Do not add runtime dependencies between packages casually:
-prefer `schemas` for shared shapes and keep side-effectful services in the
-package that owns the behavior.
+Nothing here is published. Internal packages are consumed through `workspace:*`
+and expose their TypeScript source directly (`"main": "./src/index.ts"`) — no
+per-package build step, no `dist/` inside a package. `bun build --compile`
+pulls the sources in at build time.
+
+Do not add runtime dependencies between packages casually: prefer `schemas`
+for shared shapes and keep side-effectful services in the package that owns
+the behavior.
+
+## The Single Binary
+
+`bun run build` runs `scripts/build.ts`, which:
+
+1. builds the board with Vite into `packages/board-ui/dist`,
+2. asserts every emitted file is embedded by
+   `packages/server/src/ui-assets.ts`,
+3. compiles everything into `dist/backlog` with `bun build --compile`.
+
+Cross-compile with `bun run build --target bun-linux-x64` (also
+`bun-linux-arm64`, `bun-darwin-x64`, `bun-darwin-arm64`).
+
+Constraints that follow from shipping one binary:
+
+- **Assets must be imported, not read from disk.** `ui-assets.ts` uses
+  `import ... with { type: "file" }`; the default export is a path inside the
+  executable that `Bun.file()` reads. Anything resolved relative to
+  `import.meta.url` points at a virtual `/$bunfs/` location at runtime and
+  will not find sibling files.
+- **Asset filenames must be stable**, because those imports are literal paths.
+  `packages/board-ui/vite.config.ts` pins `rollupOptions.output` instead of
+  using content hashes. Adding an asset means adding an import and a
+  `UI_ASSETS` entry — the build fails loudly if you forget.
+- **Use `homeDir()` from `@backlog/config`, never `os.homedir()`.** Bun
+  resolves `os.homedir()` from the password database and ignores a reassigned
+  `HOME`; the tests rely on pointing `HOME` at a sandbox, and without this
+  helper they write into the real `~/.backlog/`.
+- The version is injected at build time from the root `package.json` via
+  `--define __BACKLOG_VERSION__`, falling back to `0.0.0-dev` in dev runs.
 
 ## Naming
 
@@ -48,17 +84,17 @@ User-facing vocabulary:
 - **Run**: one agent execution.
 - **Claim**: path/file ownership lock.
 - **Agent**: executable provider or manual assignee.
-- **User/person**: local assignable human; invitations require Backlog Cloud.
+- **User/person**: local assignable human.
 
 Avoid in new UI/docs/API:
 
 - **Workspace** unless referring to the internal storage layout or old migration
   compatibility.
 - Legacy task terminology. Use task/subtask.
-- Abbreviated repository labels in product copy or new public-facing code names. Existing
-  `repo`/`repos` API fields, CLI flags, routes, storage keys, and legacy symbols
-  are compatibility names and should be migrated deliberately rather than
-  renamed opportunistically.
+- Abbreviated repository labels in product copy or new public-facing code names.
+  Existing `repo`/`repos` API fields, CLI flags, routes, storage keys, and
+  legacy symbols are compatibility names and should be migrated deliberately
+  rather than renamed opportunistically.
 - A standalone permission-management screen. Agent restrictions live with
   Agents.
 
@@ -67,53 +103,61 @@ Avoid in new UI/docs/API:
 From repository root:
 
 ```sh
-pnpm install
-pnpm typecheck
-pnpm --filter @backlog/board-ui typecheck
-pnpm test
-pnpm --filter "backlog..." build
-pnpm --filter @backlog/desktop build
-pnpm --filter backlog pack:check
+bun install
+bun run build:ui      # required before typecheck — ui-assets.ts imports it
+bun run typecheck
+bun run test
+bun run build
 ```
 
-Run the board in development:
+Run the board from source, without compiling:
 
 ```sh
-pnpm --filter backlog dev serve --project /Users/jimmy/Dev/backlog/backlog-cli --port 7878
+bun run dev serve --port 7878 --project /path/to/your/project
+# or open any folder without registering a project:
+bun run dev serve --port 7878 --repository-only .
 ```
 
-If `backlog serve` shows "API ready, UI bundle missing":
+In a dev run the board is served from `packages/board-ui/dist` on disk, so a
+`bun run build:ui` is picked up without recompiling the binary. If the page
+says "API ready, UI bundle missing", that build hasn't happened yet.
+
+For UI work, run Vite with HMR in a second terminal instead:
 
 ```sh
-pnpm --filter @backlog/board-ui build
+bun run dev:ui        # http://localhost:5173
 ```
 
-The local board should then answer at `http://127.0.0.1:7878`.
+It proxies `/api` to `http://127.0.0.1:7878`; override with
+`BACKLOG_API_URL=http://127.0.0.1:<port>`. Vite binds `localhost` (IPv6), so
+use `localhost:5173` rather than `127.0.0.1:5173`.
 
 ## Testing Policy
 
 Run the narrowest useful test while iterating, then broaden before committing.
 
-Useful targets:
-
 ```sh
-pnpm test -- packages/server/src/routes/users.test.ts
-pnpm test -- packages/core/src/scheduler.test.ts
-pnpm test -- packages/server/src/routes/commits.test.ts
-pnpm --filter @backlog/board-ui typecheck
+bun test ./packages/server/src/routes/users.test.ts
+bun test ./packages/core/src/scheduler.test.ts
+bun test ./packages/core          # a whole package
 ```
 
-Before release or cross-package changes:
+`bun test` with no path argument silently misses packages. Always pass a path;
+`bun run test` scopes it to `./packages`.
+
+Before committing cross-package changes:
 
 ```sh
-pnpm typecheck
-pnpm --filter @backlog/board-ui typecheck
-pnpm test
-pnpm --filter "backlog..." build
-pnpm --filter @backlog/desktop build
-pnpm --filter backlog pack:check
+bun run build:ui
+bun run typecheck
+bun run test
+bun run build
 git diff --check
 ```
+
+Tests run in one process, so module-level state leaks between files. Keep
+fixtures in temp directories and point `HOME` at a sandbox when a test touches
+user-level storage.
 
 When tests create Git commits or merges, configure local test repo identity
 inside the test (`git config user.name Backlog`, `git config user.email
@@ -140,6 +184,12 @@ runners do not guarantee global Git identity.
 
 Hooks are installed per tracked repo and call back into Backlog before commits.
 
+The pre-commit hook goes through a shim written by
+`packages/config/src/shim.ts`. Git's hook environment has a minimal PATH, so
+the shim resolves the executable itself: `$BACKLOG_DEV_BIN`, then
+`<project>/dist/backlog`, then `backlog` on PATH, then `~/.local/bin/backlog`.
+It execs the binary directly — no runtime or package manager at hook time.
+
 Rules:
 
 - Expired claims should not block commits.
@@ -159,51 +209,35 @@ Backlog supports two storage layouts:
 Use "project" in public language for both. Use "workspace" only for legacy code
 or internal storage explanations.
 
-Repository paths can be local or cloned from a Git URL. Remote GitHub
-repositories without local checkout are Backlog Cloud work and should be
-introduced as Cloud-gated UI/API, not as fake local behavior.
+Repository paths can be local or cloned from a Git URL.
 
-## Backlog Cloud Boundary
+## Hosted-Service Boundary
 
-The open-source repo must stay local-first. Features that only need user-owned
-credentials or a local process stay open source. Features that require Osmove
-infrastructure belong to Backlog Cloud:
+This fork is local-first with no hosted backend. The `/cloud/*` routes in
+`packages/server/src/routes/integrations.ts` proxy an account/billing service
+that upstream ran and this fork does not. They answer `503 cloud_disabled`
+unless `BACKLOG_CLOUD_URL` is set, `/cloud/me` reports `available: false`, and
+the board hides sign-in and billing entries accordingly.
 
-- hosted auth and account/team state
-- SMTP invitation delivery
-- shared multi-user project sync
-- hosted executors/sandboxes
-- hosted run retention and audit exports
-- billing/admin SaaS behavior
+Integrations (GitHub, Jira) work in BYO mode: supply your own OAuth app
+credentials in Settings → Integrations.
 
-The private backend repo is `../backlog-backend` locally.
-
-## Release And Deploy
-
-Use `RELEASING.md` for the step-by-step release runbook.
-
-Quick shape for CLI + Desktop patch releases:
+## Release
 
 1. Make code/docs changes.
-2. Run validation commands from "Testing Policy".
-3. Bump `packages/cli/package.json` and `packages/desktop/package.json`.
-4. Add a changelog section in `packages/cli/CHANGELOG.md`.
-5. Commit.
-6. Tag both `vX.Y.Z` and `desktop-vX.Y.Z`.
-7. Push `main`, then both tags.
-8. Watch GitHub Actions:
-   - `CI` on `main`
-   - `Desktop release` on `desktop-vX.Y.Z`
-9. Verify:
-   - `npm view backlog version`
-   - `gh release view vX.Y.Z --json isDraft,url`
+2. Run the validation commands from "Testing Policy".
+3. Bump `version` in the root `package.json`.
+4. Open a PR; merge it to `main`.
 
-The Desktop workflow publishes the CLI idempotently from the `desktop-v*` tag
-and uploads platform installers to the GitHub Release `vX.Y.Z`.
+CI then builds all four binaries, tags `v<version>`, and attaches them plus
+`SHA256SUMS` to a GitHub Release. A merge that leaves the version untouched
+releases nothing, so ordinary PRs are safe.
+
+Verify with `gh release view v<version> --json url,assets`.
 
 ## What To Update When Behavior Changes
 
-- CLI command or flag: CLI code, README command table, tests, changelog.
+- CLI command or flag: CLI code, README command list, tests.
 - Board UI flow: Svelte component, i18n EN/FR, API wrapper if needed,
   server route tests if server state changes.
 - Server API shape: route schema, core service/types, UI API wrapper, tests.
@@ -212,4 +246,4 @@ and uploads platform installers to the GitHub Release `vX.Y.Z`.
 - Git behavior: `packages/git` or `packages/core`, tests using real temp repos,
   troubleshooting docs if user-facing.
 - Hook behavior: `packages/hooks`, hook status UI/API, troubleshooting docs.
-- Release process: `RELEASING.md` and this guide.
+- Build or embedding behavior: `scripts/build.ts`, `ui-assets.ts`, this guide.

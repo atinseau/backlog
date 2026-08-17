@@ -32,7 +32,7 @@
   const desktopVersion = $derived(health?.app_version ?? health?.version ?? "—");
   const cliVersion = $derived(health?.cli?.version ?? null);
   const cliOutdated = $derived(Boolean(cliVersion && desktopVersion !== "—" && cliVersion !== desktopVersion));
-  const cliInstallCommand = $derived(health?.cli?.update_command ?? "npm install -g backlog");
+  const cliInstallCommand = $derived(health?.cli?.update_command ?? "curl -fsSL https://raw.githubusercontent.com/atinseau/backlog/main/install.sh | bash");
   let cliActionBusy = $state(false);
   let cliActionError = $state<string | null>(null);
   let cliActionMessage = $state<string | null>(null);
@@ -235,7 +235,7 @@
               <code class="path-code">{health.cli.path}</code>
             </div>
           {/if}
-          <div><span class="info-label">{t("settings.cli.npm")}</span><a href="https://www.npmjs.com/package/backlog" target="_blank" rel="noopener noreferrer">backlog ↗</a></div>
+          <div><span class="info-label">{t("settings.cli.releases")}</span><a href="https://github.com/atinseau/backlog/releases" target="_blank" rel="noopener noreferrer">backlog ↗</a></div>
         </div>
         {#if cliOutdated}
           <p class="version-warning">{t("settings.cli.outdated", { installed: cliVersion ?? "—", current: desktopVersion })}</p>
@@ -301,8 +301,8 @@
         <div class="info-grid">
           <div><span class="info-label">Backlog</span><strong>v{desktopVersion}</strong></div>
           <div><span class="info-label">{t("settings.about.license")}</span><strong>Apache-2.0</strong></div>
-          <div class="full"><a href="https://github.com/osmove/backlog" target="_blank" rel="noopener noreferrer">github.com/osmove/backlog ↗</a></div>
-          <div class="full"><a href="https://github.com/osmove/backlog/issues" target="_blank" rel="noopener noreferrer">{t("settings.about.report_issue")} ↗</a></div>
+          <div class="full"><a href="https://github.com/atinseau/backlog" target="_blank" rel="noopener noreferrer">github.com/atinseau/backlog ↗</a></div>
+          <div class="full"><a href="https://github.com/atinseau/backlog/issues" target="_blank" rel="noopener noreferrer">{t("settings.about.report_issue")} ↗</a></div>
         </div>
       </section>
     </div>

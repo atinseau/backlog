@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { initLayout } from "@backlog/config";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { cascadeBlockDependents, createSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { createTask } from "./task-service.js";
 

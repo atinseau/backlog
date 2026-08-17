@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { _internalNextIntervalMs as nextInterval } from "./orchestrator-loop.js";
 
 describe("adaptive tick interval", () => {

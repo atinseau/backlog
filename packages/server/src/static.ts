@@ -51,6 +51,11 @@ export interface StaticOptions {
   indexFile?: string;
 }
 
+/**
+ * Serve the board from a directory on disk. Used when `--ui-dist` points at a
+ * live Vite build during development; the shipped binary uses the embedded
+ * assets instead (see `embeddedUiHandler`).
+ */
 export function staticHandler(options: StaticOptions) {
   const indexFile = options.indexFile ?? "index.html";
   const indexPath = join(options.rootDir, indexFile);
@@ -80,14 +85,60 @@ export function staticHandler(options: StaticOptions) {
   };
 }
 
-export function staticPlaceholderHandler(message: string) {
-  return (c: Context): Response => {
+interface EmbeddedUi {
+  assets: Record<string, string>;
+  index: string;
+}
+
+let embeddedUi: EmbeddedUi | null | undefined;
+
+/**
+ * Resolve the board assets baked into the executable.
+ *
+ * The import is dynamic and guarded: `ui-assets.ts` imports files out of
+ * packages/board-ui/dist, which only exists after a UI build. A dev run
+ * without one degrades to the placeholder page rather than crashing.
+ */
+export async function loadEmbeddedUi(): Promise<EmbeddedUi | null> {
+  const cached = embeddedUi;
+  if (cached !== undefined) return cached;
+  let resolved: EmbeddedUi | null;
+  try {
+    const mod = await import("./ui-assets.js");
+    resolved = { assets: mod.UI_ASSETS, index: mod.UI_INDEX };
+  } catch {
+    resolved = null;
+  }
+  embeddedUi = resolved;
+  return resolved;
+}
+
+/**
+ * Serve the embedded board. Unknown non-API paths fall back to index.html so
+ * client-side routes survive a hard refresh.
+ */
+export function embeddedUiHandler(fallbackHtml: string) {
+  return async (c: Context, next: Next): Promise<Response | void> => {
     if (c.req.method !== "GET" && c.req.method !== "HEAD") {
-      return c.text("Method Not Allowed", 405);
+      return next();
     }
-    if (c.req.path.startsWith("/api/")) {
-      return c.text("Not Found", 404);
+    const pathname = new URL(c.req.url).pathname;
+    if (pathname.startsWith("/api/")) {
+      return next();
     }
-    return c.html(message);
+
+    const ui = await loadEmbeddedUi();
+    if (!ui) {
+      return c.html(fallbackHtml);
+    }
+
+    const target = ui.assets[pathname] ?? ui.index;
+    const file = Bun.file(target);
+    return new Response(file, {
+      headers: {
+        "content-type": mimeFor(target),
+        "cache-control": "no-cache",
+      },
+    });
   };
 }

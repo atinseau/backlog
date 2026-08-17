@@ -9,8 +9,6 @@
 
   let { embedded = false, onClose }: Props = $props();
 
-  const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
-
   let files = $state<InstructionFile[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -18,26 +16,13 @@
 
   const selected = $derived(files.find((file) => file.path === selectedPath) ?? files[0] ?? null);
 
+  // Served in a browser, so "open" means putting the path on the clipboard.
   function openPath(path: string) {
-    if (isElectron) window.backlog!.openPath(path).catch(() => undefined);
-    else navigator.clipboard?.writeText(path).catch(() => undefined);
+    navigator.clipboard?.writeText(path).catch(() => undefined);
   }
 
-  function revealPath(path: string) {
-    if (isElectron && window.backlog?.showInFolder) {
-      window.backlog.showInFolder(path).catch(() => undefined);
-    } else {
-      openPath(path);
-    }
-  }
-
-  function openEditor(path: string) {
-    if (isElectron && window.backlog?.openEditor) {
-      window.backlog.openEditor(path).catch(() => openPath(path));
-    } else {
-      openPath(path);
-    }
-  }
+  const revealPath = openPath;
+  const openEditor = openPath;
 
   function scopeLabel(file: InstructionFile): string {
     return file.scope === "project"

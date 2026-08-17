@@ -5,53 +5,57 @@ function renderShim(projectRoot: string): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
 
-# Local shim invoked by the pre-commit hook. Delegates to the installed
-# \`backlog\` binary because git's hook environment doesn't have pnpm (or
-# usually anything beyond /usr/bin) on PATH.
+# Local shim invoked by the pre-commit hook. Git's hook environment carries a
+# minimal PATH, so we resolve the \`backlog\` executable ourselves.
 #
 # Resolution order:
-#   1. $BACKLOG_DEV_DIST (explicit override for working from a dev tree)
-#   2. <workspace>/packages/cli/dist/bin.js (only matches when the workspace
-#      itself IS the backlog source tree)
-#   3. \`backlog\` on PATH (typical global install)
-#   4. ~/.npm-global/bin/backlog (common npm prefix not on PATH)
+#   1. $BACKLOG_DEV_BIN (explicit override for working from a dev tree)
+#   2. <workspace>/dist/backlog (only matches when the workspace itself IS the
+#      backlog source tree and has been built)
+#   3. \`backlog\` on PATH (typical install)
+#   4. ~/.local/bin/backlog (where install.sh puts it when PATH lacks it)
 
-if [[ -n "\${BACKLOG_DEV_DIST:-}" && -f "$BACKLOG_DEV_DIST" ]]; then
-  exec node "$BACKLOG_DEV_DIST" "$@"
+if [[ -n "\${BACKLOG_DEV_BIN:-}" && -x "$BACKLOG_DEV_BIN" ]]; then
+  exec "$BACKLOG_DEV_BIN" "$@"
 fi
 
-WORKSPACE_DIST="${projectRoot}/packages/cli/dist/bin.js"
-WORKSPACE_CLI_PKG="${projectRoot}/packages/cli/package.json"
-if [[ -f "$WORKSPACE_DIST" && -f "$WORKSPACE_CLI_PKG" ]] && node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(p.name === "backlog" ? 0 : 1)' "$WORKSPACE_CLI_PKG" >/dev/null 2>&1; then
-  exec node "$WORKSPACE_DIST" "$@"
+WORKSPACE_BIN="${projectRoot}/dist/backlog"
+if [[ -x "$WORKSPACE_BIN" ]]; then
+  exec "$WORKSPACE_BIN" "$@"
 fi
 
 if command -v backlog >/dev/null 2>&1; then
   exec backlog "$@"
 fi
 
-if [[ -x "$HOME/.npm-global/bin/backlog" ]]; then
-  exec "$HOME/.npm-global/bin/backlog" "$@"
+if [[ -x "$HOME/.local/bin/backlog" ]]; then
+  exec "$HOME/.local/bin/backlog" "$@"
 fi
 
 cat >&2 <<'EOF'
 backlog: no usable binary found.
 
-Install it globally:
-  npm install -g backlog
+Install it:
+  curl -fsSL https://raw.githubusercontent.com/atinseau/backlog/main/install.sh | bash
 
-Or, when working from a checkout of the backlog source, export
-BACKLOG_DEV_DIST pointing at the built CLI:
-  export BACKLOG_DEV_DIST="$HOME/path/to/backlog-cli/packages/cli/dist/bin.js"
+Or, when working from a checkout of the backlog source, build it and export
+BACKLOG_DEV_BIN pointing at the binary:
+  bun run build
+  export BACKLOG_DEV_BIN="$HOME/path/to/backlog/dist/backlog"
 EOF
 exit 1
 `;
 }
 
+/**
+ * Does this directory look like a built checkout of the backlog source? The
+ * shim prefers it so that hacking on backlog exercises the local build rather
+ * than whichever release happens to be installed.
+ */
 function looksLikeBacklogSourceRoot(candidate: string): boolean {
-  const packagePath = path.join(candidate, "packages", "cli", "package.json");
-  const distPath = path.join(candidate, "packages", "cli", "dist", "bin.js");
-  if (!fs.existsSync(packagePath) || !fs.existsSync(distPath)) {
+  const packagePath = path.join(candidate, "package.json");
+  const binPath = path.join(candidate, "dist", "backlog");
+  if (!fs.existsSync(packagePath) || !fs.existsSync(binPath)) {
     return false;
   }
   try {

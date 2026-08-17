@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import TOML from "@iarna/toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { initLayout } from "./init-layout.js";
 import { loadConfig } from "./load-config.js";
 import { saveConfig } from "./save-config.js";

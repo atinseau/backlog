@@ -11,10 +11,16 @@ interface UpdateCache {
 const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 const CHECK_TIMEOUT_MS = 1_500;
 const CACHE_FILE = join(getBacklogUserDir(), "cli-update-check.json");
-const UPDATE_COMMAND = "npm install -g backlog";
+
+// Releases are single self-contained binaries attached to GitHub Releases;
+// install.sh picks the right asset for the host platform. Overridable so a
+// clone under a different account can point the check at its own repo.
+const REPO = process.env.BACKLOG_REPO ?? "atinseau/backlog";
+const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO}/releases/latest`;
+const INSTALL_COMMAND = `curl -fsSL https://raw.githubusercontent.com/${REPO}/main/install.sh | bash`;
 
 function parseVersion(value: string): [number, number, number] | null {
-  const match = value.match(/^(\d+)\.(\d+)\.(\d+)/);
+  const match = value.match(/^v?(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
@@ -52,13 +58,13 @@ async function fetchLatestVersion(): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS);
   try {
-    const response = await fetch("https://registry.npmjs.org/backlog/latest", {
-      headers: { accept: "application/json" },
+    const response = await fetch(LATEST_RELEASE_API, {
+      headers: { accept: "application/vnd.github+json" },
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const json = (await response.json()) as { version?: unknown };
-    return typeof json.version === "string" ? json.version : null;
+    const json = (await response.json()) as { tag_name?: unknown };
+    return typeof json.tag_name === "string" ? json.tag_name.replace(/^v/, "") : null;
   } catch {
     return null;
   } finally {
@@ -90,20 +96,20 @@ export async function maybeNotifyCliUpdate(currentVersion: string, commandName?:
   console.error(
     [
       "",
-      `Backlog CLI ${latest} is available (installed: ${currentVersion}).`,
-      `Update: ${UPDATE_COMMAND}`,
+      `Backlog ${latest} is available (installed: ${currentVersion}).`,
+      `Update: ${INSTALL_COMMAND}`,
       "",
     ].join("\n"),
   );
 }
 
 export async function runCliUpdate(): Promise<void> {
-  console.log(`Running: ${UPDATE_COMMAND}`);
-  const result = await execa("npm", ["install", "-g", "backlog"], {
+  console.log(`Running: ${INSTALL_COMMAND}`);
+  const result = await execa("bash", ["-c", INSTALL_COMMAND], {
     stdio: "inherit",
     reject: false,
   });
   if (result.exitCode !== 0) {
-    throw new Error(`Update failed. Run manually: ${UPDATE_COMMAND}`);
+    throw new Error(`Update failed. Run manually: ${INSTALL_COMMAND}`);
   }
 }

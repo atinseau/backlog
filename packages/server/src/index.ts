@@ -1,4 +1,3 @@
-import { serve, type ServerType } from "@hono/node-server";
 import { buildApp, VERSION } from "./app.js";
 import { createRepoOnlyProject, resolveProject, type ServerProject } from "./project-context.js";
 
@@ -31,16 +30,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 7878;
 
-  const server: ServerType = await new Promise((resolvePromise) => {
-    const instance = serve({ fetch: app.fetch, port, hostname: host }, () => {
-      resolvePromise(instance);
-    });
+  const server = Bun.serve({
+    fetch: app.fetch,
+    port,
+    hostname: host,
+    // SSE streams stay open for the lifetime of the board; without this Bun
+    // would cut them at its default 10s idle timeout.
+    idleTimeout: 0,
   });
 
   // When the caller passed port: 0, the OS picked a free port — read it back
-  // from the bound socket so the returned url reflects reality.
-  const address = server.address();
-  const boundPort = typeof address === "object" && address ? address.port : port;
+  // from the bound socket so the returned url reflects reality. `server.port`
+  // is only undefined for unix-socket servers, which we never create.
+  const boundPort = server.port ?? port;
   const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
   return {
     url: `http://${displayHost}:${boundPort}`,
@@ -109,26 +111,10 @@ export async function startServer(options: StartServerOptions = {}): Promise<Run
         // (hydrate-side reset) will catch what we missed.
       }
 
-      return new Promise<void>((closeResolve, closeReject) => {
-        buses.stopAll();
-        // Drop every open socket — without this, long-lived SSE streams hold
-        // server.close() open indefinitely on Ctrl+C.
-        const closeable = server as unknown as { closeAllConnections?: () => void };
-        if (typeof closeable.closeAllConnections === "function") {
-          try {
-            closeable.closeAllConnections();
-          } catch {
-            // best effort
-          }
-        }
-        server.close((error) => {
-          if (error) {
-            closeReject(error);
-          } else {
-            closeResolve();
-          }
-        });
-      });
+      buses.stopAll();
+      // `true` closes in-flight requests too — without it the long-lived SSE
+      // streams would hold the server open indefinitely on Ctrl+C.
+      await server.stop(true);
     },
   };
 }

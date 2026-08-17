@@ -6,7 +6,7 @@ import { addRepo, archiveTask, completeRun, createRun, createTask, taskExecution
 import type { Agent } from "@backlog/schemas";
 import { git } from "@backlog/git";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import { type AppEnv, ProjectResolver } from "../project-resolver.js";
 import { boardRoutes } from "./board.js";

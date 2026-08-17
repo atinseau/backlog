@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { ensureProjectId, initLayout, getAccountSecret, getProjectSecret, setAccountSecret, setProjectSecret } from "@backlog/config";
 import { Hono } from "hono";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import type { AppEnv } from "../project-resolver.js";
 import { secretsRoutes } from "./secrets.js";

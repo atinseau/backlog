@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "./init-layout.js";
 import { loadConfig } from "./load-config.js";
 import {
@@ -335,7 +335,8 @@ describe("rollbackProjectMigration", () => {
       registryOptions: { dir: registryDir },
     });
 
-    expect(result.restoredFrom).toBe(migrate.archivedAt);
+    expect(migrate.archivedAt).toBeDefined();
+    expect(result.restoredFrom).toBe(migrate.archivedAt!);
     expect(fs.existsSync(path.join(root, ".backlog", "config.toml"))).toBe(true);
   });
 });

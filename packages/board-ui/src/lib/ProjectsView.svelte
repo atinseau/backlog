@@ -28,9 +28,8 @@
   let error = $state<string | null>(null);
   let removingId = $state<string | null>(null);
   let renamingId = $state<string | null>(null);
-  // Inline edit mode — replace the project name with a text input.
-  // window.prompt() is disabled in sandboxed Electron renderers, so
-  // the rename flow has to live inside the modal itself.
+  // Inline edit mode — replace the project name with a text input, so the
+  // rename flow lives inside the modal rather than in a window.prompt().
   let editingId = $state<string | null>(null);
   let editValue = $state("");
   let contextMenu = $state<{ x: number; y: number; items: Array<{ label: string; action: () => void; disabled?: boolean }> } | null>(null);
@@ -104,29 +103,13 @@
     }
   }
 
+  // Served in a browser, so "open" means putting the path on the clipboard.
   function openPath(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.openPath) {
-      window.backlog.openPath(path).catch(() => undefined);
-    } else {
-      navigator.clipboard?.writeText(path).catch(() => undefined);
-    }
+    navigator.clipboard?.writeText(path).catch(() => undefined);
   }
 
-  function revealPath(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.showInFolder) {
-      window.backlog.showInFolder(path).catch(() => undefined);
-    } else {
-      openPath(path);
-    }
-  }
-
-  function openEditor(path: string) {
-    if (typeof window !== "undefined" && window.backlog?.openEditor) {
-      window.backlog.openEditor(path).catch(() => openPath(path));
-    } else {
-      openPath(path);
-    }
-  }
+  const revealPath = openPath;
+  const openEditor = openPath;
 
   function showContextMenu(event: MouseEvent, project: ProjectEntry) {
     event.preventDefault();

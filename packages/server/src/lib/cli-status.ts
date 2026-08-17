@@ -1,5 +1,5 @@
-import { existsSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync } from "node:fs";
+import { homeDir } from "@backlog/config";
 import { delimiter, dirname, join } from "node:path";
 import { execa } from "execa";
 
@@ -22,7 +22,8 @@ export interface CliUpdateResult {
 }
 
 const CACHE_MS = 30_000;
-const CLI_UPDATE_COMMAND = "npm install -g backlog";
+const CLI_UPDATE_COMMAND =
+  "curl -fsSL https://raw.githubusercontent.com/atinseau/backlog/main/install.sh | bash";
 
 let cached: { at: number; status: CliStatus } | null = null;
 
@@ -64,35 +65,19 @@ function parseShellOutput(stdout: string): CliStatus {
 }
 
 function candidateBinDirs(extra: string[] = []): string[] {
-  const home = homedir();
+  const home = homeDir();
   const envDirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
   const dirs = [
     ...extra,
     ...envDirs,
-    join(home, ".npm-global", "bin"),
-    join(home, ".npm-packages", "bin"),
     join(home, ".local", "bin"),
-    join(home, "Library", "pnpm"),
-    join(home, ".local", "share", "pnpm"),
+    join(home, "bin"),
     join(home, ".bun", "bin"),
-    join(home, ".volta", "bin"),
-    join(home, ".asdf", "shims"),
-    join(home, ".mise", "shims"),
-    join(home, ".local", "share", "mise", "shims"),
     "/opt/homebrew/bin",
     "/usr/local/bin",
     "/usr/bin",
     "/bin",
   ];
-  const nvmVersions = join(home, ".nvm", "versions", "node");
-  try {
-    for (const version of readdirSync(nvmVersions)) {
-      dirs.push(join(nvmVersions, version, "bin"));
-    }
-  } catch {
-    // nvm is optional.
-  }
-
   return [...new Set(dirs.filter(Boolean))];
 }
 
@@ -202,29 +187,6 @@ async function resolveDirectly(): Promise<CliStatus> {
   });
 }
 
-async function resolveNpmPath(): Promise<string | null> {
-  for (const file of commandCandidates("npm")) {
-    const result = await execa(file, ["--version"], {
-      reject: false,
-      timeout: 2_000,
-      env: envForCommand([dirname(file)]),
-    });
-    if (result.exitCode === 0) return file;
-  }
-
-  const shell = defaultShell();
-  const result = await execa(shell, process.platform === "win32"
-    ? ["/d", "/s", "/c", "where npm"]
-    : ["-ic", "command -v npm"], {
-    reject: false,
-    timeout: 3_000,
-    env: envForCommand(),
-  });
-  if (result.exitCode !== 0) return null;
-  const npmPath = result.stdout.split(/\r?\n/).map((line) => line.trim()).find((line) => looksLikeExecutablePath(line, "npm"));
-  return npmPath ?? null;
-}
-
 export async function resolveCliStatus(opts: { force?: boolean } = {}): Promise<CliStatus> {
   const now = Date.now();
   if (!opts.force && cached && now - cached.at < CACHE_MS) return cached.status;
@@ -268,29 +230,19 @@ export async function resolveCliStatus(opts: { force?: boolean } = {}): Promise<
 }
 
 export async function updateCli(): Promise<CliUpdateResult> {
-  const npmPath = await resolveNpmPath();
-  if (!npmPath) {
-    const status = await resolveCliStatus({ force: true });
-    return {
-      ok: false,
-      command: CLI_UPDATE_COMMAND,
-      manager_path: null,
-      status,
-      error: "npm was not found in known terminal locations",
-    };
-  }
-
-  const result = await execa(npmPath, ["install", "-g", "backlog"], {
+  // Updating means re-running the install script, which fetches the latest
+  // release binary and replaces the installed one in place.
+  const result = await execa("bash", ["-c", CLI_UPDATE_COMMAND], {
     reject: false,
     timeout: 180_000,
-    env: envForCommand([dirname(npmPath)]),
+    env: envForCommand(),
   });
   cached = null;
   const status = await resolveCliStatus({ force: true });
   const updateResult: CliUpdateResult = {
     ok: result.exitCode === 0,
     command: CLI_UPDATE_COMMAND,
-    manager_path: npmPath,
+    manager_path: null,
     status,
   };
   const stdout = result.stdout.trim();

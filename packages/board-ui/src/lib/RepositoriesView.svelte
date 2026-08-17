@@ -5,37 +5,14 @@
   import { checkoutRepository, createRepository, deleteRepository, ensureGitIgnore, fetchHooksStatus, fetchRepositories, installRepoHook, uninstallRepoHook, updateRepository, type HooksOverview, type HookStatus } from "./api.js";
   import type { Repository } from "./types.js";
 
-  // Bridge exposed by packages/desktop's preload.ts is typed once in
-  // ./desktop-bridge.d.ts (svelte-check rejects per-component ambient
-  // declarations). The board UI is shared between the Electron window
-  // and `backlog serve` in a normal browser, hence the runtime guard.
-  const isElectron = typeof window !== "undefined" && Boolean(window.backlog);
-
+  // The board is served in a browser, so "open" copies the path for the user
+  // to paste into Finder / Explorer themselves.
   function openPath(repoPath: string) {
-    if (isElectron) {
-      window.backlog!.openPath(repoPath).catch(() => undefined);
-    } else {
-      // Browser-only fallback — copy the path so the user can paste it
-      // into Finder / Explorer themselves.
-      navigator.clipboard?.writeText(repoPath).catch(() => undefined);
-    }
+    navigator.clipboard?.writeText(repoPath).catch(() => undefined);
   }
 
-  function revealPath(repoPath: string) {
-    if (isElectron && window.backlog?.showInFolder) {
-      window.backlog.showInFolder(repoPath).catch(() => undefined);
-    } else {
-      openPath(repoPath);
-    }
-  }
-
-  function openEditor(repoPath: string) {
-    if (isElectron && window.backlog?.openEditor) {
-      window.backlog.openEditor(repoPath).catch(() => openPath(repoPath));
-    } else {
-      openPath(repoPath);
-    }
-  }
+  const revealPath = openPath;
+  const openEditor = openPath;
 
   interface Props {
     onClose: () => void;
@@ -511,7 +488,7 @@
                 <button
                   class="path-link"
                   onclick={(e) => { e.stopPropagation(); revealPath(checkoutPath); }}
-                  title={isElectron ? t("repos_view.open_folder") : t("repos_view.copy_path")}
+                  title={t("repos_view.copy_path")}
                 >
                   <span class="path-icon">📂</span>
                   <span class="path-text">{checkoutPath}</span>
@@ -624,17 +601,7 @@
             </div>
             <div class="full">
               <span class="hint-label">Dossier du repository</span>
-              {#if isElectron}
-                <button class="picker" type="button" onclick={async () => {
-                  const picked = await window.backlog!.pickFolder({ title: "Choisir le repository" });
-                  if (picked) newPath = picked;
-                }}>
-                  <span class="picker-icon">📂</span>
-                  <span class="picker-value">{newPath || "Choisir un dossier…"}</span>
-                </button>
-              {:else}
-                <input bind:value={newPath} placeholder="/Users/jimmy/Dev/twoody/twoody-frontend" required />
-              {/if}
+              <input bind:value={newPath} placeholder="/Users/moi/Dev/mon-projet" required />
             </div>
           {/if}
 

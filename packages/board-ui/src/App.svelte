@@ -20,7 +20,6 @@
   import GeneralSettingsView from "./lib/GeneralSettingsView.svelte";
   import ApiKeysDialog from "./lib/ApiKeysDialog.svelte";
   import Toasts from "./lib/Toasts.svelte";
-  import UpdateBanner from "./lib/UpdateBanner.svelte";
   import CardMenu from "./lib/CardMenu.svelte";
   import { getShowBacklogColumn, getShowReviewColumn, setShowBacklogColumn, setShowReviewColumn } from "./lib/settings.svelte.js";
   import SplitDialog from "./lib/SplitDialog.svelte";
@@ -65,7 +64,6 @@
     startRun,
     touchProjectById,
     unarchiveTask,
-    updateBacklogCli,
     sortProjectEntries,
     sortRepositories,
     type CloudStatus,
@@ -174,8 +172,8 @@
   let connected = $state(false);
   // Persist the last known cloud status across reloads/launches so the
   // sidebar doesn't flash "signed out" between page load and the
-  // /cloud/status fetch resolving (~1s round-trip if backlog.so is
-  // reachable, indefinite if it isn't). The cached value is just a
+  // /cloud/me fetch resolving (~1s round-trip if an account service is
+  // configured, indefinite if it isn't). The cached value is just a
   // best-effort hint — the real source of truth is still the JWT
   // stored in secrets.json server-side.
   const CLOUD_STATUS_CACHE_KEY = "backlog.cloud_status_cache";
@@ -291,9 +289,6 @@
   // dropdown action, jump straight into the create form. Reset to
   // false on any other path to the section.
   let reposShowCreate = $state(false);
-  let cliLaunchPrompt = $state<HealthResponse | null>(null);
-  let cliLaunchBusy = $state(false);
-  let cliLaunchError = $state<string | null>(null);
   const projectShellReady = $derived(Boolean(selectedProjectId));
   const createProjectInitialPath = $derived(currentProject?.transient ? currentProject.repo_only?.root ?? "" : "");
   const createProjectInitialName = $derived(currentProject?.transient ? currentProject.repo_only?.name ?? "" : "");
@@ -781,10 +776,6 @@
     localStorage.setItem(PROJECT_STORAGE_KEY, id);
     localStorage.removeItem(PROJECT_PICK_STORAGE_KEY);
     void touchProjectById(id).catch(() => undefined);
-    const entry = projects.find((project) => project.id === id);
-    if (entry?.path) {
-      void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
-    }
     selectedRepoId = options.repoId ?? null;
     if (selectedRepoId) localStorage.setItem(REPO_STORAGE_KEY, selectedRepoId);
     else localStorage.removeItem(REPO_STORAGE_KEY);
@@ -827,7 +818,6 @@
       currentProjectId = null;
     }
 
-    const desktopBridge = typeof window !== "undefined" && Boolean(window.backlog?.setLastProject);
     const known = new Set(projects.map((w) => w.id));
     const forcedProject = Boolean(launch.projectId);
     const shouldPickProject = launch.pickProject || localStorage.getItem(PROJECT_PICK_STORAGE_KEY) === "1";
@@ -847,7 +837,7 @@
       preferred = null;
     }
     if (!preferred && !shouldPickProject && !forcedProject) {
-      preferred = storedProjectId ?? currentProjectId ?? (desktopBridge ? null : projects[0]?.id ?? null);
+      preferred = storedProjectId ?? currentProjectId ?? projects[0]?.id ?? null;
     }
     if (preferred) {
       selectedProjectId = preferred;
@@ -855,10 +845,6 @@
       localStorage.setItem(PROJECT_STORAGE_KEY, preferred);
       localStorage.removeItem(PROJECT_PICK_STORAGE_KEY);
       void touchProjectById(preferred).catch(() => undefined);
-      const entry = projects.find((project) => project.id === preferred);
-      if (entry?.path && desktopBridge) {
-        void window.backlog?.setLastProject?.(entry.path).catch(() => undefined);
-      }
       const selectedTransientDefault = currentIsTransient && preferred === currentProjectId;
       selectedRepoId = launch.repoId
         ?? (selectedTransientDefault ? current?.repo_only?.repo_id ?? null : localStorage.getItem(REPO_STORAGE_KEY));
@@ -1301,49 +1287,10 @@
     if (document.visibilityState === "visible") refreshOnFocus();
   }
 
-  function shouldPromptForCliUpdate(health: HealthResponse): boolean {
-    if (typeof window === "undefined" || !window.backlog) return false;
-    const desktopVersion = health.app_version ?? health.version;
-    if (!desktopVersion || desktopVersion === "—") return false;
-    const cli = health.cli;
-    return !cli?.available || !cli.version || cli.version !== desktopVersion;
-  }
-
-  async function checkCliOnLaunch(): Promise<void> {
-    try {
-      const health = await fetchHealth({ refreshCli: true });
-      if (shouldPromptForCliUpdate(health)) {
-        cliLaunchPrompt = health;
-      }
-    } catch {
-      // Best-effort: failing this check should never block the board.
-    }
-  }
-
-  async function updateCliFromLaunchPrompt(): Promise<void> {
-    cliLaunchBusy = true;
-    cliLaunchError = null;
-    try {
-      const result = await updateBacklogCli();
-      const refreshed = await fetchHealth({ refreshCli: true }).catch(() => null);
-      cliLaunchPrompt = refreshed ?? (cliLaunchPrompt ? { ...cliLaunchPrompt, cli: result.status } : null);
-      const desktopVersion = cliLaunchPrompt?.app_version ?? cliLaunchPrompt?.version;
-      if (result.status.version && desktopVersion && result.status.version === desktopVersion) {
-        cliLaunchPrompt = null;
-        toasts?.push("success", t("settings.cli.update_success", { version: result.status.version }));
-      }
-    } catch (error) {
-      cliLaunchError = error instanceof Error ? error.message : String(error);
-    } finally {
-      cliLaunchBusy = false;
-    }
-  }
-
   onMount(() => {
     writeBool(SHELL_RIGHT_OPEN, false);
     void loadCloudStatus();
     bootstrap();
-    void checkCliOnLaunch();
     gitStatusPoll = setInterval(() => {
       if (document.visibilityState === "visible") void refresh();
     }, 5000);
@@ -1361,43 +1308,6 @@
 </script>
 
 <div class="shell" style:--left-w="{leftWidth}px" style:--right-w="{rightWidth}px" style:--bottom-h="{bottomHeight}px">
-  <UpdateBanner />
-  {#if cliLaunchPrompt}
-    <div class="cli-launch-prompt" role="status">
-      <div class="cli-launch-copy">
-        <strong>{t("settings.cli.launch_prompt_title")}</strong>
-        <span>
-          {#if cliLaunchPrompt.cli?.available}
-            {t("settings.cli.launch_prompt_body", {
-              installed: cliLaunchPrompt.cli.version ?? t("settings.cli.unknown_version"),
-              current: cliLaunchPrompt.app_version ?? cliLaunchPrompt.version,
-            })}
-          {:else}
-            {t("settings.cli.launch_prompt_install_body", {
-              current: cliLaunchPrompt.app_version ?? cliLaunchPrompt.version,
-            })}
-          {/if}
-        </span>
-        {#if cliLaunchError}
-          <span class="cli-launch-error">{t("settings.cli.update_failed", { error: cliLaunchError })}</span>
-        {/if}
-      </div>
-      <div class="cli-launch-actions">
-        <button type="button" class="primary small" onclick={updateCliFromLaunchPrompt} disabled={cliLaunchBusy}>
-          {#if cliLaunchBusy}
-            {t("settings.cli.updating_button")}
-          {:else if cliLaunchPrompt.cli?.available}
-            {t("settings.cli.update_button")}
-          {:else}
-            {t("settings.cli.install_button")}
-          {/if}
-        </button>
-        <button type="button" class="ghost small" onclick={() => (cliLaunchPrompt = null)} disabled={cliLaunchBusy}>
-          {t("settings.cli.later_button")}
-        </button>
-      </div>
-    </div>
-  {/if}
   <header class="topbar">
     <div class="topbar-left">
       <ProjectSelector
@@ -1865,64 +1775,6 @@
     color: var(--text-primary);
   }
   .topbar, .error { flex-shrink: 0; }
-
-  .cli-launch-prompt {
-    position: fixed;
-    left: 16px;
-    bottom: 16px;
-    z-index: 8800;
-    width: min(460px, calc(100vw - 32px));
-    background: var(--bg-surface);
-    color: var(--text-primary);
-    border: 1px solid var(--border-default);
-    border-left: 3px solid var(--warning);
-    border-radius: 6px;
-    box-shadow: var(--shadow-modal);
-    padding: 12px;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .cli-launch-copy {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--text-body);
-  }
-  .cli-launch-copy strong {
-    font-size: 13px;
-    color: var(--text-primary);
-  }
-  .cli-launch-error {
-    color: var(--warning);
-  }
-  .cli-launch-actions {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  button.small {
-    padding: 4px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
-  button.ghost.small {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-default);
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  button.ghost.small:hover:not(:disabled) {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-  }
 
   .topbar {
     display: grid;

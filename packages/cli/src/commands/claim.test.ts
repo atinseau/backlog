@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { Command } from "commander";
 import { createClaim } from "@backlog/claims";
 import { initLayout, loadConfig, saveConfig } from "@backlog/config";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { registerClaimCommand } from "./claim.js";
 
 const originalCwd = process.cwd();

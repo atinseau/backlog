@@ -73,7 +73,6 @@
   let remoteTimer: ReturnType<typeof setTimeout> | null = null;
   let remoteLookupSeq = 0;
 
-  const isElectron = typeof window !== "undefined" && Boolean(window.backlog?.pickFolder);
   const branchOptions = $derived(mode === "git" ? remoteBranches : inspection?.branches ?? []);
   const canSubmit = $derived(Boolean(
     path.trim()
@@ -136,15 +135,6 @@
   }
 
   async function choosePath() {
-    if (isElectron) {
-      const picked = await window.backlog!.pickFolder({ title: t("create_project.pick_folder") });
-      if (picked) {
-        path = picked;
-        folderBrowserOpen = false;
-        void inspectAndPrefill(picked);
-      }
-      return;
-    }
     await loadFolders(path.trim() || undefined, { open: true });
   }
 
@@ -304,7 +294,7 @@
           </div>
         {/if}
 
-        {#if folderBrowserOpen && !isElectron}
+        {#if folderBrowserOpen}
           <div class="folder-browser">
             <div class="folder-toolbar">
               <button type="button" onclick={() => folderList?.home && loadFolders(folderList.home)} disabled={folderLoading}>{t("create_project.folder.home")}</button>

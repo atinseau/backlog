@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { ensureProjectId, initLayout } from "@backlog/config";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ServerProject } from "../project-context.js";
 import { projectsRoutes } from "./projects.js";
 

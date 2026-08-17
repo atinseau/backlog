@@ -1,27 +1,20 @@
 {
-  "name": "backlog-monorepo",
+  "name": "backlog",
+  "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.7.1",
+  "type": "module",
+  "workspaces": ["packages/*"],
   "scripts": {
-    "build": "pnpm --filter @backlog/board-ui build && pnpm --filter backlog build",
-    "build:tsc": "tsc -b",
-    "clean": "find . -name '*.tsbuildinfo' -delete && find packages -name dist -type d -prune -exec rm -rf {} +",
-    "dev": "pnpm --filter backlog dev",
-    "test": "vitest run",
-    "typecheck": "tsc -b",
-    "pack:check": "cd packages/cli && npm pack --dry-run"
+    "build": "bun run scripts/build.ts",
+    "build:ui": "bun run --cwd packages/board-ui build",
+    "dev": "bun run packages/cli/src/bin.ts",
+    "dev:ui": "bun run --cwd packages/board-ui dev",
+    "test": "bun test ./packages",
+    "typecheck": "tsc --noEmit && bun run --cwd packages/board-ui typecheck",
+    "clean": "rm -rf dist packages/board-ui/dist packages/server/src/ui-assets.generated.ts"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "tsx": "^4.20.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "electron",
-      "esbuild"
-    ]
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.8.3"
   }
 }

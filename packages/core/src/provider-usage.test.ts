@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseClaudeJsonStdout, parseCodexJsonStream } from "./provider-usage.js";
 
 describe("parseClaudeJsonStdout", () => {

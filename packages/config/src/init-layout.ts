@@ -1,8 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { RepoConfig, ProjectConfig, ProjectLocation } from "@backlog/schemas";
 import { saveConfig } from "./save-config.js";
+import { homeDir } from "./user-paths.js";
 import { writeLocalShim } from "./shim.js";
 import { generateProjectId } from "./project-id.js";
 
@@ -36,7 +36,7 @@ export interface InitLayoutResult {
 export function userLevelProjectDir(projectName: string): string {
   const slug = projectName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   if (!slug) throw new Error(`Cannot derive user-level project dir from project name: "${projectName}"`);
-  return path.join(os.homedir(), ".backlog", slug);
+  return path.join(homeDir(), ".backlog", slug);
 }
 
 /** @deprecated Use userLevelProjectDir. */
