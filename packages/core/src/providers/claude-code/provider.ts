@@ -70,26 +70,54 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
 
 /**
+ * Whether this run actually gets the Backlog façade — the MCP tool set the CLI
+ * closure is traded against.
+ *
+ * `--mcp-config` is attached to every coding run, but attaching a server is not
+ * the same as reaching it: `read-only` (which a `read-only` repository coerces
+ * an agent into, whatever its own sandbox mode) maps to `--permission-mode
+ * plan`, and plan mode refuses MCP calls. So this is the one question both
+ * halves of the trade have to agree on, and it is asked once.
+ */
+function facadeReachable(agent: Pick<Agent, "sandbox_mode">): boolean {
+  return permitsMcpTools(agent.sandbox_mode);
+}
+
+/**
  * The CLI role this run's agent carries, or null to carry none.
  *
- * The role is not a label on a run, it is the other half of a trade: the CLI
- * is closed *because* the MCP façade replaces it. So it is stamped by the
- * runtime that hands the façade out, and only when that façade is actually
- * reachable. Under `read-only` — which a `read-only` repository coerces an
- * agent into, whatever its own sandbox mode — the run gets `--permission-mode
- * plan`, plan mode refuses MCP calls, and the façade is not there to replace
- * anything. Stamping the role anyway left such a run with neither channel: no
- * `trace_write` and no `backlog trace write`, so it finished with no recorded
- * outcome and no error saying why.
- *
- * `--mcp-config` is still attached in that case. Declaring a server the model
- * cannot call costs nothing, and the day plan mode stops refusing MCP this
- * function is the only thing to revisit.
+ * The role is not a label on a run, it is one half of a trade: the CLI is
+ * closed *because* the façade replaces it. So it is stamped by the runtime
+ * that hands the façade out, and only when that façade is reachable.
  */
 export function executionCliRole(agent: Pick<Agent, "sandbox_mode">): string | null {
   const { cliRole } = contextFor("execution");
   if (!cliRole) return null;
-  return permitsMcpTools(agent.sandbox_mode) ? cliRole : null;
+  return facadeReachable(agent) ? cliRole : null;
+}
+
+/**
+ * The other half of the same trade, and it has to move with it.
+ *
+ * The `execution` row's `deniedBuiltins` is *only* the CLI closure — today the
+ * single entry `Bash(backlog:*)`, which denies any shell command whose first
+ * word is `backlog`. Emitting it unconditionally meant dropping the role stamp
+ * merely changed *which component* refused a read-only run: no `trace_write`
+ * (plan mode refuses MCP) and no `backlog trace write` (this deny rule, which
+ * fires under `plan` exactly as it does under `bypassPermissions`). The run
+ * still had no channel at all, and finished silently with no trace.
+ *
+ * Measured on `claude` 2.1.234 with the real run prompt: with the rule, a
+ * read-only run recorded a trace 0 times in 4; without it, 2 times in 10. Plan
+ * mode does not block a mutating `Bash` call — the model usually declines one
+ * on its own, which is a reliability problem, not a permission one. An
+ * unreliable channel still beats none.
+ *
+ * If a denial that is *not* the CLI closure is ever added to that row, this
+ * function has to start distinguishing them instead of returning the row whole.
+ */
+export function executionDeniedBuiltins(agent: Pick<Agent, "sandbox_mode">): readonly string[] {
+  return facadeReachable(agent) ? contextFor("execution").deniedBuiltins : [];
 }
 
 /**
@@ -130,8 +158,9 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     // `--allowedTools` only auto-approves; it excludes nothing.
     allowedTools: context.mcpTools.map((name) => `mcp__${MCP_SERVER_NAME}__${name}`),
     // The agent keeps every built-in tool it needs to do the work; the table
-    // closes only the route back into Backlog's own CLI.
-    disallowedTools: context.deniedBuiltins,
+    // closes only the route back into Backlog's own CLI — and only for a run
+    // that got the façade to use instead.
+    disallowedTools: executionDeniedBuiltins(agent),
     // The user's own MCP servers stay available to a coding agent — see the
     // note on strictMcpConfig in command.ts. The other edge of that trade-off:
     // without `--strict-mcp-config` the CLI also loads project-scoped

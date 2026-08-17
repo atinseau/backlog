@@ -252,16 +252,21 @@ itself, which is the runaway cycle `proposed` exists to close.
 **The CLI is closed exactly where the façade replaces it.** A coding run's
 environment carries `BACKLOG_AGENT_ROLE=execution`, and the CLI entrypoint
 refuses every command under it — `backlog task move <id> done` included —
-pointing the agent at the MCP server instead. The role is not a label on a run:
-it is the other half of a trade, so it is stamped by the runtime that hands the
-façade out, and only when that façade is reachable. `executionCliRole`
-(`providers/claude-code/provider.ts`) is the whole rule — Claude Code attaches
-`--mcp-config`, so it stamps; a `read-only` agent gets `--permission-mode plan`,
-plan mode refuses MCP calls, so it does not. `run-executor.ts` stamps nothing
-and actively clears an inherited role: it is runtime-agnostic and cannot know
-whether anything replaced the CLI, and a `custom` run — which attaches no server
-at all — must keep the command line as its only channel. Two exemptions from the
-refusal, neither a convenience:
+pointing the agent at the MCP server instead. The closure is not a property of
+being a run: it is one half of a trade, and **both halves move together**. A run
+that gets the façade gets `BACKLOG_AGENT_ROLE=execution` *and*
+`--disallowedTools Bash(backlog:*)`; a run that cannot reach the façade gets
+neither. `facadeReachable` in `providers/claude-code/provider.ts` is the single
+predicate, and `executionCliRole` / `executionDeniedBuiltins` are its two
+consumers. Claude Code attaches `--mcp-config`, so it closes; a `read-only`
+agent gets `--permission-mode plan`, plan mode refuses MCP calls, so it does
+not. Gating only the role was a bug caught in review — the deny rule fires under
+`plan` exactly as it does under `bypassPermissions`, so it merely changed which
+component refused the run, and left it with no channel at all.
+`run-executor.ts` stamps nothing and actively clears an inherited role: it is
+runtime-agnostic and cannot know whether anything replaced the CLI, and a
+`custom` run — which attaches no server at all — must keep the command line as
+its only channel. Two exemptions from the refusal, neither a convenience:
 
 - **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
   so the server a run spawns starts under the same role as the agent it serves.
@@ -283,12 +288,16 @@ Which answer applies where comes from **one table**,
 `packages/core/src/contexts/contexts.ts`. For each context Backlog launches a
 model in — `execution`, `orchestrator`, `completion` — it names the MCP
 audience, the tool names, the built-ins to deny, whether the user's own MCP
-servers stay visible, and the CLI role to stamp. Four sites read it and none
-decides any of this locally: `providers/claude-code/provider.ts` twice
-(`buildRunCommand` for `execution`, `runCompletion` for `completion`),
-`server/src/lib/chat/claude-code-chat.ts` for `orchestrator` — the only reader
-of that row — and the `mcp-server` command, which turns an audience into the
-tool set it serves.
+servers stay visible, and the CLI role to stamp. Three files read it and none
+decides any of this locally:
+
+- `providers/claude-code/provider.ts`, four times — `buildRunCommand`,
+  `executionCliRole` and `executionDeniedBuiltins` for `execution`, and
+  `runCompletion` for `completion`.
+- `server/src/lib/chat/claude-code-chat.ts`, the only reader of the
+  `orchestrator` row.
+- `cli/src/commands/mcp.ts`, which turns an audience into the tool set the MCP
+  server serves.
 
 **The table is where the decision is written, not what enforces it**, and three
 limits belong next to it — a containment claim that overstates is worse than
@@ -487,7 +496,7 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 783 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 785 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
@@ -509,9 +518,17 @@ scope, not scope creep.
   `bypassPermissions`. The per-tool story is one entry deep —
   `deniedBuiltins: ["Bash(backlog:*)"]` scopes one built-in to one command
   pattern — and there is no per-path story at all. Because plan mode refuses
-  MCP calls, a `read-only` agent reaches no Backlog tool: it keeps the CLI
-  instead (that is what `executionCliRole` decides) and records its trace with
-  `backlog trace write`. Two channels, and a run has exactly one of them.
+  MCP calls, a `read-only` agent reaches no Backlog tool, so it keeps the CLI
+  and is asked to record its trace with `backlog trace write`.
+- **A `read-only` run's trace is best-effort, and that is the weakest link in
+  the trace contract.** Plan mode does not *block* a mutating `Bash` call —
+  probed on `claude` 2.1.234, the command runs and `permission_denials` stays
+  empty — but the model usually declines one on its own reading of plan mode.
+  Measured with the real run prompt: 2 traces recorded in 10 runs. Nothing
+  detects the miss, so such a run finishes `succeeded` with no outcome
+  recorded. Failing a run that produced no trace is the obvious fix and is not
+  written yet; it needs care, because a legitimately blocked run has nothing to
+  say either.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

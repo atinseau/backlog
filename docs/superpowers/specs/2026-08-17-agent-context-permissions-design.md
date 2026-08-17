@@ -259,10 +259,42 @@ closure has to follow the façade and not the pipeline:
 
 So `run-executor.ts` stamps nothing — it is runtime-agnostic and cannot know
 whether anything replaced the CLI — and clears an inherited role so none can
-arrive by accident. `executionCliRole` in the claude-code provider stamps it,
-where that provider attaches `--mcp-config`, and only when the permission mode
-lets the model call an MCP tool. The table still owns the *value*; the runtime
-owns *whether this run earned it*.
+arrive by accident. The claude-code provider decides, where it attaches
+`--mcp-config`, and only when the permission mode lets the model call an MCP
+tool. The table still owns the *value*; the runtime owns *whether this run
+earned it*.
+
+**Both halves of the closure move together.** A first pass gated only the role
+and left `--disallowedTools Bash(backlog:*)` on every execution run. That deny
+rule fires under `plan` exactly as it does under `bypassPermissions`, so gating
+the role alone only changed *which component* refused a read-only run — it still
+had no `trace_write` and no `backlog trace write`. One predicate,
+`facadeReachable`, now feeds both `executionCliRole` and
+`executionDeniedBuiltins`; when the façade is unreachable, neither applies.
+Note this was a regression the branch introduced, not a pre-existing gap: at the
+merge base a run emitted no `--disallowedTools` at all.
+
+### What a read-only run's channel is actually worth
+
+Probed on `claude` 2.1.234 with the prompt `buildProviderPrompt` really emits,
+a fake `backlog` on PATH, and no MCP server:
+
+| condition | trace recorded |
+| --- | --- |
+| `--permission-mode plan`, no deny rule | 2 / 10 |
+| `--permission-mode plan`, `--disallowedTools "Bash(backlog:*)"` | 0 / 4 |
+
+Plan mode does **not** hard-block a mutating `Bash` call: the write lands and
+`permission_denials` stays empty. What suppresses it is the model's own reading
+of plan mode — it usually answers that it may only take read-only actions and
+asks for approval, which `-p` has no channel to give. So the deny rule was the
+difference between *never* and *sometimes*, which is why removing it is right;
+but the honest claim is that a read-only run's trace is best-effort, not
+guaranteed. The prompt now tells such a run that recording is required even in a
+read-only session. Detecting a run that produced no trace and failing it loudly
+is the real fix, and it is deliberately **out of scope** here: a legitimately
+blocked run has nothing to record either, so the check needs a design of its
+own.
 
 ### The hook exemption
 

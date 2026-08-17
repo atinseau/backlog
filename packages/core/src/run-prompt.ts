@@ -51,7 +51,7 @@ const BACKLOG_CONTEXT = [
 const TRACE_CONTRACT = [
   "Recording your work (required):",
   "- Before you finish, record a trace by calling the `trace_write` tool.",
-  "- If `trace_write` is not in your tool list, run `backlog trace write` instead — a run that was handed no MCP tools keeps the command line, and the trace is required either way.",
+  "- If `trace_write` is not in your tool list, run `backlog trace write` instead — a run that was handed no MCP tools keeps the command line, and the trace is required either way. Record it even when the rest of your session is read-only: reporting what you found is not a modification to the repository, and finishing without it loses your whole run.",
   '- The payload is {"outcome": "implemented" | "rejected" | "blocked", "summary": "..."}.',
   "- `rejected` also requires `rejection_reason`. `blocked` also requires `open_question` — that is how you ask a human for help, and it is the only way. There is no channel to another agent.",
   "- Add `constraints` for anything a later run would otherwise rediscover: `{statement, evidence, confidence}`. `evidence` is a path:line, a test name, or a command's output — no evidence, no entry. `confidence` is `verified` (you executed something that proved it) or `observed` (you read code and interpreted it); there is no default, always name one.",
