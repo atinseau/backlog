@@ -2,6 +2,8 @@
 
 Status: **approved design, not yet planned**
 Date: 2026-08-17
+Depends on: [agent ticket tools](./2026-08-17-agent-ticket-tools-design.md) —
+the trace-writing tool this spec assumes lives there
 
 ---
 
@@ -95,7 +97,8 @@ constraints[]      { statement, evidence, confidence }
 decisions[]        { chose, rejected, because }
 rejection_reason   required when outcome = rejected
 open_question      required when outcome = blocked
-discovered_deps[]  ticket ids or descriptions found mid-flight
+discovered_deps[]  either an existing ticket id (the system adds the edge) or
+                   work with no ticket yet (the system creates a `proposed` one)
 consolidation_hint none | high, with a reason
 ```
 
@@ -403,8 +406,8 @@ after the table.
 | `packages/core/src/providers/claude-code/command.ts` | extend the `--settings` payload with `SessionStart` and `Stop` hooks. It is already built there for `CLAUDE_CODE_PROFILE` (line 71) but only when a profile is set, so it must become unconditional |
 | `packages/core/src/providers/types.ts` | `ProviderRunRequest` carries no hook channel today; either add one or let the claude-code provider derive hooks from agent + config |
 | `packages/core/src/run-executor.ts` | recognise the trace as a run outcome alongside artifacts and usage |
-| `packages/server` | routes for trace write, memory search, consolidation trigger and journal |
-| `packages/cli` | `backlog memory` (search/show), `backlog consolidate`; `doctor` gains the graphify check |
+| `packages/server` | routes for trace write, consolidation trigger and journal |
+| `packages/cli` | `backlog consolidate`; `doctor` gains the graphify check. **No `backlog memory search`** — agents query graphify directly for the canon (see the tools spec, T6) |
 | `packages/board-ui` | a consolidations section; trace rendering on the ticket; strings in **both** `i18n/en.json` and `i18n/fr.json` |
 | `packages/core/src/ai-service.ts` + `split-service.ts` | scopes become graph-derived instead of invented (see §10) |
 
@@ -421,9 +424,13 @@ Two consequences of the refactor worth knowing before planning:
 
 ## 10. Out of scope here
 
-- **Agent-facing ticket tools** (set status, read and edit dependencies, create
-  a subtask, ask another agent for help). The owner explicitly deferred this;
-  it is the natural next spec, and the trace-write tool is its first member.
+- **Agent-facing ticket tools.** Now specified separately in
+  [agent ticket tools](./2026-08-17-agent-ticket-tools-design.md), which is a
+  **prerequisite** of this spec: it owns `backlog trace write`, the read surface,
+  and the `proposed` status that `discovered_deps` feeds. One finding from it
+  matters here: reading a trace must display each claim's consolidation verdict,
+  otherwise an agent can take a quarantined claim as true and quarantine
+  protects the canon but not the agents.
 - **Resuming a blocked ticket.** The mechanism falls out of this design — the
   block context written by agent 1 *is* agent 2's input, so no session resume
   is needed (and none would work when a different agent picks it up) — but the
