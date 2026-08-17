@@ -27,11 +27,11 @@ const INSTRUCTIONS = [
 const BACKLOG_CONTEXT = [
   "Backlog context:",
   "- Your environment carries BACKLOG_TASK_ID, BACKLOG_RUN_ID, BACKLOG_REPO, BACKLOG_BRANCH and BACKLOG_WORKTREE, plus BACKLOG_SUBTASK_ID when this run is scoped to a subtask.",
-  "- A `backlog` CLI is usually on your PATH; where it is, it already resolves this project and you do not need --project.",
-  "- `backlog task show <task-id>` — the ticket, its status, its dependencies.",
-  "- `backlog subtask show <subtask-id>` — this unit of work.",
-  "- `backlog trace show <task-id>` — what earlier runs on this ticket decided, and why. Read it before you start.",
-  "- `backlog claim list` — which paths other agents currently hold. Do not edit a path someone else holds.",
+  "- Every interaction you may have with Backlog is a tool on the `backlog` MCP server. There is no command-line access: the `backlog` binary refuses an execution agent.",
+  "- `task_show` — a ticket, its status and its dependencies. Read your own before you start.",
+  "- `subtask_show` — this unit of work. Only a subtask-scoped run has one.",
+  "- `trace_show` — what earlier runs on this ticket decided, and why. Read it before you start.",
+  "- `claim_list` — which paths other agents currently hold. Do not edit a path someone else holds.",
 ];
 
 // The trace is the only channel out of this run: it is what moves the ticket,
@@ -40,7 +40,7 @@ const BACKLOG_CONTEXT = [
 // contract that gets dropped with the tail of a long list is not a contract.
 const TRACE_CONTRACT = [
   "Recording your work (required):",
-  "- Before you finish, record a trace. Call the `trace_write` tool if you have it; otherwise pipe the same JSON object into `backlog trace write`.",
+  "- Before you finish, record a trace by calling the `trace_write` tool.",
   '- The payload is {"outcome": "implemented" | "rejected" | "blocked", "summary": "..."}.',
   "- `rejected` also requires `rejection_reason`. `blocked` also requires `open_question` — that is how you ask a human for help, and it is the only way. There is no channel to another agent.",
   "- Add `constraints` for anything a later run would otherwise rediscover: `{statement, evidence, confidence}`. `evidence` is a path:line, a test name, or a command's output — no evidence, no entry. `confidence` is `verified` (you executed something that proved it) or `observed` (you read code and interpreted it); there is no default, always name one.",
