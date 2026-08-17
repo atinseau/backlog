@@ -114,4 +114,30 @@ describe("backlog trace", () => {
     });
     expect(await readTraceFromStdin(stream)).toEqual({ outcome: "implemented", summary: "ok" });
   });
+
+  it("reassembles a multi-byte character split across two stdin chunks", async () => {
+    // The chunk boundary lands *inside* "é" (0xC3 0xA9), which is the only split
+    // a non-streaming decode gets wrong — and trace prose is accented text. An
+    // ASCII boundary would pass either way, so it proves nothing.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new Uint8Array([...new TextEncoder().encode('{"summary":"trait'), 0xc3]),
+        );
+        controller.enqueue(new Uint8Array([0xa9, ...new TextEncoder().encode('"}')]));
+        controller.close();
+      },
+    });
+    expect(await readTraceFromStdin(stream)).toEqual({ summary: "traité" });
+  });
+
+  it("names the problem when the payload is not valid JSON", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"outcome":"implemented",}'));
+        controller.close();
+      },
+    });
+    await expect(readTraceFromStdin(stream)).rejects.toThrow(/not valid JSON/);
+  });
 });

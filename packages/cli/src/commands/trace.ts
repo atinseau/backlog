@@ -20,7 +20,19 @@ export async function readTraceFromStdin(
   if (!text.trim()) {
     throw new Error("No trace payload on stdin. Pipe a JSON object into `backlog trace write`.");
   }
-  const parsed = JSON.parse(text) as unknown;
+  // The reader of this error is a non-interactive agent that has to recover from
+  // it, and malformed JSON is the likeliest failure of an LLM-written payload —
+  // so name what was wrong and what shape was expected, rather than surfacing a
+  // bare SyntaxError about a token at an offset.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `The trace payload on stdin is not valid JSON (${detail}). Expected one JSON object, e.g. {"outcome":"implemented","summary":"what you did"}.`,
+    );
+  }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("The trace payload must be a JSON object.");
   }
@@ -31,7 +43,10 @@ export async function readTraceFromStdin(
 // its environment, so the payload may omit them. Anything the payload states
 // wins, so a caller can still write a trace for another context deliberately.
 function withContextDefaults(payload: Record<string, unknown>): Record<string, unknown> {
-  const filled: Record<string, unknown> = { version: 1, ...payload };
+  const filled: Record<string, unknown> = { ...payload };
+  if (filled.version === undefined) {
+    filled.version = 1;
+  }
   if (filled.run_id === undefined && process.env.BACKLOG_RUN_ID) {
     filled.run_id = process.env.BACKLOG_RUN_ID;
   }
@@ -54,7 +69,7 @@ export function runTraceWrite(
   const filled = withContextDefaults(payload);
   // recordTrace re-parses through traceSchema, so an invalid payload throws
   // before anything is persisted.
-  return recordTrace({ backlogDir, trace: filled as never });
+  return recordTrace({ backlogDir, trace: filled });
 }
 
 export function runTraceShow(backlogDir: string, taskId: string): string[] {
