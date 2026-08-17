@@ -1414,7 +1414,11 @@ bun run build
 ```
 
 Expected: typecheck clean; every test passing with a strictly higher count than
-the 630 on `main` and no pre-existing expectation weakened; the binary compiles.
+the baseline and no pre-existing expectation weakened; the binary compiles.
+
+The baseline is **728 pass / 0 fail across 88 files**, measured with `bun run
+test` on `a6ae29b`. (The PR #11 handoff records 630; that figure does not
+reproduce and should not be used.)
 
 Then check the binary actually carries the new flag — the build has silently
 diverged from a dev run before:
