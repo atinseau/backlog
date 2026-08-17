@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const taskStatusSchema = z.enum([
+  "proposed",
   "backlog",
   "ready",
   "in_progress",
@@ -121,6 +122,18 @@ export const taskSchema = z.object({
   // to "what's the work doing right now". Unarchive clears the field
   // and the task reappears in its original status.
   archived_at: z.string().min(1).optional(),
+  // Set only on tasks an agent proposed from a trace. `proposed` tasks are
+  // never runnable (asserted in the scheduler) and are invisible in default
+  // board views until a human accepts them into `backlog`.
+  proposal: z
+    .object({
+      origin_run_id: z.string().min(1),
+      origin_task_id: z.string().min(1),
+      motive: z.string().min(1),
+      audit: z.enum(["pending", "accepted", "rejected"]).default("pending"),
+      audit_reason: z.string().min(1).optional(),
+    })
+    .optional(),
 });
 
 export const tasksFileSchema = z.object({
@@ -132,3 +145,4 @@ export type SourceLink = z.infer<typeof sourceLinkSchema>;
 export type Task = z.infer<typeof taskSchema>;
 export type TasksFile = z.infer<typeof tasksFileSchema>;
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
+export type TaskProposal = NonNullable<z.infer<typeof taskSchema>["proposal"]>;

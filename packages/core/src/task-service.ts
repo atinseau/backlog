@@ -285,6 +285,7 @@ export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
 
 export function tasksSummary(backlogDir: string): Record<TaskStatus, number> {
   const summary = {
+    proposed: 0,
     backlog: 0,
     ready: 0,
     in_progress: 0,
