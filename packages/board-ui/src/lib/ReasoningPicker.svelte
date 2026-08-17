@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick } from "svelte";
-  import { reasoningLevelsForProvider } from "./reasoning-levels.js";
+  import { reasoningLevelsForProvider } from "./providers.svelte.js";
   import { t } from "./i18n.svelte.js";
 
   interface Props {

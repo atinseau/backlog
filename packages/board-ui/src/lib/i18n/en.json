@@ -197,6 +197,7 @@
   "agents_view.disabled": "disabled",
   "agents_view.not_executable": "not executable (provider has no runtime)",
   "agents_view.field_model": "Model",
+  "agents_view.field_command": "Command",
   "agents_view.field_profile": "Profile",
   "agents_view.field_concurrency": "Parallelism",
   "agents_view.field_sandbox": "Sandbox",

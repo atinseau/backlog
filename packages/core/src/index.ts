@@ -3,6 +3,7 @@ export * from "./agents.js";
 export * from "./ai-service.js";
 export * from "./estimator.js";
 export * from "./execution-target.js";
+export * from "./git-status.js";
 export * from "./orchestrator-loop.js";
 export * from "./orchestrator-state.js";
 export * from "./progress.js";

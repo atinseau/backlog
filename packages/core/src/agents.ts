@@ -11,7 +11,7 @@ import {
   type SubTask,
 } from "@backlog/schemas";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
-import { providerFor } from "./providers/index.js";
+import { providerFor, providerRegistry } from "./providers/index.js";
 import type { ProviderReadiness } from "./providers/types.js";
 
 // Whether an agent could run right now, as judged by its own runtime. The
@@ -232,8 +232,7 @@ export interface AddAgentInput {
 }
 
 // Seed a fresh agent in agents.yaml. The id must be unique within the
-// workspace; the provider is free-form (claude / codex / custom / manual)
-// to leave room for new runtimes without a schema migration. Defaults
+// workspace and the provider must be one the registry backs. Defaults
 // mirror the init-layout seed so a brand-new agent is immediately
 // usable for "small task" runs (low/medium risk, single concurrent run,
 // the standard coding capabilities).
@@ -241,6 +240,20 @@ export function addAgent(backlogDir: string, input: AddAgentInput): Agent {
   const file = readAgentsFile(backlogDir);
   if (file.agents.some((a) => a.id === input.id)) {
     throw new Error(`Agent already exists: ${input.id}`);
+  }
+
+  // Validate against the registry rather than a hardcoded list, so a new
+  // runtime becomes creatable the moment it is registered.
+  const provider = providerFor(input.provider);
+  if (!provider) {
+    const known = providerRegistry()
+      .list()
+      .map((candidate) => candidate.id)
+      .join(", ");
+    throw new Error(`Unknown provider: ${input.provider}. Known providers: ${known}.`);
+  }
+  if (provider.describe().requiresCommand && !input.command?.trim()) {
+    throw new Error(`Provider ${provider.id} requires a command; pass one when creating the agent.`);
   }
   const agent: Agent = {
     id: input.id,

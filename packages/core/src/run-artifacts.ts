@@ -3,6 +3,7 @@ import path from "node:path";
 import { execa } from "execa";
 import type { Agent, Artifact, ProjectConfig } from "@backlog/schemas";
 import type { ExecutionTarget } from "./execution-target.js";
+import { parsePorcelainPaths } from "./git-status.js";
 
 // What a finished run leaves behind: the files it touched, the commit it sat
 // on, and a patch of its uncommitted work.
@@ -15,11 +16,8 @@ export async function collectWorktreeArtifacts(
   const git = (args: string[]) => execa("git", args, { cwd: worktreePath, reject: false });
 
   const status = await git(["status", "--short", "--porcelain"]);
-  for (const line of status.stdout.split("\n")) {
-    const file = line.trim().slice(3).trim();
-    if (file.length > 0) {
-      artifacts.push({ kind: "file", value: file });
-    }
+  for (const file of parsePorcelainPaths(status.stdout)) {
+    artifacts.push({ kind: "file", value: file });
   }
 
   const head = await git(["rev-parse", "HEAD"]);
