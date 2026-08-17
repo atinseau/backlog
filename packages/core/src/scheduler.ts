@@ -212,6 +212,11 @@ export function buildExecutionPlan(
   for (const workItem of workItems) {
     if (options?.taskId) continue;
     if (options?.workItemId && workItem.id !== options.workItemId) continue;
+    // `proposed` is agent-invented work that no one has audited. It is never
+    // runnable by any path, including an explicit target — this is what stops a
+    // create → run → create cycle. Checked first and unconditionally so a later
+    // edit to the conditions below cannot reopen it.
+    if (workItem.status === "proposed") continue;
     if (!options?.workItemId && workItem.status !== "ready") continue;
     if (options?.workItemId && workItem.status !== "ready" && workItem.status !== "backlog") continue;
     if (hasExplicitSubTasks.has(workItem.id)) continue;
@@ -268,6 +273,25 @@ export function buildExecutionPlan(
         action: "block" as const,
         score: -1000,
         reasons: ["missing_task"],
+      };
+    }
+
+    // `proposed` is agent-invented work that no one has audited. This is the
+    // single funnel every candidate (subtask-sourced or direct-task-sourced)
+    // passes through, so blocking here — first, unconditionally — is what
+    // actually stops a proposed task's sub-tasks from being scheduled. Never
+    // reachable as "runnable", regardless of dependencies, claims or an
+    // explicit target.
+    if (workItem.status === "proposed") {
+      return {
+        taskId: task.id,
+        workItemId: task.task_id,
+        targetType: task.target_type ?? "subtask",
+        repo: task.repo,
+        scopes: task.scopes,
+        action: "block" as const,
+        score: -1000,
+        reasons: ["task_proposed_not_runnable"],
       };
     }
 

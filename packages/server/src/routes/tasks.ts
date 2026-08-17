@@ -21,6 +21,12 @@ import { z } from "zod";
 import { AiSplitterUnavailableError, fallbackTitle, refineTaskText, suggestSplit, suggestTitle } from "../lib/ai-splitter.js";
 import type { AppEnv } from "../project-resolver.js";
 
+// `proposed` is deliberately absent from both status unions in this file, here
+// and in createBodySchema. Spec §7 makes it AI-only: the system writes it when it
+// reads a proposal in a trace, and no human path — board, API, CLI — creates a
+// task in `proposed` or moves one into it. Leaving it out of the API is that rule,
+// not an oversight. Moving a task *out* of `proposed` is a separate matter and is
+// enforced by `updateTaskStatus`, which accepts only `proposed → backlog`.
 const moveBodySchema = z.object({
   to: z.enum([
     "backlog",

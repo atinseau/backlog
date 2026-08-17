@@ -34,3 +34,5 @@ export * from "./users.js";
 export * from "./worktrees.js";
 export * from "./task-service.js";
 export * from "./migrate-ids.js";
+export * from "./trace-store.js";
+export * from "./trace-service.js";

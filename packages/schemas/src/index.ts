@@ -8,5 +8,6 @@ export * from "./source.js";
 export * from "./sync-conflict.js";
 export * from "./subtask.js";
 export * from "./task.js";
+export * from "./trace.js";
 export * from "./user.js";
 export * from "./project-registry.js";

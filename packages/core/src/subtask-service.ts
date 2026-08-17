@@ -81,7 +81,12 @@ export function createSubTask(backlogDir: string, input: CreateSubTaskInput): Su
   };
   file.subtasks.push(task);
   writeSubTasksFile(backlogDir, file);
-  updateTaskStatus(backlogDir, input.workItemId, "ready");
+  // `proposed` is agent-invented work that no one has audited; attaching a
+  // sub-task to it must not be a backdoor promotion to `ready`. It stays
+  // `proposed` until a human accepts it (updateTaskStatus to `backlog`).
+  if (workItem.status !== "proposed") {
+    updateTaskStatus(backlogDir, input.workItemId, "ready");
+  }
   return task;
 }
 

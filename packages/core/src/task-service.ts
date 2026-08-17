@@ -1,4 +1,4 @@
-import type { SourceLink } from "@backlog/schemas";
+import type { SourceLink, TaskProposal } from "@backlog/schemas";
 import { taskStatusSchema, type Task, type TaskStatus } from "@backlog/schemas";
 import { nextId } from "@backlog/config";
 import { readSubTasksFile, readTasksFile, writeSubTasksFile, writeTasksFile } from "./state-files.js";
@@ -46,6 +46,7 @@ export interface UpdateTaskInput {
   preferredAgents?: string[];
   worktreeMode?: "isolated_worktree" | "direct";
   maxSubagents?: number;
+  proposal?: TaskProposal;
 }
 
 function clampMaxSubagents(value: number | undefined): number {
@@ -159,10 +160,31 @@ export function updateTask(backlogDir: string, id: string, input: UpdateTaskInpu
       max_subagents: clampMaxSubagents(input.maxSubagents),
     };
   }
+  if (input.proposal !== undefined) {
+    item.proposal = input.proposal;
+  }
 
   item.updated_at = new Date().toISOString();
   writeTasksFile(backlogDir, file);
   return item;
+}
+
+// `proposed` is a one-way door (design spec §7): work an agent invented for
+// itself leaves it by human review only, and only for `backlog`. Task status has
+// exactly one writer — this function — so the invariant lives here rather than in
+// each of its callers. Guarding the callers instead is whack-a-mole: four of them
+// (createSubTask, updateSubTaskStatus's cascade, removeSubTask, applySplitPlan)
+// promoted to `ready` unconditionally, and any fifth added later would too.
+//
+// A refusal is a no-op plus a warning, not a throw, on purpose. Most callers are
+// cascades — deriveTaskStatusFromSubTasks, the run lifecycle — where throwing
+// would abort a legitimate subtask or run operation to protect a status that
+// simply must not move; the subtask edit is valid, only the promotion is not.
+// The refusal is not silent either: it warns, and it returns the unchanged
+// record, so a caller that reports "moved to X" reports the real status (the CLI
+// `task move` and the API move route both echo the returned task).
+function refusesToLeaveProposed(current: TaskStatus, next: TaskStatus): boolean {
+  return current === "proposed" && next !== "proposed" && next !== "backlog";
 }
 
 export function updateTaskStatus(backlogDir: string, id: string, status: TaskStatus): Task {
@@ -171,6 +193,12 @@ export function updateTaskStatus(backlogDir: string, id: string, status: TaskSta
   const item = file.tasks.find((candidate) => candidate.id === id);
   if (!item) {
     throw new Error(`Unknown task: ${id}`);
+  }
+  if (refusesToLeaveProposed(item.status, parsedStatus)) {
+    console.warn(
+      `[backlog] refused to move ${id} from proposed to ${parsedStatus}: a proposed task is accepted into backlog by review first.`,
+    );
+    return item;
   }
   item.status = parsedStatus;
   item.updated_at = new Date().toISOString();
@@ -285,6 +313,7 @@ export function reorderTask(backlogDir: string, input: ReorderTaskInput): Task {
 
 export function tasksSummary(backlogDir: string): Record<TaskStatus, number> {
   const summary = {
+    proposed: 0,
     backlog: 0,
     ready: 0,
     in_progress: 0,

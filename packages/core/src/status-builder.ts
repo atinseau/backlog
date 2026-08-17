@@ -65,6 +65,7 @@ function summarizeTasks(items: Task[]): Record<TaskStatus, number> {
     summary[item.status] += 1;
     return summary;
   }, {
+    proposed: 0,
     backlog: 0,
     ready: 0,
     in_progress: 0,
