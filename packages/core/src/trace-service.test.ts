@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import type { Trace } from "@backlog/schemas";
-import { createSubTask, getSubTask } from "./subtask-service.js";
+import { listTasks } from "./state-files.js";
+import { createSubTask, getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { createTask, getTask } from "./task-service.js";
 import { recordTrace } from "./trace-service.js";
 import { listTraces } from "./trace-store.js";
@@ -192,6 +193,73 @@ describe("recordTrace", () => {
         trace: trace({ discovered_deps: [{ kind: "existing", task_id: "task_404" }] }),
       }),
     ).toThrow(/Unknown dependency/);
+  });
+
+  it("persists nothing at all when a later dependency is unknown", () => {
+    // The store is append-only, so a throw after the append is unrecoverable: the
+    // agent retries and duplicates the trace, the transition and the proposals.
+    // Every dep is therefore validated before anything is written.
+    const upstream = createTask(backlogDir, { title: "Upstream work" }).id;
+    expect(() =>
+      recordTrace({
+        backlogDir,
+        trace: trace({
+          outcome: "rejected",
+          rejection_reason: "Blocked by unknown work.",
+          discovered_deps: [
+            { kind: "existing", task_id: upstream },
+            { kind: "proposal", proposal: { title: "Side quest", motive: "Noticed it." } },
+            { kind: "existing", task_id: "task_404" },
+          ],
+        }),
+      }),
+    ).toThrow(/Unknown dependency/);
+    expect(listTraces(backlogDir, taskId)).toHaveLength(0);
+    expect(getSubTask(backlogDir, subtaskId)!.status).not.toBe("review");
+    expect(getTask(backlogDir, taskId)!.dependencies).toEqual([]);
+    expect(listTasks(backlogDir).filter((item) => item.status === "proposed")).toEqual([]);
+  });
+
+  it("journals a trace against a completed subtask but refuses to un-finish it", () => {
+    updateSubTaskStatus(backlogDir, subtaskId, "completed");
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({ outcome: "rejected", rejection_reason: "Changed my mind." }),
+    });
+    expect(listTraces(backlogDir, taskId)).toHaveLength(1);
+    expect(getSubTask(backlogDir, subtaskId)!.status).toBe("completed");
+    expect(result.transitions.join(" ")).toContain("no transition");
+  });
+
+  it("journals a trace against a done task but refuses to reopen it", () => {
+    const soloTask = createTask(backlogDir, { title: "Already shipped", status: "done" }).id;
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        task_id: soloTask,
+        subtask_id: undefined,
+        outcome: "blocked",
+        open_question: "Should we revisit?",
+      }),
+    });
+    expect(listTraces(backlogDir, soloTask)).toHaveLength(1);
+    expect(getTask(backlogDir, soloTask)!.status).toBe("done");
+    expect(result.transitions.join(" ")).toContain("no transition");
+  });
+
+  it("refuses the same way for a released task", () => {
+    const soloTask = createTask(backlogDir, { title: "Out the door", status: "released" }).id;
+    const result = recordTrace({
+      backlogDir,
+      trace: trace({
+        task_id: soloTask,
+        subtask_id: undefined,
+        outcome: "rejected",
+        rejection_reason: "Reconsidered.",
+      }),
+    });
+    expect(getTask(backlogDir, soloTask)!.status).toBe("released");
+    expect(result.transitions.join(" ")).toContain("no transition");
   });
 
   it("creates a proposal in the proposed status, never runnable", () => {
