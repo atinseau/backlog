@@ -2,14 +2,15 @@ import { archiveClaim, createClaim, writeContextFile } from "@backlog/claims";
 import { detectGitDir, git } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
 import type { Agent, ProjectConfig } from "@backlog/schemas";
-import { getAgent, pickAgentForTask, selectionForAgentTask } from "./agents.js";
-import { executeAgentRun, supportsAgentExecution } from "./executor.js";
+import { getAgent, pickAgentForTask, selectionForAgentTask, supportsAgentExecution } from "./agents.js";
+import { executeAgentRun } from "./run-executor.js";
 import { appendRunEvent, addRunArtifact, createRun, getRunEvents, isAgentBusyStatus, listActiveRuns, loadRun, nextRunId, updateRunStatus } from "./run-store.js";
 import { runWithRetry, retryPolicyForAgent } from "./retry.js";
 import type { ExecutionPlan } from "./scheduler.js";
 import { getSubTask, updateSubTaskStatus } from "./subtask-service.js";
 import { getTask, updateTaskStatus } from "./task-service.js";
 import { subTaskExecutionTarget, taskExecutionTarget, type ExecutionTarget } from "./execution-target.js";
+import { isBacklogInternalPath, parsePorcelainPaths } from "./git-status.js";
 import {
   buildRunBranchName,
   cleanupRemoteExecutionCheckout,
@@ -45,11 +46,7 @@ async function inspectDirectCheckout(repoPath: string, options: { allowDirty?: b
   // work cannot be swept into the agent commit. `.backlog/` is allowed
   // because embedded workspaces keep their own state inside the repo.
   const status = await git(["status", "--porcelain"], repoPath);
-  const dirty = status.split("\n").map((line) => line.trim()).filter((line) => {
-    if (!line) return false;
-    const file = line.slice(3).trim().replace(/^"|"$/g, "");
-    return file !== ".backlog" && !file.startsWith(".backlog/");
-  });
+  const dirty = parsePorcelainPaths(status).filter((file) => !isBacklogInternalPath(file));
   if (dirty.length > 0) {
     if (options.allowDirty) {
       return { ok: true, branch, dirtyFiles: dirty, git: true };

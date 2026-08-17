@@ -168,6 +168,55 @@ describe("agents", () => {
     expect(validation?.ok).toBe(true);
   });
 
+  it("schedules a Claude agent with no API key, because the CLI carries its own session", () => {
+    // The binary has to exist for the agent to be runnable at all; what this
+    // asserts is that no ANTHROPIC_API_KEY is required on top of it.
+    updateAgent(backlogDir, "claude-code", { command: process.execPath });
+    const workItem = createTask(backlogDir, { title: "Subscription run", repoTargets: ["backlog"] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Run on the plan",
+      repo: "backlog",
+      risk: "low",
+    });
+
+    const selection = selectionForAgentTask(backlogDir, task, "claude-code");
+
+    expect(selection?.available).toBe(true);
+    expect(selection?.reasons).not.toContain("missing_api_key:ANTHROPIC_API_KEY");
+  });
+
+  it("blocks a Claude agent pinned to api_key until the key is stored", () => {
+    updateAgent(backlogDir, "claude-code", { command: process.execPath, authMode: "api_key" });
+    const workItem = createTask(backlogDir, { title: "Pinned run", repoTargets: ["backlog"] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Run on a key",
+      repo: "backlog",
+      risk: "low",
+    });
+
+    const selection = selectionForAgentTask(backlogDir, task, "claude-code");
+
+    expect(selection?.available).toBe(false);
+    expect(selection?.reasons).toContain("missing_api_key:ANTHROPIC_API_KEY");
+  });
+
+  it("names the missing executable rather than the provider", () => {
+    updateAgent(backlogDir, "claude-code", { command: "/nowhere/claude" });
+    const workItem = createTask(backlogDir, { title: "Missing binary", repoTargets: ["backlog"] });
+    const task = createSubTask(backlogDir, {
+      workItemId: workItem.id,
+      title: "Run without a binary",
+      repo: "backlog",
+      risk: "low",
+    });
+
+    const selection = selectionForAgentTask(backlogDir, task, "claude-code");
+
+    expect(selection?.reasons).toContain("missing_executable:/nowhere/claude");
+  });
+
   it("explains why a forced agent is unavailable for one task", () => {
     const workItem = createTask(backlogDir, { title: "Agent targeting", repoTargets: ["backlog"] });
     const task = createSubTask(backlogDir, {

@@ -1,9 +1,8 @@
-import { getSecret, loadConfig } from "@backlog/config";
+import { loadConfig } from "@backlog/config";
 import {
   applySplitProposal,
   archiveTask,
   createTask,
-  getAgent,
   listSubTasks,
   listTasks,
   listAllRuns,
@@ -20,7 +19,6 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { AiSplitterUnavailableError, fallbackTitle, refineTaskText, suggestSplit, suggestTitle } from "../lib/ai-splitter.js";
-import type { AiProvider } from "../lib/ai-splitter.js";
 import type { AppEnv } from "../project-resolver.js";
 
 const moveBodySchema = z.object({
@@ -113,72 +111,13 @@ const suggestSplitBodySchema = z.object({
   planner_agent_id: z.string().min(1).optional(),
 }).optional();
 
-const ANTHROPIC_API_MODEL_ALIASES: Record<string, string> = {
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-7",
-  haiku: "claude-haiku-4-5",
-  "claude-sonnet-4": "claude-sonnet-4-20250514",
-  "claude-sonnet-4-5": "claude-sonnet-4-6",
-  "claude-sonnet-4-6": "claude-sonnet-4-6",
-  "claude-opus-4": "claude-opus-4-20250514",
-  "claude-opus-4-1": "claude-opus-4-1-20250805",
-  "claude-opus-4-7": "claude-opus-4-7",
-  "claude-haiku-4-5": "claude-haiku-4-5",
-  "claude-3-5-haiku": "claude-3-5-haiku-20241022",
-};
-
-function normalizeProvider(provider: unknown): AiProvider {
-  return provider === "openai" || provider === "codex" ? provider : "anthropic";
-}
-
-function providerFromAgentProvider(provider: string): AiProvider | null {
-  if (provider === "claude" || provider === "anthropic") return "anthropic";
-  if (provider === "codex") return "codex";
-  if (provider === "openai") return "openai";
-  return null;
-}
-
-function secretKeyForProvider(provider: AiProvider): "ANTHROPIC_API_KEY" | "OPENAI_API_KEY" {
-  return provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
-}
-
-function normalizeModelForProvider(provider: AiProvider, model: string | null | undefined): string | undefined {
-  const value = model?.trim();
-  if (!value) return undefined;
-  const modelId = value.replace(/\[[^\]]+\]$/, "").trim();
-  if (provider === "anthropic") {
-    return ANTHROPIC_API_MODEL_ALIASES[modelId] ?? modelId;
-  }
-  return modelId;
-}
-
-function aiOptionsForSelection(
-  backlogDir: string,
-  config: ReturnType<typeof loadConfig>,
-  preferredAgents: string[] | undefined,
-): { provider: AiProvider; apiKey?: string; model?: string } {
-  let provider = normalizeProvider(config.ai_provider);
-  let model: string | undefined;
-  for (const agentId of preferredAgents ?? []) {
-    let agent: ReturnType<typeof getAgent> = null;
-    try {
-      agent = getAgent(backlogDir, agentId);
-    } catch {
-      agent = null;
-    }
-    if (!agent) continue;
-    const agentProvider = providerFromAgentProvider(agent.provider);
-    if (!agentProvider) continue;
-    provider = agentProvider;
-    model = normalizeModelForProvider(provider, agent.model);
-    break;
-  }
-  const apiKey = getSecret(backlogDir, secretKeyForProvider(provider)) ?? undefined;
-  return {
-    provider,
-    ...(apiKey ? { apiKey } : {}),
-    ...(model ? { model } : {}),
-  };
+/**
+ * Agent ids the AI planner should prefer, most-preferred first. The core
+ * completion service turns these into a runtime; the route only expresses
+ * intent — an explicit pick wins, otherwise the task's own defaults do.
+ */
+function preferredAgentIds(explicit: string | undefined, defaults: string[] | undefined): string[] {
+  return explicit ? [explicit] : (defaults ?? []);
 }
 
 export function tasksRoutes(): Hono<AppEnv> {
@@ -232,12 +171,7 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "invalid_body", issues: parsed.error.format() }, 400);
     }
     try {
-      const config = loadConfig(project.backlogDir);
-      const aiOptions = aiOptionsForSelection(
-        project.backlogDir,
-        config,
-        parsed.data.planner_agent_id ? [parsed.data.planner_agent_id] : parsed.data.preferred_agents,
-      );
+      const agentIds = preferredAgentIds(parsed.data.planner_agent_id, parsed.data.preferred_agents);
       // Resolve the title. If the caller provided one, keep it
       // verbatim; otherwise synthesize one from the description via
       // the AI title-suggester. Falls back to fallbackTitle() (first
@@ -255,7 +189,10 @@ export function tasksRoutes(): Hono<AppEnv> {
           );
         }
         try {
-          const suggestion = await suggestTitle(description, aiOptions);
+          const suggestion = await suggestTitle(project.backlogDir, description, {
+            preferredAgentIds: agentIds,
+            cwd: project.root,
+          });
           resolvedTitle = suggestion.title;
           titleSource = "ai";
           titleModel = suggestion.model;
@@ -330,11 +267,10 @@ export function tasksRoutes(): Hono<AppEnv> {
       return c.json({ error: "unknown_task", id }, 404);
     }
     try {
-      const config = loadConfig(project.backlogDir);
-      const refined = await refineTaskText(
-        taskRecord,
-        aiOptionsForSelection(project.backlogDir, config, taskRecord.execution_defaults.preferred_agents),
-      );
+      const refined = await refineTaskText(project.backlogDir, taskRecord, {
+        preferredAgentIds: taskRecord.execution_defaults.preferred_agents,
+        cwd: project.root,
+      });
       const task = updateTask(project.backlogDir, id, {
         title: refined.title,
         description: refined.description,
@@ -406,19 +342,15 @@ export function tasksRoutes(): Hono<AppEnv> {
           400,
         );
       }
-      const proposal = await suggestSplit(
-        workItem,
-        repos,
-        {
-          ...aiOptionsForSelection(
-            project.backlogDir,
-            config,
-            parsed.data?.planner_agent_id ? [parsed.data.planner_agent_id] : workItem.execution_defaults.preferred_agents,
-          ),
-          maxSubagents: parsed.data?.max_subagents ?? workItem.execution_defaults.max_subagents ?? config.max_agents,
-          ...(parsed.data?.planner_prompt !== undefined ? { plannerPrompt: parsed.data.planner_prompt } : {}),
-        },
-      );
+      const proposal = await suggestSplit(project.backlogDir, workItem, repos, {
+        preferredAgentIds: preferredAgentIds(
+          parsed.data?.planner_agent_id,
+          workItem.execution_defaults.preferred_agents,
+        ),
+        cwd: project.root,
+        maxSubagents: parsed.data?.max_subagents ?? workItem.execution_defaults.max_subagents ?? config.max_agents,
+        ...(parsed.data?.planner_prompt !== undefined ? { plannerPrompt: parsed.data.planner_prompt } : {}),
+      });
       return c.json({
         task_id: id,
         model: proposal.model,

@@ -13,6 +13,18 @@ export const retryPolicySchema = z.object({
   reuse_worktree: z.boolean().default(true),
 });
 
+// How much of the checkout an agent may touch. The repository's own
+// access_mode can coerce this downward at launch time — the policy lives
+// with the resource, not with the runner.
+export const sandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
+
+// How an agent authenticates against its provider. `auto` (the default,
+// and the historical behaviour) uses an API key when one is configured and
+// otherwise relies on the CLI's own logged-in session — which is what makes
+// a Claude subscription usable. `subscription` refuses to send a key even
+// if one exists; `api_key` requires one.
+export const agentAuthModeSchema = z.enum(["auto", "subscription", "api_key"]);
+
 export const agentSchema = z.object({
   id: z.string().min(1),
   // Optional human-friendly label set via the kanban (double-click on
@@ -25,7 +37,8 @@ export const agentSchema = z.object({
   model: z.string().optional(),
   profile: z.string().optional(),
   command: z.string().optional(),
-  sandbox_mode: z.enum(["read-only", "workspace-write", "danger-full-access"]).optional(),
+  sandbox_mode: sandboxModeSchema.optional(),
+  auth_mode: agentAuthModeSchema.optional(),
   success_mode: z.enum(["review", "complete"]).optional(),
   environment: z.record(z.string(), z.string()).default({}),
   enabled: z.boolean().default(true),
@@ -43,6 +56,8 @@ export const agentsFileSchema = z.object({
   agents: z.array(agentSchema).default([]),
 });
 
+export type SandboxMode = z.infer<typeof sandboxModeSchema>;
+export type AgentAuthMode = z.infer<typeof agentAuthModeSchema>;
 export type RetryPolicy = z.infer<typeof retryPolicySchema>;
 export type Agent = z.infer<typeof agentSchema>;
 export type AgentsFile = z.infer<typeof agentsFileSchema>;

@@ -70,6 +70,7 @@
       "name": "@backlog/core",
       "version": "0.0.0",
       "dependencies": {
+        "@anthropic-ai/sdk": "^0.91.1",
         "@backlog/claims": "workspace:*",
         "@backlog/config": "workspace:*",
         "@backlog/git": "workspace:*",

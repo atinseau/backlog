@@ -1,7 +1,15 @@
 <script lang="ts">
+  import { isExecutableAgent } from "./types.js";
   import { createAgent, deleteAgent, fetchAgents, patchAgent } from "./api.js";
   import { t } from "./i18n.svelte.js";
-  import { MODEL_CATALOG, CUSTOM_MODEL_VALUE, type ModelChoice } from "./agent-models.js";
+  import { CUSTOM_MODEL_VALUE } from "./agent-models.js";
+  import {
+    executableProviders,
+    loadProviders,
+    modelsForProvider,
+    providerRequiresCommand,
+  } from "./providers.svelte.js";
+  import type { ProviderModelChoice } from "./types.js";
   import { formatAgentLabel } from "./agent-label.js";
   import type { AgentSummary, SandboxMode } from "./types.js";
 
@@ -71,7 +79,7 @@
   // becomes non-null and renders the inline form. We keep the form
   // narrow (id, provider, model preset) — the full grid is available
   // via the per-agent expanded panel after creation.
-  let newAgent = $state<{ id: string; provider: "claude" | "codex" | "custom"; model: string } | null>(null);
+  let newAgent = $state<{ id: string; provider: string; model: string; command: string } | null>(null);
 
   function toggleExpanded(id: string) {
     expandedId = expandedId === id ? null : id;
@@ -88,8 +96,8 @@
     queueMicrotask(() => node.focus());
   }
 
-  function modelChoicesFor(provider: string): ModelChoice[] {
-    return MODEL_CATALOG[provider] ?? [];
+  function modelChoicesFor(provider: string): ProviderModelChoice[] {
+    return modelsForProvider(provider);
   }
 
   function isKnownModel(provider: string, model: string | null): boolean {
@@ -121,6 +129,9 @@
   async function load() {
     loading = true;
     try {
+      // The runtime catalogue drives the model and provider pickers, so it has
+      // to be in hand before the form renders.
+      await loadProviders();
       agents = await fetchAgents();
       error = null;
     } catch (err) {
@@ -182,6 +193,7 @@
         enabled: true,
       };
       if (newAgent.model.trim()) input.model = newAgent.model.trim();
+      if (newAgent.command.trim()) input.command = newAgent.command.trim();
       await createAgent(input);
       newAgent = null;
       await load();
@@ -194,7 +206,13 @@
   }
 
   function startCreate() {
-    newAgent = { id: "", provider: "claude", model: "sonnet" };
+    const first = executableProviders()[0];
+    newAgent = {
+      id: "",
+      provider: first?.id ?? "claude-code",
+      model: first?.models[0]?.value ?? "",
+      command: "",
+    };
   }
 
   async function patchField(id: string, input: Parameters<typeof patchAgent>[1]) {
@@ -262,7 +280,7 @@
   }
 
   function isExecutable(agent: AgentSummary): boolean {
-    return agent.provider === "claude" || agent.provider === "codex" || agent.provider === "custom";
+    return isExecutableAgent(agent);
   }
 
   load();
@@ -547,25 +565,25 @@
               value={newAgent.provider}
               onchange={(e) => {
                 if (!newAgent) return;
-                newAgent.provider = (e.currentTarget as HTMLSelectElement).value as "claude" | "codex" | "custom";
+                newAgent.provider = (e.currentTarget as HTMLSelectElement).value;
                 // Reset model to a sensible default for the new provider.
-                const first = MODEL_CATALOG[newAgent.provider]?.[0]?.value;
+                const first = modelsForProvider(newAgent.provider)[0]?.value;
                 newAgent.model = first ?? "";
               }}
             >
-              <option value="claude">claude</option>
-              <option value="codex">codex</option>
-              <option value="custom">custom</option>
+              {#each executableProviders() as provider (provider.id)}
+                <option value={provider.id}>{provider.display_name}</option>
+              {/each}
             </select>
           </label>
           <label class="field">
             <span class="lbl">{t("agents_view.field_model")}</span>
-            {#if (MODEL_CATALOG[newAgent.provider] ?? []).length > 0}
+            {#if modelsForProvider(newAgent.provider).length > 0}
               <select
                 value={newAgent.model}
                 onchange={(e) => (newAgent!.model = (e.currentTarget as HTMLSelectElement).value)}
               >
-                {#each MODEL_CATALOG[newAgent.provider] as choice (choice.value)}
+                {#each modelsForProvider(newAgent.provider) as choice (choice.value)}
                   <option value={choice.value} title={choice.description}>{choice.label}</option>
                 {/each}
               </select>
@@ -577,6 +595,16 @@
               />
             {/if}
           </label>
+          {#if providerRequiresCommand(newAgent.provider)}
+            <label class="field">
+              <span class="lbl">{t("agents_view.field_command")}</span>
+              <input
+                placeholder="./run-my-agent.sh"
+                value={newAgent.command}
+                oninput={(e) => (newAgent!.command = (e.currentTarget as HTMLInputElement).value)}
+              />
+            </label>
+          {/if}
         </div>
         <div class="create-actions">
           <button class="btn-secondary" onclick={() => (newAgent = null)} type="button">

@@ -15,6 +15,7 @@ import {
   startOrchestrator,
   startRunsForPlan,
   stopOrchestrator,
+  ANTHROPIC_API_KEY,
 } from "@backlog/core";
 import { getSecret, loadConfig } from "@backlog/config";
 
@@ -374,18 +375,15 @@ export class ChatUnavailableError extends Error {
 }
 
 export function resolveChatCredentials(backlogDir: string): ChatCredentials | null {
-  // Resolution order: env var (matches the splitter), then per-project
-  // encrypted secrets store (so users can `backlog secrets set
-  // ANTHROPIC_API_KEY` without juggling shells). OAuth tokens are
-  // intentionally NOT supported as a fallback — the public API rejects
-  // CLAUDE_CODE_OAUTH_TOKEN with 401 "OAuth authentication is currently
-  // not supported", so accepting it here would only produce confusing
-  // errors after the first message.
-  const env = process.env.ANTHROPIC_API_KEY;
-  if (env) return { apiKey: env };
-  const stored = getSecret(backlogDir, "ANTHROPIC_API_KEY");
-  if (stored) return { apiKey: stored };
-  return null;
+  // This is the one feature that cannot run on a Claude subscription. It needs
+  // server-side tool definitions the CLI has no equivalent for, so it talks to
+  // the HTTP API directly and therefore needs a key — resolved through the
+  // anthropic-api provider so there is a single answer to "where does the key
+  // come from?". OAuth tokens are deliberately not accepted: the public API
+  // rejects them with 401, which would only surface as a confusing failure
+  // after the first message.
+  const key = getSecret(backlogDir, ANTHROPIC_API_KEY) ?? process.env[ANTHROPIC_API_KEY];
+  return key ? { apiKey: key } : null;
 }
 
 export async function runOrchestratorChat(input: RunChatInput): Promise<void> {

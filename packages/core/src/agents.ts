@@ -1,26 +1,32 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { hasSecret } from "@backlog/config";
-import { agentsFileSchema, type Agent, type AgentsFile, type SubTask } from "@backlog/schemas";
+import { getSecret } from "@backlog/config";
+import {
+  agentsFileSchema,
+  type Agent,
+  type AgentAuthMode,
+  type AgentsFile,
+  type SandboxMode,
+  type SubTask,
+} from "@backlog/schemas";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
-import { executableExists } from "./provider-utils.js";
+import { providerFor, providerRegistry } from "./providers/index.js";
+import type { ProviderReadiness } from "./providers/types.js";
 
-// Map a provider id → the secret key its executor needs at run time.
-// Returns null when no key is required (custom agents own their env;
-// manual is non-executable so the question doesn't apply).
-function requiredSecretKeyForProvider(provider: string): string | null {
-  if (provider === "claude") return "ANTHROPIC_API_KEY";
-  if (provider === "codex") return "OPENAI_API_KEY";
-  return null;
-}
-
-// True when the agent's provider needs an API key that isn't currently
-// in the project's secrets store. Used to filter the planner so a
-// "Codex but no OPENAI_API_KEY" agent can't be picked silently.
-function agentNeedsApiKey(backlogDir: string, agent: Agent): boolean {
-  const key = requiredSecretKeyForProvider(agent.provider);
-  return key !== null && !hasSecret(backlogDir, key);
+// Whether an agent could run right now, as judged by its own runtime. The
+// answer differs per provider — Claude Code carries a logged-in session and
+// needs no key, Codex needs one, a custom command needs neither — so the
+// question belongs to the provider, not to a chain of ifs here.
+export function agentReadiness(backlogDir: string, agent: Agent): ProviderReadiness {
+  const provider = providerFor(agent.provider);
+  if (!provider) {
+    return { ready: false, reasons: [`unsupported_provider:${agent.provider}`] };
+  }
+  return provider.checkReadiness({
+    agent,
+    getSecret: (key) => getSecret(backlogDir, key),
+  });
 }
 
 function agentsPath(backlogDir: string): string {
@@ -115,8 +121,10 @@ export interface UpdateAgentInput {
   clearProfile?: boolean;
   command?: string;
   clearCommand?: boolean;
-  sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+  sandboxMode?: SandboxMode;
   clearSandboxMode?: boolean;
+  authMode?: AgentAuthMode;
+  clearAuthMode?: boolean;
   successMode?: "review" | "complete";
   clearSuccessMode?: boolean;
   environment?: Record<string, string>;
@@ -168,6 +176,12 @@ export function updateAgent(backlogDir: string, id: string, input: UpdateAgentIn
   if (input.clearSandboxMode) {
     delete agent.sandbox_mode;
   }
+  if (input.authMode !== undefined) {
+    agent.auth_mode = input.authMode;
+  }
+  if (input.clearAuthMode) {
+    delete agent.auth_mode;
+  }
   if (input.successMode !== undefined) {
     agent.success_mode = input.successMode;
   }
@@ -207,7 +221,8 @@ export interface AddAgentInput {
   model?: string;
   profile?: string;
   command?: string;
-  sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
+  sandboxMode?: SandboxMode;
+  authMode?: AgentAuthMode;
   successMode?: "review" | "complete";
   enabled?: boolean;
   maxConcurrentRuns?: number;
@@ -217,8 +232,7 @@ export interface AddAgentInput {
 }
 
 // Seed a fresh agent in agents.yaml. The id must be unique within the
-// workspace; the provider is free-form (claude / codex / custom / manual)
-// to leave room for new runtimes without a schema migration. Defaults
+// workspace and the provider must be one the registry backs. Defaults
 // mirror the init-layout seed so a brand-new agent is immediately
 // usable for "small task" runs (low/medium risk, single concurrent run,
 // the standard coding capabilities).
@@ -226,6 +240,20 @@ export function addAgent(backlogDir: string, input: AddAgentInput): Agent {
   const file = readAgentsFile(backlogDir);
   if (file.agents.some((a) => a.id === input.id)) {
     throw new Error(`Agent already exists: ${input.id}`);
+  }
+
+  // Validate against the registry rather than a hardcoded list, so a new
+  // runtime becomes creatable the moment it is registered.
+  const provider = providerFor(input.provider);
+  if (!provider) {
+    const known = providerRegistry()
+      .list()
+      .map((candidate) => candidate.id)
+      .join(", ");
+    throw new Error(`Unknown provider: ${input.provider}. Known providers: ${known}.`);
+  }
+  if (provider.describe().requiresCommand && !input.command?.trim()) {
+    throw new Error(`Provider ${provider.id} requires a command; pass one when creating the agent.`);
   }
   const agent: Agent = {
     id: input.id,
@@ -244,6 +272,7 @@ export function addAgent(backlogDir: string, input: AddAgentInput): Agent {
   if (input.profile !== undefined) agent.profile = input.profile;
   if (input.command !== undefined) agent.command = input.command;
   if (input.sandboxMode !== undefined) agent.sandbox_mode = input.sandboxMode;
+  if (input.authMode !== undefined) agent.auth_mode = input.authMode;
   if (input.successMode !== undefined) agent.success_mode = input.successMode;
   file.agents.push(agent);
   writeAgentsFile(backlogDir, file);
@@ -287,27 +316,18 @@ export interface AgentSelection {
   available: boolean;
 }
 
+/** Static configuration problems, independent of whether a run is in flight. */
+function configurationProblems(agent: Agent): string[] {
+  const reasons: string[] = [];
+  if (agent.max_concurrent_runs < 1) reasons.push("max_concurrent_runs_must_be_positive");
+  if (agent.allowed_risk.length === 0) reasons.push("allowed_risk_empty");
+  if (agent.capabilities.length === 0) reasons.push("capabilities_empty");
+  return reasons;
+}
+
 export function validateAgents(backlogDir: string): Array<{ id: string; ok: boolean; reasons: string[] }> {
   return listAgents(backlogDir).map((agent) => {
-    const reasons: string[] = [];
-    if (agent.max_concurrent_runs < 1) {
-      reasons.push("max_concurrent_runs_must_be_positive");
-    }
-    if (agent.allowed_risk.length === 0) {
-      reasons.push("allowed_risk_empty");
-    }
-    if (agent.capabilities.length === 0) {
-      reasons.push("capabilities_empty");
-    }
-    if (agent.provider === "custom" && !agent.command) {
-      reasons.push("custom_provider_missing_command");
-    }
-    if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
-      reasons.push("codex_executable_missing");
-    }
-    if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
-      reasons.push("claude_executable_missing");
-    }
+    const reasons = [...configurationProblems(agent), ...agentReadiness(backlogDir, agent).reasons];
     return {
       id: agent.id,
       ok: reasons.length === 0,
@@ -327,15 +347,7 @@ export function healthForAgents(backlogDir: string): AgentHealth[] {
     if (count > agent.max_concurrent_runs) {
       reasons.push("over_capacity");
     }
-    if (agent.provider === "custom" && !agent.command) {
-      reasons.push("missing_command");
-    }
-    if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
-      reasons.push("missing_codex_executable");
-    }
-    if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
-      reasons.push("missing_claude_executable");
-    }
+    reasons.push(...agentReadiness(backlogDir, agent).reasons);
     return {
       id: agent.id,
       provider: agent.provider,
@@ -348,46 +360,41 @@ export function healthForAgents(backlogDir: string): AgentHealth[] {
   });
 }
 
-// True for agents the orchestrator can actually launch. Manual /
-// unknown providers stay valid in agents.yaml for tracking-only flows
-// but never end up in the runnable plan — letting them through here
-// would mean clicking ▶ Play silently no-ops because the run-launcher
-// skips unsupported providers downstream.
-export function supportsAgentExecution(agent: Agent): boolean {
-  if (agent.provider === "claude" || agent.provider === "codex") return true;
-  if (agent.provider === "custom") return Boolean(agent.command);
-  return false;
+// True for agents the orchestrator can actually launch. Providers with no
+// executeRun (and unknown ones) stay valid in agents.yaml for tracking-only
+// flows but never enter the runnable plan — letting them through would mean
+// clicking ▶ Play silently no-ops when the run-launcher skips them.
+export function supportsAgentExecution(agent: Pick<Agent, "provider" | "command">): boolean {
+  const provider = providerFor(agent.provider);
+  if (!provider?.executeRun) return false;
+  return provider.describe().requiresCommand ? Boolean(agent.command?.trim()) : true;
 }
 
-// Compatibility check that ignores `agent.enabled`. The "enabled"
-// concept was removed from the UX (it confused users — an agent was
-// either configured and ready, or it wasn't). The field stays in the
-// schema for backward compat but doesn't gate scheduling.
-//
-// API-key presence (project secret) is checked here so the planner
-// won't pick a Claude agent when ANTHROPIC_API_KEY isn't set — that
-// previously surfaced as a runtime "no api token" error after the
-// run was already in flight.
-export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">, backlogDir?: string): boolean {
-  if (!supportsAgentExecution(agent)) {
-    return false;
-  }
-  if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
-    return false;
-  }
-  if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
-    return false;
-  }
-  if (backlogDir && agentNeedsApiKey(backlogDir, agent)) {
-    return false;
-  }
+/** Why this agent cannot take this task. Empty means it can. */
+function taskFitProblems(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">): string[] {
+  const reasons: string[] = [];
   if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
-    return false;
+    reasons.push("repo_not_allowed");
   }
   if (!agent.allowed_risk.includes(task.risk)) {
-    return false;
+    reasons.push("risk_not_allowed");
   }
-  return task.execution.required_capabilities.every((capability) => agent.capabilities.includes(capability));
+  const missing = task.execution.required_capabilities.filter(
+    (capability) => !agent.capabilities.includes(capability),
+  );
+  if (missing.length > 0) {
+    reasons.push(`missing_capabilities:${missing.join(",")}`);
+  }
+  return reasons;
+}
+
+// Deliberately ignores `agent.enabled`: the toggle was retired from the UX
+// (an agent is either configured and ready, or it isn't) but the field stays
+// in the schema for backward compatibility.
+export function canAgentRunTask(agent: Agent, task: Pick<SubTask, "repo" | "risk" | "execution">, backlogDir?: string): boolean {
+  if (!supportsAgentExecution(agent)) return false;
+  if (backlogDir && !agentReadiness(backlogDir, agent).ready) return false;
+  return taskFitProblems(agent, task).length === 0;
 }
 
 export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo" | "risk" | "execution">): AgentSelection[] {
@@ -409,36 +416,20 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
       if (!supportsAgentExecution(agent)) {
         reasons.push(`unsupported_provider:${agent.provider}`);
       }
-      if (agent.provider === "codex" && !executableExists(agent.command ?? "codex")) {
-        reasons.push("missing_codex_executable");
-      }
-      if (agent.provider === "claude" && !executableExists(agent.command ?? "claude")) {
-        reasons.push("missing_claude_executable");
-      }
-      // API key presence is the new "is this agent ready?" gate.
-      // Surfaces "missing_api_key:ANTHROPIC_API_KEY" / "OPENAI_API_KEY"
-      // so the UI can route the user straight to the API keys dialog.
-      if (agentNeedsApiKey(backlogDir, agent)) {
-        const key = requiredSecretKeyForProvider(agent.provider);
-        reasons.push(`missing_api_key:${key}`);
-      }
-      if (agent.allowed_repos.length > 0 && !agent.allowed_repos.includes(task.repo)) {
-        reasons.push("repo_not_allowed");
-      }
-      if (!agent.allowed_risk.includes(task.risk)) {
-        reasons.push("risk_not_allowed");
-      }
-
-      const missingCapabilities = task.execution.required_capabilities.filter((capability) => !agent.capabilities.includes(capability));
-      if (missingCapabilities.length > 0) {
-        reasons.push(`missing_capabilities:${missingCapabilities.join(",")}`);
-      }
+      // Readiness codes (`missing_executable:…`, `missing_api_key:…`) come
+      // straight from the provider, so the UI can route the user to the right
+      // fix without this file knowing what a given runtime needs.
+      reasons.push(...agentReadiness(backlogDir, agent).reasons);
+      reasons.push(...taskFitProblems(agent, task));
 
       const activeRunsForAgent = activeRunCounts.get(agent.id) ?? 0;
       if (activeRunsForAgent >= agent.max_concurrent_runs) {
         reasons.push("at_capacity");
       }
 
+      // Ranking is about fit and headroom only. There is deliberately no
+      // per-provider bonus: which runtime is "better" is the user's call,
+      // expressed through preferred_agents.
       let score = 0;
       if (task.execution.preferred_agents.includes(agent.id)) {
         score += 50;
@@ -446,15 +437,6 @@ export function rankAgentsForTask(backlogDir: string, task: Pick<SubTask, "repo"
       }
       score += agent.capabilities.filter((capability) => task.execution.required_capabilities.includes(capability)).length * 10;
       score += Math.max(0, agent.max_concurrent_runs - activeRunsForAgent) * 5;
-      if (agent.provider === "custom") {
-        score += 5;
-      }
-      if (agent.provider === "codex") {
-        score += 10;
-      }
-      if (agent.provider === "claude") {
-        score += 8;
-      }
       if (reasons.length === 0) {
         reasons.push("compatible");
       }

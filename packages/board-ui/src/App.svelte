@@ -74,7 +74,7 @@
     type ProjectInfo,
   } from "./lib/api.js";
   import { formatAgentLabel } from "./lib/agent-label.js";
-  import { defaultReasoningForProvider, isReasoningLevelSupported } from "./lib/reasoning-levels.js";
+  import { defaultReasoningForProvider, isReasoningLevelSupported, loadProviders } from "./lib/providers.svelte.js";
   import { explainStartRunResult, type StartRunAction } from "./lib/run-start-errors.js";
   import type { UserSummary } from "./lib/types.js";
   import { subscribeToBoard, type BoardSseClient } from "./lib/sse.js";
@@ -221,7 +221,7 @@
   });
 
   function isExecutableAgent(a: AgentSummary): boolean {
-    return a.provider === "claude" || a.provider === "codex" || a.provider === "custom";
+    return isExecutableAgent(a);
   }
 
   function fallbackAgentId(list: AgentSummary[]): string | null {
@@ -1351,6 +1351,8 @@
 
   onMount(() => {
     writeBool(SHELL_RIGHT_OPEN, false);
+    // The reasoning picker reads its levels from the runtime catalogue.
+    void loadProviders();
     void loadCloudStatus();
     bootstrap();
     gitStatusPoll = setInterval(() => {

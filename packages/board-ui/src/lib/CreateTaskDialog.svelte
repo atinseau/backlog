@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isExecutableAgent } from "./types.js";
   import {
     applySplitProposal,
     createTask,
@@ -119,7 +120,7 @@
 
   const executableAgents = $derived(
     agents.filter((agent) =>
-      (agent.provider === "claude" || agent.provider === "codex" || agent.provider === "custom") &&
+      isExecutableAgent(agent) &&
       !agent.needs_api_key,
     ),
   );

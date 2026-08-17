@@ -28,6 +28,28 @@ backlog status        # compact project summary
 backlog --help        # every command
 ```
 
+### Agents
+
+An agent is a configured runtime the orchestrator can dispatch work to.
+
+```sh
+backlog agents providers                 # what an agent can be built on
+backlog agents add my-claude --provider claude-code --model opus
+backlog agents list
+backlog agents show my-claude
+backlog agents rm my-claude
+```
+
+`claude-code` runs the locally installed Claude Code CLI, so it uses whatever
+that CLI is logged in as — **an Anthropic subscription needs no API key**. Pin
+that with `--auth-mode subscription` if you want to be sure a key is never
+sent; use `--auth-mode api_key` to require one instead. `codex` and the
+`anthropic-api` runtime do need a key, stored with `backlog secrets set`.
+
+Models and effort levels are forwarded to the runtime as typed, so a model
+released tomorrow works today: `--model claude-opus-4-9` is passed straight
+through.
+
 ## Develop
 
 Requires [Bun](https://bun.sh) 1.3+. Nothing else — no Node, no pnpm.

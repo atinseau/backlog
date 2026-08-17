@@ -1,4 +1,5 @@
 import type {
+  AgentAuthMode,
   AgentSummary,
   BoardResponse,
   ClaimRecord,
@@ -7,6 +8,7 @@ import type {
   Repository,
   ProjectEntry,
   ProjectInfo,
+  ProviderSummary,
   RunSummary,
 } from "./types.js";
 import { repositoryDisplayName } from "./repository-display.js";
@@ -16,7 +18,7 @@ import { repositoryDisplayName } from "./repository-display.js";
 // from ./types.js. ProjectEntry / CurrentProject are heavily used by the
 // project-switcher views; SettingsView and ProjectsView import them from
 // here, hence the re-export.
-export type { AgentSummary, ProjectEntry, CurrentProject, ProjectInfo } from "./types.js";
+export type { AgentSummary, ProjectEntry, CurrentProject, ProjectInfo, ProviderSummary } from "./types.js";
 
 const BASE = "/api/v1";
 
@@ -172,6 +174,13 @@ export async function touchProjectById(id: string): Promise<void> {
 
 // Permissions / agents / project --------------------------------------------
 
+export async function fetchProviders(): Promise<ProviderSummary[]> {
+  const response = await fetch(apiUrl("/providers"));
+  if (!response.ok) throw new Error(`Providers fetch failed: ${response.status}`);
+  const json = (await response.json()) as { providers: ProviderSummary[] };
+  return json.providers;
+}
+
 export async function fetchAgents(): Promise<AgentSummary[]> {
   const response = await fetch(apiUrl("/agents"));
   if (!response.ok) throw new Error(`Agents fetch failed: ${response.status}`);
@@ -183,6 +192,7 @@ export interface UpdateAgentInput {
   enabled?: boolean;
   max_concurrent_runs?: number;
   sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access" | null;
+  auth_mode?: AgentAuthMode | null;
   success_mode?: "review" | "complete" | null;
   allowed_repos?: string[];
   allowed_risk?: Array<"low" | "medium" | "high">;
@@ -208,12 +218,14 @@ export async function patchAgent(id: string, input: UpdateAgentInput): Promise<u
 
 export interface CreateAgentInput {
   id: string;
-  provider: "claude" | "codex" | "custom" | "manual";
+  /** A provider id from GET /providers. Open on purpose: new runtimes need no client change. */
+  provider: string;
   model?: string;
   profile?: string;
   command?: string;
   enabled?: boolean;
   sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access";
+  auth_mode?: AgentAuthMode;
   success_mode?: "review" | "complete";
   max_concurrent_runs?: number;
   allowed_risk?: Array<"low" | "medium" | "high">;

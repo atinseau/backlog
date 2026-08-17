@@ -124,6 +124,47 @@ export type AutonomyMode = "observe" | "assist" | "delegate" | "autopilot";
 
 export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 
+/** How an agent authenticates. `auto` uses a key when one exists, otherwise
+ * the runtime's own logged-in session — which is what makes a Claude
+ * subscription usable without storing an API key. */
+export type AgentAuthMode = "auto" | "subscription" | "api_key";
+
+export interface ProviderModelChoice {
+  value: string;
+  label: string;
+  family?: string;
+  description: string;
+}
+
+export interface ProviderReasoningLevel {
+  value: string;
+  label: string;
+  description: string;
+}
+
+/** A runtime, as described by the server's provider registry. The board builds
+ * its agent form from these rather than a hardcoded catalogue, so a new
+ * runtime shows up without a client release. */
+export interface ProviderSummary {
+  id: string;
+  display_name: string;
+  models: ProviderModelChoice[];
+  reasoning: {
+    supported: boolean;
+    levels: ProviderReasoningLevel[];
+    allows_custom: boolean;
+    default_level: string | null;
+  };
+  auth_modes: AgentAuthMode[];
+  sandbox_modes: SandboxMode[];
+  capabilities: {
+    execute_run: boolean;
+    text_completion: boolean;
+    structured_output: boolean;
+  };
+  requires_command: boolean;
+}
+
 export interface AgentSummary {
   id: string;
   // User-set human label, surfaced in the topbar picker and the
@@ -138,6 +179,7 @@ export interface AgentSummary {
   allowed_repos: string[];
   allowed_risk: Array<"low" | "medium" | "high">;
   sandbox_mode: SandboxMode | null;
+  auth_mode?: AgentAuthMode | null;
   success_mode: "review" | "complete" | null;
   model: string | null;
   profile: string | null;
@@ -149,6 +191,19 @@ export interface AgentSummary {
   // Which secret key is missing (e.g. "ANTHROPIC_API_KEY"). null when
   // the provider doesn't require one (custom / manual).
   required_secret_key?: string | null;
+  // Whether the orchestrator could launch this agent at all. Server-computed
+  // from the provider registry, so the board never guesses from provider ids.
+  can_execute?: boolean;
+  // Ready to run right now: installed, credentialled, correctly configured.
+  ready?: boolean;
+  reasons?: string[];
+}
+
+/** Agents the orchestrator can launch. Falls back to the legacy provider ids
+ * so a board talking to an older server keeps filtering sensibly. */
+export function isExecutableAgent(agent: Pick<AgentSummary, "provider" | "can_execute">): boolean {
+  if (agent.can_execute !== undefined) return agent.can_execute;
+  return ["claude", "claude-code", "codex", "custom"].includes(agent.provider);
 }
 
 export type UserRole = "owner" | "admin" | "member" | "guest";
