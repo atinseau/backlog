@@ -31,8 +31,26 @@ The surprising part is how little is missing.
 | A shell to call them with | ✅ `Bash`, under `bypassPermissions` |
 | Context identity in the environment | ✅ `BACKLOG_TASK_ID`, `BACKLOG_SUBTASK_ID`, `BACKLOG_RUN_ID`, `BACKLOG_REPO`, `BACKLOG_BRANCH`, `BACKLOG_WORKTREE` |
 | PR opening and recording its URL | ✅ automated (`create_pr` / `merge_pr`, `artifact{kind:"pr"}`) |
-| MCP server | ❌ none in the repo |
+| MCP server | ✅ **shipped** — `packages/core/src/mcp/` + `backlog mcp-server` (see below) |
 | **The prompt telling the agent any of this exists** | ❌ **zero mention** |
+
+### The MCP plumbing already exists
+
+Merged shortly before this spec: `packages/core/src/mcp/{server,stdio}.ts`,
+`packages/cli/src/commands/mcp.ts`. Its own comment states the intent —
+*"Exposes the orchestrator tools over MCP so `claude -p --mcp-config` can drive
+Backlog"*. So the `--mcp-config` path is already travelled by the product, and
+adding a tool is a registry entry rather than a server.
+
+**But those are the orchestrator's tools, for the chat — not an execution
+agent's.** `ORCHESTRATOR_TOOLS` includes `start_orchestrator`, `start_subtask`,
+`pause_orchestrator`. Handing them to an agent working on a ticket would let it
+launch further runs, duplicate itself, or start the orchestrator: exactly the
+runaway cycle the `proposed` status neutralises, coming back in through the MCP
+window.
+
+**Two audiences, two disjoint tool sets, and an execution agent must never
+receive the orchestration set.** A separate host over the same transport.
 
 The action surface is almost entirely built, the agent has a shell to reach it,
 and nobody ever told it. **The single highest-yield item in this spec is a
@@ -42,7 +60,7 @@ paragraph of prompt**, not a line of code.
 
 | # | Decision | Why |
 | --- | --- | --- |
-| T1 | CLI first, MCP facade later | The CLI already covers ~80 %, works for every runtime present and future, and costs a paragraph of prompt instead of a server. MCP then adds discoverability and typing where it matters: Claude Code, the reference runtime. |
+| T1 | Channel chosen per tool: CLI for reading, MCP for `trace write` | Revised once the MCP server landed (§2). The original reasoning — "MCP costs a server to write" — no longer holds, so the arbitration is now per tool. Reading stays CLI: `task show` and `claim list` already exist and work on *every* runtime, so re-exposing them over MCP would be redundant work that only serves Claude Code. `trace write` is the one genuinely new tool, the one the `Stop` hook depends on, and the one carrying a nested payload — precisely where a typed, discoverable tool beats JSON on stdin. CLI remains its fallback for runtimes without MCP. |
 | T2 | Status only through the trace — no `move` tool | Two channels to the same state diverge. The failure that would actually happen is *blocked with no explanation*, which makes the ticket undebuggable by anyone. And `move` would let an agent mark itself `done`, bypassing `manual_approval_required`, which the system guarantees today. |
 | T3 | No agent-to-agent channel | It would reintroduce the synchronous coordination this architecture eliminates: deadlock (A waits on B waits on A), the question of what A does while waiting, and two live runs of which one is idle. "Asking for help" already *is* `outcome: blocked` plus an `open_question`. The ticket is the channel. |
 | T4 | Dependencies declared, not edited | Same reasoning as T2: an agent editing its own `depends_on` can block itself or unblock something else as a side effect. It already has `discovered_deps` in the trace. One channel fewer, and it cannot contradict its own trace. |
@@ -77,7 +95,8 @@ and where its ticket comes from.
 ## 5. The write surface: one tool
 
 ```
-backlog trace write        # JSON on stdin
+trace_write                # MCP tool, typed schema (preferred)
+backlog trace write        # CLI equivalent, JSON on stdin (fallback)
 ```
 
 That is the only new write tool, and it carries everything an agent decides:
@@ -197,14 +216,16 @@ prompt's instruction list is already long enough that trailing lines get dropped
 | `packages/core/src/run-prompt.ts` | the disclosure section and the trace contract |
 | `packages/core` | `trace-store.ts` (shared with the memory spec); status derivation from `outcome`; proposal creation |
 | `packages/cli` | `backlog trace write` (stdin), `backlog ticket trace <id>`; disclose `claim list` |
+| `packages/core/src/mcp/` | a second tool set and host for execution agents, alongside `ORCHESTRATOR_TOOLS`, over the existing stdio transport |
+| `packages/core/src/providers/claude-code/command.ts` | pass `--mcp-config` for the agent tool set, next to the `--settings` hook payload |
 | `packages/server` | trace write route; proposal accept / reject routes |
 | `packages/board-ui` | conditional `proposed` column, read-only for creation, editable, accept / reject actions; strings in **both** `i18n/en.json` and `i18n/fr.json` |
 | migration | existing tasks have no `proposed` state; the Zod default keeps old files loading unchanged |
 
 ## 11. Out of scope
 
-- **The MCP facade.** T1 defers it deliberately: the CLI proves the surface
-  first, MCP types it afterwards for Claude Code.
+- **Re-exposing the read surface over MCP.** T1 keeps reading on the CLI, which
+  already works on every runtime. Only `trace_write` gets an MCP tool.
 - **The auditing agent.** Human review is the default path; automating it is a
   later decision once we see what proposals actually look like.
 - **Resuming a blocked ticket.** The mechanism falls out of `open_question` plus
@@ -232,3 +253,6 @@ Backend tests, `bun test ./packages`, temp-dir fixtures, sandboxed `HOME` via
   command that searches across traces.
 - Prompt: the disclosure section is present for every runtime, not only
   claude-code.
+- **The agent tool set contains no orchestration tool.** Assert it against the
+  list, so adding one to `ORCHESTRATOR_TOOLS` later cannot silently leak it to
+  execution agents.
