@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { providerFor } from "./index.js";
 import { createProviderRegistry } from "./registry.js";
 import type { AgentProvider, ProviderDescriptor } from "./types.js";
 
@@ -70,5 +71,20 @@ describe("createProviderRegistry", () => {
     expect(() =>
       createProviderRegistry([stubProvider("claude-code", ["claude"]), stubProvider("codex", ["claude"])]),
     ).toThrow(/claude/);
+  });
+});
+
+// The real, wired-up registry (`providerFor`/`providerRegistry` in
+// `./index.js`), as opposed to `createProviderRegistry` above which is
+// exercised with disposable stubs. `providerFor` returns null for an
+// unresolvable id rather than throwing — see registry.ts's `resolve`.
+describe("providerFor", () => {
+  it("no longer resolves codex as a runtime", () => {
+    expect(providerFor("codex")).toBeNull();
+  });
+
+  it("still resolves claude-code and its aliases", () => {
+    expect(providerFor("claude-code")?.id).toBe("claude-code");
+    expect(providerFor("claude")?.id).toBe("claude-code");
   });
 });

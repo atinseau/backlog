@@ -117,6 +117,12 @@ describe("POST /agents", () => {
     expect(res.status).toBe(400);
   });
 
+  it("rejects codex — the runtime was removed, not renamed", async () => {
+    const res = await postAgent(buildApp(), { id: "my-codex", provider: "codex" });
+
+    expect(res.status).toBe(400);
+  });
+
   it("rejects a duplicate id with a conflict", async () => {
     const app = buildApp();
     await postAgent(app, { id: "dup", provider: "claude-code" });
@@ -151,15 +157,6 @@ describe("GET /agents", () => {
     const res = await app.request("/agents");
     const body = (await res.json()) as { agents: AgentSummary[] };
     expect(body.agents.find((agent) => agent.id === "on-plan")?.needs_api_key).toBe(false);
-  });
-
-  it("still flags a Codex agent with no key", async () => {
-    const app = buildApp();
-    await postAgent(app, { id: "my-codex", provider: "codex" });
-
-    const res = await app.request("/agents");
-    const body = (await res.json()) as { agents: AgentSummary[] };
-    expect(body.agents.find((agent) => agent.id === "my-codex")?.needs_api_key).toBe(true);
   });
 });
 

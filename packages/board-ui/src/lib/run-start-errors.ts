@@ -30,12 +30,11 @@ export function explainStartRunResult(result: StartRunResult): StartRunExplanati
   if (directReasons.includes("no_repository_configured")) return { message: t("card.play_no_repository"), action: "repositories" };
   if (directReasons.includes("repository_has_no_local_checkout")) return { message: t("card.play_repository_missing_checkout"), action: "repositories" };
   if (directReasons.includes("repo_not_allowed") || directReasons.includes("repo_no_access")) return { message: t("card.play_repo_blocked"), action: "repositories" };
-  // `missing_executable:<command>` is what providers emit today; the two
-  // provider-specific codes predate it and still appear on archived runs.
+  // `missing_executable:<command>` is what providers emit today; the
+  // provider-specific code predates it and still appears on archived runs.
   if (
     directReasons.some((reason) => reason.startsWith("missing_executable:")) ||
-    directReasons.includes("missing_claude_executable") ||
-    directReasons.includes("missing_codex_executable")
+    directReasons.includes("missing_claude_executable")
   ) {
     return { message: t("card.play_missing_executable"), action: "agents" };
   }

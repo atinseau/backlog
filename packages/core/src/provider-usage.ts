@@ -67,35 +67,3 @@ export function parseClaudeJsonStdout(stdout: string, fallbackModel: string): Cl
     return { usage: null, summary: null, structured: null };
   }
 }
-
-// Codex `--json` emits one JSON object per line. We scan for any line
-// carrying a usage block (typically inside an "agent_message" or
-// "session.usage" event). The last one wins because Codex emits an
-// incremental usage block per turn.
-export function parseCodexJsonStream(
-  stdout: string,
-  fallbackModel: string,
-): UsageBlock | null {
-  let last: UsageBlock | null = null;
-  for (const line of stdout.split("\n")) {
-    if (!line.trim()) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (!parsed || typeof parsed !== "object") continue;
-    const obj = parsed as Record<string, unknown>;
-    // Common shapes: { type: "session.usage", usage: {…} },
-    // { event: "usage", usage: {…} }, or the usage block at the root.
-    const candidate =
-      (obj.usage as unknown) ??
-      ((obj.payload && typeof obj.payload === "object")
-        ? (obj.payload as Record<string, unknown>).usage
-        : undefined);
-    const block = readAnthropicUsage(candidate, fallbackModel);
-    if (block) last = block;
-  }
-  return last;
-}

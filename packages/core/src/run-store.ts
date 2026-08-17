@@ -177,7 +177,7 @@ export function isTerminalRunStatus(status: Run["status"]): boolean {
 // `interrupted` deliberately excluded: its executor process is gone
 // (see isTerminalRunStatus comment above), so the agent isn't actually
 // busy. Including it caused 2-day-old reaped runs to permanently
-// pin codex-default / claude-default at full capacity.
+// pin claude-opus / claude-code at full capacity.
 export function isAgentBusyStatus(status: Run["status"]): boolean {
   return status === "queued" || status === "preparing" || status === "running";
 }

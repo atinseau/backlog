@@ -33,8 +33,9 @@ when a change could go several ways:
    implementation of it: it is the only one that both runs coding tasks and
    answers one-shot prompts, and the only one that works on a subscription.
    Claude Code still has surface we do not use — skills, MCP servers, hooks,
-   subagents, session resumption. Lean into it. Keep the other providers
-   working, but stop designing for parity with them.
+   subagents, session resumption. Lean into it. Keep the other runtimes
+   (`anthropic-api`, `custom`) working, but stop designing for parity with
+   them.
 2. **The tool should be powerful and legible, not merely feature-complete.**
    There are 152 API routes and 21 top-level CLI commands already. The gap is
    not features; it's that the sharp ones are buried and the flows are
@@ -87,10 +88,10 @@ Project ──┬── Repository (a git checkout the project tracks)
 - **Claim** — a lock on a set of paths in a repository, `exclusive` or
   `shared`, with a heartbeat and an expiry. This is what stops two agents from
   editing the same file. Enforced at commit time by the git pre-commit hook.
-- **Agent** — a configured executor: provider (`claude` / `codex` / custom),
-  model, sandbox mode, concurrency, allowed repos, allowed risk levels,
-  capabilities, and a `retry_policy` (`none` or `feedback`, which re-prompts
-  with the previous attempt's failure).
+- **Agent** — a configured executor: provider (`claude` / `anthropic-api` /
+  `custom`), model, sandbox mode, concurrency, allowed repos, allowed risk
+  levels, capabilities, and a `retry_policy` (`none` or `feedback`, which
+  re-prompts with the previous attempt's failure).
 - **Orchestrator** — the dispatcher loop. Modes `idle / running / paused /
   stopping`, with `max_agents`, a tick interval, and idle backoff. It builds
   an execution plan (`scheduler.ts`), starts runs (`run-launcher.ts`), reaps
@@ -179,7 +180,6 @@ providers/
   registry.ts     provider id + alias → implementation
   process.ts      executable resolution, line-streaming spawn
   claude-code/    the reference runtime — command, auth, stream, catalogue
-  codex/          OpenAI Codex
   custom/         any shell command the user brings
   anthropic-api/  the HTTP API: no checkout, prompts only
 ```

@@ -98,7 +98,7 @@ function recordProviderUsage(params: ExecuteAgentRunParams, result: ProviderRunR
   if (!result.usage) return;
   try {
     recordUsage(params.backlogDir, params.run.id, {
-      provider: params.agent.provider === "codex" ? "codex" : "anthropic",
+      provider: "anthropic",
       model: result.usage.model,
       input_tokens: result.usage.input_tokens,
       output_tokens: result.usage.output_tokens,
