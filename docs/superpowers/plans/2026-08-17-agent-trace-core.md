@@ -540,7 +540,7 @@ import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import type { Trace } from "@backlog/schemas";
 import { createSubTask, getSubTask } from "./subtask-service.js";
-import { createTask } from "./task-service.js";
+import { createTask, getTask } from "./task-service.js";
 import { recordTrace } from "./trace-service.js";
 import { listTraces } from "./trace-store.js";
 
@@ -841,11 +841,8 @@ Append to `packages/core/src/trace-service.test.ts`, inside the existing `descri
   });
 ```
 
-Add `getTask` to the imports at the top of the test file:
-
-```ts
-import { createTask, getTask } from "./task-service.js";
-```
+`getTask` is already imported in the test file from Task 4 — no import change is
+needed here.
 
 - [ ] **Step 2: Run test to verify it fails**
 
