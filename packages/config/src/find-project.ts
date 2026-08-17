@@ -104,8 +104,19 @@ function walkUpForBacklogDir(startDir: string): ProjectPaths | null {
 function resolveExplicitDir(rawDir: string): ProjectPaths | null {
   const dir = path.resolve(rawDir);
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return null;
-  // user_level: the dir itself contains config.toml.
   if (fs.existsSync(path.join(dir, "config.toml"))) {
+    // Two shapes hold config.toml at their root, and only the name tells them
+    // apart. An in_repo project's state dir is literally named `.backlog`, and
+    // its root is the repository above it — returning the state dir as `root`
+    // too would misreport it as user_level, and every consumer of `root`
+    // (`repositories add --path`, `hooks install`, `board`, the source
+    // connectors) would resolve relative paths one level too deep. A user_level
+    // project lives at ~/.backlog/<slug>/, whose basename is the slug, so it
+    // never takes this branch; ~/.backlog itself holds no config.toml.
+    if (path.basename(dir) === ".backlog") {
+      return { root: path.dirname(dir), backlogDir: dir };
+    }
+    // user_level: the dir itself is the project data dir.
     return { root: dir, backlogDir: dir };
   }
   // in_repo: the dir is a project root with a .backlog/ child.
