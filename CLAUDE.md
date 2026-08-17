@@ -203,6 +203,8 @@ The version is injected at build time from the root `package.json` via
 Bun 1.3+ is the only requirement — runtime, package manager, test runner,
 bundler. No Node, npm, pnpm, tsx, tsup or vitest, and none should come back.
 
+Developpment pattern: YAGNI, DRY, KISS, no tech for tech
+
 ```sh
 bun install
 ```
@@ -380,3 +382,12 @@ scope, not scope creep.
 Deeper references: [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) (engineering
 guide), [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) (known operator
 failures), [README.md](./README.md) (install and usage).
+
+## 10. Git rules
+
+Every pr that is opened, should be merge directly and after work, the current branch of the repo 
+should be main and up to date with the remote, so:
+
+- open a pr after work
+- merge pr directly
+- git checkout main && git pull
