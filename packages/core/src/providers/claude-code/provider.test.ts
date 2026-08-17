@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Agent } from "@backlog/schemas";
-import { ClaudeCodeProvider } from "./provider.js";
+import { buildRunCommand, ClaudeCodeProvider } from "./provider.js";
 
 function agentFixture(overrides: Partial<Agent> = {}): Agent {
   return {
@@ -116,5 +116,30 @@ describe("ClaudeCodeProvider.checkReadiness", () => {
     });
 
     expect(readiness.ready).toBe(true);
+  });
+});
+
+describe("buildRunCommand", () => {
+  it("attaches the agent tool set to a coding run, and nothing else", () => {
+    const command = buildRunCommand({
+      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      prompt: "do the work",
+      cwd: "/tmp/worktree",
+      backlogDir: "/tmp/project/.backlog",
+      env: {},
+      getSecret: noSecrets,
+      onActivity: () => {},
+    });
+
+    const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
+      mcpServers: Record<string, { args: string[] }>;
+    };
+    expect(config.mcpServers.backlog?.args).toContain("--audience");
+    expect(config.mcpServers.backlog?.args).toContain("agent");
+    expect(config.mcpServers.backlog?.args.slice(-2)).toEqual(["--project", "/tmp/project/.backlog"]);
+
+    const allowed = command.args[command.args.indexOf("--allowedTools") + 1]!.split(",");
+    expect(allowed).toEqual(["mcp__backlog__trace_write"]);
+    expect(command.args).not.toContain("--strict-mcp-config");
   });
 });

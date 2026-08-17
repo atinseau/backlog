@@ -1,5 +1,8 @@
 import type { Agent } from "@backlog/schemas";
+import { agentToolNames } from "../../agent-tools.js";
+import { MCP_SERVER_NAME } from "../../mcp/server.js";
 import { parseClaudeJsonStdout, type UsageBlock } from "../../provider-usage.js";
+import { selfExec } from "../../self-exec.js";
 import { parseJsonObject } from "../json.js";
 import { describeProcessFailure, resolveExecutable, spawnStreaming } from "../process.js";
 import type {
@@ -16,7 +19,7 @@ import type {
 } from "../types.js";
 import { ANTHROPIC_API_KEY, resolveClaudeCodeAuth } from "./auth.js";
 import { CLAUDE_CODE_MODELS, CLAUDE_CODE_REASONING } from "./catalogue.js";
-import { buildClaudeCodeCommand } from "./command.js";
+import { buildClaudeCodeCommand, type ProviderCommand } from "./command.js";
 import { isClaudeCodeResultLine, parseClaudeCodeStreamLine } from "./stream.js";
 
 export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
@@ -46,6 +49,44 @@ export interface ClaudeCodeProviderDeps {
 export function claudeExecutableFor(agent: Pick<Agent, "command">): string {
   const command = agent.command?.trim();
   return command && command.length > 0 ? command : DEFAULT_CLAUDE_EXECUTABLE;
+}
+
+/** MCP tools are namespaced by their server; the CLI needs the full name to allow them. */
+function namespacedAgentTools(): string[] {
+  return agentToolNames().map((name) => `mcp__${MCP_SERVER_NAME}__${name}`);
+}
+
+/**
+ * The `claude` invocation for one coding run. Extracted from executeRun so the
+ * flag matrix — which tool set the agent gets, and which it does not — is
+ * asserted by a unit test rather than by spawning a real CLI.
+ */
+export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
+  const { agent } = request;
+  const self = selfExec();
+  return buildClaudeCodeCommand({
+    executable: resolveExecutable(claudeExecutableFor(agent)),
+    prompt: request.prompt,
+    model: agent.model,
+    reasoningEffort: request.reasoningEffort,
+    profile: agent.profile,
+    sandboxMode: agent.sandbox_mode,
+    mcpServers: {
+      [MCP_SERVER_NAME]: {
+        command: self.command,
+        // --audience agent is what keeps `start_subtask` and friends out of an
+        // execution agent's reach. --project is mandatory: the run's cwd is a
+        // worktree carrying a shadow .backlog/, so resolution from cwd is wrong.
+        args: [...self.prefixArgs, "mcp-server", "--audience", "agent", "--project", request.backlogDir],
+      },
+    },
+    // `--allowedTools` only auto-approves; it excludes nothing. The agent keeps
+    // every built-in tool it needs to do the work.
+    allowedTools: namespacedAgentTools(),
+    // The user's own MCP servers stay available to a coding agent — see the
+    // note on strictMcpConfig in command.ts.
+    strictMcpConfig: false,
+  });
 }
 
 /**
@@ -94,14 +135,7 @@ export class ClaudeCodeProvider implements AgentProvider {
 
   async executeRun(request: ProviderRunRequest): Promise<ProviderRunResult> {
     const { agent } = request;
-    const command = buildClaudeCodeCommand({
-      executable: resolveExecutable(claudeExecutableFor(agent)),
-      prompt: request.prompt,
-      model: agent.model,
-      reasoningEffort: request.reasoningEffort,
-      profile: agent.profile,
-      sandboxMode: agent.sandbox_mode,
-    });
+    const command = buildRunCommand(request);
 
     // The CLI emits one NDJSON line per agent-loop event. We forward each
     // recognised one as it lands so the board shows tool calls live instead

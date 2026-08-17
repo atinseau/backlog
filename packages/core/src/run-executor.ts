@@ -187,6 +187,7 @@ export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise
       agent: params.agent,
       prompt,
       cwd: run.worktree_path,
+      backlogDir,
       scratchDir,
       env: environmentFor(params),
       ...(run.reasoning_effort ? { reasoningEffort: run.reasoning_effort } : {}),
