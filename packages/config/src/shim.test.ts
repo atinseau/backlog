@@ -59,6 +59,18 @@ describe("writeLocalShim", () => {
     expect(contents).not.toMatch(/\bexec\s+(pnpm|npm|npx|tsx|node|bun)\b/);
   });
 
+  it("does not claim to be the pre-commit hook", () => {
+    const { backlogDir, projectRoot } = createWorkspace();
+    const contents = fs.readFileSync(writeLocalShim(backlogDir, projectRoot), "utf8");
+
+    // The CLI refuses an execution agent and exempts the pre-commit hook, which
+    // marks itself with BACKLOG_HOOK_INVOCATION (hooks/src/install-hooks.ts).
+    // The marker belongs to that one invocation, not here: this shim is a
+    // generic launcher, so setting it would exempt every
+    // `.backlog/bin/backlog task move <id> done` an agent cares to type.
+    expect(contents).not.toContain("BACKLOG_HOOK_INVOCATION");
+  });
+
   it("emits a clear install hint on failure", () => {
     const { backlogDir, projectRoot } = createWorkspace();
     const contents = fs.readFileSync(writeLocalShim(backlogDir, projectRoot), "utf8");

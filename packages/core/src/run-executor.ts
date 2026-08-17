@@ -95,8 +95,11 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     // `claude` CLI hands that child this very environment.
     ...(cliRole ? { BACKLOG_AGENT_ROLE: cliRole } : {}),
   };
-  // `...process.env` is spread in above, so an inherited value has to be
-  // removed rather than merely not written.
+  // BACKLOG_SUBTASK_ID only: `...process.env` is spread in above, so on a
+  // task-level run an inherited value has to be removed rather than merely not
+  // written. BACKLOG_AGENT_ROLE gets no such treatment on purpose — `cliRole`
+  // is non-null for every run today, and an inherited role would be the same
+  // "execution" this line would have written.
   if (targetType !== "subtask") {
     delete env.BACKLOG_SUBTASK_ID;
   }

@@ -2,10 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { createClaim } from "@backlog/claims";
 import { initLayout, loadConfig, saveConfig } from "@backlog/config";
 import { installPreCommitHook } from "@backlog/hooks";
+import { AGENT_ROLE_ENV, EXECUTION_ROLE } from "./role-guard.js";
 
 // The whole point of this file: the CLI's execution-role refusal must not reach
 // the pre-commit hook. The hook's failure path *allows* the commit when Backlog
@@ -28,9 +29,45 @@ interface Fixture {
   env: NodeJS.ProcessEnv;
 }
 
-function git(root: string, args: string[], env?: NodeJS.ProcessEnv): { status: number; output: string } {
-  const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env: env ?? process.env });
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    fs.rmSync(tempDirs.pop()!, { recursive: true, force: true });
+  }
+});
+
+function tempDir(prefix: string): string {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+  tempDirs.push(dir);
+  return dir;
+}
+
+function git(root: string, args: string[], env: NodeJS.ProcessEnv): { status: number; output: string } {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8", env });
   return { status: result.status ?? -1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+}
+
+/**
+ * The environment every child of this fixture gets. Sandboxed against the
+ * developer's own git setup, which otherwise leaks in three ways: a global
+ * `init.templateDir` installs its own pre-commit hook and makes the install
+ * throw, `GIT_DIR` / `GIT_INDEX_FILE` point every `git` call at another
+ * repository when the suite is itself run from inside one (`git rebase -x`, a
+ * hook), and the system config can set either.
+ */
+function sandboxedEnv(home: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    GIT_CONFIG_NOSYSTEM: "1",
+    [AGENT_ROLE_ENV]: EXECUTION_ROLE,
+  };
+  delete env.GIT_DIR;
+  delete env.GIT_INDEX_FILE;
+  delete env.GIT_WORK_TREE;
+  delete env.XDG_CONFIG_HOME;
+  return env;
 }
 
 /**
@@ -39,17 +76,19 @@ function git(root: string, args: string[], env?: NodeJS.ProcessEnv): { status: n
  * exist in a test run, and the hook needs something executable.
  */
 function makeRepoWithHook(): Fixture {
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "backlog-role-hook-")));
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-role-home-"));
-  git(root, ["init", "-b", "main"]);
-  git(root, ["config", "user.name", "Backlog Test"]);
-  git(root, ["config", "user.email", "test@backlog.local"]);
+  const root = tempDir("backlog-role-hook-");
+  const env = sandboxedEnv(tempDir("backlog-role-home-"));
+  git(root, ["init", "-b", "main"], env);
+  git(root, ["config", "user.name", "Backlog Test"], env);
+  git(root, ["config", "user.email", "test@backlog.local"], env);
 
   const { backlogDir } = initLayout({
     root,
     projectName: "role-guard-hook-test",
     repos: [{ id: "repo", path: root, default_branch: "main", enabled: true }],
   });
+  // Without this the hook mints an ad-hoc claim from the staged paths instead
+  // of blocking, and the test that matters would assert nothing.
   const config = loadConfig(backlogDir);
   config.claims.auto_claim_on_commit = false;
   saveConfig(backlogDir, config);
@@ -61,23 +100,21 @@ function makeRepoWithHook(): Fixture {
     "utf8",
   );
   fs.chmodSync(backlogBin, 0o755);
-  installPreCommitHook({ gitDir: path.join(root, ".git"), backlogBin, projectRoot: root });
+  // force: replace whatever a global init.templateDir may have dropped in.
+  installPreCommitHook({ gitDir: path.join(root, ".git"), backlogBin, projectRoot: root, force: true });
 
-  return {
-    root,
-    backlogDir,
-    env: { ...process.env, HOME: home, BACKLOG_AGENT_ROLE: "execution" },
-  };
+  return { root, backlogDir, env };
 }
 
-function stage(root: string, file: string): void {
-  fs.writeFileSync(path.join(root, file), "hello\n", "utf8");
-  git(root, ["add", file]);
+function stage(fixture: Fixture, file: string): void {
+  fs.writeFileSync(path.join(fixture.root, file), "hello\n", "utf8");
+  git(fixture.root, ["add", file], fixture.env);
 }
 
 describe("the pre-commit hook under BACKLOG_AGENT_ROLE=execution", () => {
   it("still blocks a commit that touches a claimed path", () => {
-    const { root, backlogDir, env } = makeRepoWithHook();
+    const fixture = makeRepoWithHook();
+    const { root, backlogDir, env } = fixture;
     createClaim({
       backlogDir,
       repo: "repo",
@@ -87,7 +124,7 @@ describe("the pre-commit hook under BACKLOG_AGENT_ROLE=execution", () => {
       mode: "exclusive",
       ttlMinutes: 30,
     });
-    stage(root, "protected.txt");
+    stage(fixture, "protected.txt");
 
     const commit = git(root, ["commit", "-m", "touch a claimed path"], env);
 
@@ -101,10 +138,10 @@ describe("the pre-commit hook under BACKLOG_AGENT_ROLE=execution", () => {
   }, 30_000);
 
   it("lets an unclaimed path through", () => {
-    const { root, env } = makeRepoWithHook();
-    stage(root, "free.txt");
+    const fixture = makeRepoWithHook();
+    stage(fixture, "free.txt");
 
-    const commit = git(root, ["commit", "-m", "touch a free path"], env);
+    const commit = git(fixture.root, ["commit", "-m", "touch a free path"], fixture.env);
 
     expect(commit.output).not.toContain("unavailable to an execution agent");
     expect(commit.status).toBe(0);

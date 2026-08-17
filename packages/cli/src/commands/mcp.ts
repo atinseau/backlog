@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { findProject } from "@backlog/config";
+import { AGENT_ROLE_ENV, EXECUTION_ROLE } from "../role-guard.js";
 import {
   CATALOG,
   callCatalogTool,
@@ -54,8 +55,26 @@ export function mcpHostFor(backlogDir: string, audience: McpAudience): McpToolHo
  * leaves the wiring between them, which is where a hardcoded audience would
  * hide, covered by nothing.
  */
-export function resolveMcpHost(options: { project?: string; audience?: string }): McpToolHost {
+export function resolveMcpHost(
+  options: { project?: string; audience?: string },
+  // Defaulted rather than read inline so a test can pin the role without
+  // mutating process.env in a suite that shares one process.
+  role: string | undefined = process.env[AGENT_ROLE_ENV],
+): McpToolHost {
   const audience = parseAudience(options.audience);
+  // The role guard exempts `mcp-server` so that a run's own server survives
+  // the refusal — otherwise an execution agent would lose the CLI *and* the
+  // façade the refusal points it at. Left there, the exemption would have sold
+  // the orchestrator set, `start_subtask` included, for the price of speaking
+  // JSON-RPC by hand: exactly the capability this whole branch exists to deny.
+  // So the exemption covers the tool set the agent already has, not a wider one.
+  // Nothing legitimate is caught: a run passes --audience execution, and the
+  // chat's server is spawned from `backlog serve`, which the role refuses.
+  if (role === EXECUTION_ROLE && audience !== EXECUTION_ROLE) {
+    throw new Error(
+      `An execution agent may only serve the 'execution' tool set, not '${audience}'.`,
+    );
+  }
   const project = findProject(options.project ?? process.cwd());
   if (!project) {
     throw new Error("No .backlog project found. Pass --project or run from inside one.");

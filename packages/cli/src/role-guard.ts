@@ -10,8 +10,20 @@
 // convenience, and each one exists because refusing it breaks something the
 // refusal itself depends on.
 //
-// This is not airtight — `env -u BACKLOG_AGENT_ROLE backlog …` still works. It
-// moves the CLI from advertised and one command away to explicitly refused.
+// This is not airtight, and the two bypasses are one line each. `env -u
+// BACKLOG_AGENT_ROLE backlog …` drops the role; `BACKLOG_HOOK_INVOCATION=1
+// backlog …` claims to be the hook, and the generated pre-commit script names
+// that variable in a file the agent can read from its own checkout. Neither is
+// worth chasing: an agent that decides to work around the refusal can, and
+// environment-tampering detection would only move the arms race. What this
+// buys is the difference between a CLI that is advertised and one command away,
+// and one that is explicitly refused.
+
+/** Stamped on a coding run's environment by `environmentFor` in run-executor.ts. */
+export const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
+
+/** Its only value today: a model executing a coding task in a worktree. */
+export const EXECUTION_ROLE = "execution";
 
 /**
  * The run's own MCP server, which must survive the refusal.
@@ -28,9 +40,10 @@
  * spawns `backlog mcp-server`, and does not rest on one third-party CLI's
  * undocumented environment-merge semantics.
  *
- * The cost is that an execution agent can start an `mcp-server --audience
- * orchestrator` and drive it by hand over stdio. That is strictly harder than
- * the `env -u` escape already accepted above, so it widens nothing in practice.
+ * The exemption covers the tool set the agent already has and nothing more:
+ * `resolveMcpHost` refuses to serve a wider audience under this role, so
+ * `mcp-server --audience orchestrator` cannot buy `start_subtask` with the
+ * price of hand-writing JSON-RPC.
  */
 export const EXEMPT_COMMAND = "mcp-server";
 
@@ -43,7 +56,7 @@ export function refuseWhenExecutionRole(
   env: Record<string, string | undefined>,
   argv: string[],
 ): string | null {
-  if (env["BACKLOG_AGENT_ROLE"] !== "execution") return null;
+  if (env[AGENT_ROLE_ENV] !== EXECUTION_ROLE) return null;
   // The pre-commit hook execs this same binary and inherits the agent's
   // environment. Refusing it would not block the commit — the hook's failure
   // path allows the commit when Backlog is unavailable (install-hooks.ts) —

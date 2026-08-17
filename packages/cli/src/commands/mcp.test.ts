@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Command } from "commander";
 import { initLayout } from "@backlog/config";
 import { contextFor, createTask, orchestratorToolNames } from "@backlog/core";
-import { EXEMPT_COMMAND } from "../role-guard.js";
+import { EXECUTION_ROLE, EXEMPT_COMMAND } from "../role-guard.js";
 import { mcpHostFor, parseAudience, registerMcpCommand, resolveMcpHost } from "./mcp.js";
 
 const executionToolNames = [...contextFor("execution").mcpTools];
@@ -162,6 +162,35 @@ describe("resolveMcpHost", () => {
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-mcp-empty-"));
 
     expect(() => resolveMcpHost({ project: empty })).toThrow(/No \.backlog project/);
+  });
+
+  // `mcp-server` is the one command the role guard lets through. These assert
+  // the exemption stays the size it was opened at: without them an execution
+  // agent reaches the orchestrator set — start_subtask included — by asking.
+  it("refuses to serve the orchestrator set to an execution agent", () => {
+    const root = projectRoot();
+
+    expect(() => resolveMcpHost({ project: root, audience: "orchestrator" }, EXECUTION_ROLE)).toThrow(
+      /execution agent/,
+    );
+  });
+
+  it("still serves an execution agent the set its run already has", () => {
+    const root = projectRoot();
+
+    const asked = resolveMcpHost({ project: root, audience: "execution" }, EXECUTION_ROLE);
+    const bare = resolveMcpHost({ project: root }, EXECUTION_ROLE);
+
+    expect(asked.tools.map((tool) => tool.name)).toEqual(executionToolNames);
+    expect(bare.tools.map((tool) => tool.name)).toEqual(executionToolNames);
+  });
+
+  it("leaves the chat alone — no role, every audience", () => {
+    const root = projectRoot();
+
+    const host = resolveMcpHost({ project: root, audience: "orchestrator" }, undefined);
+
+    expect(host.tools.map((tool) => tool.name)).toEqual(orchestratorToolNames());
   });
 });
 
