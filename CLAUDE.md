@@ -249,11 +249,19 @@ are separate files and separate dispatchers, and
 execution agent holding `start_subtask` could launch further runs and duplicate
 itself, which is the runaway cycle `proposed` exists to close.
 
-**The CLI is closed to an execution agent.** A coding run's environment carries
-`BACKLOG_AGENT_ROLE=execution` (`environmentFor` in `run-executor.ts`), and the
-CLI entrypoint refuses every command under it — `backlog task move <id> done`
-included — pointing the agent at the MCP server instead. Two exemptions,
-neither a convenience:
+**The CLI is closed exactly where the façade replaces it.** A coding run's
+environment carries `BACKLOG_AGENT_ROLE=execution`, and the CLI entrypoint
+refuses every command under it — `backlog task move <id> done` included —
+pointing the agent at the MCP server instead. The role is not a label on a run:
+it is the other half of a trade, so it is stamped by the runtime that hands the
+façade out, and only when that façade is reachable. `executionCliRole`
+(`providers/claude-code/provider.ts`) is the whole rule — Claude Code attaches
+`--mcp-config`, so it stamps; a `read-only` agent gets `--permission-mode plan`,
+plan mode refuses MCP calls, so it does not. `run-executor.ts` stamps nothing
+and actively clears an inherited role: it is runtime-agnostic and cannot know
+whether anything replaced the CLI, and a `custom` run — which attaches no server
+at all — must keep the command line as its only channel. Two exemptions from the
+refusal, neither a convenience:
 
 - **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
   so the server a run spawns starts under the same role as the agent it serves.
@@ -479,8 +487,8 @@ scope, not scope creep.
 
 - Claude Code's real surface is still only partly used: skills, hooks and
   subagents have no representation in the provider contract. MCP does — a
-  coding run is spawned with `--mcp-config` and Backlog's own `trace_write`
-  tool — but the emitted flags (`command.ts`) are chiefly `--model`,
+  coding run is spawned with `--mcp-config` and Backlog's own five-tool
+  `execution` set — but the emitted flags (`command.ts`) are chiefly `--model`,
   `--effort`, `--permission-mode`, `--append-system-prompt` / `--system-prompt`,
   `--mcp-config` / `--strict-mcp-config`, `--allowedTools` /
   `--disallowedTools`, `--json-schema`, `--settings` and `--resume`. Session
@@ -491,9 +499,12 @@ scope, not scope creep.
   (and only when `retry_policy.mode = feedback`, which is off by default).
   A subtask learns nothing from the subtask it `depends_on`.
 - Permission modes are coarse: `read-only` maps to `plan`, everything else to
-  `bypassPermissions`. There is no per-tool or per-path story — and because
-  plan mode refuses MCP calls, a `read-only` agent cannot reach `trace_write`
-  at all; it has to fall back to `backlog trace write`.
+  `bypassPermissions`. The per-tool story is one entry deep —
+  `deniedBuiltins: ["Bash(backlog:*)"]` scopes one built-in to one command
+  pattern — and there is no per-path story at all. Because plan mode refuses
+  MCP calls, a `read-only` agent reaches no Backlog tool: it keeps the CLI
+  instead (that is what `executionCliRole` decides) and records its trace with
+  `backlog trace write`. Two channels, and a run has exactly one of them.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

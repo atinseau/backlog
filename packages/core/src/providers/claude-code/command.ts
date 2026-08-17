@@ -54,6 +54,18 @@ function permissionModeFor(sandboxMode: SandboxMode | undefined): string {
   return sandboxMode === "read-only" ? "plan" : "bypassPermissions";
 }
 
+/**
+ * Whether a session under this sandbox mode can reach an MCP tool at all.
+ *
+ * Plan mode refuses MCP calls — a measured property of this CLI, and the same
+ * one that makes the chat run under `bypassPermissions` (CLAUDE.md §3). So a
+ * read-only run gets no Backlog façade however many servers we declare, and
+ * anything that trades the CLI away for that façade has to ask first.
+ */
+export function permitsMcpTools(sandboxMode: SandboxMode | undefined): boolean {
+  return permissionModeFor(sandboxMode) !== "plan";
+}
+
 function isBlank(value: string | undefined): value is undefined {
   return value === undefined || value.trim().length === 0;
 }

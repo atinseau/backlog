@@ -40,11 +40,20 @@ describe("buildProviderPrompt", () => {
     expect(prompt).toContain("open_question");
   });
 
-  it("does not advertise the CLI", () => {
+  it("does not advertise the CLI as a channel", () => {
     const prompt = buildProviderPrompt(target, workItem);
     expect(prompt).not.toContain("on your PATH");
     expect(prompt).not.toContain("backlog task show");
-    expect(prompt).not.toContain("backlog trace write");
+  });
+
+  // The CLI is closed only where the MCP façade replaces it, so the prompt
+  // cannot claim there is no command line at all — a run that was handed no
+  // tools still owes a trace, and `backlog trace write` is how it pays.
+  it("names the CLI once, as the fallback for a run with no trace_write tool", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+
+    expect(prompt).toContain("If `trace_write` is not in your tool list, run `backlog trace write` instead");
+    expect(prompt).not.toContain("There is no command-line access");
   });
 
   it("names the tools the run actually has", () => {

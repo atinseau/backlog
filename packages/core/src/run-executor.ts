@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, getSecret } from "@backlog/config";
 import type { Agent, Run, Task } from "@backlog/schemas";
-import { contextFor } from "./contexts/contexts.js";
 import type { ExecutionTarget } from "./execution-target.js";
 import { providerFor } from "./providers/index.js";
 import { expandedPath } from "./providers/process.js";
@@ -61,9 +60,6 @@ function promptFor(params: ExecuteAgentRunParams): string {
 function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
   const { run, task, workItem, agent } = params;
   const targetType = task.target_type ?? "subtask";
-  // The role the CLI refuses on. Read from the context table, not written here:
-  // whether a Backlog-launched model may reach the CLI is that table's call.
-  const cliRole = contextFor("execution").cliRole;
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: expandedPath(),
@@ -89,20 +85,24 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
     ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
-    // What makes `backlog <anything>` refuse from this agent's shell. Its whole
-    // Backlog surface is the MCP server this run spawns — which keeps working,
-    // because the guard exempts `mcp-server` (see cli/src/role-guard.ts) and the
-    // `claude` CLI hands that child this very environment.
-    ...(cliRole ? { BACKLOG_AGENT_ROLE: cliRole } : {}),
   };
-  // BACKLOG_SUBTASK_ID only: `...process.env` is spread in above, so on a
-  // task-level run an inherited value has to be removed rather than merely not
-  // written. BACKLOG_AGENT_ROLE gets no such treatment on purpose — `cliRole`
-  // is non-null for every run today, and an inherited role would be the same
-  // "execution" this line would have written.
+  // Two inherited values have to be removed rather than merely not written,
+  // because `...process.env` is spread in above.
+  //
+  // BACKLOG_SUBTASK_ID: a task-level run has no subtask, and an inherited value
+  // would make every consumer look one up that cannot exist.
+  //
+  // BACKLOG_AGENT_ROLE: the role is what closes the Backlog CLI to this agent,
+  // and it is only justified where the MCP façade replaces the CLI. This
+  // pipeline is runtime-agnostic and cannot know whether that happened, so it
+  // stamps nothing and lets the runtime that hands the façade out stamp it —
+  // `executionCliRole` in providers/claude-code/provider.ts. Clearing it here
+  // keeps that the only source: a role inherited from the shell Backlog was
+  // started in must not stand in for a façade nobody handed out.
   if (targetType !== "subtask") {
     delete env.BACKLOG_SUBTASK_ID;
   }
+  delete env.BACKLOG_AGENT_ROLE;
   return env;
 }
 

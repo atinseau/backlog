@@ -19,7 +19,7 @@ import type {
 } from "../types.js";
 import { ANTHROPIC_API_KEY, resolveClaudeCodeAuth } from "./auth.js";
 import { CLAUDE_CODE_MODELS, CLAUDE_CODE_REASONING } from "./catalogue.js";
-import { buildClaudeCodeCommand, type ProviderCommand } from "./command.js";
+import { buildClaudeCodeCommand, permitsMcpTools, type ProviderCommand } from "./command.js";
 import { isClaudeCodeResultLine, parseClaudeCodeStreamLine } from "./stream.js";
 
 export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
@@ -59,6 +59,37 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
     }
   }
   return carried;
+}
+
+/**
+ * The environment variable the CLI's role guard reads
+ * (`AGENT_ROLE_ENV` in `packages/cli/src/role-guard.ts`). Spelled out here
+ * rather than imported: core must not depend on cli, and the guard has to run
+ * at the entrypoint before anything else is loaded.
+ */
+const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
+
+/**
+ * The CLI role this run's agent carries, or null to carry none.
+ *
+ * The role is not a label on a run, it is the other half of a trade: the CLI
+ * is closed *because* the MCP façade replaces it. So it is stamped by the
+ * runtime that hands the façade out, and only when that façade is actually
+ * reachable. Under `read-only` — which a `read-only` repository coerces an
+ * agent into, whatever its own sandbox mode — the run gets `--permission-mode
+ * plan`, plan mode refuses MCP calls, and the façade is not there to replace
+ * anything. Stamping the role anyway left such a run with neither channel: no
+ * `trace_write` and no `backlog trace write`, so it finished with no recorded
+ * outcome and no error saying why.
+ *
+ * `--mcp-config` is still attached in that case. Declaring a server the model
+ * cannot call costs nothing, and the day plan mode stops refusing MCP this
+ * function is the only thing to revisit.
+ */
+export function executionCliRole(agent: Pick<Agent, "sandbox_mode">): string | null {
+  const { cliRole } = contextFor("execution");
+  if (!cliRole) return null;
+  return permitsMcpTools(agent.sandbox_mode) ? cliRole : null;
 }
 
 /**
@@ -167,7 +198,7 @@ export class ClaudeCodeProvider implements AgentProvider {
       executable: command.executable,
       args: command.args,
       cwd: request.cwd,
-      env: this.environmentFor(request),
+      env: this.runEnvironmentFor(request),
       input: command.stdin,
       onLine: (line) => {
         if (isClaudeCodeResultLine(line)) resultLine = line;
@@ -260,6 +291,18 @@ export class ClaudeCodeProvider implements AgentProvider {
       model: parsed.usage?.model ?? model ?? this.id,
       usage: parsed.usage,
     };
+  }
+
+  /**
+   * A coding run's environment: the auth overlay, plus the CLI role when this
+   * run is one the façade actually covers. `run-executor.ts` deliberately
+   * stamps no role — it is runtime-agnostic, and whether the Backlog CLI is
+   * replaced by anything is a fact about the runtime, not about the pipeline.
+   */
+  private runEnvironmentFor(request: ProviderRunRequest): NodeJS.ProcessEnv {
+    const env = this.environmentFor(request);
+    const role = executionCliRole(request.agent);
+    return role ? { ...env, [AGENT_ROLE_ENV]: role } : env;
   }
 
   /** Base environment plus the auth overlay, which may deliberately unset a key. */

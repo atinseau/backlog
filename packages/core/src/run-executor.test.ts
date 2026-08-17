@@ -100,15 +100,29 @@ describe("executeAgentRun", () => {
     expect(run?.artifacts.find((artifact) => artifact.kind === "summary")?.value).toBe("Renamed the widget");
   });
 
-  it("hands the agent the role the CLI refuses on", async () => {
-    // Read back out of a real run rather than asserted against the map, so this
-    // covers the export and not a restatement of it. Without it the CLI is on
-    // the agent's PATH with nothing telling it to refuse.
-    const f = fixture('printf "%s" "${BACKLOG_AGENT_ROLE-}"');
+  it("stamps no CLI role of its own, because it cannot know a façade replaced it", async () => {
+    // `custom` attaches no MCP server, so its run has no Backlog tools at all.
+    // Closing the CLI here would leave it with no channel — no trace, a ticket
+    // that never moves, and nothing in the run saying why. The role belongs to
+    // the runtime that hands the façade out.
+    const f = fixture('printf "%s" "${BACKLOG_AGENT_ROLE-none}"');
 
     await executeAgentRun({ ...f, run: f.run });
 
-    expect(loadRun(f.backlogDir, f.run.id)?.artifacts.find((a) => a.kind === "summary")?.value).toBe("execution");
+    expect(loadRun(f.backlogDir, f.run.id)?.artifacts.find((a) => a.kind === "summary")?.value).toBe("none");
+  });
+
+  it("does not let a role inherited from the shell stand in for one", async () => {
+    const f = fixture('printf "%s" "${BACKLOG_AGENT_ROLE-none}"');
+    process.env.BACKLOG_AGENT_ROLE = "execution";
+
+    try {
+      await executeAgentRun({ ...f, run: f.run });
+    } finally {
+      delete process.env.BACKLOG_AGENT_ROLE;
+    }
+
+    expect(loadRun(f.backlogDir, f.run.id)?.artifacts.find((a) => a.kind === "summary")?.value).toBe("none");
   });
 
   it("writes the prompt the agent was given, for later inspection", async () => {

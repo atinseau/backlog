@@ -48,6 +48,13 @@ export class CustomProvider implements AgentProvider {
     const result = await execa(command, {
       cwd: request.cwd,
       env: { ...request.env, BACKLOG_PROMPT: request.prompt },
+      // `request.env` is already `process.env` plus everything the run
+      // pipeline decided, so extending it again adds nothing — except that it
+      // resurrects the variables the pipeline deliberately removed.
+      // BACKLOG_AGENT_ROLE is the one that matters: run-executor clears it so
+      // that only a runtime handing out the MCP façade can close the Backlog
+      // CLI, and execa's default would have handed it straight back.
+      extendEnv: false,
       input: request.prompt,
       shell: true,
       reject: false,
