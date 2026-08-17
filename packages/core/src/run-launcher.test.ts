@@ -73,12 +73,11 @@ async function createRemoteWorkspace(): Promise<{ root: string; backlogDir: stri
 }
 
 describe("run-launcher", () => {
-  let root: string;
   let backlogDir: string;
   let repoId: string;
 
   beforeEach(async () => {
-    ({ root, backlogDir, repoId } = await createWorkspace());
+    ({ backlogDir, repoId } = await createWorkspace());
   });
 
   it("a repository whose checkout is not a git repository is skipped, not run directly", async () => {
@@ -116,7 +115,7 @@ describe("run-launcher", () => {
   });
 
   it("prepares an isolated execution checkout for remote-only Git repositories", async () => {
-    ({ root, backlogDir, repoId } = await createRemoteWorkspace());
+    ({ backlogDir, repoId } = await createRemoteWorkspace());
     addAgent(backlogDir, {
       id: "writer",
       provider: "custom",

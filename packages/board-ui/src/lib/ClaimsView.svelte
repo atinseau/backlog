@@ -163,10 +163,6 @@
     return RUN_STATUSES.has(status) ? t(`card.run_status.${status}`) : status;
   }
 
-  function modeLabel(): string {
-    return t("claims_view.mode.worktree");
-  }
-
   function formatDate(value?: string | null): string {
     if (!value) return "—";
     const date = new Date(value);
@@ -457,7 +453,6 @@
           <div class="info-grid">
             <div><span>{t("claims_view.field.owner")}</span><strong>{ownerLabel(selectedRun)}</strong></div>
             <div><span>{t("claims_view.field.repository")}</span><strong>{selectedRun.repo}</strong></div>
-            <div><span>{t("claims_view.field.execution")}</span><strong>{modeLabel()}</strong></div>
             <div><span>{t("claims_view.field.duration")}</span><strong>{runDuration(selectedRun)}</strong></div>
             <div><span>{t("claims_view.field.tokens")}</span><strong>{usageLabel(selectedRun)}</strong></div>
             <div><span>{t("claims_view.field.started")}</span><strong>{formatDate(selectedRun.started_at)}</strong></div>

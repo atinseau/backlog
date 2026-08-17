@@ -42,7 +42,7 @@
 
   function runLabel(run: RunSummary | null | undefined): string {
     if (!run) return "";
-    return `${run.id} · ${run.agent_id} · ${t("run_status.mode.worktree")}`;
+    return `${run.id} · ${run.agent_id}`;
   }
 
   function activeRunLabel(run: RunSummary): string {

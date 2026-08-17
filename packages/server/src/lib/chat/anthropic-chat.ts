@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ORCHESTRATOR_TOOLS, callOrchestratorTool, isWriteTool } from "@backlog/core";
 import { loadConfig } from "@backlog/config";
-import type { ChatMessage, ChatStreamEvent, RunChatInput } from "./types.js";
+import type { ChatMessage, RunChatInput } from "./types.js";
 
 /** The shared tool set, in the shape the Anthropic API expects. */
 const TOOLS: Anthropic.Tool[] = ORCHESTRATOR_TOOLS.map((tool) => ({

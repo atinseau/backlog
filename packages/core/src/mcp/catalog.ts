@@ -21,10 +21,6 @@ export function catalogToolNames(): string[] {
   return CATALOG.map((tool) => tool.name);
 }
 
-export function catalogTool(name: string): McpToolDefinition | undefined {
-  return CATALOG.find((tool) => tool.name === name);
-}
-
 /** Routes a call to the dispatcher that owns the name. Each dispatcher still
  *  refuses names it does not own, so this is routing, not authorization. */
 export async function callCatalogTool(call: {
