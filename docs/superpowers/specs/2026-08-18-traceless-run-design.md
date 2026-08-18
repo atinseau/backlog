@@ -1,6 +1,6 @@
 # A run that records nothing has failed — design
 
-Status: **approved** · not started
+Status: **approved** · implemented
 
 ## 1. The problem
 
@@ -135,6 +135,44 @@ This is deliberately the cheap form. A typed `failure_reason` field on
   consequence is bounded by design: a false "missing" from the hook costs one
   wasted turn and nothing else, because the finalizer — which runs after the
   process has exited — is what decides.
+- **The ceiling is decided by a substring, not by a parsed field.** The hook
+  greps `"stop_hook_active"[[:space:]]*:[[:space:]]*true` over the entire stdin
+  payload, so *any* unescaped occurrence in it — wherever it sits, whatever
+  field it belongs to — releases the stop. That payload carries agent-authored
+  text in `last_assistant_message`, and the realistic writer of those exact
+  characters is not an adversary but a self-hosted run: an agent implementing
+  this very feature, naming the field in its closing summary. What stands
+  between that message and a self-granted exemption is JSON escaping, measured
+  and not designed: the quotes in a string field arrive as `\"`, which the
+  pattern does not match, while the same characters unescaped anywhere in the
+  payload do. The cost if it ever lands is exactly one missed nudge — the
+  finalizer still fails a run that recorded nothing. Tightening it means
+  parsing JSON inside a shell hook, which is the dependency the pre-commit shim
+  precedent exists to avoid.
+- **The ceiling rests on a single field.** `stop_hook_active` is verified
+  present on `claude` 2.1.234; nothing guarantees a future version or another
+  runtime sends it. A runtime that omits it would produce block after block, so
+  §4's "no way to hang an agent" holds *conditional on that field being
+  present* — the hook stores no state of its own to fall back on.
+- **Hook enforcement and `--bare` are mutually exclusive.** `--bare` disables
+  hooks outright, so a run spawned that way carries no net at all. `--bare` is
+  the standing candidate for cutting the ~25k cache-creation tokens a Claude
+  Code invocation pays (CLAUDE.md §8); adopting it costs the in-session rescue.
+  The rule still binds in that case, which is the point of putting the
+  authority in the finalizer.
+- **A run that fails here is not committed and not pushed.** `failRun` is the
+  whole failure path, and `runPostExecutorGitWork` — the commit and the push —
+  lives on the other branch, inside `finalizeSuccessfulRun`. The rule in §2 asks
+  for exactly that: failed, through the same path as a non-zero exit. But the
+  class of run it applies to is new. A run that exits 0 and did the work, and
+  whose only omission is one tool call, leaves its edits in a worktree that
+  `garbageCollectWorktrees` force-removes on the next orchestrator hydrate. What
+  survives is the patch artifact: `collectWorktreeArtifacts` is given the run's
+  own directory to write it in, so `.backlog-run.patch` sits beside `run.json`
+  and travels with the run into `runs/archive/`. That is a fallback, not the
+  work: `git diff --binary` captures tracked modifications only, so a file the
+  agent created and never staged is in neither the commit that was not made nor
+  the patch.
 - **This does not make an agent's trace honest**, only present. A trace whose
   `summary` is wrong passes this check. Judging content is the consolidator's
   problem, not this one.
@@ -146,6 +184,7 @@ This is deliberately the cheap form. A typed `failure_reason` field on
 | Area | Change |
 | --- | --- |
 | `packages/core/src/run-executor.ts` | the success branch checks for a trace with this `run_id` before `finalizeSuccessfulRun`; on absence it takes the `failRun` path with the `trace_missing:` reason |
+| `packages/core/src/run-artifacts.ts` | the uncommitted-work patch is written into the run's own directory instead of the worktree, so the fallback for a failed run outlives the worktree GC |
 | `packages/core/src/providers/claude-code/command.ts` | the `--settings` payload becomes unconditional and gains a `hooks` block |
 | `packages/core/src/providers/claude-code/provider.ts` | supplies the hook declaration for a run, alongside the MCP config it already builds |
 | `packages/hooks` | generates the `Stop` hook script, next to the pre-commit generator |

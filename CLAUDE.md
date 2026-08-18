@@ -118,8 +118,10 @@ Project ──┬── Repository (a git checkout the project tracks)
       run.json           the Run record
       events.ndjson      live executor event stream (drives the UI)
       handoff.md         agent's handoff note, used for retry feedback
+      .backlog-run.patch the run's uncommitted work, kept out of the worktree
   worktrees/<repo>/<run-id>/    isolated git worktrees
   bin/backlog            shim the git hook calls
+  bin/stop-hook          Stop hook a Claude Code run is launched with
   cache/
 ```
 
@@ -339,9 +341,10 @@ in dev and fails once shipped:
 3. **Never resolve runtime files relative to `import.meta.url`.** Inside the
    binary that is a `/$bunfs/` path with no sibling files. Embed instead.
 4. **Never re-invoke the CLI via `process.argv[1]`.** In the binary that is
-   also a `/$bunfs/` path — not executable. Use
-   `packages/cli/src/self-exec.ts`. This already bit `backlog board` and the
-   launchd/systemd unit.
+   also a `/$bunfs/` path — not executable. Use `selfExec()` from
+   `packages/core/src/self-exec.ts`; its three consumers are `backlog board`,
+   the chat's CLI backend and the Claude Code provider. This already bit
+   `backlog board` and the launchd/systemd unit.
 
 Plus one runtime trap that is not about the binary but bites just as hard:
 
@@ -497,13 +500,14 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 780 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 800 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
 
-- Claude Code's real surface is still only partly used: skills, hooks and
-  subagents have no representation in the provider contract. MCP does — a
+- Claude Code's real surface is still only partly used: skills and subagents
+  have no representation in the provider contract, and hooks have exactly one
+  — the `Stop` hook every run carries. MCP does — a
   coding run is spawned with `--mcp-config` and Backlog's own five-tool
   `execution` set — but the emitted flags (`command.ts`) are chiefly `--model`,
   `--effort`, `--append-system-prompt` / `--system-prompt`, `--mcp-config` /
@@ -520,11 +524,35 @@ scope, not scope creep.
   The per-tool story on top of it is one entry deep —
   `deniedBuiltins: ["Bash(backlog:*)"]` scopes one built-in to one command
   pattern — and there is no per-path story at all.
-- **Every run reaches `trace_write`.** The façade is attached to every Claude
-  Code run, so recording an outcome is one tool call away and the trace
-  contract has a single reliable channel. The other half is still unwritten:
-  nothing fails a run that finished without a trace. That needs care, because
-  a legitimately blocked run has nothing to say either.
+- **A run that records nothing has failed.** Every run reaches `trace_write` —
+  the façade is attached to every Claude Code run, so recording an outcome is
+  one tool call away — and the finalizer holds the rule: a run that exits 0
+  with no trace carrying its own `run_id` takes the `failRun` path, reason
+  prefixed `trace_missing:` in `run.result` (`run-executor.ts`). It sits in the
+  single place every exit-0 run passes, so a `custom` run — which attaches
+  neither an MCP server nor a hook — is covered by the same code. The absence
+  is unambiguous by construction: `outcome` is a closed enum and `blocked`
+  requires an `open_question`, so a blocked run is contractually obliged to
+  write a trace too. A Claude Code run additionally carries a generated `Stop`
+  hook (`<backlogDir>/bin/stop-hook`, attached through `--settings`) that
+  refuses the session's end once, and only once, when `backlog trace check`
+  answers that no trace exists — a net that asks the agent to fix it in
+  session, never a status decision. A high block rate means the trace contract
+  in `run-prompt.ts` is failing, not that the hook is working.
+- **A failed run is not committed and not pushed**, and `trace_missing:` puts a
+  run that did real work in that class. The commit and the push live in
+  `runPostExecutorGitWork`, which only `finalizeSuccessfulRun` calls; `failRun`
+  archives the run instead, and `garbageCollectWorktrees` force-removes the
+  worktree of every archived run on the next orchestrator hydrate. The fallback
+  is the patch artifact, which is why `collectWorktreeArtifacts` writes
+  `.backlog-run.patch` into the run's own directory rather than the worktree it
+  describes — it then travels with the run into `runs/archive/`. The fallback is
+  partial: `git diff --binary` captures tracked modifications, so a file the
+  agent created and never staged is in neither the commit nor the patch.
+- **How often a run misses its trace is unmeasured.** No figure exists for the
+  current run shape. The failure above is what makes the number observable for
+  the first time: every miss is a failed run with a named reason, so counting
+  them is reading `run.result`.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

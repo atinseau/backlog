@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import type { Agent } from "@backlog/schemas";
@@ -76,6 +77,39 @@ function fixture(command: string, agentOverrides: Partial<Agent> = {}): Fixture 
   return { backlogDir, root, agent, run, task, workItem };
 }
 
+// Appended to a fixture's command when a test needs the run to be recorded as
+// having produced a trace — everything else about the run pipeline is
+// otherwise indifferent to this, but `executeAgentRun` now fails a run that
+// exits 0 without one, so any test asserting a *successful* outcome needs its
+// fixture to write one. Built with printf's %s substitution, not an inline
+// interpolated string, so the JSON payload never has to nest quotes.
+const RECORD_TRACE =
+  `mkdir -p "$BACKLOG_PROJECT_DIR/traces" && printf '{"version":1,"run_id":"%s","task_id":"%s","outcome":"implemented","summary":"fixture","created_at":"2026-08-18T00:00:00.000Z"}\\n' "$BACKLOG_RUN_ID" "$BACKLOG_TASK_ID" >> "$BACKLOG_PROJECT_DIR/traces/$BACKLOG_TASK_ID.ndjson"`;
+
+/**
+ * Give a fixture's worktree a real git repository holding one tracked file with
+ * an uncommitted edit, which is what makes `git diff --binary` produce a patch.
+ */
+function gitRepoWithUncommittedChange(root: string): void {
+  const git = (...args: string[]) =>
+    execFileSync("git", args, {
+      cwd: root,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Backlog Test",
+        GIT_AUTHOR_EMAIL: "test@example.com",
+        GIT_COMMITTER_NAME: "Backlog Test",
+        GIT_COMMITTER_EMAIL: "test@example.com",
+      },
+      stdio: "pipe",
+    });
+  git("init", "--quiet", "--initial-branch", "main");
+  fs.writeFileSync(path.join(root, "README.md"), "original\n", "utf8");
+  git("add", "README.md");
+  git("commit", "--quiet", "--no-verify", "-m", "seed");
+  fs.writeFileSync(path.join(root, "README.md"), "changed by the agent\n", "utf8");
+}
+
 function eventTypes(backlogDir: string, runId: string): string[] {
   return getRunEvents(backlogDir, runId)
     .map((line) => {
@@ -90,7 +124,7 @@ function eventTypes(backlogDir: string, runId: string): string[] {
 
 describe("executeAgentRun", () => {
   it("finalizes a successful run and records the agent's summary", async () => {
-    const f = fixture("echo 'Renamed the widget'");
+    const f = fixture(`echo 'Renamed the widget'; ${RECORD_TRACE}`);
 
     const handled = await executeAgentRun({ ...f, run: f.run });
 
@@ -147,7 +181,7 @@ describe("executeAgentRun", () => {
   });
 
   it("brackets the run with start and success events", async () => {
-    const f = fixture("true");
+    const f = fixture(`true; ${RECORD_TRACE}`);
 
     await executeAgentRun({ ...f, run: f.run });
 
@@ -169,7 +203,7 @@ describe("executeAgentRun", () => {
   });
 
   it("sends the run to review when the subtask requires manual approval", async () => {
-    const f = fixture("true");
+    const f = fixture(`true; ${RECORD_TRACE}`);
     // Re-create the subtask with approval required, then re-run against it.
     const approved = createSubTask(f.backlogDir, {
       workItemId: f.workItem.id,
@@ -229,5 +263,34 @@ describe("executeAgentRun", () => {
 
     const run = loadRun(f.backlogDir, f.run.id);
     expect(run?.artifacts.find((artifact) => artifact.kind === "summary")?.value).toBe(f.backlogDir);
+  });
+
+  it("fails a run that exited cleanly without recording a trace", async () => {
+    const f = fixture("true");
+
+    await executeAgentRun({ ...f, run: f.run });
+
+    const stored = loadRun(f.backlogDir, f.run.id);
+    expect(stored?.status).toBe("failed");
+    expect(stored?.result ?? "").toContain("trace_missing:");
+  });
+
+  // A failed run is archived, and the orchestrator force-removes the worktree of
+  // every archived run. The patch is the only copy of work that failure path
+  // never commits, so it has to be written somewhere that outlives the worktree
+  // — which for a `trace_missing:` failure is work the agent actually did.
+  it("writes the uncommitted-work patch outside the worktree, into the run's own directory", async () => {
+    const f = fixture("true");
+    gitRepoWithUncommittedChange(f.root);
+
+    await executeAgentRun({ ...f, run: f.run });
+
+    const patch = loadRun(f.backlogDir, f.run.id)?.artifacts.find((artifact) => artifact.kind === "patch");
+    expect(patch?.value).toBe(".backlog-run.patch");
+    // The failure archived the run, and the patch moved with the directory —
+    // which is why the artifact records a name rather than a path.
+    const archived = path.join(f.backlogDir, "runs", "archive", f.run.id, patch!.value);
+    expect(fs.readFileSync(archived, "utf8")).toContain("changed by the agent");
+    expect(fs.existsSync(path.join(f.root, ".backlog-run.patch"))).toBe(false);
   });
 });

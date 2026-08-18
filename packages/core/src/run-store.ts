@@ -17,6 +17,16 @@ function runDirectory(baseDir: string, runId: string): string {
   return path.join(baseDir, runId);
 }
 
+/**
+ * The run's own directory while it is active. Anything written here outlives
+ * the worktree, which the orchestrator force-removes as soon as the run is
+ * archived; `archiveRun` renames this directory rather than deleting it, so the
+ * contents survive that too.
+ */
+export function activeRunDirectory(backlogDir: string, runId: string): string {
+  return runDirectory(activeRunsDir(backlogDir), runId);
+}
+
 const warnedUnreadableRunFiles = new Set<string>();
 
 export function nextRunId(backlogDir: string): string {

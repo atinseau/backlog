@@ -1,6 +1,6 @@
 # A Run That Records Nothing Has Failed — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** A coding run that exits 0 without recording a trace for its own `run_id` fails, instead of finalizing as a success nobody can act on.
 
@@ -54,7 +54,7 @@ The authority. Runtime-agnostic, and testable without `claude` — the fixture u
 - Consumes: `listTraces(backlogDir: string, taskId: string): Trace[]` from `./trace-store.js`; `failRun(backlogDir: string, runId: string, summary?: string, options?: { cascadeBlock?: boolean }): Promise<void>` from `./run-service.js` (already imported in this file).
 - Produces: a run whose `result` string starts with `trace_missing:`. Task 2 and Task 5 refer to that prefix; nothing else depends on this task.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `packages/core/src/run-executor.test.ts`. The existing `fixture(script, overrides?)` helper builds a project with a `custom` agent whose command is the shell script you pass, so `"true"` is an agent that exits 0 having done nothing at all — exactly the case under test.
 
@@ -72,12 +72,12 @@ Append to `packages/core/src/run-executor.test.ts`. The existing `fixture(script
 
 `loadRun` is already imported at the top of this file from `./run-store.js` and is what the neighbouring tests use. Add no accessor.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts -t "without recording a trace"`
 Expected: FAIL. The run finalizes as a success today, so `status` is `succeeded` or `awaiting_review`, never `failed`.
 
-- [ ] **Step 3: Add the check to the success branch**
+- [x] **Step 3: Add the check to the success branch**
 
 In `packages/core/src/run-executor.ts`, add the import alongside the existing ones:
 
@@ -115,7 +115,7 @@ Then, in `executeAgentRun`, immediately after the `if (!result.ok) { await handl
 
 Confirm the local names in scope at that point — the surrounding code already uses `backlogDir`, `run` and `params`. Use whatever those are actually called in the file rather than assuming.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts`
 Expected: PASS, whole file. Other tests in this file run agents that also record no trace, so **expect several of them to start failing** — that is the change working. Fix each by having its fixture script write a trace line, using this shape (one line, `task_001` being whatever task id the fixture uses):
@@ -126,12 +126,12 @@ mkdir -p "$BACKLOG_PROJECT_DIR/traces" && printf '%s\n' "{\"version\":1,\"run_id
 
 Read `packages/schemas/src/trace.ts` first and match the schema exactly — `appendTrace` parses every line it reads back, so a line that fails `traceSchema` is skipped and the test will still fail.
 
-- [ ] **Step 5: Run the whole core package**
+- [x] **Step 5: Run the whole core package**
 
 Run: `bun test ./packages/core`
 Expected: PASS. Any other test that executes a run to completion needs the same fixture fix.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/src/run-executor.ts packages/core/src/run-executor.test.ts
@@ -152,7 +152,7 @@ The hook needs to ask "does a trace exist for this run" without grepping NDJSON 
 - Consumes: `listTraces(backlogDir: string, taskId: string): Trace[]` from `@backlog/core`. Check `packages/core/src/index.ts` exports it; if it does not, add it to that barrel as part of this task.
 - Produces: `backlog trace check --project <backlogDir> --run <run-id> --task <task-id>`, exiting **0** when a trace with that `run_id` exists, **1** when it does not, and any other code on an error. Task 3's script depends on exactly those three cases.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `packages/cli/src/commands/trace.test.ts`, following the fixture style already in that file:
 
@@ -176,12 +176,12 @@ Append to `packages/cli/src/commands/trace.test.ts`, following the fixture style
 
 Write `runTraceCheck` as a local helper in the test file that builds the Commander program the same way the neighbouring tests do and captures the exit code — read the existing tests in this file and mirror their mechanism exactly rather than inventing one. Match the trace object to `packages/schemas/src/trace.ts`; if a field name differs, the schema wins.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `bun test ./packages/cli/src/commands/trace.test.ts -t "exits 0 when a trace exists"`
 Expected: FAIL — `error: unknown command 'check'`.
 
-- [ ] **Step 3: Add the subcommand**
+- [x] **Step 3: Add the subcommand**
 
 In `packages/cli/src/commands/trace.ts`, on the existing `trace` command (created at line 84 as `program.command("trace")`), add:
 
@@ -205,12 +205,12 @@ In `packages/cli/src/commands/trace.ts`, on the existing `trace` command (create
 
 `resolveBacklogDir` is already imported in this file and is exactly what `trace write` and `trace show` call — each subcommand declares its own `--project` option and passes `options.project` to it. The code above follows that pattern; do not invent a different one.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `bun test ./packages/cli/src/commands/trace.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/cli/src/commands/trace.ts packages/cli/src/commands/trace.test.ts
@@ -230,7 +230,7 @@ git commit -m "feat(cli): trace check answers whether a run recorded one"
 - Consumes: Task 2's `backlog trace check --project <dir> --run <id> --task <id>` and its 0/1/other exit codes.
 - Produces: `writeStopHook(backlogDir: string): string` — writes the script to `<backlogDir>/bin/stop-hook`, chmods it `0o755`, and returns its absolute path. Task 4 calls it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/hooks/src/stop-hook.test.ts`:
 
@@ -307,12 +307,12 @@ describe("writeStopHook", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `bun test ./packages/hooks/src/stop-hook.test.ts`
 Expected: FAIL — `Cannot find module './stop-hook.js'`.
 
-- [ ] **Step 3: Write the generator**
+- [x] **Step 3: Write the generator**
 
 Create `packages/hooks/src/stop-hook.ts`. Read `packages/config/src/shim.ts` first and mirror its structure — a `renderStopHook()` returning the script text, then a writer. The script resolves the binary through the same order the shim uses, so the hook works from a dev tree and from an installed binary alike.
 
@@ -389,7 +389,7 @@ export function writeStopHook(backlogDir: string): string {
 
 Watch the escaping: this is a TypeScript template literal producing shell. `\${VAR}` keeps a shell variable from being interpolated by TypeScript; `$(cat)` and `$status` are safe as written but verify each one by reading the generated file in Step 4.
 
-- [ ] **Step 4: Run the tests and read the generated script**
+- [x] **Step 4: Run the tests and read the generated script**
 
 Run: `bun test ./packages/hooks/src/stop-hook.test.ts`
 Expected: PASS, all four.
@@ -400,11 +400,11 @@ Then read one generated file to confirm the escaping produced the shell you inte
 bun -e 'import {writeStopHook} from "./packages/hooks/src/stop-hook.ts"; console.log(require("node:fs").readFileSync(writeStopHook(require("node:fs").mkdtempSync("/tmp/hookcheck-")),"utf8"))'
 ```
 
-- [ ] **Step 5: Export it**
+- [x] **Step 5: Export it**
 
 Add the export to `packages/hooks/src/index.ts`, matching how the existing hook functions are exported there.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/hooks/src/stop-hook.ts packages/hooks/src/stop-hook.test.ts packages/hooks/src/index.ts
@@ -425,7 +425,7 @@ git commit -m "feat(hooks): generate a Stop hook that asks for the missing trace
 - Consumes: Task 3's `writeStopHook(backlogDir: string): string`.
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `packages/core/src/providers/claude-code/command.test.ts`:
 
@@ -471,12 +471,12 @@ In `packages/core/src/providers/claude-code/provider.test.ts`, add one test asse
   });
 ```
 
-- [ ] **Step 2: Run both to verify they fail**
+- [x] **Step 2: Run both to verify they fail**
 
 Run: `bun test ./packages/core/src/providers/claude-code`
 Expected: FAIL — `stopHookCommand` is not a property of `ClaudeCodeCommandInput`, and no run emits `--settings` unless a profile is set.
 
-- [ ] **Step 3: Widen the command builder**
+- [x] **Step 3: Widen the command builder**
 
 In `packages/core/src/providers/claude-code/command.ts`, add to `ClaudeCodeCommandInput`:
 
@@ -504,7 +504,7 @@ Then replace the profile-gated `--settings` push (currently around line 107) wit
   }
 ```
 
-- [ ] **Step 4: Attach it in the provider**
+- [x] **Step 4: Attach it in the provider**
 
 In `packages/core/src/providers/claude-code/provider.ts`, import the generator:
 
@@ -524,12 +524,12 @@ and add one property to the `buildClaudeCodeCommand` call inside `buildRunComman
 
 `packages/core/package.json` does not list `@backlog/hooks` yet — add `"@backlog/hooks": "workspace:*"` beside the four existing workspace dependencies. There is no cycle: `grep -rn "@backlog/core" packages/hooks/src` returns nothing today, and `packages/hooks` must stay that way. If you find yourself needing to import core from hooks, stop and report it rather than working around it.
 
-- [ ] **Step 5: Run the provider directory on its own**
+- [x] **Step 5: Run the provider directory on its own**
 
 Run: `bun test ./packages/core/src/providers`
 Expected: PASS. Run this directory alone, not only via the full suite — see Global Constraints.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/core/src/providers/claude-code/ packages/core/package.json
@@ -548,7 +548,7 @@ git commit -m "feat(core): attach the Stop hook to a Claude Code run"
 - Consumes: every earlier task.
 - Produces: nothing.
 
-- [ ] **Step 1: Correct CLAUDE.md §8**
+- [x] **Step 1: Correct CLAUDE.md §8**
 
 §8's standing work list carries a bullet beginning *"A `read-only` run's trace is best-effort…"* — or whatever replaced it in #20. Find the bullet about the trace contract and rewrite it to describe the world as it now is: every run reaches `trace_write`, a run that records nothing fails with a `trace_missing:` reason, and a `Stop` hook gives a Claude Code run one chance to fix it in-session. Do **not** write that something "was" best-effort or "used to" fail silently — a reader arriving fresh has no memory of the old design.
 
@@ -556,11 +556,11 @@ Add one line to §8 that the spec's §6 states and that a future reader will nee
 
 While you are there: CLAUDE.md §4 rule 4 cites `packages/cli/src/self-exec.ts`. That file does not exist — it is `packages/core/src/self-exec.ts`, with three consumers. Correct the path.
 
-- [ ] **Step 2: Mark the spec implemented**
+- [x] **Step 2: Mark the spec implemented**
 
 Change line 3 of `docs/superpowers/specs/2026-08-18-traceless-run-design.md` from `Status: **approved** · not started` to `Status: **approved** · implemented`.
 
-- [ ] **Step 3: Run the full verification, in order**
+- [x] **Step 3: Run the full verification, in order**
 
 ```bash
 bun run typecheck
@@ -572,7 +572,7 @@ Expected: `typecheck` clean over 322 files; `test` green — the total will be *
 
 Do not report a number you did not read from the output.
 
-- [ ] **Step 4: Probe the compiled binary**
+- [x] **Step 4: Probe the compiled binary**
 
 ```bash
 ./dist/backlog trace check --help
@@ -588,13 +588,13 @@ bun -e 'import {writeStopHook} from "./packages/hooks/src/stop-hook.ts"; const p
 
 Expected: a script that greps `stop_hook_active`, exports `BACKLOG_HOOK_INVOCATION`, calls `trace check`, and exits 2 only when that call exits 1.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-08-18-traceless-run-design.md
 git commit -m "docs: a run that records nothing has failed"
 ```
 
-- [ ] **Step 6: Tick this plan's checkboxes**
+- [x] **Step 6: Tick this plan's checkboxes**
 
 Tick them as tasks land, not at the end.

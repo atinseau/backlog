@@ -1,4 +1,5 @@
 import type { Agent } from "@backlog/schemas";
+import { writeStopHook } from "@backlog/hooks";
 import { contextFor } from "../../contexts/contexts.js";
 import { MCP_SERVER_NAME } from "../../mcp/server.js";
 import { parseClaudeJsonStdout, type UsageBlock } from "../../provider-usage.js";
@@ -91,9 +92,11 @@ export function executionDeniedBuiltins(): readonly string[] {
 /**
  * The `claude` invocation for one coding run. Extracted from executeRun so the
  * flag matrix — which tool set the agent gets, and which it does not — is
- * asserted by a unit test rather than by spawning a real CLI.
+ * asserted by a unit test rather than by spawning a real CLI. It reads nothing
+ * and writes nothing: the Stop hook script is written by executeRun, and only
+ * its path arrives here.
  */
-export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
+export function buildRunCommand(request: ProviderRunRequest, stopHookCommand: string): ProviderCommand {
   const { agent } = request;
   const self = selfExec();
   // Every permission decision here comes from the table, not from literals in
@@ -105,6 +108,7 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     model: agent.model,
     reasoningEffort: request.reasoningEffort,
     profile: agent.profile,
+    stopHookCommand,
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: self.command,
@@ -184,7 +188,13 @@ export class ClaudeCodeProvider implements AgentProvider {
 
   async executeRun(request: ProviderRunRequest): Promise<ProviderRunResult> {
     const { agent } = request;
-    const command = buildRunCommand(request);
+    // Written per run rather than at install time: the script is identical for
+    // every run — it reads the run's identity from the environment — but a
+    // project that predates this feature has no bin/stop-hook, and a run is the
+    // moment we know we need one. It is handed the same binary that launched
+    // this run, so the hook never has to guess which `backlog` to call.
+    const stopHookCommand = writeStopHook(request.backlogDir, selfExec());
+    const command = buildRunCommand(request, stopHookCommand);
 
     // The CLI emits one NDJSON line per agent-loop event. We forward each
     // recognised one as it lands so the board shows tool calls live instead

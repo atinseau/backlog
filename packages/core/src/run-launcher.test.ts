@@ -11,6 +11,13 @@ import { createTask } from "./task-service.js";
 import { getRunEvents, loadRun } from "./run-store.js";
 import { startRunsForPlan } from "./run-launcher.js";
 
+// Appended to a fixture agent's command when a test needs the run to finish
+// as recorded, not merely exit-0 — `executeAgentRun` fails a run that
+// produces no trace, and one custom-command fixture in this file exercises
+// the full pipeline through to a `succeeded` status.
+const RECORD_TRACE =
+  `mkdir -p "$BACKLOG_PROJECT_DIR/traces" && printf '{"version":1,"run_id":"%s","task_id":"%s","outcome":"implemented","summary":"fixture","created_at":"2026-08-18T00:00:00.000Z"}\\n' "$BACKLOG_RUN_ID" "$BACKLOG_TASK_ID" >> "$BACKLOG_PROJECT_DIR/traces/$BACKLOG_TASK_ID.ndjson"`;
+
 async function createWorkspace(): Promise<{ root: string; backlogDir: string; repoId: string }> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-launcher-"));
   await git(["init", "-b", "main"], root);
@@ -118,7 +125,7 @@ describe("run-launcher", () => {
     addAgent(backlogDir, {
       id: "writer",
       provider: "custom",
-      command: "node -e \"require('fs').writeFileSync('remote.txt', 'ok\\\\n')\"",
+      command: `node -e \"require('fs').writeFileSync('remote.txt', 'ok\\\\n')\"; ${RECORD_TRACE}`,
       successMode: "complete",
       allowedRepos: [repoId],
       allowedRisk: ["medium"],

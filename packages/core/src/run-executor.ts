@@ -9,7 +9,14 @@ import type { AgentProvider, ProviderRunResult } from "./providers/types.js";
 import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.js";
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import {
+  activeRunDirectory,
+  addRunArtifact,
+  appendRunEvent,
+  updateRunStatus,
+  writeRunHandoff,
+} from "./run-store.js";
+import { listTraces } from "./trace-store.js";
 import { recordUsage } from "./usage.js";
 
 // One pipeline for every runtime. The provider owns the conversation with the
@@ -113,7 +120,15 @@ async function collectArtifacts(params: ExecuteAgentRunParams): Promise<void> {
     kind: "log",
     value: LOG_FILE,
   });
-  for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
+  // The patch is the only copy of work a failed run never committed, and a
+  // failed run is archived, which makes `garbageCollectWorktrees` force-remove
+  // its worktree. Writing the patch into the worktree would destroy it with the
+  // thing it documents, so it goes in the run's own directory instead — which
+  // the archive renames rather than deletes, taking the patch with it.
+  const artifacts = await collectWorktreeArtifacts(params.run.worktree_path, {
+    scratchDir: activeRunDirectory(params.backlogDir, params.run.id),
+  });
+  for (const artifact of artifacts) {
     addRunArtifact(params.backlogDir, params.run.id, artifact);
   }
 }
@@ -195,6 +210,30 @@ export async function executeAgentRun(params: ExecuteAgentRunParams): Promise<bo
 
     if (!result.ok) {
       await handleFailure(params, provider, result);
+      return true;
+    }
+
+    // The trace is the only thing about this run that outlives it, and the
+    // contract has no state that means "nothing to record": `outcome` is a
+    // closed enum, and `blocked` — the agent's only way to ask a human for
+    // help — requires an `open_question`. So an absent trace is not an
+    // ambiguous signal, it is a run that produced nothing anyone can act on.
+    //
+    // Checked here rather than in a runtime, because this is the single place
+    // every exit-0 run passes: a `custom` run attaches neither an MCP server
+    // nor a hook, and is covered by the same three lines.
+    const recorded = listTraces(backlogDir, params.workItem.id).some((trace) => trace.run_id === run.id);
+    if (!recorded) {
+      await failRun(
+        backlogDir,
+        run.id,
+        `trace_missing: agent ${params.agent.id} finished without recording a trace`,
+      );
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "executor.failed",
+        message: "No trace was recorded for this run; see the trace contract in the run prompt.",
+      });
       return true;
     }
 
