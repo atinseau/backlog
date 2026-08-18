@@ -275,7 +275,6 @@ export async function fetchAgents(): Promise<AgentSummary[]> {
 export interface UpdateAgentInput {
   enabled?: boolean;
   max_concurrent_runs?: number;
-  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access" | null;
   auth_mode?: AgentAuthMode | null;
   success_mode?: "review" | "complete" | null;
   allowed_repos?: string[];
@@ -308,7 +307,6 @@ export interface CreateAgentInput {
   profile?: string;
   command?: string;
   enabled?: boolean;
-  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access";
   auth_mode?: AgentAuthMode;
   success_mode?: "review" | "complete";
   max_concurrent_runs?: number;

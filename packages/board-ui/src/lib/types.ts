@@ -121,8 +121,6 @@ export type RepositoryProvider = "local" | "github" | "gitlab" | "bitbucket" | "
 
 export type AutonomyMode = "observe" | "assist" | "delegate" | "autopilot";
 
-export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
-
 /** How an agent authenticates. `auto` uses a key when one exists, otherwise
  * the runtime's own logged-in session — which is what makes a Claude
  * subscription usable without storing an API key. */
@@ -155,7 +153,6 @@ export interface ProviderSummary {
     default_level: string | null;
   };
   auth_modes: AgentAuthMode[];
-  sandbox_modes: SandboxMode[];
   capabilities: {
     execute_run: boolean;
     text_completion: boolean;
@@ -220,7 +217,6 @@ export interface AgentSummary {
   capabilities: string[];
   allowed_repos: string[];
   allowed_risk: Array<"low" | "medium" | "high">;
-  sandbox_mode: SandboxMode | null;
   auth_mode?: AgentAuthMode | null;
   success_mode: "review" | "complete" | null;
   model: string | null;

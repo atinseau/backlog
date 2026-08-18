@@ -11,7 +11,7 @@
   } from "./providers.svelte.js";
   import type { ProviderModelChoice } from "./types.js";
   import { formatAgentLabel } from "./agent-label.js";
-  import type { AgentSummary, SandboxMode } from "./types.js";
+  import type { AgentSummary } from "./types.js";
 
   // Double-click rename — mirrors the ProjectsView pattern. When
   // editingId matches an agent's id we swap its label for an input.
@@ -104,16 +104,6 @@
     if (!model) return false;
     return modelChoicesFor(provider).some((choice) => choice.value === model);
   }
-
-  // Derived, not a module constant: t() reads the locale store, so the
-  // labels have to re-evaluate when the language changes. The mode names
-  // themselves are machine values and stay untranslated.
-  const SANDBOX_MODES: Array<{ value: SandboxMode | "default"; label: string; help: string }> = $derived([
-    { value: "default", label: t("agents_view.sandbox.default"), help: t("agents_view.sandbox.default_help") },
-    { value: "read-only", label: "read-only", help: t("agents_view.sandbox.read_only_help") },
-    { value: "workspace-write", label: "project-write", help: t("agents_view.sandbox.workspace_write_help") },
-    { value: "danger-full-access", label: "⚠ danger-full-access", help: t("agents_view.sandbox.full_access_help") },
-  ]);
 
   const ALL_RISKS: Array<"low" | "medium" | "high"> = ["low", "medium", "high"];
 
@@ -267,11 +257,6 @@
     if (!Number.isFinite(n) || n < 1) return;
     if (n === agent.max_concurrent_runs) return;
     patchField(agent.id, { max_concurrent_runs: n });
-  }
-
-  function changeSandbox(agent: AgentSummary, value: string) {
-    if (value === "default") patchField(agent.id, { sandbox_mode: null });
-    else patchField(agent.id, { sandbox_mode: value as SandboxMode });
   }
 
   function changeSuccessMode(agent: AgentSummary, value: string) {
@@ -436,18 +421,6 @@
                   disabled={savingAgentId === agent.id}
                   onchange={(e) => commitConcurrency(agent, (e.currentTarget as HTMLInputElement).value)}
                 />
-              </label>
-              <label class="field">
-                <span class="lbl">{t("agents_view.field_sandbox")}</span>
-                <select
-                  value={agent.sandbox_mode ?? "default"}
-                  disabled={savingAgentId === agent.id}
-                  onchange={(e) => changeSandbox(agent, (e.currentTarget as HTMLSelectElement).value)}
-                >
-                  {#each SANDBOX_MODES as mode (mode.value)}
-                    <option value={mode.value} title={mode.help}>{mode.label}</option>
-                  {/each}
-                </select>
               </label>
               <label class="field">
                 <span class="lbl">{t("agents_view.field_success_mode")}</span>
