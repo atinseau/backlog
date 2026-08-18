@@ -5,7 +5,6 @@ import { loadConfig, saveConfig } from "@backlog/config";
 import { cloneRepo, detectGitProvider, repoIdFromGitUrl } from "@backlog/git";
 import { repoCheckoutPath } from "@backlog/schemas";
 import type {
-  RepoAccessMode,
   RepoConfig,
   RepoProvider,
   RepositoryLocation,
@@ -23,7 +22,6 @@ export interface AddRepoInput {
   defaultBranch: string;
   role?: string;
   enabled?: boolean;
-  accessMode?: RepoAccessMode;
   location?: RepositoryLocation;
   remoteType?: RepositoryRemoteType;
   remoteProvider?: RepositoryRemoteProvider;
@@ -40,7 +38,6 @@ export interface CloneAndAddRepoInput {
   defaultBranch?: string;
   role?: string;
   enabled?: boolean;
-  accessMode?: RepoAccessMode;
   remoteProvider?: RepositoryRemoteProvider;
 }
 
@@ -51,7 +48,6 @@ export interface UpdateRepoInput {
   role?: string;
   clearRole?: boolean;
   enabled?: boolean;
-  accessMode?: RepoAccessMode;
   location?: RepositoryLocation;
   remoteType?: RepositoryRemoteType;
   clearRemoteType?: boolean;
@@ -135,7 +131,6 @@ export function addRepo(backlogDir: string, input: AddRepoInput): RepoConfig {
     ...(normalizedPath ? { path: normalizedPath, checkout_path: normalizedPath } : {}),
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
-    access_mode: input.accessMode ?? "read-write",
     location,
     ...(remoteType ? { remote_type: remoteType } : {}),
     ...(remoteProvider ? { remote_provider: remoteProvider } : {}),
@@ -180,7 +175,6 @@ export async function cloneAndAddRepo(
     defaultBranch: input.defaultBranch ?? config.default_branch,
     ...(input.role ? { role: input.role } : {}),
     enabled: input.enabled ?? true,
-    ...(input.accessMode ? { accessMode: input.accessMode } : {}),
     location: "remote",
     remoteType: "git",
     remoteProvider: input.remoteProvider ?? remoteProviderFromLegacy(provider) ?? "custom",
@@ -283,9 +277,6 @@ export function updateRepo(backlogDir: string, repoId: string, input: UpdateRepo
   }
   if (input.enabled !== undefined) {
     repo.enabled = input.enabled;
-  }
-  if (input.accessMode !== undefined) {
-    repo.access_mode = input.accessMode;
   }
   if (input.location !== undefined) {
     repo.location = input.location;

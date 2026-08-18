@@ -8,7 +8,6 @@ import { expandedPath } from "./providers/process.js";
 import type { AgentProvider, ProviderRunResult } from "./providers/types.js";
 import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.js";
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
-import { getRepo } from "./repo-service.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { recordUsage } from "./usage.js";
@@ -31,18 +30,6 @@ export interface ExecuteAgentRunParams {
   priorFailureFeedback?: string;
   /** 1-indexed. Above 1, the prompt gets the "this is a retry" framing. */
   attemptNumber?: number;
-}
-
-/**
- * Repository access policy belongs to the resource being touched, not to the
- * runner: a no-access repository refuses the run outright.
- */
-function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunParams {
-  const accessMode = getRepo(params.backlogDir, params.task.repo)?.access_mode ?? "read-write";
-  if (accessMode === "no-access") {
-    throw new Error(`Repository ${params.task.repo} is set to no-access; runs are not allowed.`);
-  }
-  return params;
 }
 
 function promptFor(params: ExecuteAgentRunParams): string {
@@ -168,8 +155,7 @@ async function handleFailure(
  * @returns false when the agent's provider is unknown, so the caller can
  * report a typed skip rather than treating the no-op as success.
  */
-export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise<boolean> {
-  const params = applyRepoAccessPolicy(rawParams);
+export async function executeAgentRun(params: ExecuteAgentRunParams): Promise<boolean> {
   const provider = providerFor(params.agent.provider);
   if (!provider?.executeRun) return false;
 

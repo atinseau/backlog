@@ -40,7 +40,7 @@ async function makeGitWorkspace(autonomyMode: "observe" | "assist" | "delegate" 
     root,
     projectName: "runs-route-test",
     mode: "embedded",
-    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true }],
   });
   const backlogDir = path.join(root, ".backlog");
 

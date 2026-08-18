@@ -15,7 +15,7 @@ function makeWorkspace(): string {
   initLayout({
     root,
     projectName: "cascade-test",
-    repos: [{ id: "repo", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "repo", path: root, default_branch: "main", enabled: true }],
   });
   const backlogDir = path.join(root, ".backlog");
   return backlogDir;

@@ -5,16 +5,6 @@ export const repositoryRemoteTypeSchema = z.enum(["git", "ftp", "sftp", "other"]
 export const repositoryRemoteProviderSchema = z.enum(["github", "gitlab", "bitbucket", "custom", "other"]);
 export const repoProviderSchema = z.enum(["local", "github", "gitlab", "bitbucket", "other"]);
 
-// What an agent run is allowed to do against this repo.
-//   read-write — full access (default; matches existing behaviour)
-//   read-only  — agent can read files, run shell, inspect git, but can't
-//                edit or commit.
-//   no-access  — repo is hidden from the orchestrator; effectively
-//                equivalent to enabled=false but lets you keep the
-//                repo registered (e.g. for browsing) without exposing
-//                it to runs. Plans never assign tasks against it.
-export const repoAccessModeSchema = z.enum(["read-write", "read-only", "no-access"]);
-
 export const repoConfigSchema = z.object({
   id: z.string().min(1),
   path: z.string().min(1).optional(),
@@ -22,10 +12,6 @@ export const repoConfigSchema = z.object({
   default_branch: z.string().min(1),
   role: z.string().optional(),
   enabled: z.boolean().default(true),
-  // Access policy for agent runs on this repo. Optional so existing
-  // config.toml files load unchanged; treat missing as "read-write" at
-  // every read site (the runtime helpers default explicitly).
-  access_mode: repoAccessModeSchema.optional(),
   location: repositoryLocationSchema.default("local"),
   remote_type: repositoryRemoteTypeSchema.optional(),
   remote_provider: repositoryRemoteProviderSchema.optional(),
@@ -144,7 +130,6 @@ export type RepoConfig = Omit<ParsedRepoConfig, "location"> & {
   location?: RepositoryLocation;
 };
 export type RepoProvider = z.infer<typeof repoProviderSchema>;
-export type RepoAccessMode = z.infer<typeof repoAccessModeSchema>;
 export type AiProvider = z.infer<typeof aiProviderSchema>;
 export type ProjectLocation = z.infer<typeof projectLocationSchema>;
 export type GitMergeStrategy = z.infer<typeof gitMergeStrategySchema>;

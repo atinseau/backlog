@@ -18,7 +18,7 @@ async function createWorkspace(): Promise<string> {
     root,
     projectName: "sched-prop-test",
     mode: "embedded",
-    repos: [{ id: "backlog", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "backlog", path: root, default_branch: "main", enabled: true }],
   });
   return root;
 }

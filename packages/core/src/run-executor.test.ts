@@ -219,16 +219,6 @@ describe("executeAgentRun", () => {
     expect(prompt).toContain("TypeError: cannot read property of undefined");
   });
 
-  it("refuses to run against a repository set to no-access", async () => {
-    const f = fixture("true");
-    const { loadConfig, saveConfig } = await import("@backlog/config");
-    const config = loadConfig(f.backlogDir);
-    config.repos[0]!.access_mode = "no-access";
-    saveConfig(f.backlogDir, config);
-
-    await expect(executeAgentRun({ ...f, run: f.run })).rejects.toThrow(/no-access/);
-  });
-
   it("points every command the agent runs at the real project, not the worktree's shadow copy", async () => {
     // An in_repo worktree contains its own tracked .backlog/config.toml, so
     // findProject() would resolve to it and the agent would read and write a
