@@ -2,10 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "bun:test";
+import { Command } from "commander";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
 import { appendTrace, createSubTask, createTask, getSubTask, listTraces } from "@backlog/core";
-import { readTraceFromStdin, runTraceCheck, runTraceShow, runTraceWrite } from "./trace.js";
+import { readTraceFromStdin, registerTraceCommand, runTraceCheck, runTraceShow, runTraceWrite } from "./trace.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-cli-trace-"));
@@ -20,6 +21,29 @@ async function createWorkspace(): Promise<string> {
     repos: [{ id: "backlog", path: root, default_branch: "main", enabled: true }],
   });
   return root;
+}
+
+/**
+ * Drives the real, wired `trace check` subcommand end to end (not just the
+ * plain `runTraceCheck` helper) and reports the `process.exitCode` it set --
+ * that assignment is the actual contract Task 3's Stop hook depends on, so
+ * it has to be observed directly rather than inferred from a return value.
+ * `process.exitCode` is process-global and this suite shares one process
+ * (see CLAUDE.md), so it is saved before the parse and restored after,
+ * regardless of outcome.
+ */
+async function runTraceCheckCommand(args: string[]): Promise<number | undefined> {
+  const program = new Command();
+  program.name("test").exitOverride();
+  registerTraceCommand(program);
+  const previousExitCode = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    await program.parseAsync(["node", "test", "trace", "check", ...args], { from: "node" });
+    return process.exitCode;
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 }
 
 describe("backlog trace", () => {
@@ -104,7 +128,7 @@ describe("backlog trace", () => {
     expect(runTraceShow(backlogDir, taskId).join("\n")).toContain("No trace");
   });
 
-  it("exits 0 when a trace exists for the run and 1 when it does not", async () => {
+  it("exits 0 when a trace exists for the run and 1 when it does not", () => {
     appendTrace(backlogDir, {
       version: 1,
       run_id: "run_present",
@@ -118,8 +142,74 @@ describe("backlog trace", () => {
       consolidation_hint: "none",
     });
 
-    await expect(runTraceCheck(backlogDir, "run_present", taskId)).resolves.toBe(0);
-    await expect(runTraceCheck(backlogDir, "run_absent", taskId)).resolves.toBe(1);
+    expect(runTraceCheck(backlogDir, "run_present", taskId)).toBe(0);
+    expect(runTraceCheck(backlogDir, "run_absent", taskId)).toBe(1);
+  });
+
+  describe("the wired `trace check` command", () => {
+    // These three cases are Task 3's entire contract with this subcommand:
+    // the Stop hook reads nothing but the exit code. `runTraceCheck` above
+    // only proves the lookup logic; these prove the CLI wiring actually sets
+    // `process.exitCode` to what that logic returned (or, on failure, to a
+    // code distinct from both 0 and 1).
+    it("sets exit code 0 when a trace exists for the run", async () => {
+      appendTrace(backlogDir, {
+        version: 1,
+        run_id: "run_present",
+        task_id: taskId,
+        outcome: "implemented",
+        summary: "did the thing",
+        created_at: "2026-08-18T00:00:00.000Z",
+        constraints: [],
+        decisions: [],
+        discovered_deps: [],
+        consolidation_hint: "none",
+      });
+
+      const exitCode = await runTraceCheckCommand([
+        "--project",
+        backlogDir,
+        "--run",
+        "run_present",
+        "--task",
+        taskId,
+      ]);
+
+      expect(exitCode).toBe(0);
+    });
+
+    it("sets exit code 1 when no trace exists for the run", async () => {
+      const exitCode = await runTraceCheckCommand([
+        "--project",
+        backlogDir,
+        "--run",
+        "run_absent",
+        "--task",
+        taskId,
+      ]);
+
+      expect(exitCode).toBe(1);
+    });
+
+    it("sets an exit code other than 0 or 1 when the check itself fails", async () => {
+      // No .backlog project lives here, so resolveBacklogDir throws inside the
+      // action. The hook must be able to tell this apart from "no trace" (1) --
+      // that is the whole point of catching it locally in trace.ts instead of
+      // letting bin.ts's global catch-all turn every error into exit 1.
+      const unresolvable = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-cli-trace-noproject-"));
+
+      const exitCode = await runTraceCheckCommand([
+        "--project",
+        unresolvable,
+        "--run",
+        "run_present",
+        "--task",
+        taskId,
+      ]);
+
+      expect(exitCode).not.toBe(0);
+      expect(exitCode).not.toBe(1);
+    });
   });
 
   it("parses a JSON payload from a stdin stream", async () => {
