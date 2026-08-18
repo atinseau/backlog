@@ -1,4 +1,5 @@
 import type { Agent } from "@backlog/schemas";
+import { writeStopHook } from "@backlog/hooks";
 import { contextFor } from "../../contexts/contexts.js";
 import { MCP_SERVER_NAME } from "../../mcp/server.js";
 import { parseClaudeJsonStdout, type UsageBlock } from "../../provider-usage.js";
@@ -105,6 +106,11 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     model: agent.model,
     reasoningEffort: request.reasoningEffort,
     profile: agent.profile,
+    // Written per run rather than at install time: the script is identical for
+    // every run — it reads the run's identity from the environment — but a
+    // project that predates this feature has no bin/stop-hook, and a run is
+    // the moment we know we need one.
+    stopHookCommand: writeStopHook(request.backlogDir),
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: self.command,

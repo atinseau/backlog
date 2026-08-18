@@ -13,6 +13,7 @@
     "@backlog/config": "workspace:*",
     "@backlog/claims": "workspace:*",
     "@backlog/git": "workspace:*",
+    "@backlog/hooks": "workspace:*",
     "@backlog/schemas": "workspace:*",
     "execa": "^9.6.0",
     "yaml": "^2.8.0"

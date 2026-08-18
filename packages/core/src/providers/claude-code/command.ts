@@ -34,6 +34,8 @@ export interface ClaudeCodeCommandInput {
   allowedTools?: readonly string[] | undefined;
   /** Continue an earlier conversation instead of starting one. */
   resumeSessionId?: string | undefined;
+  /** Absolute path to a Stop hook script, attached via --settings. */
+  stopHookCommand?: string | undefined;
 }
 
 export interface ProviderCommand {
@@ -104,8 +106,19 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
   if (!isBlank(input.resumeSessionId)) {
     args.push("--resume", input.resumeSessionId.trim());
   }
+  // One payload carries both, and it is additive on top of the user's own
+  // settings rather than replacing them — verified on claude 2.1.234. The
+  // emission is no longer gated on the profile: a run has a hook whether or
+  // not it has a profile.
+  const settings: Record<string, unknown> = {};
   if (!isBlank(input.profile)) {
-    args.push("--settings", JSON.stringify({ env: { CLAUDE_CODE_PROFILE: input.profile.trim() } }));
+    settings["env"] = { CLAUDE_CODE_PROFILE: input.profile.trim() };
+  }
+  if (!isBlank(input.stopHookCommand)) {
+    settings["hooks"] = { Stop: [{ hooks: [{ type: "command", command: input.stopHookCommand.trim() }] }] };
+  }
+  if (Object.keys(settings).length > 0) {
+    args.push("--settings", JSON.stringify(settings));
   }
 
   // The prompt goes on stdin, never in argv: the variadic tool flags would eat

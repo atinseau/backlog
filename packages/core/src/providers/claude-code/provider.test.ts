@@ -228,4 +228,19 @@ describe("buildRunCommand", () => {
     };
     expect(Object.keys(config.mcpServers.backlog?.env ?? {})).toEqual(["BACKLOG_RUN_ID", "BACKLOG_TASK_ID"]);
   });
+
+  it("attaches a Stop hook to every run", () => {
+    const command = buildRunCommand({
+      agent: agentFixture(),
+      prompt: "do the work",
+      cwd: "/tmp/worktree",
+      backlogDir: "/tmp/project/.backlog",
+      env: {},
+      getSecret: noSecrets,
+      onActivity: () => {},
+    });
+
+    const settings = JSON.parse(command.args[command.args.indexOf("--settings") + 1] ?? "{}");
+    expect(settings.hooks?.Stop?.[0]?.hooks?.[0]?.command).toContain("stop-hook");
+  });
 });

@@ -58,6 +58,27 @@ describe("buildClaudeCodeCommand", () => {
     expect(JSON.parse(settings)).toEqual({ env: { CLAUDE_CODE_PROFILE: "work" } });
   });
 
+  it("carries a profile and a Stop hook in one --settings payload", () => {
+    const command = buildClaudeCodeCommand({
+      executable: "claude",
+      prompt: "x",
+      profile: "work",
+      stopHookCommand: "/tmp/project/.backlog/bin/stop-hook",
+    });
+
+    const settings = JSON.parse(command.args[command.args.indexOf("--settings") + 1] ?? "{}");
+    expect(settings.env).toEqual({ CLAUDE_CODE_PROFILE: "work" });
+    expect(settings.hooks).toEqual({
+      Stop: [{ hooks: [{ type: "command", command: "/tmp/project/.backlog/bin/stop-hook" }] }],
+    });
+  });
+
+  it("emits no --settings when there is neither a profile nor a hook", () => {
+    const command = buildClaudeCodeCommand({ executable: "claude", prompt: "x" });
+
+    expect(command.args).not.toContain("--settings");
+  });
+
   it("emits a single JSON object when a structured result is requested", () => {
     const command = buildClaudeCodeCommand({ executable: "claude", prompt: "x", outputFormat: "json" });
 
