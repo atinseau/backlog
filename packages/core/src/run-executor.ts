@@ -10,6 +10,7 @@ import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.j
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import { listTraces } from "./trace-store.js";
 import { recordUsage } from "./usage.js";
 
 // One pipeline for every runtime. The provider owns the conversation with the
@@ -195,6 +196,30 @@ export async function executeAgentRun(params: ExecuteAgentRunParams): Promise<bo
 
     if (!result.ok) {
       await handleFailure(params, provider, result);
+      return true;
+    }
+
+    // The trace is the only thing about this run that outlives it, and the
+    // contract has no state that means "nothing to record": `outcome` is a
+    // closed enum, and `blocked` — the agent's only way to ask a human for
+    // help — requires an `open_question`. So an absent trace is not an
+    // ambiguous signal, it is a run that produced nothing anyone can act on.
+    //
+    // Checked here rather than in a runtime, because this is the single place
+    // every exit-0 run passes: a `custom` run attaches neither an MCP server
+    // nor a hook, and is covered by the same three lines.
+    const recorded = listTraces(backlogDir, params.workItem.id).some((trace) => trace.run_id === run.id);
+    if (!recorded) {
+      await failRun(
+        backlogDir,
+        run.id,
+        `trace_missing: agent ${params.agent.id} finished without recording a trace`,
+      );
+      appendRunEvent(backlogDir, run.id, {
+        ts: new Date().toISOString(),
+        type: "executor.failed",
+        message: "No trace was recorded for this run; see the trace contract in the run prompt.",
+      });
       return true;
     }
 
