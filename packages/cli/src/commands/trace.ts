@@ -72,6 +72,11 @@ export function runTraceShow(backlogDir: string, taskId: string): string[] {
   return lines;
 }
 
+export async function runTraceCheck(backlogDir: string, runId: string, taskId: string): Promise<number> {
+  const recorded = listTraces(backlogDir, taskId).some((trace) => trace.run_id === runId);
+  return recorded ? 0 : 1;
+}
+
 function resolveBacklogDir(projectOption?: string): string {
   const project = findProject(projectOption ?? process.cwd());
   if (!project) {
@@ -105,5 +110,21 @@ export function registerTraceCommand(program: Command): void {
       for (const line of runTraceShow(resolveBacklogDir(options.project), taskId)) {
         console.log(line);
       }
+    });
+
+  trace
+    .command("check")
+    .description("Exit 0 if this run recorded a trace on this ticket, 1 if it did not")
+    .option("--project <path>", "Project to operate on. Defaults to the resolved one.")
+    .requiredOption("--run <id>", "Run id to look for")
+    .requiredOption("--task <id>", "Ticket the trace belongs to")
+    .action(async (options: { run: string; task: string; project?: string }) => {
+      // The generated Stop hook is the caller. It reads nothing from stdout —
+      // the exit code is the whole answer — so keep the output for a human
+      // debugging the hook by hand.
+      const backlogDir = resolveBacklogDir(options.project);
+      const exitCode = await runTraceCheck(backlogDir, options.run, options.task);
+      console.log(exitCode === 0 ? `trace recorded for ${options.run}` : `no trace for ${options.run}`);
+      process.exitCode = exitCode;
     });
 }

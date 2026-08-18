@@ -4,8 +4,8 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "bun:test";
 import { initLayout } from "@backlog/config";
 import { git } from "@backlog/git";
-import { createSubTask, createTask, getSubTask, listTraces } from "@backlog/core";
-import { readTraceFromStdin, runTraceShow, runTraceWrite } from "./trace.js";
+import { appendTrace, createSubTask, createTask, getSubTask, listTraces } from "@backlog/core";
+import { readTraceFromStdin, runTraceCheck, runTraceShow, runTraceWrite } from "./trace.js";
 
 async function createWorkspace(): Promise<string> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "backlog-cli-trace-"));
@@ -102,6 +102,24 @@ describe("backlog trace", () => {
 
   it("says so plainly when a task has no trace", () => {
     expect(runTraceShow(backlogDir, taskId).join("\n")).toContain("No trace");
+  });
+
+  it("exits 0 when a trace exists for the run and 1 when it does not", async () => {
+    appendTrace(backlogDir, {
+      version: 1,
+      run_id: "run_present",
+      task_id: taskId,
+      outcome: "implemented",
+      summary: "did the thing",
+      created_at: "2026-08-18T00:00:00.000Z",
+      constraints: [],
+      decisions: [],
+      discovered_deps: [],
+      consolidation_hint: "none",
+    });
+
+    await expect(runTraceCheck(backlogDir, "run_present", taskId)).resolves.toBe(0);
+    await expect(runTraceCheck(backlogDir, "run_absent", taskId)).resolves.toBe(1);
   });
 
   it("parses a JSON payload from a stdin stream", async () => {
