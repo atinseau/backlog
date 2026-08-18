@@ -12,7 +12,7 @@ import path from "node:path";
 // guardrail that hangs an agent is worse than no guardrail, and blocking
 // forever is the only failure this script could cause that the finalizer
 // would not catch.
-function renderStopHook(): string {
+function renderStopHook(projectRoot: string): string {
   return `#!/usr/bin/env bash
 set -uo pipefail
 
@@ -35,8 +35,14 @@ fi
 # generated pre-commit hook uses, and the reason that exemption exists.
 export BACKLOG_HOOK_INVOCATION=1
 
+# The same resolution order as the pre-commit shim, and for the same reason: a
+# \`backlog\` on PATH that predates \`trace check\` exits 1 on the unknown
+# subcommand, which this hook would read as "trace genuinely missing" and block
+# on. Preferring a built source tree keeps a dev run off that path.
 resolve_backlog() {
+  local workspace_bin="${projectRoot}/dist/backlog"
   if [[ -n "\${BACKLOG_DEV_BIN:-}" && -x "$BACKLOG_DEV_BIN" ]]; then echo "$BACKLOG_DEV_BIN"; return 0; fi
+  if [[ -x "$workspace_bin" ]]; then echo "$workspace_bin"; return 0; fi
   if command -v backlog >/dev/null 2>&1; then command -v backlog; return 0; fi
   if [[ -x "$HOME/.local/bin/backlog" ]]; then echo "$HOME/.local/bin/backlog"; return 0; fi
   return 1
@@ -62,7 +68,7 @@ export function writeStopHook(backlogDir: string): string {
   const binDir = path.join(backlogDir, "bin");
   fs.mkdirSync(binDir, { recursive: true });
   const hookPath = path.join(binDir, "stop-hook");
-  fs.writeFileSync(hookPath, renderStopHook(), "utf8");
+  fs.writeFileSync(hookPath, renderStopHook(path.dirname(backlogDir)), "utf8");
   fs.chmodSync(hookPath, 0o755);
   return hookPath;
 }
