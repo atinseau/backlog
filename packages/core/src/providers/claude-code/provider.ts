@@ -125,8 +125,9 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     // `--allowedTools` only auto-approves; it excludes nothing.
     allowedTools: context.mcpTools.map((name) => `mcp__${MCP_SERVER_NAME}__${name}`),
     // The agent keeps every built-in tool it needs to do the work; the table
-    // closes only the route back into Backlog's own CLI — and only for a run
-    // that got the façade to use instead.
+    // closes only the route back into Backlog's own CLI — and does so on
+    // every run, unconditionally, because every run gets the façade to use
+    // instead.
     disallowedTools: executionDeniedBuiltins(),
     // The user's own MCP servers stay available to a coding agent — see the
     // note on strictMcpConfig in command.ts. The other edge of that trade-off:
@@ -290,10 +291,11 @@ export class ClaudeCodeProvider implements AgentProvider {
   }
 
   /**
-   * A coding run's environment: the auth overlay, plus the CLI role when this
-   * run is one the façade actually covers. `run-executor.ts` deliberately
-   * stamps no role — it is runtime-agnostic, and whether the Backlog CLI is
-   * replaced by anything is a fact about the runtime, not about the pipeline.
+   * A coding run's environment: the auth overlay, plus the CLI role every run
+   * carries now that the façade is unconditional. `run-executor.ts`
+   * deliberately stamps no role — it is runtime-agnostic, and whether the
+   * Backlog CLI is replaced by anything is a fact about the runtime, not
+   * about the pipeline.
    */
   private runEnvironmentFor(request: ProviderRunRequest): NodeJS.ProcessEnv {
     const env = this.environmentFor(request);
