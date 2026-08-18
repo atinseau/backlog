@@ -385,7 +385,7 @@
   "card.play_missing_capabilities": "This task asks for a capability your agent doesn't claim (e.g. run_tests, git_write). Open Agents → your agent → Capability presets and pick one that covers what the task needs.",
   "card.play_no_repository": "No workspace is configured for this project. Add or select a working folder before starting a run.",
   "card.play_repository_missing_checkout": "The targeted workspace has no available local folder. Open Workspaces to relocate it or add a usable folder.",
-  "card.play_repo_blocked": "The workspace this task touches is set to \"no-access\" or isn't in your agent's allowed list. Open Workspaces → that workspace → switch its access mode back to \"read + write\".",
+  "card.play_repo_blocked": "The repository this task touches is disabled, or isn't in your agent's allowed list. Open Workspaces → that repository → turn \"Enabled\" back on, or add it to the agent's allowed repositories.",
   "card.play_missing_executable": "Backlog can't find this agent executable. Check Agents → Command, or install Claude Code in ~/.local/bin, /opt/homebrew/bin or /usr/local/bin.",
   "card.play_repository_not_git": "The targeted folder isn't a Git repository, so Backlog can't start an isolated worktree there. Initialize Git in that folder, or point the workspace at a Git checkout.",
   "card.play_unknown_repo": "This task references a workspace that's no longer registered in this project. Either re-add it under Workspaces, or edit the task to point at an existing workspace.",
