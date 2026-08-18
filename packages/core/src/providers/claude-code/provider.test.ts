@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import type { Agent } from "@backlog/schemas";
 import { contextFor } from "../../contexts/contexts.js";
@@ -21,6 +24,14 @@ function agentFixture(overrides: Partial<Agent> = {}): Agent {
 
 function providerWith(options: { installed?: boolean } = {}): ClaudeCodeProvider {
   return new ClaudeCodeProvider({ executableExists: () => options.installed ?? true });
+}
+
+// buildRunCommand calls writeStopHook(backlogDir), which writes a real file
+// (mkdirSync/writeFileSync/chmodSync) as a side effect. A shared literal path
+// would leave state behind outside any sandbox, so each test gets its own
+// throwaway temp directory instead.
+function tempBacklogDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "backlog-provider-test-"));
 }
 
 const noSecrets = () => null;
@@ -123,11 +134,12 @@ describe("ClaudeCodeProvider.checkReadiness", () => {
 
 describe("buildRunCommand", () => {
   it("attaches the execution tool set to a coding run, and nothing else", () => {
+    const backlogDir = tempBacklogDir();
     const command = buildRunCommand({
       agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir,
       env: {},
       getSecret: noSecrets,
       onActivity: () => {},
@@ -142,7 +154,7 @@ describe("buildRunCommand", () => {
     // standing between a refactor and a privilege escalation.
     const args = config.mcpServers.backlog!.args;
     expect(args[args.indexOf("--audience") + 1]).toBe("execution");
-    expect(args.slice(-2)).toEqual(["--project", "/tmp/project/.backlog"]);
+    expect(args.slice(-2)).toEqual(["--project", backlogDir]);
 
     const allowed = command.args[command.args.indexOf("--allowedTools") + 1]!.split(",");
     expect(allowed).toEqual([...contextFor("execution").mcpTools].map((name) => `mcp__backlog__${name}`));
@@ -160,7 +172,7 @@ describe("buildRunCommand", () => {
       agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir: tempBacklogDir(),
       env: {},
       getSecret: noSecrets,
       onActivity: () => {},
@@ -179,7 +191,7 @@ describe("buildRunCommand", () => {
       agent,
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir: tempBacklogDir(),
       env: {},
       getSecret: noSecrets,
       onActivity: () => {},
@@ -196,7 +208,7 @@ describe("buildRunCommand", () => {
       agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir: tempBacklogDir(),
       env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_SUBTASK_ID: "subtask_1" },
       getSecret: noSecrets,
       onActivity: () => {},
@@ -217,7 +229,7 @@ describe("buildRunCommand", () => {
       agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir: tempBacklogDir(),
       env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_TARGET_TYPE: "task" },
       getSecret: noSecrets,
       onActivity: () => {},
@@ -234,7 +246,7 @@ describe("buildRunCommand", () => {
       agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
+      backlogDir: tempBacklogDir(),
       env: {},
       getSecret: noSecrets,
       onActivity: () => {},

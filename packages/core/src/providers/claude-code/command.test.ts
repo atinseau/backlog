@@ -79,6 +79,20 @@ describe("buildClaudeCodeCommand", () => {
     expect(command.args).not.toContain("--settings");
   });
 
+  it("carries the Stop hook alone, with no env key, when there is no profile", () => {
+    const command = buildClaudeCodeCommand({
+      executable: "claude",
+      prompt: "x",
+      stopHookCommand: "/tmp/project/.backlog/bin/stop-hook",
+    });
+
+    const settings = JSON.parse(command.args[command.args.indexOf("--settings") + 1] ?? "{}");
+    expect(settings.hooks).toEqual({
+      Stop: [{ hooks: [{ type: "command", command: "/tmp/project/.backlog/bin/stop-hook" }] }],
+    });
+    expect(settings.env).toBeUndefined();
+  });
+
   it("emits a single JSON object when a structured result is requested", () => {
     const command = buildClaudeCodeCommand({ executable: "claude", prompt: "x", outputFormat: "json" });
 
