@@ -28,7 +28,6 @@ export class CustomProvider implements AgentProvider {
       models: [],
       reasoning: { supported: false, levels: [], allowsCustom: false },
       authModes: ["auto"],
-      sandboxModes: [],
       capabilities: { executeRun: true, textCompletion: false, structuredOutput: false },
       requiresCommand: true,
     };

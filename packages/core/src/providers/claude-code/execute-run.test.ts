@@ -149,35 +149,19 @@ describe("ClaudeCodeProvider.executeRun", () => {
     expect(fs.readFileSync(probe, "utf8").trim()).toBe("sk-ant-stored");
   });
 
-  // The CLI is closed only where the MCP façade replaces it. This runtime does
-  // attach `--mcp-config`, so it is the one that closes the CLI — but only for
-  // a run whose permission mode lets the model call an MCP tool at all.
-  it("closes the Backlog CLI to a run that can actually reach the façade", async () => {
+  // The CLI is closed exactly where the MCP façade replaces it, and this
+  // runtime attaches `--mcp-config` and runs under `bypassPermissions` on
+  // every run — there is no longer a condition under which it does not.
+  it("closes the Backlog CLI on every run, because every run reaches the façade", async () => {
     const dir = scratchDir();
     const probe = path.join(dir, "seen-role.txt");
     const binary = fakeClaude(dir, {
       script: [`echo "\${BACKLOG_AGENT_ROLE-UNSET}" > ${JSON.stringify(probe)}`, "exit 0"],
     });
 
-    await provider().executeRun(runRequest(dir, agentFixture(binary, { sandbox_mode: "workspace-write" })));
+    await provider().executeRun(runRequest(dir, agentFixture(binary)));
 
     expect(fs.readFileSync(probe, "utf8").trim()).toBe("execution");
-  });
-
-  it("leaves the CLI open to a read-only run, whose plan mode refuses MCP", async () => {
-    // `read-only` maps to `--permission-mode plan`, and plan mode refuses MCP
-    // calls. Stamping the role here took away the CLI without giving anything
-    // back: the run could reach neither `trace_write` nor `backlog trace
-    // write`, and finished with no recorded outcome.
-    const dir = scratchDir();
-    const probe = path.join(dir, "seen-role.txt");
-    const binary = fakeClaude(dir, {
-      script: [`echo "\${BACKLOG_AGENT_ROLE-UNSET}" > ${JSON.stringify(probe)}`, "exit 0"],
-    });
-
-    await provider().executeRun(runRequest(dir, agentFixture(binary, { sandbox_mode: "read-only" })));
-
-    expect(fs.readFileSync(probe, "utf8").trim()).toBe("UNSET");
   });
 
   it("falls back to raw stdout as the summary when no result event is emitted", async () => {

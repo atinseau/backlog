@@ -585,7 +585,6 @@
   const hasRunnableWorkspace = $derived(
     repoOptions.some((repo) =>
       repo.enabled !== false &&
-      repo.access_mode !== "no-access" &&
       (Boolean(repo.checkout_path ?? repo.path) || Boolean(repo.remote_url)),
     ),
   );

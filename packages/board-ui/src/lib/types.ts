@@ -121,8 +121,6 @@ export type RepositoryProvider = "local" | "github" | "gitlab" | "bitbucket" | "
 
 export type AutonomyMode = "observe" | "assist" | "delegate" | "autopilot";
 
-export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
-
 /** How an agent authenticates. `auto` uses a key when one exists, otherwise
  * the runtime's own logged-in session — which is what makes a Claude
  * subscription usable without storing an API key. */
@@ -155,7 +153,6 @@ export interface ProviderSummary {
     default_level: string | null;
   };
   auth_modes: AgentAuthMode[];
-  sandbox_modes: SandboxMode[];
   capabilities: {
     execute_run: boolean;
     text_completion: boolean;
@@ -220,7 +217,6 @@ export interface AgentSummary {
   capabilities: string[];
   allowed_repos: string[];
   allowed_risk: Array<"low" | "medium" | "high">;
-  sandbox_mode: SandboxMode | null;
   auth_mode?: AgentAuthMode | null;
   success_mode: "review" | "complete" | null;
   model: string | null;
@@ -318,8 +314,6 @@ export interface CurrentProject {
   } | null;
 }
 
-export type RepositoryAccessMode = "read-write" | "read-only" | "no-access";
-
 export interface Repository {
   id: string;
   name?: string;
@@ -330,10 +324,6 @@ export interface Repository {
   default_branch: string;
   role?: string;
   enabled: boolean;
-  // Defaults to "read-write" server-side. Existing config.toml files
-  // load with this default applied, so the field is always set on the
-  // wire — but we mark it optional so older clients don't choke.
-  access_mode?: RepositoryAccessMode;
   location?: RepositoryLocation;
   remote_type?: RepositoryRemoteType;
   remote_provider?: RepositoryRemoteProvider;

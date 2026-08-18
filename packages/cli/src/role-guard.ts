@@ -19,7 +19,11 @@
 // buys is the difference between a CLI that is advertised and one command away,
 // and one that is explicitly refused.
 
-/** Stamped on a coding run's environment by `environmentFor` in run-executor.ts. */
+/**
+ * Stamped on a coding run's environment by `runEnvironmentFor` in
+ * providers/claude-code/provider.ts — the runtime that attaches the MCP façade
+ * this refusal points at is the one that closes the CLI.
+ */
 export const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
 
 /** Its only value today: a model executing a coding task in a worktree. */

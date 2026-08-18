@@ -1,4 +1,4 @@
-import type { Agent, AgentAuthMode, SandboxMode } from "@backlog/schemas";
+import type { Agent, AgentAuthMode } from "@backlog/schemas";
 import type { UsageBlock } from "../provider-usage.js";
 
 // The provider contract. Everything the product does with an LLM goes
@@ -52,7 +52,6 @@ export interface ProviderDescriptor {
   models: ProviderModelChoice[];
   reasoning: ProviderReasoningSupport;
   authModes: AgentAuthMode[];
-  sandboxModes: SandboxMode[];
   capabilities: ProviderCapabilities;
   /** True when the agent must carry its own `command` (generic runtimes). */
   requiresCommand: boolean;

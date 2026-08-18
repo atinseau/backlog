@@ -22,7 +22,7 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string; re
     root,
     projectName: "launcher-test",
     mode: "embedded",
-    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true }],
   });
   return { root, backlogDir: path.join(root, ".backlog"), repoId: "demo" };
 }
@@ -33,7 +33,7 @@ async function makeProjectWithNonGitCheckout(): Promise<{ root: string; backlogD
     root,
     projectName: "nongit-launcher-test",
     mode: "embedded",
-    repos: [{ id: "plain", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "plain", path: root, default_branch: "main", enabled: true }],
   });
   return { root, backlogDir: path.join(root, ".backlog"), repoId: "plain", checkoutPath: root };
 }
@@ -61,7 +61,6 @@ async function createRemoteWorkspace(): Promise<{ root: string; backlogDir: stri
         id: "cloud",
         default_branch: "main",
         enabled: true,
-        access_mode: "read-write",
         location: "remote",
         remote_type: "git",
         remote_provider: "custom",

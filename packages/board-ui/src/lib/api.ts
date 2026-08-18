@@ -275,7 +275,6 @@ export async function fetchAgents(): Promise<AgentSummary[]> {
 export interface UpdateAgentInput {
   enabled?: boolean;
   max_concurrent_runs?: number;
-  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access" | null;
   auth_mode?: AgentAuthMode | null;
   success_mode?: "review" | "complete" | null;
   allowed_repos?: string[];
@@ -308,7 +307,6 @@ export interface CreateAgentInput {
   profile?: string;
   command?: string;
   enabled?: boolean;
-  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access";
   auth_mode?: AgentAuthMode;
   success_mode?: "review" | "complete";
   max_concurrent_runs?: number;
@@ -499,7 +497,6 @@ export interface CreateRepositoryInput {
   default_branch?: string;
   role?: string;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepositoryAccessMode;
   location?: import("./types.js").RepositoryLocation;
   remote_type?: import("./types.js").RepositoryRemoteType;
   remote_provider?: import("./types.js").RepositoryRemoteProvider;
@@ -544,7 +541,6 @@ export interface UpdateRepositoryInput {
   default_branch?: string;
   role?: string | null;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepositoryAccessMode;
   location?: import("./types.js").RepositoryLocation;
   remote_type?: import("./types.js").RepositoryRemoteType | null;
   remote_provider?: import("./types.js").RepositoryRemoteProvider | null;

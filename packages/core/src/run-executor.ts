@@ -8,7 +8,6 @@ import { expandedPath } from "./providers/process.js";
 import type { AgentProvider, ProviderRunResult } from "./providers/types.js";
 import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.js";
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
-import { getRepo } from "./repo-service.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
 import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
 import { recordUsage } from "./usage.js";
@@ -31,22 +30,6 @@ export interface ExecuteAgentRunParams {
   priorFailureFeedback?: string;
   /** 1-indexed. Above 1, the prompt gets the "this is a retry" framing. */
   attemptNumber?: number;
-}
-
-/**
- * Repository access policy beats the agent's own sandbox setting: the policy
- * belongs to the resource being touched, not to the runner. A read-only
- * repository coerces the agent; a no-access one refuses the run outright.
- */
-function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunParams {
-  const accessMode = getRepo(params.backlogDir, params.task.repo)?.access_mode ?? "read-write";
-  if (accessMode === "no-access") {
-    throw new Error(`Repository ${params.task.repo} is set to no-access; runs are not allowed.`);
-  }
-  if (accessMode === "read-only") {
-    return { ...params, agent: { ...params.agent, sandbox_mode: "read-only" } };
-  }
-  return params;
 }
 
 function promptFor(params: ExecuteAgentRunParams): string {
@@ -84,7 +67,6 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
-    ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
   };
   // Two inherited values have to be removed rather than merely not written,
   // because `...process.env` is spread in above.
@@ -173,8 +155,7 @@ async function handleFailure(
  * @returns false when the agent's provider is unknown, so the caller can
  * report a typed skip rather than treating the no-op as success.
  */
-export async function executeAgentRun(rawParams: ExecuteAgentRunParams): Promise<boolean> {
-  const params = applyRepoAccessPolicy(rawParams);
+export async function executeAgentRun(params: ExecuteAgentRunParams): Promise<boolean> {
   const provider = providerFor(params.agent.provider);
   if (!provider?.executeRun) return false;
 

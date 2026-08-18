@@ -15,19 +15,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../project-resolver.js";
 
-// `project-write` is the label the UI shows for `workspace-write`; accept both
-// so an older client keeps working.
-const sandboxModeSchema = z
-  .enum(["read-only", "project-write", "workspace-write", "danger-full-access"])
-  .transform((value) => (value === "project-write" ? "workspace-write" : value));
-
 const authModeSchema = z.enum(["auto", "subscription", "api_key"]);
 
 const updateBodySchema = z
   .object({
     enabled: z.boolean().optional(),
     max_concurrent_runs: z.number().int().positive().optional(),
-    sandbox_mode: sandboxModeSchema.nullable().optional(),
     auth_mode: authModeSchema.nullable().optional(),
     success_mode: z.enum(["review", "complete"]).nullable().optional(),
     allowed_repos: z.array(z.string()).optional(),
@@ -50,7 +43,6 @@ const createBodySchema = z
     profile: z.string().optional(),
     command: z.string().optional(),
     enabled: z.boolean().optional(),
-    sandbox_mode: sandboxModeSchema.optional(),
     auth_mode: authModeSchema.optional(),
     success_mode: z.enum(["review", "complete"]).optional(),
     max_concurrent_runs: z.number().int().positive().optional(),
@@ -73,7 +65,6 @@ function serializeProvider(descriptor: ProviderDescriptor) {
       default_level: descriptor.reasoning.defaultLevel ?? null,
     },
     auth_modes: descriptor.authModes,
-    sandbox_modes: descriptor.sandboxModes,
     capabilities: {
       execute_run: descriptor.capabilities.executeRun,
       text_completion: descriptor.capabilities.textCompletion,
@@ -97,7 +88,6 @@ function serializeAgent(backlogDir: string, agent: Agent, activeRuns: number) {
     capabilities: agent.capabilities,
     allowed_repos: agent.allowed_repos,
     allowed_risk: agent.allowed_risk,
-    sandbox_mode: agent.sandbox_mode ?? null,
     auth_mode: agent.auth_mode ?? null,
     success_mode: agent.success_mode ?? null,
     model: agent.model ?? null,
@@ -123,8 +113,6 @@ function toUpdateInput(data: z.infer<typeof updateBodySchema>): Parameters<typeo
   if (data.capabilities !== undefined) input.capabilities = data.capabilities;
 
   // A null clears the override; undefined leaves it alone.
-  if (data.sandbox_mode === null) input.clearSandboxMode = true;
-  else if (data.sandbox_mode !== undefined) input.sandboxMode = data.sandbox_mode;
   if (data.auth_mode === null) input.clearAuthMode = true;
   else if (data.auth_mode !== undefined) input.authMode = data.auth_mode;
   if (data.success_mode === null) input.clearSuccessMode = true;
@@ -147,7 +135,6 @@ function toAddInput(data: z.infer<typeof createBodySchema>): Parameters<typeof a
     ...(data.profile !== undefined ? { profile: data.profile } : {}),
     ...(data.command !== undefined ? { command: data.command } : {}),
     ...(data.enabled !== undefined ? { enabled: data.enabled } : {}),
-    ...(data.sandbox_mode !== undefined ? { sandboxMode: data.sandbox_mode } : {}),
     ...(data.auth_mode !== undefined ? { authMode: data.auth_mode } : {}),
     ...(data.success_mode !== undefined ? { successMode: data.success_mode } : {}),
     ...(data.max_concurrent_runs !== undefined ? { maxConcurrentRuns: data.max_concurrent_runs } : {}),

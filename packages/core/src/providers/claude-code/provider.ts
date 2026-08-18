@@ -19,7 +19,7 @@ import type {
 } from "../types.js";
 import { ANTHROPIC_API_KEY, resolveClaudeCodeAuth } from "./auth.js";
 import { CLAUDE_CODE_MODELS, CLAUDE_CODE_REASONING } from "./catalogue.js";
-import { buildClaudeCodeCommand, permitsMcpTools, type ProviderCommand } from "./command.js";
+import { buildClaudeCodeCommand, type ProviderCommand } from "./command.js";
 import { isClaudeCodeResultLine, parseClaudeCodeStreamLine } from "./stream.js";
 
 export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
@@ -70,54 +70,22 @@ function mcpServerEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 const AGENT_ROLE_ENV = "BACKLOG_AGENT_ROLE";
 
 /**
- * Whether this run actually gets the Backlog façade — the MCP tool set the CLI
- * closure is traded against.
- *
- * `--mcp-config` is attached to every coding run, but attaching a server is not
- * the same as reaching it: `read-only` (which a `read-only` repository coerces
- * an agent into, whatever its own sandbox mode) maps to `--permission-mode
- * plan`, and plan mode refuses MCP calls. So this is the one question both
- * halves of the trade have to agree on, and it is asked once.
- */
-function facadeReachable(agent: Pick<Agent, "sandbox_mode">): boolean {
-  return permitsMcpTools(agent.sandbox_mode);
-}
-
-/**
- * The CLI role this run's agent carries, or null to carry none.
+ * The CLI role every run's agent carries.
  *
  * The role is not a label on a run, it is one half of a trade: the CLI is
- * closed *because* the façade replaces it. So it is stamped by the runtime
- * that hands the façade out, and only when that façade is reachable.
+ * closed *because* the façade replaces it. Both halves are now unconditional,
+ * so they cannot drift apart.
  */
-export function executionCliRole(agent: Pick<Agent, "sandbox_mode">): string | null {
-  const { cliRole } = contextFor("execution");
-  if (!cliRole) return null;
-  return facadeReachable(agent) ? cliRole : null;
+export function executionCliRole(): string | null {
+  return contextFor("execution").cliRole;
 }
 
 /**
- * The other half of the same trade, and it has to move with it.
- *
- * The `execution` row's `deniedBuiltins` is *only* the CLI closure — today the
- * single entry `Bash(backlog:*)`, which denies any shell command whose first
- * word is `backlog`. Emitting it unconditionally meant dropping the role stamp
- * merely changed *which component* refused a read-only run: no `trace_write`
- * (plan mode refuses MCP) and no `backlog trace write` (this deny rule, which
- * fires under `plan` exactly as it does under `bypassPermissions`). The run
- * still had no channel at all, and finished silently with no trace.
- *
- * Measured on `claude` 2.1.234 with the real run prompt: with the rule, a
- * read-only run recorded a trace 0 times in 4; without it, 2 times in 10. Plan
- * mode does not block a mutating `Bash` call — the model usually declines one
- * on its own, which is a reliability problem, not a permission one. An
- * unreliable channel still beats none.
- *
- * If a denial that is *not* the CLI closure is ever added to that row, this
- * function has to start distinguishing them instead of returning the row whole.
+ * The other half of the same trade. Today the single entry `Bash(backlog:*)`,
+ * which denies any shell command whose first word is `backlog`.
  */
-export function executionDeniedBuiltins(agent: Pick<Agent, "sandbox_mode">): readonly string[] {
-  return facadeReachable(agent) ? contextFor("execution").deniedBuiltins : [];
+export function executionDeniedBuiltins(): readonly string[] {
+  return contextFor("execution").deniedBuiltins;
 }
 
 /**
@@ -137,7 +105,6 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     model: agent.model,
     reasoningEffort: request.reasoningEffort,
     profile: agent.profile,
-    sandboxMode: agent.sandbox_mode,
     mcpServers: {
       [MCP_SERVER_NAME]: {
         command: self.command,
@@ -158,9 +125,10 @@ export function buildRunCommand(request: ProviderRunRequest): ProviderCommand {
     // `--allowedTools` only auto-approves; it excludes nothing.
     allowedTools: context.mcpTools.map((name) => `mcp__${MCP_SERVER_NAME}__${name}`),
     // The agent keeps every built-in tool it needs to do the work; the table
-    // closes only the route back into Backlog's own CLI — and only for a run
-    // that got the façade to use instead.
-    disallowedTools: executionDeniedBuiltins(agent),
+    // closes only the route back into Backlog's own CLI — and does so on
+    // every run, unconditionally, because every run gets the façade to use
+    // instead.
+    disallowedTools: executionDeniedBuiltins(),
     // The user's own MCP servers stay available to a coding agent — see the
     // note on strictMcpConfig in command.ts. The other edge of that trade-off:
     // without `--strict-mcp-config` the CLI also loads project-scoped
@@ -189,7 +157,6 @@ export class ClaudeCodeProvider implements AgentProvider {
       models: CLAUDE_CODE_MODELS,
       reasoning: CLAUDE_CODE_REASONING,
       authModes: ["auto", "subscription", "api_key"],
-      sandboxModes: ["read-only", "workspace-write", "danger-full-access"],
       capabilities: { executeRun: true, textCompletion: true, structuredOutput: true },
       requiresCommand: false,
     };
@@ -323,14 +290,15 @@ export class ClaudeCodeProvider implements AgentProvider {
   }
 
   /**
-   * A coding run's environment: the auth overlay, plus the CLI role when this
-   * run is one the façade actually covers. `run-executor.ts` deliberately
-   * stamps no role — it is runtime-agnostic, and whether the Backlog CLI is
-   * replaced by anything is a fact about the runtime, not about the pipeline.
+   * A coding run's environment: the auth overlay, plus the CLI role every run
+   * carries now that the façade is unconditional. `run-executor.ts`
+   * deliberately stamps no role — it is runtime-agnostic, and whether the
+   * Backlog CLI is replaced by anything is a fact about the runtime, not
+   * about the pipeline.
    */
   private runEnvironmentFor(request: ProviderRunRequest): NodeJS.ProcessEnv {
     const env = this.environmentFor(request);
-    const role = executionCliRole(request.agent);
+    const role = executionCliRole();
     return role ? { ...env, [AGENT_ROLE_ENV]: role } : env;
   }
 

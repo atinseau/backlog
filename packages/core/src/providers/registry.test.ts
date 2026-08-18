@@ -10,7 +10,6 @@ function stubProvider(id: string, aliases: string[] = []): AgentProvider {
     models: [],
     reasoning: { supported: false, levels: [], allowsCustom: false },
     authModes: ["auto"],
-    sandboxModes: [],
     capabilities: { executeRun: true, textCompletion: false, structuredOutput: false },
     requiresCommand: false,
   };

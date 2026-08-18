@@ -51,7 +51,6 @@ describe("agents", () => {
       model: "opus-mini",
       profile: "default",
       command: "/tmp/fake-claude",
-      sandboxMode: "danger-full-access",
       successMode: "complete",
       maxConcurrentRuns: 2,
       allowedRepos: ["backlog"],
@@ -67,7 +66,6 @@ describe("agents", () => {
     expect(updated.model).toBe("opus-mini");
     expect(updated.profile).toBe("default");
     expect(updated.command).toBe("/tmp/fake-claude");
-    expect(updated.sandbox_mode).toBe("danger-full-access");
     expect(updated.success_mode).toBe("complete");
     expect(updated.max_concurrent_runs).toBe(2);
     expect(updated.allowed_repos).toEqual(["backlog"]);

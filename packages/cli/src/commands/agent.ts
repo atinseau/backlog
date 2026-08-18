@@ -48,12 +48,6 @@ function parseKeyValuePairs(pairs: string[]): Record<string, string> {
   return environment;
 }
 
-function normalizeSandboxMode(value: string): "read-only" | "workspace-write" | "danger-full-access" {
-  if (value === "project-write") return "workspace-write";
-  if (value === "read-only" || value === "workspace-write" || value === "danger-full-access") return value;
-  throw new Error(`Invalid --sandbox-mode: ${value}`);
-}
-
 export function registerAgentCommand(program: Command): void {
   const agents = program.command("agents").description("Manage configured agents");
 
@@ -84,7 +78,6 @@ export function registerAgentCommand(program: Command): void {
     .option("--model <model>", "Model to request; any value the runtime accepts")
     .option("--profile <profile>", "Runtime profile")
     .option("--command <command>", "Executable override (required for `custom`)")
-    .option("--sandbox-mode <mode>", "read-only, project-write, or danger-full-access")
     .option("--auth-mode <mode>", "auto (default), subscription, or api_key")
     .option("--success-mode <mode>", "review or complete")
     .option("--max-concurrent-runs <count>", "Concurrency limit")
@@ -96,7 +89,6 @@ export function registerAgentCommand(program: Command): void {
       model?: string;
       profile?: string;
       command?: string;
-      sandboxMode?: string;
       authMode?: string;
       successMode?: "review" | "complete";
       maxConcurrentRuns?: string;
@@ -111,7 +103,6 @@ export function registerAgentCommand(program: Command): void {
         ...(options.model !== undefined ? { model: options.model } : {}),
         ...(options.profile !== undefined ? { profile: options.profile } : {}),
         ...(options.command !== undefined ? { command: options.command } : {}),
-        ...(options.sandboxMode !== undefined ? { sandboxMode: normalizeSandboxMode(options.sandboxMode) } : {}),
         ...(options.authMode !== undefined ? { authMode: normalizeAuthMode(options.authMode) } : {}),
         ...(options.successMode !== undefined ? { successMode: options.successMode } : {}),
         ...(options.maxConcurrentRuns !== undefined ? { maxConcurrentRuns: Number(options.maxConcurrentRuns) } : {}),
@@ -168,7 +159,6 @@ export function registerAgentCommand(program: Command): void {
       console.log(`Provider: ${agent.provider}`);
       console.log(`Model: ${agent.model ?? "(runtime default)"}`);
       console.log(`Auth mode: ${agent.auth_mode ?? "auto"}`);
-      console.log(`Sandbox: ${agent.sandbox_mode ?? "(runtime default)"}`);
       console.log(`Enabled: ${agent.enabled}`);
       console.log(`Max concurrent runs: ${agent.max_concurrent_runs}`);
       console.log(`Allowed repositories: ${agent.allowed_repos.length > 0 ? agent.allowed_repos.join(", ") : "all"}`);
@@ -209,8 +199,6 @@ export function registerAgentCommand(program: Command): void {
     .option("--clear-profile", "Remove the profile override")
     .option("--command <command>", "Executable override")
     .option("--clear-command", "Remove the executable override")
-    .option("--sandbox-mode <mode>", "read-only, project-write, or danger-full-access")
-    .option("--clear-sandbox-mode", "Remove the sandbox mode override")
     .option("--auth-mode <mode>", "auto, subscription, or api_key")
     .option("--clear-auth-mode", "Fall back to the default auth mode")
     .option("--success-mode <mode>", "review or complete")
@@ -228,8 +216,6 @@ export function registerAgentCommand(program: Command): void {
       clearProfile?: boolean;
       command?: string;
       clearCommand?: boolean;
-      sandboxMode?: string;
-      clearSandboxMode?: boolean;
       authMode?: string;
       clearAuthMode?: boolean;
       successMode?: "review" | "complete";
@@ -248,8 +234,6 @@ export function registerAgentCommand(program: Command): void {
         ...(options.clearProfile ? { clearProfile: true } : {}),
         ...(options.command !== undefined ? { command: options.command } : {}),
         ...(options.clearCommand ? { clearCommand: true } : {}),
-        ...(options.sandboxMode !== undefined ? { sandboxMode: normalizeSandboxMode(options.sandboxMode) } : {}),
-        ...(options.clearSandboxMode ? { clearSandboxMode: true } : {}),
         ...(options.authMode !== undefined ? { authMode: normalizeAuthMode(options.authMode) } : {}),
         ...(options.clearAuthMode ? { clearAuthMode: true } : {}),
         ...(options.successMode !== undefined ? { successMode: options.successMode } : {}),

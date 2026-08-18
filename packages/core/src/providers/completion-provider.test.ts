@@ -14,7 +14,6 @@ function stubProvider(
     models: [],
     reasoning: { supported: false, levels: [], allowsCustom: false },
     authModes: ["auto"],
-    sandboxModes: [],
     capabilities: {
       executeRun: options.executeRun ?? true,
       textCompletion: options.textCompletion ?? true,

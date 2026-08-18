@@ -40,20 +40,18 @@ describe("buildProviderPrompt", () => {
     expect(prompt).toContain("open_question");
   });
 
+  it("names the CLI as the fallback for a runtime that has no `trace_write` tool", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+    // The `custom` runtime attaches no MCP server, so the command line is the
+    // only channel out of such a run. One prompt serves every runtime, so the
+    // fallback has to be named in it.
+    expect(prompt).toContain("backlog trace write");
+  });
+
   it("does not advertise the CLI as a channel", () => {
     const prompt = buildProviderPrompt(target, workItem);
     expect(prompt).not.toContain("on your PATH");
     expect(prompt).not.toContain("backlog task show");
-  });
-
-  // The CLI is closed only where the MCP façade replaces it, so the prompt
-  // cannot claim there is no command line at all — a run that was handed no
-  // tools still owes a trace, and `backlog trace write` is how it pays.
-  it("names the CLI once, as the fallback for a run with no trace_write tool", () => {
-    const prompt = buildProviderPrompt(target, workItem);
-
-    expect(prompt).toContain("If `trace_write` is not in your tool list, run `backlog trace write` instead");
-    expect(prompt).not.toContain("There is no command-line access");
   });
 
   it("names the tools the run actually has", () => {

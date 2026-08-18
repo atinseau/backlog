@@ -20,17 +20,11 @@ describe("buildClaudeCodeCommand", () => {
     expect(command.args).not.toContain("do the thing");
   });
 
-  it("bypasses permissions by default", () => {
+  it("always runs under bypassPermissions — there is one run shape", () => {
     const command = buildClaudeCodeCommand({ executable: "claude", prompt: "x" });
-
     expect(command.args).toContain("--permission-mode");
     expect(command.args[command.args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
-  });
-
-  it("downgrades to plan mode when the agent is sandboxed read-only", () => {
-    const command = buildClaudeCodeCommand({ executable: "claude", prompt: "x", sandboxMode: "read-only" });
-
-    expect(command.args[command.args.indexOf("--permission-mode") + 1]).toBe("plan");
+    expect(command.args).not.toContain("plan");
   });
 
   it("forwards any model string verbatim", () => {

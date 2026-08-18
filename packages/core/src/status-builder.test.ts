@@ -34,8 +34,8 @@ async function createWorkspace(): Promise<{ root: string; backlogDir: string }> 
     projectName: "status-test",
     mode: "embedded",
     repos: [
-      { id: "backlog", path: root, default_branch: "main", enabled: true, access_mode: "read-write" },
-      { id: "docs", path: docsRoot, default_branch: "main", enabled: false, access_mode: "read-write" },
+      { id: "backlog", path: root, default_branch: "main", enabled: true },
+      { id: "docs", path: docsRoot, default_branch: "main", enabled: false },
     ],
   });
   return { root, backlogDir: path.join(root, ".backlog") };

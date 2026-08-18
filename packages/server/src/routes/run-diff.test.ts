@@ -20,7 +20,7 @@ async function makeWorkspace(): Promise<{ workspace: ServerProject; root: string
     root,
     projectName: "run-diff-test",
     mode: "embedded",
-    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true, access_mode: "read-write" }],
+    repos: [{ id: "demo", path: root, default_branch: "main", enabled: true }],
   });
   const backlogDir = path.join(root, ".backlog");
   return {
