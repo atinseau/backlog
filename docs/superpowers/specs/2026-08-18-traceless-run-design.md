@@ -160,6 +160,19 @@ This is deliberately the cheap form. A typed `failure_reason` field on
   Code invocation pays (CLAUDE.md §8); adopting it costs the in-session rescue.
   The rule still binds in that case, which is the point of putting the
   authority in the finalizer.
+- **A run that fails here is not committed and not pushed.** `failRun` is the
+  whole failure path, and `runPostExecutorGitWork` — the commit and the push —
+  lives on the other branch, inside `finalizeSuccessfulRun`. The rule in §2 asks
+  for exactly that: failed, through the same path as a non-zero exit. But the
+  class of run it applies to is new. A run that exits 0 and did the work, and
+  whose only omission is one tool call, leaves its edits in a worktree that
+  `garbageCollectWorktrees` force-removes on the next orchestrator hydrate. What
+  survives is the patch artifact: `collectWorktreeArtifacts` is given the run's
+  own directory to write it in, so `.backlog-run.patch` sits beside `run.json`
+  and travels with the run into `runs/archive/`. That is a fallback, not the
+  work: `git diff --binary` captures tracked modifications only, so a file the
+  agent created and never staged is in neither the commit that was not made nor
+  the patch.
 - **This does not make an agent's trace honest**, only present. A trace whose
   `summary` is wrong passes this check. Judging content is the consolidator's
   problem, not this one.
@@ -171,6 +184,7 @@ This is deliberately the cheap form. A typed `failure_reason` field on
 | Area | Change |
 | --- | --- |
 | `packages/core/src/run-executor.ts` | the success branch checks for a trace with this `run_id` before `finalizeSuccessfulRun`; on absence it takes the `failRun` path with the `trace_missing:` reason |
+| `packages/core/src/run-artifacts.ts` | the uncommitted-work patch is written into the run's own directory instead of the worktree, so the fallback for a failed run outlives the worktree GC |
 | `packages/core/src/providers/claude-code/command.ts` | the `--settings` payload becomes unconditional and gains a `hooks` block |
 | `packages/core/src/providers/claude-code/provider.ts` | supplies the hook declaration for a run, alongside the MCP config it already builds |
 | `packages/hooks` | generates the `Stop` hook script, next to the pre-commit generator |

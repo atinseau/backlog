@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Five problems that come up often, and the shortest path through each.
+Six problems that come up often, and the shortest path through each.
 
 ## 1. Pre-commit hook crashes with `ENOENT … claims/active/CLM-…`
 
@@ -138,3 +138,47 @@ backlog serve --port 7879   # or just pick another port
 The board UI's vite dev server proxies `/api` to `127.0.0.1:7878` by
 default — set `BACKLOG_API_URL=http://127.0.0.1:7879` if you serve on a
 non-default port.
+
+---
+
+## 6. A run failed with `trace_missing: …`
+
+**Symptom** The run's `result` — on the card's blocker, in `backlog runs
+show <run-id>`, in `run.json` — reads:
+
+```
+trace_missing: agent <agent-id> finished without recording a trace
+```
+
+**Cause** The agent's command exited 0, but it never called `trace_write`
+(or `backlog trace write`). The trace is the only record of what a run
+decided, so a run without one is failed rather than succeeded — the check
+sits in `run-executor.ts`, ahead of the success path, and covers every
+runtime. This is a forgotten tool call, not a crash: the run may well have
+done the work.
+
+**Fix** Look at what the agent actually did before re-running it. The run
+is archived, so its evidence is under `runs/archive/<run-id>/`:
+
+```sh
+backlog runs show <run-id>             # status, result, artifacts, recent events
+```
+
+Because the run failed, nothing was committed or pushed — that only
+happens on the success path. The uncommitted edits are in the patch
+artifact, `runs/archive/<run-id>/.backlog-run.patch`, which is kept out of
+the worktree precisely so it outlives it. Apply it wherever you want the
+work:
+
+```sh
+git apply <project>/.backlog/runs/archive/<run-id>/.backlog-run.patch
+```
+
+It holds tracked modifications only — a file the agent created and never
+`git add`ed is not in it. The worktree itself, `worktrees/<repo>/<run-id>/`,
+survives until the next orchestrator hydrate, which force-removes the
+worktree of every archived run; if you are quick, everything is still
+there.
+
+If this happens often, the trace contract in the run prompt is not landing
+— the fix belongs in `run-prompt.ts`, not in re-running the agent.
