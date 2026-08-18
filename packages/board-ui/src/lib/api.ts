@@ -497,7 +497,6 @@ export interface CreateRepositoryInput {
   default_branch?: string;
   role?: string;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepositoryAccessMode;
   location?: import("./types.js").RepositoryLocation;
   remote_type?: import("./types.js").RepositoryRemoteType;
   remote_provider?: import("./types.js").RepositoryRemoteProvider;
@@ -542,7 +541,6 @@ export interface UpdateRepositoryInput {
   default_branch?: string;
   role?: string | null;
   enabled?: boolean;
-  access_mode?: import("./types.js").RepositoryAccessMode;
   location?: import("./types.js").RepositoryLocation;
   remote_type?: import("./types.js").RepositoryRemoteType | null;
   remote_provider?: import("./types.js").RepositoryRemoteProvider | null;

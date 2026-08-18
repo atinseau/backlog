@@ -136,11 +136,6 @@
   let cloneCheckout = $state(true);
   let newBranch = $state("main");
   let newRole = $state("");
-  // Default to read-write because that's what most users want when
-  // adding a repository they own. Switch to read-only for vendored
-  // dependencies / context-only repositories that the agent should be able
-  // to inspect but not edit.
-  let newAccessMode = $state<"read-write" | "read-only" | "no-access">("read-write");
   let creating = $state(false);
 
   async function load() {
@@ -168,7 +163,6 @@
       if (newId.trim()) input.id = newId.trim();
       if (newRole.trim()) input.role = newRole.trim();
       if (newBranch.trim()) input.default_branch = newBranch.trim();
-      input.access_mode = newAccessMode;
 
       if (createMode === "clone") {
         if (!newGitUrl.trim()) throw new Error(t("repos_view.error.git_url_required"));
@@ -197,7 +191,6 @@
       cloneCheckout = true;
       newBranch = "main";
       newRole = "";
-      newAccessMode = "read-write";
       showCreate = false;
       await load();
       onChanged?.();
@@ -211,17 +204,6 @@
   async function handleToggleEnabled(repo: Repository) {
     try {
       await updateRepository(repo.id, { enabled: !repo.enabled });
-      await load();
-      onChanged?.();
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  async function handleAccessModeChange(repo: Repository, mode: "read-write" | "read-only" | "no-access") {
-    if (mode === (repo.access_mode ?? "read-write")) return;
-    try {
-      await updateRepository(repo.id, { access_mode: mode });
       await load();
       onChanged?.();
     } catch (err) {
@@ -428,7 +410,6 @@
         {#each repos as repo (repo.id)}
           {@const hookStatus = hookStatusOf(repo.id)}
           {@const hookLabel = hookStatusLabel(hookStatus)}
-          {@const accessMode = repo.access_mode ?? "read-write"}
           {@const displayName = repositoryDisplayName(repo)}
           {@const identityHint = repositoryIdentityHint(repo)}
           {@const remoteProvider = repositoryRemoteProvider(repo)}
@@ -447,9 +428,6 @@
                   <span class="provider-badge provider-local">Local</span>
                 {/if}
                 {#if repo.role}<span class="role">{repo.role}</span>{/if}
-                <span class="access-pill access-{accessMode}" title={t(`repos_view.access_hint_${accessMode.replace("-", "_")}`)}>
-                  {t(`repos_view.access_${accessMode.replace("-", "_")}`)}
-                </span>
                 {#if !repo.enabled}<span class="off">disabled</span>{/if}
                 <span class="hook-badge hook-{hookLabel.tone}" title={hookStatus?.hook_path ?? ""}>
                   hook : {hookLabel.label}
@@ -502,15 +480,6 @@
               {/if}
             </div>
             <div class="actions">
-              <select
-                value={accessMode}
-                onchange={(e) => handleAccessModeChange(repo, (e.currentTarget as HTMLSelectElement).value as "read-write" | "read-only" | "no-access")}
-                title={t("repos_view.access_change_title")}
-              >
-                <option value="read-write">{t("repos_view.access_read_write")}</option>
-                <option value="read-only">{t("repos_view.access_read_only")}</option>
-                <option value="no-access">{t("repos_view.access_no_access")}</option>
-              </select>
               {#if canCreateCheckout(repo)}
                 <button onclick={() => handleCreateCheckout(repo)} disabled={checkingOutFor !== null}>
                   {checkingOutFor === repo.id ? t("repos_view.checkout.creating") : t("repos_view.checkout.create")}
@@ -607,15 +576,6 @@
 
           {#if createMode !== "remote-github"}
             <div class="row">
-              <label>
-                {t("repos_view.access_mode")}
-                <select bind:value={newAccessMode}>
-                  <option value="read-write">{t("repos_view.access_read_write")}</option>
-                  <option value="read-only">{t("repos_view.access_read_only")}</option>
-                  <option value="no-access">{t("repos_view.access_no_access")}</option>
-                </select>
-                <span class="hint">{t(`repos_view.access_hint_${newAccessMode.replace("-", "_")}`)}</span>
-              </label>
               <label>{t("repos_view.field.role")}<input bind:value={newRole} placeholder="api / web / firmware" /></label>
             </div>
           {/if}
@@ -996,26 +956,6 @@
     padding: 1px 6px;
     border-radius: 3px;
   }
-  .access-pill {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-  }
-  .access-read-write {
-    background: var(--success-bg);
-    color: var(--success);
-  }
-  .access-read-only {
-    background: var(--warning-bg);
-    color: var(--warning);
-  }
-  .access-no-access {
-    background: var(--bg-hover);
-    color: var(--text-muted);
-  }
   .path {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
@@ -1225,8 +1165,7 @@
     font-family: inherit;
     min-height: var(--tap-size);
   }
-  .create input:focus-visible,
-  .create select:focus-visible {
+  .create input:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
