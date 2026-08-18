@@ -1,5 +1,3 @@
-import type { SandboxMode } from "@backlog/schemas";
-
 // Pure construction of the `claude` invocation. Kept free of I/O so the flag
 // matrix is unit-testable without spawning anything.
 
@@ -13,7 +11,6 @@ export interface ClaudeCodeCommandInput {
   /** Free-form: forwarded verbatim so new effort levels need no code change. */
   reasoningEffort?: string | undefined;
   profile?: string | undefined;
-  sandboxMode?: SandboxMode | undefined;
   /** `stream-json` (default) drives the live activity banner; `json` is for one-shot completions. */
   outputFormat?: ClaudeCodeOutputFormat | undefined;
   /** Added on top of Claude Code's own instructions — for a coding run. */
@@ -46,26 +43,6 @@ export interface ProviderCommand {
   stdin: string;
 }
 
-// Repository access policy is enforced upstream by coercing the agent's
-// sandbox mode; here we translate it into the only lever the Claude Code
-// CLI exposes. `plan` is the read-only contract: the agent can inspect and
-// reason but cannot write. Anything else keeps the historical behaviour.
-function permissionModeFor(sandboxMode: SandboxMode | undefined): string {
-  return sandboxMode === "read-only" ? "plan" : "bypassPermissions";
-}
-
-/**
- * Whether a session under this sandbox mode can reach an MCP tool at all.
- *
- * Plan mode refuses MCP calls — a measured property of this CLI, and the same
- * one that makes the chat run under `bypassPermissions` (CLAUDE.md §3). So a
- * read-only run gets no Backlog façade however many servers we declare, and
- * anything that trades the CLI away for that façade has to ask first.
- */
-export function permitsMcpTools(sandboxMode: SandboxMode | undefined): boolean {
-  return permissionModeFor(sandboxMode) !== "plan";
-}
-
 function isBlank(value: string | undefined): value is undefined {
   return value === undefined || value.trim().length === 0;
 }
@@ -80,7 +57,11 @@ export function buildClaudeCodeCommand(input: ClaudeCodeCommandInput): ProviderC
     args.push("--verbose");
   }
 
-  args.push("--permission-mode", permissionModeFor(input.sandboxMode));
+  // One run shape: a run has a worktree, so it writes. There is no mode that
+  // does not. `plan` used to be the read-only contract and was never a lock —
+  // it is enforced by the model's system prompt, and its one hard effect was
+  // to refuse MCP calls, which cost a run the Backlog façade.
+  args.push("--permission-mode", "bypassPermissions");
 
   if (!isBlank(input.model)) {
     args.push("--model", input.model.trim());

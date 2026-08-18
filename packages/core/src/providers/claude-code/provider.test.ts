@@ -171,31 +171,10 @@ describe("buildRunCommand", () => {
     expect(denied).not.toContain("Bash");
   });
 
-  // The configuration that had no argv assertion at all, which is how an
-  // unconditional deny rule survived the fix that was supposed to reopen this
-  // run's channel. `read-only` maps to `--permission-mode plan`, plan mode
-  // refuses MCP calls, so this run gets no Backlog tool — and therefore has to
-  // keep the CLI, which means neither the deny rule nor the role may apply.
-  it("leaves a read-only run the CLI it cannot replace with tools", () => {
-    const command = buildRunCommand({
-      agent: agentFixture({ sandbox_mode: "read-only" }),
-      prompt: "read the code",
-      cwd: "/tmp/worktree",
-      backlogDir: "/tmp/project/.backlog",
-      env: {},
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
-
-    expect(command.args[command.args.indexOf("--permission-mode") + 1]).toBe("plan");
-    expect(command.args).not.toContain("--disallowedTools");
-    expect(command.args.join(" ")).not.toContain("Bash(backlog:*)");
-    expect(executionCliRole(agentFixture({ sandbox_mode: "read-only" }))).toBeNull();
-  });
-
-  // The pair to it: a run that can reach the façade pays for it.
-  it("closes the CLI to a run whose permission mode reaches the façade", () => {
-    const agent = agentFixture({ sandbox_mode: "workspace-write" });
+  // The CLI closure and the façade that replaces it are one trade, and there is
+  // no longer a condition that could hand out one half without the other.
+  it("closes the CLI on every run, because every run gets the façade", () => {
+    const agent = agentFixture();
     const command = buildRunCommand({
       agent,
       prompt: "do the work",
@@ -208,7 +187,8 @@ describe("buildRunCommand", () => {
 
     expect(command.args[command.args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
     expect(command.args[command.args.indexOf("--disallowedTools") + 1]).toBe("Bash(backlog:*)");
-    expect(executionCliRole(agent)).toBe("execution");
+    expect(command.args).toContain("--mcp-config");
+    expect(executionCliRole()).toBe("execution");
   });
 
   it("declares the run context on the MCP server rather than trusting inheritance", () => {
