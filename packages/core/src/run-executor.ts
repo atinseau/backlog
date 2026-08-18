@@ -9,7 +9,13 @@ import type { AgentProvider, ProviderRunResult } from "./providers/types.js";
 import { collectWorktreeArtifacts, successModeForAgent } from "./run-artifacts.js";
 import { buildProviderPrompt, buildRetryPrompt } from "./run-prompt.js";
 import { failRun, finalizeSuccessfulRun } from "./run-service.js";
-import { addRunArtifact, appendRunEvent, updateRunStatus, writeRunHandoff } from "./run-store.js";
+import {
+  activeRunDirectory,
+  addRunArtifact,
+  appendRunEvent,
+  updateRunStatus,
+  writeRunHandoff,
+} from "./run-store.js";
 import { listTraces } from "./trace-store.js";
 import { recordUsage } from "./usage.js";
 
@@ -114,7 +120,15 @@ async function collectArtifacts(params: ExecuteAgentRunParams): Promise<void> {
     kind: "log",
     value: LOG_FILE,
   });
-  for (const artifact of await collectWorktreeArtifacts(params.run.worktree_path)) {
+  // The patch is the only copy of work a failed run never committed, and a
+  // failed run is archived, which makes `garbageCollectWorktrees` force-remove
+  // its worktree. Writing the patch into the worktree would destroy it with the
+  // thing it documents, so it goes in the run's own directory instead — which
+  // the archive renames rather than deletes, taking the patch with it.
+  const artifacts = await collectWorktreeArtifacts(params.run.worktree_path, {
+    scratchDir: activeRunDirectory(params.backlogDir, params.run.id),
+  });
+  for (const artifact of artifacts) {
     addRunArtifact(params.backlogDir, params.run.id, artifact);
   }
 }

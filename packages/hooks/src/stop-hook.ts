@@ -1,5 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+
+/**
+ * The command that re-runs this CLI, as `selfExec()` in
+ * `packages/core/src/self-exec.ts` reports it: an executable plus the leading
+ * arguments it needs before a subcommand (empty in the compiled binary, the Bun
+ * entrypoint in a dev tree).
+ */
+export interface StopHookBinary {
+  command: string;
+  prefixArgs: readonly string[];
+}
+
+/** Single-quote a value for bash, closing and reopening around any quote of its own. */
+function shellQuote(value: string): string {
+  return `'${value.split("'").join(`'\\''`)}'`;
+}
 
 // Claude Code fires this when a session tries to end. Exiting 2 refuses the
 // stop and sends this script's stderr to the model as an instruction, so an
@@ -12,7 +29,9 @@ import path from "node:path";
 // guardrail that hangs an agent is worse than no guardrail, and blocking
 // forever is the only failure this script could cause that the finalizer
 // would not catch.
-function renderStopHook(projectRoot: string): string {
+function renderStopHook(binary: StopHookBinary): string {
+  const command = shellQuote(binary.command);
+  const prefixArgs = binary.prefixArgs.map(shellQuote).join(" ");
   return `#!/usr/bin/env bash
 set -uo pipefail
 
@@ -35,22 +54,23 @@ fi
 # generated pre-commit hook uses, and the reason that exemption exists.
 export BACKLOG_HOOK_INVOCATION=1
 
-# The same resolution order as the pre-commit shim, and for the same reason: a
-# \`backlog\` on PATH that predates \`trace check\` exits 1 on the unknown
-# subcommand, which this hook would read as "trace genuinely missing" and block
-# on. Preferring a built source tree keeps a dev run off that path.
-resolve_backlog() {
-  local workspace_bin="${projectRoot}/dist/backlog"
-  if [[ -n "\${BACKLOG_DEV_BIN:-}" && -x "$BACKLOG_DEV_BIN" ]]; then echo "$BACKLOG_DEV_BIN"; return 0; fi
-  if [[ -x "$workspace_bin" ]]; then echo "$workspace_bin"; return 0; fi
-  if command -v backlog >/dev/null 2>&1; then command -v backlog; return 0; fi
-  if [[ -x "$HOME/.local/bin/backlog" ]]; then echo "$HOME/.local/bin/backlog"; return 0; fi
-  return 1
-}
+# The exact binary that launched this run, baked in by the call site that
+# already knew it. Searching for one instead would be a guess, and the one guess
+# that goes wrong is a \`backlog\` on PATH predating \`trace check\`: it exits 1 on
+# the unknown subcommand, which this hook reads as "trace genuinely missing" and
+# blocks on.
+backlog_command=${command}
+backlog_prefix_args=(${prefixArgs})
 
-binary=$(resolve_backlog) || exit 0
+# Fail open if that binary is gone — moved, uninstalled, or a dev tree rebuilt
+# somewhere else. \`command -v\` covers a bare name resolved through PATH.
+if [[ ! -x "$backlog_command" ]] && ! command -v "$backlog_command" >/dev/null 2>&1; then
+  exit 0
+fi
 
-"$binary" trace check --project "$BACKLOG_PROJECT_DIR" --run "$BACKLOG_RUN_ID" --task "$BACKLOG_TASK_ID" >/dev/null 2>&1
+# bash 3.2 (still the macOS system bash) treats an empty array as unset under
+# \`set -u\`, so the expansion has to be guarded rather than written plainly.
+"$backlog_command" \${backlog_prefix_args[@]+"\${backlog_prefix_args[@]}"} trace check --project "$BACKLOG_PROJECT_DIR" --run "$BACKLOG_RUN_ID" --task "$BACKLOG_TASK_ID" >/dev/null 2>&1
 status=$?
 
 # Block only on the one answer we are sure about. Exit 1 means the check ran
@@ -64,11 +84,23 @@ exit 2
 `;
 }
 
-export function writeStopHook(backlogDir: string): string {
+/**
+ * Write the Stop hook script and return its path.
+ *
+ * The write goes through a sibling temp file and a rename, because a run
+ * writes this while another run's `claude` may be executing it — `max_agents`
+ * above 1 is the point of the orchestrator. A rename is atomic, so a concurrent
+ * reader sees one whole script or the other; truncating in place would let it
+ * read a half-written file, and a bash syntax error exits 2, the one code that
+ * blocks a stop.
+ */
+export function writeStopHook(backlogDir: string, binary: StopHookBinary): string {
   const binDir = path.join(backlogDir, "bin");
   fs.mkdirSync(binDir, { recursive: true });
   const hookPath = path.join(binDir, "stop-hook");
-  fs.writeFileSync(hookPath, renderStopHook(path.dirname(backlogDir)), "utf8");
-  fs.chmodSync(hookPath, 0o755);
+  const stagingPath = `${hookPath}.${randomUUID()}.tmp`;
+  fs.writeFileSync(stagingPath, renderStopHook(binary), "utf8");
+  fs.chmodSync(stagingPath, 0o755);
+  fs.renameSync(stagingPath, hookPath);
   return hookPath;
 }

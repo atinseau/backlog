@@ -8,6 +8,16 @@ import { parsePorcelainPaths } from "./git-status.js";
 // What a finished run leaves behind: the files it touched, the commit it sat
 // on, and a patch of its uncommitted work.
 
+const PATCH_FILE = ".backlog-run.patch";
+
+/**
+ * @param scratchDir where the patch file is written. Default: the worktree —
+ * which a terminal run's worktree GC force-removes, taking the patch with it,
+ * so a caller that wants the patch to outlive the run passes the run's own
+ * directory instead. The artifact's `value` stays the bare file name either
+ * way: the run directory is *renamed* when the run is archived, so an absolute
+ * path recorded here would be stale by the time anyone read it.
+ */
 export async function collectWorktreeArtifacts(
   worktreePath: string,
   options?: { scratchDir?: string },
@@ -27,9 +37,8 @@ export async function collectWorktreeArtifacts(
 
   const diff = await git(["diff", "--binary"]);
   if (diff.stdout.trim()) {
-    const patchPath = path.join(options?.scratchDir ?? worktreePath, ".backlog-run.patch");
-    fs.writeFileSync(patchPath, diff.stdout, "utf8");
-    artifacts.push({ kind: "patch", value: options?.scratchDir ? patchPath : ".backlog-run.patch" });
+    fs.writeFileSync(path.join(options?.scratchDir ?? worktreePath, PATCH_FILE), diff.stdout, "utf8");
+    artifacts.push({ kind: "patch", value: PATCH_FILE });
   }
 
   return artifacts;

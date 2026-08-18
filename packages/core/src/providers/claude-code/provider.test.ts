@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import type { Agent } from "@backlog/schemas";
 import { contextFor } from "../../contexts/contexts.js";
@@ -26,15 +23,25 @@ function providerWith(options: { installed?: boolean } = {}): ClaudeCodeProvider
   return new ClaudeCodeProvider({ executableExists: () => options.installed ?? true });
 }
 
-// buildRunCommand calls writeStopHook(backlogDir), which writes a real file
-// (mkdirSync/writeFileSync/chmodSync) as a side effect. A shared literal path
-// would leave state behind outside any sandbox, so each test gets its own
-// throwaway temp directory instead.
-function tempBacklogDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "backlog-provider-test-"));
-}
-
 const noSecrets = () => null;
+
+// buildRunCommand touches no filesystem, so these paths only ever have to be
+// distinguishable in an assertion — the Stop hook script is written by
+// executeRun and arrives here as a string.
+const BACKLOG_DIR = "/tmp/project/.backlog";
+const STOP_HOOK = "/tmp/project/.backlog/bin/stop-hook";
+
+function runRequestFixture(overrides: { agent?: Agent; env?: NodeJS.ProcessEnv } = {}) {
+  return {
+    agent: overrides.agent ?? agentFixture(),
+    prompt: "do the work",
+    cwd: "/tmp/worktree",
+    backlogDir: BACKLOG_DIR,
+    env: overrides.env ?? {},
+    getSecret: noSecrets,
+    onActivity: () => {},
+  };
+}
 
 describe("ClaudeCodeProvider.describe", () => {
   it("answers to the legacy `claude` provider id", () => {
@@ -134,16 +141,7 @@ describe("ClaudeCodeProvider.checkReadiness", () => {
 
 describe("buildRunCommand", () => {
   it("attaches the execution tool set to a coding run, and nothing else", () => {
-    const backlogDir = tempBacklogDir();
-    const command = buildRunCommand({
-      agent: agentFixture(),
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir,
-      env: {},
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+    const command = buildRunCommand(runRequestFixture(), STOP_HOOK);
 
     const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
       mcpServers: Record<string, { args: string[] }>;
@@ -154,7 +152,7 @@ describe("buildRunCommand", () => {
     // standing between a refactor and a privilege escalation.
     const args = config.mcpServers.backlog!.args;
     expect(args[args.indexOf("--audience") + 1]).toBe("execution");
-    expect(args.slice(-2)).toEqual(["--project", backlogDir]);
+    expect(args.slice(-2)).toEqual(["--project", BACKLOG_DIR]);
 
     const allowed = command.args[command.args.indexOf("--allowedTools") + 1]!.split(",");
     expect(allowed).toEqual([...contextFor("execution").mcpTools].map((name) => `mcp__backlog__${name}`));
@@ -168,15 +166,7 @@ describe("buildRunCommand", () => {
   // A coding run keeps every built-in tool — it is here to write code. The one
   // thing the table closes is the route back into Backlog's own CLI.
   it("closes the Backlog CLI to a coding run without taking its other tools", () => {
-    const command = buildRunCommand({
-      agent: agentFixture(),
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir: tempBacklogDir(),
-      env: {},
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+    const command = buildRunCommand(runRequestFixture(), STOP_HOOK);
 
     const denied = command.args[command.args.indexOf("--disallowedTools") + 1]!.split(",");
     expect(denied).toEqual(["Bash(backlog:*)"]);
@@ -186,16 +176,7 @@ describe("buildRunCommand", () => {
   // The CLI closure and the façade that replaces it are one trade, and there is
   // no longer a condition that could hand out one half without the other.
   it("closes the CLI on every run, because every run gets the façade", () => {
-    const agent = agentFixture();
-    const command = buildRunCommand({
-      agent,
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir: tempBacklogDir(),
-      env: {},
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+    const command = buildRunCommand(runRequestFixture(), STOP_HOOK);
 
     expect(command.args[command.args.indexOf("--permission-mode") + 1]).toBe("bypassPermissions");
     expect(command.args[command.args.indexOf("--disallowedTools") + 1]).toBe("Bash(backlog:*)");
@@ -204,15 +185,10 @@ describe("buildRunCommand", () => {
   });
 
   it("declares the run context on the MCP server rather than trusting inheritance", () => {
-    const command = buildRunCommand({
-      agent: agentFixture(),
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir: tempBacklogDir(),
-      env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_SUBTASK_ID: "subtask_1" },
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+    const command = buildRunCommand(
+      runRequestFixture({ env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_SUBTASK_ID: "subtask_1" } }),
+      STOP_HOOK,
+    );
 
     const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
       mcpServers: Record<string, { env: Record<string, string> }>;
@@ -225,15 +201,10 @@ describe("buildRunCommand", () => {
   });
 
   it("omits the subtask id on a task-level run instead of writing an empty or task-shaped one", () => {
-    const command = buildRunCommand({
-      agent: agentFixture(),
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir: tempBacklogDir(),
-      env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_TARGET_TYPE: "task" },
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+    const command = buildRunCommand(
+      runRequestFixture({ env: { BACKLOG_RUN_ID: "run_1", BACKLOG_TASK_ID: "task_1", BACKLOG_TARGET_TYPE: "task" } }),
+      STOP_HOOK,
+    );
 
     const config = JSON.parse(command.args[command.args.indexOf("--mcp-config") + 1]!) as {
       mcpServers: Record<string, { env: Record<string, string> }>;
@@ -241,18 +212,10 @@ describe("buildRunCommand", () => {
     expect(Object.keys(config.mcpServers.backlog?.env ?? {})).toEqual(["BACKLOG_RUN_ID", "BACKLOG_TASK_ID"]);
   });
 
-  it("attaches a Stop hook to every run", () => {
-    const command = buildRunCommand({
-      agent: agentFixture(),
-      prompt: "do the work",
-      cwd: "/tmp/worktree",
-      backlogDir: tempBacklogDir(),
-      env: {},
-      getSecret: noSecrets,
-      onActivity: () => {},
-    });
+  it("attaches the Stop hook it was handed to every run", () => {
+    const command = buildRunCommand(runRequestFixture(), STOP_HOOK);
 
     const settings = JSON.parse(command.args[command.args.indexOf("--settings") + 1] ?? "{}");
-    expect(settings.hooks?.Stop?.[0]?.hooks?.[0]?.command).toContain("stop-hook");
+    expect(settings.hooks?.Stop?.[0]?.hooks?.[0]?.command).toBe(STOP_HOOK);
   });
 });
