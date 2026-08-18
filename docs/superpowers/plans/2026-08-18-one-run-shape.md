@@ -1,6 +1,6 @@
 # One Run Shape Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Delete `sandbox_mode` and `access_mode` so a run has exactly one shape — a worktree, a diff, a trace — and a repository answers exactly one question, through the `enabled` flag that already exists.
 
@@ -40,7 +40,7 @@ things that no longer have a reader.
 - Consumes: nothing from earlier tasks.
 - Produces: `executionCliRole(): string | null` and `executionDeniedBuiltins(): readonly string[]` — both now **take no argument**. Task 2 relies on that signature change. `ClaudeCodeCommandInput` no longer has a `sandboxMode` property.
 
-- [ ] **Step 1: Rewrite the two permission-mode tests in `command.test.ts`**
+- [x] **Step 1: Rewrite the two permission-mode tests in `command.test.ts`**
 
 Replace the existing pair (the `bypassPermissions` default at line 24-28 and
 `downgrades to plan mode when the agent is sandboxed read-only` at line 30-34)
@@ -55,7 +55,7 @@ with this single test:
   });
 ```
 
-- [ ] **Step 2: Rewrite the two façade tests in `provider.test.ts`**
+- [x] **Step 2: Rewrite the two façade tests in `provider.test.ts`**
 
 Replace the pair at lines ~175-212 (`executionCliRole` returning null under
 `read-only`, and its `workspace-write` counterpart) with one test. Note
@@ -83,14 +83,14 @@ Replace the pair at lines ~175-212 (`executionCliRole` returning null under
   });
 ```
 
-- [ ] **Step 3: Run both test files to verify they fail**
+- [x] **Step 3: Run both test files to verify they fail**
 
 Run: `bun test ./packages/core/src/providers/claude-code`
 Expected: FAIL — `command.test.ts` still emits `plan` for no input reason yet
 compiles, and `provider.test.ts` fails to compile because `executionCliRole`
 still requires an argument.
 
-- [ ] **Step 4: Make `--permission-mode` constant in `command.ts`**
+- [x] **Step 4: Make `--permission-mode` constant in `command.ts`**
 
 Delete `permissionModeFor` and `permitsMcpTools` (lines 48-66) together with
 their comment block, delete the `sandboxMode?: SandboxMode | undefined;` field
@@ -105,7 +105,7 @@ import, then replace the emission at line 83:
   args.push("--permission-mode", "bypassPermissions");
 ```
 
-- [ ] **Step 5: Drop `facadeReachable` in `provider.ts`**
+- [x] **Step 5: Drop `facadeReachable` in `provider.ts`**
 
 Delete `facadeReachable` (lines 82-84) and the comment paragraph above it that
 explains the condition. Replace the two consumers with:
@@ -136,20 +136,20 @@ in `buildRunCommand` (line ~163) and `const role = executionCliRole();` (line
 ~333). Delete `sandboxMode: agent.sandbox_mode,` from the
 `buildClaudeCodeCommand` call (line ~140).
 
-- [ ] **Step 6: Drop the fallback clause in `run-prompt.ts`**
+- [x] **Step 6: Drop the fallback clause in `run-prompt.ts`**
 
 Every run now reaches `trace_write`, so the clause at line 54 describes a case
 that cannot occur. Delete that whole array entry. The preceding entry (`Before
 you finish, record a trace by calling the \`trace_write\` tool.`) already
 carries the contract.
 
-- [ ] **Step 7: Run the provider tests on their own**
+- [x] **Step 7: Run the provider tests on their own**
 
 Run: `bun test ./packages/core/src/providers`
 Expected: PASS. Run this directory alone, not only via the full suite — see
 Global Constraints.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/core/src/providers/claude-code/ packages/core/src/run-prompt.ts
@@ -176,7 +176,7 @@ git commit -m "refactor(core): one permission mode, one façade trade"
 - Consumes: Task 1's argument-free `executionCliRole()` / `executionDeniedBuiltins()`.
 - Produces: `Agent` (from `@backlog/schemas`) with no `sandbox_mode` property; `ProviderDescriptor` with no `sandboxModes` property. Tasks 3 and 4 consume both.
 
-- [ ] **Step 1: Delete the test that asserts the coercion**
+- [x] **Step 1: Delete the test that asserts the coercion**
 
 In `packages/core/src/run-executor.test.ts`, delete the whole
 `coerces the agent to read-only against a read-only repository` test (lines
@@ -184,19 +184,19 @@ In `packages/core/src/run-executor.test.ts`, delete the whole
 `access_mode: "read-only"`, which Task 6 removes. Leave the
 `refuses to run against a repository set to no-access` test alone — Task 6 owns it.
 
-- [ ] **Step 2: Run the file to verify it now fails to compile or passes short**
+- [x] **Step 2: Run the file to verify it now fails to compile or passes short**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts`
 Expected: PASS with one fewer test. If the fixture helper still declares a
 `sandbox_mode` parameter it stays compiling; that is cleaned in Step 6.
 
-- [ ] **Step 3: Remove the field from the schema**
+- [x] **Step 3: Remove the field from the schema**
 
 In `packages/schemas/src/agent.ts`, delete `sandboxModeSchema` and its comment
 (lines 16-19), the `sandbox_mode: sandboxModeSchema.optional(),` line in
 `agentSchema` (line 40), and the `export type SandboxMode = ...` line (line 59).
 
-- [ ] **Step 4: Remove it from the agent service**
+- [x] **Step 4: Remove it from the agent service**
 
 In `packages/core/src/agents.ts`: delete `sandbox_mode: "workspace-write",`
 from the default agent literal (line 60); delete `sandboxMode?: SandboxMode;`
@@ -205,7 +205,7 @@ from both the add input (line 134) and the update input (line 234); delete the
 add path (lines ~183-188) and the update path (line ~284); delete the now-unused
 `SandboxMode` import.
 
-- [ ] **Step 5: Remove the environment variable and the descriptor field**
+- [x] **Step 5: Remove the environment variable and the descriptor field**
 
 In `packages/core/src/run-executor.ts`, delete line 87
 (`...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),`).
@@ -216,7 +216,7 @@ In `packages/core/src/providers/types.ts`, delete `sandboxModes: SandboxMode[];`
 all three descriptors: `claude-code/provider.ts:192`, `custom/provider.ts:31`,
 `anthropic-api/provider.ts:87`.
 
-- [ ] **Step 6: Remove it from the generated project layout and the test fixtures**
+- [x] **Step 6: Remove it from the generated project layout and the test fixtures**
 
 In `packages/config/src/init-layout.ts`, delete the three
 `"    sandbox_mode: workspace-write",` lines (152, 163, 174).
@@ -230,12 +230,12 @@ grep -rn "sandbox_mode\|sandboxMode\|SandboxMode\|sandbox_modes" packages/ --inc
 Every hit outside `packages/board-ui` (Task 4 owns that) must be gone. Delete
 the fixture properties; do not replace them with anything.
 
-- [ ] **Step 7: Run core and config**
+- [x] **Step 7: Run core and config**
 
 Run: `bun test ./packages/core ./packages/config ./packages/schemas`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/schemas packages/core packages/config
@@ -255,13 +255,13 @@ git commit -m "refactor(core): drop sandbox_mode from the agent"
 - Consumes: Task 2's `Agent` without `sandbox_mode`, `ProviderDescriptor` without `sandboxModes`.
 - Produces: `GET /api/v1/agents` responses with no `sandbox_mode` key; `GET` provider descriptors with no `sandbox_modes` key. Task 4 consumes both.
 
-- [ ] **Step 1: Check whether a route test asserts the field**
+- [x] **Step 1: Check whether a route test asserts the field**
 
 Run: `grep -rn "sandbox" packages/server/src`
 Expected: hits only in `routes/agents.ts`. If a test asserts `sandbox_mode` in a
 response body, delete that assertion in this task rather than later.
 
-- [ ] **Step 2: Remove the CLI flags**
+- [x] **Step 2: Remove the CLI flags**
 
 In `packages/cli/src/commands/agent.ts`: delete `normalizeSandboxMode` (lines
 51-55); delete both `.option("--sandbox-mode <mode>", ...)` declarations (lines
@@ -270,7 +270,7 @@ In `packages/cli/src/commands/agent.ts`: delete `normalizeSandboxMode` (lines
 both spread lines that forward it (114, 251); delete the
 `console.log(\`Sandbox: ...\`)` line in `agents show` (line 171).
 
-- [ ] **Step 3: Remove the API surface**
+- [x] **Step 3: Remove the API surface**
 
 In `packages/server/src/routes/agents.ts`: delete `sandboxModeSchema` and its
 `project-write` compatibility comment (lines 18-22); delete `sandbox_mode` from
@@ -280,17 +280,17 @@ In `packages/server/src/routes/agents.ts`: delete `sandboxModeSchema` and its
 response (line 100); delete the `clearSandboxMode` / `sandboxMode` branch in
 `toUpdateInput` (lines 126-127); delete the spread in `toAddInput` (line 150).
 
-- [ ] **Step 4: Verify nothing in cli or server still mentions it**
+- [x] **Step 4: Verify nothing in cli or server still mentions it**
 
 Run: `grep -rn "sandbox" packages/cli/src packages/server/src`
 Expected: no output.
 
-- [ ] **Step 5: Run the two packages**
+- [x] **Step 5: Run the two packages**
 
 Run: `bun test ./packages/cli ./packages/server`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/cli packages/server
@@ -312,7 +312,7 @@ git commit -m "refactor(cli,server): drop the sandbox mode flag and field"
 - Consumes: Task 3's API responses without `sandbox_mode` / `sandbox_modes`.
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Remove the selector from `AgentsView.svelte`**
+- [x] **Step 1: Remove the selector from `AgentsView.svelte`**
 
 Delete the `sandboxOptions` array (lines ~110-116, four entries: `default`,
 `read-only`, `project-write`, `⚠ danger-full-access`), the handler that patches
@@ -320,7 +320,7 @@ the field (lines ~271-275), and the whole field block in the template that
 renders `agents_view.field_sandbox` with its `<select>` (lines ~438-446). Delete
 the `SandboxMode` import.
 
-- [ ] **Step 2: Remove the types and the API wrappers**
+- [x] **Step 2: Remove the types and the API wrappers**
 
 In `packages/board-ui/src/lib/types.ts`: delete `export type SandboxMode = ...`
 (line 124), `sandbox_modes: SandboxMode[];` (line 158) and
@@ -329,7 +329,7 @@ In `packages/board-ui/src/lib/types.ts`: delete `export type SandboxMode = ...`
 In `packages/board-ui/src/lib/api.ts`: delete the two inline `sandbox_mode`
 properties (lines 278 and 311).
 
-- [ ] **Step 3: Remove the strings from both locales**
+- [x] **Step 3: Remove the strings from both locales**
 
 Delete these keys from `en.json` **and** `fr.json`:
 
@@ -346,7 +346,7 @@ permissions.field.sandbox
 `permissions.field.sandbox` is defined in both files and referenced by no
 component — it goes with the rest under the no-dead-code rule.
 
-- [ ] **Step 4: Verify the locales stayed aligned and nothing still references the keys**
+- [x] **Step 4: Verify the locales stayed aligned and nothing still references the keys**
 
 ```bash
 bun -e 'const en=require("./packages/board-ui/src/lib/i18n/en.json"),fr=require("./packages/board-ui/src/lib/i18n/fr.json");const a=Object.keys(en),b=Object.keys(fr);console.log(a.length,b.length,a.filter(k=>!b.includes(k)),b.filter(k=>!a.includes(k)))'
@@ -355,12 +355,12 @@ grep -rn "sandbox" packages/board-ui/src
 
 Expected: two equal counts, two empty arrays, and no output from the grep.
 
-- [ ] **Step 5: Typecheck the board**
+- [x] **Step 5: Typecheck the board**
 
 Run: `bun run typecheck`
 Expected: PASS (this runs `tsc --noEmit` and `svelte-check`).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/board-ui
@@ -383,7 +383,7 @@ use is picking a default repository (`scheduler.ts:226`, `run-launcher.ts:99`).
 - Consumes: nothing from earlier tasks.
 - Produces: the skip reason string `"repository_disabled"`, replacing `"repo_no_access"`. Task 7 does not touch it; this task owns both sides.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to the describe block in `packages/core/src/scheduler.test.ts`:
 
@@ -411,13 +411,13 @@ Append to the describe block in `packages/core/src/scheduler.test.ts`:
   });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bun test ./packages/core/src/scheduler.test.ts -t "disabled repository"`
 Expected: FAIL — the reason array does not contain `repository_disabled`, and
 the task is in `runnable`.
 
-- [ ] **Step 3: Replace the gate in `scheduler.ts`**
+- [x] **Step 3: Replace the gate in `scheduler.ts`**
 
 At lines ~309-315, replace the `no-access` block and its comment with:
 
@@ -430,24 +430,24 @@ At lines ~309-315, replace the `no-access` block and its comment with:
       }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `bun test ./packages/core/src/scheduler.test.ts`
 Expected: PASS, all tests in the file.
 
-- [ ] **Step 5: Update the board's error mapping**
+- [x] **Step 5: Update the board's error mapping**
 
 In `packages/board-ui/src/lib/run-start-errors.ts:32`, replace
 `directReasons.includes("repo_no_access")` with
 `directReasons.includes("repository_disabled")`. The `repo_not_allowed` half of
 the condition and the `card.play_repo_blocked` string both stay.
 
-- [ ] **Step 6: Verify the old reason is gone everywhere**
+- [x] **Step 6: Verify the old reason is gone everywhere**
 
 Run: `grep -rn "repo_no_access" packages/`
 Expected: no output.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/core/src/scheduler.ts packages/core/src/scheduler.test.ts packages/board-ui/src/lib/run-start-errors.ts
@@ -469,25 +469,25 @@ git commit -m "feat(core): a disabled repository is off-limits for runs"
 - Consumes: Task 5's `repository_disabled` gate — the replacement must land first, or a `no-access` repository becomes runnable with nothing in its place.
 - Produces: `RepoConfig` (from `@backlog/schemas`) with no `access_mode` property. Task 7 consumes it.
 
-- [ ] **Step 1: Delete the test that asserts the refusal**
+- [x] **Step 1: Delete the test that asserts the refusal**
 
 In `packages/core/src/run-executor.test.ts`, delete the whole
 `refuses to run against a repository set to no-access` test (lines ~222-231).
 The behaviour it covers moved to the scheduler in Task 5, where
 `does not schedule against a disabled repository` now covers it.
 
-- [ ] **Step 2: Run the file to confirm the remaining tests still pass**
+- [x] **Step 2: Run the file to confirm the remaining tests still pass**
 
 Run: `bun test ./packages/core/src/run-executor.test.ts`
 Expected: PASS with one fewer test.
 
-- [ ] **Step 3: Remove the field from the schema**
+- [x] **Step 3: Remove the field from the schema**
 
 In `packages/schemas/src/config.ts`, delete `repoAccessModeSchema` with its
 whole comment block (lines 8-17) and the `access_mode: repoAccessModeSchema.optional(),`
 line with its three-line comment (line ~29).
 
-- [ ] **Step 4: Remove the policy from the executor and the service**
+- [x] **Step 4: Remove the policy from the executor and the service**
 
 In `packages/core/src/run-executor.ts`, delete `applyRepoAccessPolicy` entirely
 (the function at lines ~36-50 and its doc comment) and its call site. Delete the
@@ -499,7 +499,7 @@ In `packages/core/src/repo-service.ts`, delete
 `if (input.accessMode !== undefined) { repo.access_mode = input.accessMode; }`
 block (lines ~287-289), and `accessMode` from both input types.
 
-- [ ] **Step 5: Strip the fixtures**
+- [x] **Step 5: Strip the fixtures**
 
 Run: `grep -rln "access_mode\|accessMode" packages/core packages/server packages/cli`
 
@@ -507,12 +507,12 @@ Delete every `access_mode: "read-write",` property from repository fixtures in
 those files — about fifteen. They set the default explicitly and assert nothing.
 `packages/board-ui` is Task 7's.
 
-- [ ] **Step 6: Run the backend packages**
+- [x] **Step 6: Run the backend packages**
 
 Run: `bun test ./packages/core ./packages/server ./packages/cli ./packages/schemas`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/schemas packages/core packages/server packages/cli
@@ -536,13 +536,13 @@ git commit -m "refactor(core): drop access_mode from the repository"
 - Consumes: Task 6's `RepoConfig` without `access_mode`.
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Remove the API surface**
+- [x] **Step 1: Remove the API surface**
 
 In `packages/server/src/routes/repos.ts`: delete `accessModeSchema` (line 13);
 delete `access_mode` from `createBodySchema` (line 26) and `updateBodySchema`
 (line 44); delete the three forwarding lines (182, 206, 236).
 
-- [ ] **Step 2: Remove the board's access controls**
+- [x] **Step 2: Remove the board's access controls**
 
 In `packages/board-ui/src/lib/RepositoriesView.svelte`, delete:
 - the `newAccessMode` state variable and `input.access_mode = newAccessMode;` in the create path (line ~171)
@@ -556,7 +556,7 @@ In `packages/board-ui/src/lib/RepositoriesView.svelte`, delete:
 The `enabled` toggle, the `disabled` class on the `<li>` and the `off` badge all
 stay — that is now the only access control, and it must remain visible.
 
-- [ ] **Step 3: Simplify the runnable-repository predicate**
+- [x] **Step 3: Simplify the runnable-repository predicate**
 
 In `packages/board-ui/src/App.svelte`, delete the middle line of the predicate:
 
@@ -569,7 +569,7 @@ In `packages/board-ui/src/App.svelte`, delete the middle line of the predicate:
   );
 ```
 
-- [ ] **Step 4: Remove the types and the strings**
+- [x] **Step 4: Remove the types and the strings**
 
 In `packages/board-ui/src/lib/types.ts`: delete
 `export type RepositoryAccessMode = ...` (line 321) and `access_mode?: RepositoryAccessMode;`
@@ -589,7 +589,7 @@ repos_view.access_hint_read_only
 repos_view.access_hint_no_access
 ```
 
-- [ ] **Step 5: Verify nothing is left and the locales stayed aligned**
+- [x] **Step 5: Verify nothing is left and the locales stayed aligned**
 
 ```bash
 grep -rn "access_mode\|accessMode\|RepositoryAccessMode" packages/
@@ -600,12 +600,12 @@ Expected: no grep output (build artefacts under `packages/board-ui/dist/` may
 still match — they are regenerated, ignore them), two equal key counts, two
 empty arrays.
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 Run: `bun run typecheck`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/server packages/board-ui
@@ -624,7 +624,7 @@ git commit -m "refactor(server,board): drop the repository access mode"
 - Consumes: every earlier task.
 - Produces: nothing.
 
-- [ ] **Step 1: Correct CLAUDE.md §3**
+- [x] **Step 1: Correct CLAUDE.md §3**
 
 Three passages describe behaviour this plan removed. Rewrite each:
 
@@ -648,14 +648,14 @@ Three passages describe behaviour this plan removed. Rewrite each:
    removed its cause. Replace it with a short bullet noting that every run now
    reaches `trace_write`, and that failing a traceless run remains unwritten.
 
-- [ ] **Step 2: Mark the spec implemented**
+- [x] **Step 2: Mark the spec implemented**
 
 In `docs/superpowers/specs/2026-08-18-one-run-shape-design.md`, change line 3
 from `Status: **approved** · not started` to
 `Status: **approved** · implemented`. The previous branch shipped with a stale
 header; do not repeat it.
 
-- [ ] **Step 3: Run the full verification, in order**
+- [x] **Step 3: Run the full verification, in order**
 
 ```bash
 bun run typecheck
@@ -670,7 +670,7 @@ Expected: `typecheck` clean; `test` green with a total **below** the 785 baselin
 Do not report a number you did not read from the output. If the count differs
 from 782, find out which test moved before continuing.
 
-- [ ] **Step 4: Probe the compiled binary**
+- [x] **Step 4: Probe the compiled binary**
 
 Unit tests assert the flag matrix; this asserts the binary behaves.
 
@@ -683,14 +683,14 @@ grep -rn "permission-mode" packages/core/src/providers/claude-code/command.ts
 Expected: the first prints one line with `bypassPermissions` and no `plan`; the
 second and third print nothing.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md docs/superpowers/specs/2026-08-18-one-run-shape-design.md
 git commit -m "docs: one run shape, and no mode that says otherwise"
 ```
 
-- [ ] **Step 6: Open the PR and merge it**
+- [x] **Step 6: Open the PR and merge it**
 
 The PR body carries the one behaviour that does not survive the deletion. Spec
 §6: a repository the user had set to `no-access` becomes runnable again unless
@@ -743,8 +743,8 @@ git checkout main && git pull
 in another worktree; the remote merge still succeeds. Check `origin/main` before
 assuming failure.
 
-- [ ] **Step 7: Tick this plan's checkboxes**
+- [x] **Step 7: Tick this plan's checkboxes**
 
-Fifty-odd `- [ ]` in this file. The previous branch left all fifty-five of its
+Fifty-odd `- [x]` in this file. The previous branch left all fifty-five of its
 own unticked and had to say so in a handoff. Tick them as you go, not at the
 end.
