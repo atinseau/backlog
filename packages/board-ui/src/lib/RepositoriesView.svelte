@@ -489,7 +489,7 @@
               <button onclick={() => handleRelocate(repo)}>
                 {t("repos_view.relocate")}
               </button>
-              <button onclick={() => handleToggleEnabled(repo)}>
+              <button onclick={() => handleToggleEnabled(repo)} title={t("repos_view.toggle.hint")}>
                 {repo.enabled ? t("repos_view.toggle.disabled") : t("repos_view.toggle.enabled")}
               </button>
               <button class="remove" onclick={() => handleRemove(repo)}>{t("repos_view.button.remove")}</button>

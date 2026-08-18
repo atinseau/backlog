@@ -153,8 +153,10 @@ file is written. No migration step, no version bump.
 One case deserves a line in the release note rather than code: a user who had
 set a repository to `no-access` will find it runnable again unless they also
 untick `enabled`. It is the only setting whose meaning is not preserved, and it
-fails **open**. `doctor` reports nothing about it; the board's repository list
-is where a user would see it.
+fails **open**. Nothing in the product can surface it either: `access_mode` is
+stripped by Zod on read, so by the time `doctor` or the board's repository list
+renders, the key is gone and the row looks entirely normal. The release note is
+the only mitigation.
 
 ## 7. What is explicitly not changed
 

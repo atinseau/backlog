@@ -677,6 +677,7 @@
   "repos_view.button.cloning": "clonage…",
   "repos_view.toggle.enabled": "Activer",
   "repos_view.toggle.disabled": "Désactiver",
+  "repos_view.toggle.hint": "Un dépôt désactivé est interdit aux runs : une tâche qui le cible est bloquée à la planification et ne démarre jamais.",
   "repos_view.error.git_url_required": "URL Git requise",
   "repos_view.error.path_required": "Chemin local requis",
   "repos_view.error.branch_required": "Branche par défaut requise",

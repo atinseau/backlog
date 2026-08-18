@@ -40,6 +40,14 @@ describe("buildProviderPrompt", () => {
     expect(prompt).toContain("open_question");
   });
 
+  it("names the CLI as the fallback for a runtime that has no `trace_write` tool", () => {
+    const prompt = buildProviderPrompt(target, workItem);
+    // The `custom` runtime attaches no MCP server, so the command line is the
+    // only channel out of such a run. One prompt serves every runtime, so the
+    // fallback has to be named in it.
+    expect(prompt).toContain("backlog trace write");
+  });
+
   it("does not advertise the CLI as a channel", () => {
     const prompt = buildProviderPrompt(target, workItem);
     expect(prompt).not.toContain("on your PATH");

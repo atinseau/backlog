@@ -677,6 +677,7 @@
   "repos_view.button.cloning": "Cloning…",
   "repos_view.toggle.enabled": "Enable",
   "repos_view.toggle.disabled": "Disable",
+  "repos_view.toggle.hint": "A disabled repository is off-limits for runs: a task scoped to it is blocked at planning time and never starts.",
   "repos_view.error.git_url_required": "A Git URL is required",
   "repos_view.error.path_required": "A local path is required",
   "repos_view.error.branch_required": "A default branch is required",

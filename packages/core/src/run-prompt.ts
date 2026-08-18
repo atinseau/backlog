@@ -27,12 +27,13 @@ const INSTRUCTIONS = [
 // others would drop this section entirely (spec §9).
 //
 // The `backlog` binary is described as refusing *when it refuses*, not as
-// absent. The CLI is closed exactly where the MCP façade replaces it — the
-// runtime attaches the server and the permission mode lets the model call it
-// (`executionCliRole`, providers/claude-code/provider.ts). A run that gets no
-// façade keeps the CLI, and telling it otherwise would leave it with nothing.
-// The wording stays runtime-agnostic: the agent can see which of its two
-// channels exists, and this section does not have to guess for it.
+// absent. The discriminant is the runtime: one that attaches Backlog's MCP
+// server closes the CLI to the agent it launches (`executionCliRole`,
+// providers/claude-code/provider.ts), and one that attaches no server leaves
+// the command line as that agent's only channel. Telling every run the CLI is
+// closed would leave the second kind with nothing. The wording stays
+// runtime-agnostic: the agent can see which of its two channels exists, and
+// this section does not have to guess for it.
 const BACKLOG_CONTEXT = [
   "Backlog context:",
   "- Your environment carries BACKLOG_TASK_ID, BACKLOG_RUN_ID, BACKLOG_REPO, BACKLOG_BRANCH and BACKLOG_WORKTREE, plus BACKLOG_SUBTASK_ID when this run is scoped to a subtask.",
@@ -51,6 +52,7 @@ const BACKLOG_CONTEXT = [
 const TRACE_CONTRACT = [
   "Recording your work (required):",
   "- Before you finish, record a trace by calling the `trace_write` tool.",
+  "- If `trace_write` is not in your tool list, run `backlog trace write` instead — a runtime that attaches no Backlog MCP server keeps the command line, and the trace is required either way.",
   '- The payload is {"outcome": "implemented" | "rejected" | "blocked", "summary": "..."}.',
   "- `rejected` also requires `rejection_reason`. `blocked` also requires `open_question` — that is how you ask a human for help, and it is the only way. There is no channel to another agent.",
   "- Add `constraints` for anything a later run would otherwise rediscover: `{statement, evidence, confidence}`. `evidence` is a path:line, a test name, or a command's output — no evidence, no entry. `confidence` is `verified` (you executed something that proved it) or `observed` (you read code and interpreted it); there is no default, always name one.",

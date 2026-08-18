@@ -266,7 +266,8 @@ other — closing the CLI while leaving the agent no channel to replace it is th
 failure this shape rules out. `run-executor.ts` stamps nothing and actively
 clears an inherited role: it is runtime-agnostic and cannot know whether
 anything replaced the CLI, and a `custom` run — which attaches no server at
-all — must keep the command line as its only channel. Two exemptions from the refusal, neither a convenience:
+all — must keep the command line as its only channel. Two exemptions from the
+refusal, neither a convenience:
 
 - **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
   so the server a run spawns starts under the same role as the agent it serves.
