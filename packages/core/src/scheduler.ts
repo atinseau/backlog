@@ -306,12 +306,11 @@ export function buildExecutionPlan(
     if (!repo) {
       reasons.push("unknown_repo");
     } else {
-      // no-access repos are off-limits for runs — even if an agent
-      // could otherwise run the task, the planner refuses to schedule
-      // it. read-only is fine here; the executor is what refuses a
-      // no-access repository at run time.
-      if (repo.access_mode === "no-access") {
-        reasons.push("repo_no_access");
+      // A repository answers one question: may agents be sent there. A
+      // disabled repository is off-limits for runs — even if an agent could
+      // otherwise take the task, the planner refuses to schedule it.
+      if (repo.enabled === false) {
+        reasons.push("repository_disabled");
       }
       const checkoutPath = repoCheckoutPath(repo);
       if (!checkoutPath && !isGitRemoteRepository(repo)) {

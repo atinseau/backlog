@@ -221,4 +221,26 @@ describe("buildExecutionPlan", () => {
     const plan = buildExecutionPlan(backlogDir, config);
     expect(plan.blocked.find((decision) => decision.taskId === task.id)?.reasons).toContain("no_compatible_agent");
   });
+
+  it("does not schedule against a disabled repository", () => {
+    const root = createWorkspace();
+    const backlogDir = path.join(root, ".backlog");
+    writeExecutableAgent(backlogDir);
+
+    const work = createTask(backlogDir, { title: "Off-limits", repoTargets: [path.basename(root)] });
+    const task = createSubTask(backlogDir, {
+      workItemId: work.id,
+      title: "Should not run",
+      repo: path.basename(root),
+      scopes: ["README.md"],
+      risk: "low",
+    });
+
+    const config = loadConfig(backlogDir);
+    config.repos[0]!.enabled = false;
+
+    const plan = buildExecutionPlan(backlogDir, config);
+    expect(plan.blocked.find((decision) => decision.taskId === task.id)?.reasons).toContain("repository_disabled");
+    expect(plan.runnable.find((decision) => decision.taskId === task.id)).toBeUndefined();
+  });
 });
