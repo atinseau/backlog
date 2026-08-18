@@ -65,9 +65,12 @@ Project ──┬── Repository (a git checkout the project tracks)
 - **Project** — a Backlog workspace. Either `in_repo` (`<repo>/.backlog/`) or
   `user_level` (`~/.backlog/<slug>/`, for multi-repo projects). Registered in
   `~/.backlog/projects.json`.
-- **Repository** — a git checkout the project tracks, with an `access_mode`
-  (`read-write` / `read-only` / `no-access`). This policy lives with the
-  resource and **overrides** the agent's own `sandbox_mode`.
+- **Repository** — a git checkout the project tracks, carrying one policy flag:
+  `enabled`. Enabled means agents may be sent there; disabled means the
+  scheduler does not target it and skips the subtask with
+  `repository_disabled`. That is the only question a repository answers — what
+  a run may do to a checkout is settled by the worktree it runs in, not by a
+  setting on the resource.
 - **Task** — high-level intent. Statuses: `proposed → backlog → ready →
   in_progress → review → test → released → done`, plus `blocked`. Priorities
   `P0`–`P3`. `proposed` is agent-invented work: written only by the system when
@@ -89,9 +92,10 @@ Project ──┬── Repository (a git checkout the project tracks)
   `shared`, with a heartbeat and an expiry. This is what stops two agents from
   editing the same file. Enforced at commit time by the git pre-commit hook.
 - **Agent** — a configured executor: provider (`claude` / `anthropic-api` /
-  `custom`), model, sandbox mode, concurrency, allowed repos, allowed risk
-  levels, capabilities, and a `retry_policy` (`none` or `feedback`, which
-  re-prompts with the previous attempt's failure).
+  `custom`), model, concurrency, allowed repos, allowed risk levels,
+  capabilities, and a `retry_policy` (`none` or `feedback`, which re-prompts
+  with the previous attempt's failure). Everything on it selects *which* agent
+  takes a subtask; none of it describes what the agent may then do.
 - **Orchestrator** — the dispatcher loop. Modes `idle / running / paused /
   stopping`, with `max_agents`, a tick interval, and idle backoff. It builds
   an execution plan (`scheduler.ts`), starts runs (`run-launcher.ts`), reaps
@@ -252,21 +256,17 @@ itself, which is the runaway cycle `proposed` exists to close.
 **The CLI is closed exactly where the façade replaces it.** A coding run's
 environment carries `BACKLOG_AGENT_ROLE=execution`, and the CLI entrypoint
 refuses every command under it — `backlog task move <id> done` included —
-pointing the agent at the MCP server instead. The closure is not a property of
-being a run: it is one half of a trade, and **both halves move together**. A run
-that gets the façade gets `BACKLOG_AGENT_ROLE=execution` *and*
-`--disallowedTools Bash(backlog:*)`; a run that cannot reach the façade gets
-neither. `facadeReachable` in `providers/claude-code/provider.ts` is the single
-predicate, and `executionCliRole` / `executionDeniedBuiltins` are its two
-consumers. Claude Code attaches `--mcp-config`, so it closes; a `read-only`
-agent gets `--permission-mode plan`, plan mode refuses MCP calls, so it does
-not. Gating only the role was a bug caught in review — the deny rule fires under
-`plan` exactly as it does under `bypassPermissions`, so it merely changed which
-component refused the run, and left it with no channel at all.
-`run-executor.ts` stamps nothing and actively clears an inherited role: it is
-runtime-agnostic and cannot know whether anything replaced the CLI, and a
-`custom` run — which attaches no server at all — must keep the command line as
-its only channel. Two exemptions from the refusal, neither a convenience:
+pointing the agent at the MCP server instead. The closure is one half of a
+trade, and **both halves are unconditional**: a Claude Code run gets the façade,
+`BACKLOG_AGENT_ROLE=execution` *and* `--disallowedTools Bash(backlog:*)`,
+always and together. `executionCliRole` and `executionDeniedBuiltins` in
+`providers/claude-code/provider.ts` return the context table's values directly,
+so there is no predicate between them that could let one half move without the
+other — closing the CLI while leaving the agent no channel to replace it is the
+failure this shape rules out. `run-executor.ts` stamps nothing and actively
+clears an inherited role: it is runtime-agnostic and cannot know whether
+anything replaced the CLI, and a `custom` run — which attaches no server at
+all — must keep the command line as its only channel. Two exemptions from the refusal, neither a convenience:
 
 - **`mcp-server`.** `claude` hands a stdio MCP server the parent environment,
   so the server a run spawns starts under the same role as the agent it serves.
@@ -496,7 +496,7 @@ scope, not scope creep.
   `"Aucun checkout local"`, `throw new Error("Chemin local requis")`). Route
   every visible string through `t()`.
 - **One 660 KB JS chunk**, no code splitting. Vite warns on every build.
-- **Zero UI tests.** All 785 tests are backend; `svelte-check` is the only
+- **Zero UI tests.** All 780 tests are backend; `svelte-check` is the only
   guard on 29k lines of UI.
 
 **Tooling depth**
@@ -505,30 +505,25 @@ scope, not scope creep.
   subagents have no representation in the provider contract. MCP does — a
   coding run is spawned with `--mcp-config` and Backlog's own five-tool
   `execution` set — but the emitted flags (`command.ts`) are chiefly `--model`,
-  `--effort`, `--permission-mode`, `--append-system-prompt` / `--system-prompt`,
-  `--mcp-config` / `--strict-mcp-config`, `--allowedTools` /
-  `--disallowedTools`, `--json-schema`, `--settings` and `--resume`. Session
+  `--effort`, `--append-system-prompt` / `--system-prompt`, `--mcp-config` /
+  `--strict-mcp-config`, `--allowedTools` / `--disallowedTools`,
+  `--json-schema`, `--settings` and `--resume`. Session
   resumption is the chat's, not a run's: `--resume` is emitted only from
   `server/src/lib/chat/`, and nothing in the run pipeline supplies a session id.
 - **Runs have no memory.** Each one is a fresh `claude -p`; nothing carries
   across attempts except a 4 KB tail of the previous failure's event summaries
   (and only when `retry_policy.mode = feedback`, which is off by default).
   A subtask learns nothing from the subtask it `depends_on`.
-- Permission modes are coarse: `read-only` maps to `plan`, everything else to
-  `bypassPermissions`. The per-tool story is one entry deep —
+- There is one permission mode: every run is spawned with
+  `--permission-mode bypassPermissions`, and the isolation is the worktree.
+  The per-tool story on top of it is one entry deep —
   `deniedBuiltins: ["Bash(backlog:*)"]` scopes one built-in to one command
-  pattern — and there is no per-path story at all. Because plan mode refuses
-  MCP calls, a `read-only` agent reaches no Backlog tool, so it keeps the CLI
-  and is asked to record its trace with `backlog trace write`.
-- **A `read-only` run's trace is best-effort, and that is the weakest link in
-  the trace contract.** Plan mode does not *block* a mutating `Bash` call —
-  probed on `claude` 2.1.234, the command runs and `permission_denials` stays
-  empty — but the model usually declines one on its own reading of plan mode.
-  Measured with the real run prompt: 2 traces recorded in 10 runs. Nothing
-  detects the miss, so such a run finishes `succeeded` with no outcome
-  recorded. Failing a run that produced no trace is the obvious fix and is not
-  written yet; it needs care, because a legitimately blocked run has nothing to
-  say either.
+  pattern — and there is no per-path story at all.
+- **Every run reaches `trace_write`.** The façade is attached to every Claude
+  Code run, so recording an outcome is one tool call away and the trace
+  contract has a single reliable channel. The other half is still unwritten:
+  nothing fails a run that finished without a trace. That needs care, because
+  a legitimately blocked run has nothing to say either.
 - Going through the CLI costs context: a one-shot completion still pays
   ~25k cache-creation tokens for Claude Code's own system prompt, even with
   `--system-prompt` replacing ours. `--bare` would cut it but forces API-key

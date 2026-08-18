@@ -1,6 +1,6 @@
 # One run shape — design
 
-Status: **approved** · not started
+Status: **approved** · implemented
 
 ## 1. The problem
 
