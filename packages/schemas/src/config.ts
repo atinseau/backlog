@@ -8,8 +8,7 @@ export const repoProviderSchema = z.enum(["local", "github", "gitlab", "bitbucke
 // What an agent run is allowed to do against this repo.
 //   read-write — full access (default; matches existing behaviour)
 //   read-only  — agent can read files, run shell, inspect git, but can't
-//                edit or commit. The launcher coerces sandbox_mode to
-//                "read-only" regardless of the agent's own setting.
+//                edit or commit.
 //   no-access  — repo is hidden from the orchestrator; effectively
 //                equivalent to enabled=false but lets you keep the
 //                repo registered (e.g. for browsing) without exposing

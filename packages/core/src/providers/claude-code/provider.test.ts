@@ -124,7 +124,7 @@ describe("ClaudeCodeProvider.checkReadiness", () => {
 describe("buildRunCommand", () => {
   it("attaches the execution tool set to a coding run, and nothing else", () => {
     const command = buildRunCommand({
-      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
       backlogDir: "/tmp/project/.backlog",
@@ -157,7 +157,7 @@ describe("buildRunCommand", () => {
   // thing the table closes is the route back into Backlog's own CLI.
   it("closes the Backlog CLI to a coding run without taking its other tools", () => {
     const command = buildRunCommand({
-      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
       backlogDir: "/tmp/project/.backlog",
@@ -193,7 +193,7 @@ describe("buildRunCommand", () => {
 
   it("declares the run context on the MCP server rather than trusting inheritance", () => {
     const command = buildRunCommand({
-      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
       backlogDir: "/tmp/project/.backlog",
@@ -214,7 +214,7 @@ describe("buildRunCommand", () => {
 
   it("omits the subtask id on a task-level run instead of writing an empty or task-shaped one", () => {
     const command = buildRunCommand({
-      agent: agentFixture({ sandbox_mode: "workspace-write" }),
+      agent: agentFixture(),
       prompt: "do the work",
       cwd: "/tmp/worktree",
       backlogDir: "/tmp/project/.backlog",

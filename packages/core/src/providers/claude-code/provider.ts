@@ -157,7 +157,6 @@ export class ClaudeCodeProvider implements AgentProvider {
       models: CLAUDE_CODE_MODELS,
       reasoning: CLAUDE_CODE_REASONING,
       authModes: ["auto", "subscription", "api_key"],
-      sandboxModes: ["read-only", "workspace-write", "danger-full-access"],
       capabilities: { executeRun: true, textCompletion: true, structuredOutput: true },
       requiresCommand: false,
     };

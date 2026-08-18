@@ -34,17 +34,13 @@ export interface ExecuteAgentRunParams {
 }
 
 /**
- * Repository access policy beats the agent's own sandbox setting: the policy
- * belongs to the resource being touched, not to the runner. A read-only
- * repository coerces the agent; a no-access one refuses the run outright.
+ * Repository access policy belongs to the resource being touched, not to the
+ * runner: a no-access repository refuses the run outright.
  */
 function applyRepoAccessPolicy(params: ExecuteAgentRunParams): ExecuteAgentRunParams {
   const accessMode = getRepo(params.backlogDir, params.task.repo)?.access_mode ?? "read-write";
   if (accessMode === "no-access") {
     throw new Error(`Repository ${params.task.repo} is set to no-access; runs are not allowed.`);
-  }
-  if (accessMode === "read-only") {
-    return { ...params, agent: { ...params.agent, sandbox_mode: "read-only" } };
   }
   return params;
 }
@@ -84,7 +80,6 @@ function environmentFor(params: ExecuteAgentRunParams): NodeJS.ProcessEnv {
     BACKLOG_REPO: run.repo,
     BACKLOG_BRANCH: run.branch,
     BACKLOG_WORKTREE: run.worktree_path,
-    ...(agent.sandbox_mode ? { BACKLOG_SANDBOX_MODE: agent.sandbox_mode } : {}),
   };
   // Two inherited values have to be removed rather than merely not written,
   // because `...process.env` is spread in above.

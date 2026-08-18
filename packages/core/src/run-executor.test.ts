@@ -229,21 +229,6 @@ describe("executeAgentRun", () => {
     await expect(executeAgentRun({ ...f, run: f.run })).rejects.toThrow(/no-access/);
   });
 
-  it("coerces the agent to read-only against a read-only repository", async () => {
-    const captured = path.join(os.tmpdir(), `backlog-sandbox-${Date.now()}.txt`);
-    const f = fixture(`printf '%s' "$BACKLOG_SANDBOX_MODE" > ${JSON.stringify(captured)}`, {
-      sandbox_mode: "workspace-write",
-    });
-    const { loadConfig, saveConfig } = await import("@backlog/config");
-    const config = loadConfig(f.backlogDir);
-    config.repos[0]!.access_mode = "read-only";
-    saveConfig(f.backlogDir, config);
-
-    await executeAgentRun({ ...f, run: f.run });
-
-    expect(fs.readFileSync(captured, "utf8")).toBe("read-only");
-  });
-
   it("points every command the agent runs at the real project, not the worktree's shadow copy", async () => {
     // An in_repo worktree contains its own tracked .backlog/config.toml, so
     // findProject() would resolve to it and the agent would read and write a

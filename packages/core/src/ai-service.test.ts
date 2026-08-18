@@ -38,7 +38,6 @@ function recordingProvider(
       models: [],
       reasoning: { supported: false, levels: [], allowsCustom: false },
       authModes: ["auto"],
-      sandboxModes: [],
       capabilities: { executeRun: false, textCompletion: true, structuredOutput: true },
       requiresCommand: false,
     }),

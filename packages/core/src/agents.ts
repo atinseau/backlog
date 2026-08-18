@@ -7,7 +7,6 @@ import {
   type Agent,
   type AgentAuthMode,
   type AgentsFile,
-  type SandboxMode,
   type SubTask,
 } from "@backlog/schemas";
 import { isAgentBusyStatus, listActiveRuns } from "./run-store.js";
@@ -57,7 +56,6 @@ function defaultClaudeVariant(id: string, model: string, allowedRisk: Array<"low
     allowed_repos: [],
     allowed_risk: allowedRisk,
     capabilities: ["plan", "edit_code", "run_tests", "review", "shell", "git_read", "git_write"],
-    sandbox_mode: "workspace-write",
     environment: {},
     retry_policy: { mode: "none", max_attempts: 2, reuse_worktree: true },
   };
@@ -131,8 +129,6 @@ export interface UpdateAgentInput {
   clearProfile?: boolean;
   command?: string;
   clearCommand?: boolean;
-  sandboxMode?: SandboxMode;
-  clearSandboxMode?: boolean;
   authMode?: AgentAuthMode;
   clearAuthMode?: boolean;
   successMode?: "review" | "complete";
@@ -180,12 +176,6 @@ export function updateAgent(backlogDir: string, id: string, input: UpdateAgentIn
   if (input.clearCommand) {
     delete agent.command;
   }
-  if (input.sandboxMode !== undefined) {
-    agent.sandbox_mode = input.sandboxMode;
-  }
-  if (input.clearSandboxMode) {
-    delete agent.sandbox_mode;
-  }
   if (input.authMode !== undefined) {
     agent.auth_mode = input.authMode;
   }
@@ -231,7 +221,6 @@ export interface AddAgentInput {
   model?: string;
   profile?: string;
   command?: string;
-  sandboxMode?: SandboxMode;
   authMode?: AgentAuthMode;
   successMode?: "review" | "complete";
   enabled?: boolean;
@@ -281,7 +270,6 @@ export function addAgent(backlogDir: string, input: AddAgentInput): Agent {
   if (input.model !== undefined) agent.model = input.model;
   if (input.profile !== undefined) agent.profile = input.profile;
   if (input.command !== undefined) agent.command = input.command;
-  if (input.sandboxMode !== undefined) agent.sandbox_mode = input.sandboxMode;
   if (input.authMode !== undefined) agent.auth_mode = input.authMode;
   if (input.successMode !== undefined) agent.success_mode = input.successMode;
   file.agents.push(agent);

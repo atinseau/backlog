@@ -84,7 +84,6 @@ export class AnthropicApiProvider implements AgentProvider {
       models: ANTHROPIC_API_MODELS,
       reasoning: { supported: false, levels: [], allowsCustom: false },
       authModes: ["api_key"],
-      sandboxModes: [],
       capabilities: { executeRun: false, textCompletion: true, structuredOutput: true },
       requiresCommand: false,
     };
